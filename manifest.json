@@ -1,0 +1,11 @@
+{
+    "entry": "index.js",
+    "name": "NLCE",
+    "type": "lse-nodejs",
+    "author": "LCH0426",
+    "dependencies": [
+        {
+            "name": "legacy-script-engine-nodejs"
+        }
+    ]
+}

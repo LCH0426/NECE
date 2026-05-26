@@ -1,0 +1,7 @@
+﻿node_modules/
+WEB/
+logs/
+data/
+docs/
+package-lock.json
+teleport.js
