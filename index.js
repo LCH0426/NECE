@@ -101,6 +101,22 @@ let tpsData = {
 
 var commonDeps = null;
 
+// Debug 模式
+var _debugMode = false;
+function debugLog() {
+    if (!_debugMode) return;
+    var args = ['§7[DEBUG]'];
+    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    logger.info.apply(logger, args);
+}
+function debugWarn() {
+    if (!_debugMode) return;
+    var args = ['§e[DEBUG]'];
+    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    logger.warn.apply(logger, args);
+}
+function isDebug() { return _debugMode; }
+
 const _saveTimers = {};
 const _saveFns = {};
 var _saveTimerSeq = 0;
@@ -179,6 +195,7 @@ DataManager.prototype.load = function() {
 			this.data = JSON.parse(JSON.stringify(this.defaultData));
 			logger.error('SQL加载失败[' + this.sqlPrefix + ']：' + e.message);
 		}
+		debugLog('DataManager.load: SQL [' + this.sqlPrefix + '] 条目=' + Object.keys(this.data || {}).length);
 		return this.data;
 	}
 	// JSON 模式
@@ -207,7 +224,7 @@ DataManager.prototype.save = function(immediate) {
 	// SQL 模式
 	if (this.useSQL) {
 		var doSQLSave = function() {
-			try {
+			debugLog('DataManager.save: SQL模式 [' + self.sqlPrefix + ']');			try {
 				switch (self.sqlPrefix) {
 					case 'settings':
 						for (var xuid in self.data) {
@@ -279,7 +296,7 @@ DataManager.prototype.save = function(immediate) {
 	}
 	// JSON 模式
 	var doSave = function() {
-		try {
+		debugLog('DataManager.save: JSON模式 [' + self.path + ']');		try {
 			U.ensureDir(self.path);
 			fs.writeFileSync(self.path, JSON.stringify(self.data, null, self.pretty ? 2 : 0), 'utf-8');
 		} catch (e) {
@@ -412,6 +429,8 @@ JsonConfigFileAdapter.prototype._save = function() {
 function initRankConfig() {
 	try {
 		config = new JsonConfigFileAdapter(CONFIG_PATH);
+		config.init("debug", false);
+		_debugMode = config.get("debug", false);
 		config.init("currencyName", "星茜");
 		config.init("enableRank", true);
 		config.init("enableShop", true);
@@ -484,8 +503,10 @@ function initPlayerData() {
 		var sqlNextUid = database.getNextUidSQL();
 		playerData = { nextUid: sqlNextUid, players: sqlPlayers };
 		logger.info('[NLCE] 玩家核心数据已从SQL加载 (' + Object.keys(sqlPlayers).length + ' 个玩家)');
+		debugLog('initPlayerData: SQL模式, nextUid=' + sqlNextUid + ', 玩家数=' + Object.keys(sqlPlayers).length);
 	} else {
 		playerData = playerDataDM.load();
+		debugLog('initPlayerData: JSON模式, 玩家数=' + Object.keys(playerData.players || {}).length);
 	}
 	if (!playerData.players) playerData.players = {};
 	if (!playerData.nextUid) playerData.nextUid = 10000;
@@ -752,7 +773,9 @@ function withdrawFixed(player, depositId) { return commonDeps.bankModule.withdra
 async function initAllConfigs() {
 	initLevelExpTable();
 	initRankConfig();
-	// 初始化玩家数据库(SQL)
+		database.setDebugMode(_debugMode);
+		debugLog("initAllConfigs: Debug模式已" + (_debugMode ? "开启" : "关闭"));
+		// 初始化玩家数据库(SQL)
 	try {
 		await database.initPlayerDatabase();
 		logger.info('[NLCE] 玩家数据库(SQL)初始化完成');
@@ -771,6 +794,7 @@ async function initAllConfigs() {
 	spawnEggShopConfig = spawnEggShopDM.load();
 	initDeathPointData();
 	friendModule.init(friendDM, messageDM, {
+	debugLog('friendModule.init: 好友模块初始化, playerData.players 条目=' + Object.keys(playerData.players || {}).length);
 		playerData: playerData.players,
 		getPlayerInfoByXuid: getPlayerInfoByXuid,
 		getPlayerAvatarUrl: getPlayerAvatarUrl,
@@ -778,6 +802,7 @@ async function initAllConfigs() {
 		showPersonalCenterForm: showPersonalCenterForm
 	});
 	banModule.init(banDM, {
+	debugLog('banModule.init: 封禁模块初始化完成');
 		playerData: playerData.players
 	});
 	mailModule.init(mailDM, {
@@ -988,7 +1013,7 @@ function getAllPlayersSorted() {
 // 4. 事件监听
 mc.listen("onJoin", (player) => {
 	const playerXUID = player.xuid;
-	const playerName = player.name;
+	debugLog('onJoin: 玩家加入 ' + playerName + ' (XUID: ' + playerXUID + '), playerData.players 条目数=' + Object.keys(playerData.players || {}).length + ', 已存在=' + (!!playerData.players[playerXUID]));	const playerName = player.name;
 	const playerUUID = player.uuid;
 
 	if (!playerData.players[playerXUID]) {
@@ -1003,10 +1028,12 @@ mc.listen("onJoin", (player) => {
 			platform: (function() { try { var d = player.getDevice(); return d && d.os ? d.os : ''; } catch(e) { return ''; } })()
 		};
 		playerData.nextUid = nextUid + 1;
+		debugLog('onJoin: 新玩家 ' + playerName + ' (XUID: ' + playerXUID + ') 分配UID: ' + nextUid);
 		player.tell(`§a注册成功！您的UID：${nextUid}`, 1);
 		logger.info(`新玩家 ${playerName}（XUID: ${playerXUID}）分配UID: ${nextUid}`);
 	} else {
 		playerData.players[playerXUID].name = playerName;
+		debugLog('onJoin: 老玩家 ' + playerName + ' (XUID: ' + playerXUID + ') UID: ' + playerData.players[playerXUID].uid);
 		try {
 			var dev = player.getDevice();
 			if (dev && dev.ip) playerData.players[playerXUID].lastIp = dev.ip;
@@ -3278,6 +3305,16 @@ function registerWebCommands() {
 	} catch (error) {
 		logger.error('/backup 控制台命令注册出错！错误：' + error);
 	}
+	try {
+		mc.regConsoleCmd('debug', '切换Debug模式', function(args) {
+			_debugMode = !_debugMode;
+			database.setDebugMode(_debugMode);
+			logger.info('Debug模式已' + (_debugMode ? '开启' : '关闭'));
+		});
+	} catch (error) {
+		logger.error('/debug 控制台命令注册出错！错误：' + error);
+	}
+
 
 	try {
 		var backupCmd = mc.newCommand('backup', '手动执行世界备份', PermType.GameMasters);

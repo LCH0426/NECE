@@ -1,4 +1,5 @@
 {
+    "debug": false,
     "currencyName": "星茜",
     "enableRank": true,
     "enableShop": true,

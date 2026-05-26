@@ -29,6 +29,15 @@ const HASH_LENGTH = 64;
 let db = null;
 let playerDb = null;
 let playerDbReady = false;
+let _debug = false;
+
+function setDebugMode(enabled) { _debug = !!enabled; }
+function dbDebugLog() {
+    if (!_debug) return;
+    var args = ['[DB]'];
+    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    console.log(args.join(' '));
+}
 
 function ensureDir(filePath) {
     var dir = pathModule.dirname(filePath);
@@ -293,14 +302,14 @@ async function initPlayerDatabase() {
     if (fs.existsSync(PLAYER_DB_PATH)) {
         const buffer = fs.readFileSync(PLAYER_DB_PATH);
         playerDb = new SQL.Database(buffer);
-    } else {
+        dbDebugLog('initPlayerDatabase: 加载现有数据库, 大小=' + buffer.length + ' bytes');    } else {
         playerDb = new SQL.Database();
-    }
+        dbDebugLog('initPlayerDatabase: 创建新数据库');    }
     playerDb.run("PRAGMA journal_mode=WAL");
     playerDb.run("PRAGMA synchronous=NORMAL");
     playerDb.run("PRAGMA cache_size=-64000");
     playerDbReady = true;
-    savePlayerDatabase();
+    dbDebugLog('initPlayerDatabase: 数据库就绪');    savePlayerDatabase();
     return playerDb;
 }
 
@@ -312,7 +321,7 @@ function savePlayerDatabase() {
     if (!playerDb) return;
     try {
         const data = playerDb.export();
-        const buffer = Buffer.from(data);
+        dbDebugLog('savePlayerDatabase: 导出并保存数据库');        const buffer = Buffer.from(data);
         ensureDir(PLAYER_DB_PATH);
         fs.writeFileSync(PLAYER_DB_PATH, buffer);
     } catch (e) {
@@ -351,7 +360,7 @@ function setPlayerDataSQL(xuid, data) {
     if (!playerDb) return;
     playerDb.run(
         `INSERT OR REPLACE INTO player_data
-         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count)
+    dbDebugLog('setPlayerDataSQL: 保存玩家数据 xuid=' + xuid);         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [xuid, data.uid, data.name, data.uuid, data.registerTime,
          String(data.leavetime || ''), data.healthBonus || 0, data.rw,
@@ -363,7 +372,7 @@ function setPlayerDataSQL(xuid, data) {
 
 function getAllPlayerDataSQL() {
     if (!playerDb) return {};
-    var result = playerDb.exec(
+    dbDebugLog('getAllPlayerDataSQL: 查询所有玩家数据');    var result = playerDb.exec(
         'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count FROM player_data'
     );
     var players = {};
@@ -741,5 +750,7 @@ module.exports = {
     sqlGetAll,
     sqlSet,
     sqlDelete,
-    sqlEnsureTable
+    sqlEnsureTable,
+    // Debug
+    setDebugMode
 };
