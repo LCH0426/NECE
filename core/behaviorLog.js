@@ -125,7 +125,7 @@ function drainBuffer() {
         var content = batch.join('\n') + '\n';
         fs.writeSync(_activeFd, content);
     } catch (e) {
-        console.error('[ActionLog] 写入失败:', e.message);
+        console.error('写入失败:', e.message);
     }
 }
 

@@ -54,10 +54,10 @@ function log(adminUid, action, target, detail) {
 
         var file = getLogFile();
         fs.appendFile(file, line, 'utf-8', function(e) {
-            if (e) console.error('[AdminLog] 写入日志失败:', e.message);
+            if (e) console.error('写入日志失败:', e.message);
         });
     } catch (e) {
-        console.error('[AdminLog] 写入日志失败:', e.message);
+        console.error('写入日志失败:', e.message);
     }
 }
 

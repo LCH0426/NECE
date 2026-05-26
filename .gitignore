@@ -3,5 +3,6 @@ WEB/
 logs/
 data/
 docs/
+scripts/
 package-lock.json
 teleport.js

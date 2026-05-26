@@ -143,8 +143,45 @@ function DataManager(path, defaultData, options) {
 	this.pretty = options.pretty !== false;
 	this.saveDelay = options.saveDelay || 5000;
 	this.saveKey = path;
+	this.sqlPrefix = options.sqlPrefix || null;
+	this.useSQL = false;
+	this._dirtyKeys = {};
 }
 DataManager.prototype.load = function() {
+	// SQL 模式
+	if (this.sqlPrefix && database.isPlayerDbReady()) {
+		this.useSQL = true;
+		try {
+			switch (this.sqlPrefix) {
+				case 'settings':
+					this.data = database.getAllPlayerSettingsSQL();
+					break;
+				case 'deathPoints':
+					this.data = { players: database.getAllDeathPointsSQL() };
+					break;
+				case 'friends':
+					this.data = { players: database.getAllFriendsSQL() };
+					break;
+				case 'messages':
+					this.data = { players: database.getAllMessagesSQL() };
+					break;
+				case 'homes':
+					this.data = database.getAllHomesSQL();
+					break;
+				default:
+					database.sqlEnsureTable(this.sqlPrefix);
+					this.data = database.sqlGetAll(this.sqlPrefix);
+			}
+			if (!this.data || Object.keys(this.data).length === 0) {
+				this.data = JSON.parse(JSON.stringify(this.defaultData));
+			}
+		} catch (e) {
+			this.data = JSON.parse(JSON.stringify(this.defaultData));
+			logger.error('SQL加载失败[' + this.sqlPrefix + ']：' + e.message);
+		}
+		return this.data;
+	}
+	// JSON 模式
 	try {
 		if (!fs.existsSync(this.path)) {
 			U.ensureDir(this.path);
@@ -167,6 +204,80 @@ DataManager.prototype.load = function() {
 };
 DataManager.prototype.save = function(immediate) {
 	var self = this;
+	// SQL 模式
+	if (this.useSQL) {
+		var doSQLSave = function() {
+			try {
+				switch (self.sqlPrefix) {
+					case 'settings':
+						for (var xuid in self.data) {
+							if (!self.data.hasOwnProperty(xuid)) continue;
+							var s = self.data[xuid];
+							for (var k in s) {
+								if (s.hasOwnProperty(k)) database.setPlayerSettingSQL(xuid, k, s[k]);
+							}
+						}
+						break;
+					case 'deathPoints':
+						var dpPlayers = self.data.players || self.data;
+						for (var xuid in dpPlayers) {
+							if (!dpPlayers.hasOwnProperty(xuid)) continue;
+							database.setDeathPointsSQL(xuid, dpPlayers[xuid]);
+						}
+						break;
+					case 'friends':
+						var frPlayers = self.data.players || self.data;
+						for (var xuid in frPlayers) {
+							if (!frPlayers.hasOwnProperty(xuid)) continue;
+							var fd = frPlayers[xuid];
+							(fd.friends || []).forEach(function(f) {
+								database.addFriendSQL(xuid, f.xuid, f.name, f.addTime);
+							});
+							database.clearFriendRequestsSQL(xuid);
+							(fd.requests || []).forEach(function(r) {
+								database.addFriendRequestSQL(xuid, r.xuid, r.name, r.message, r.time, false);
+							});
+							(fd.sentRequests || []).forEach(function(r) {
+								database.addFriendRequestSQL(xuid, r.xuid, r.name, r.message, r.time, true);
+							});
+						}
+						break;
+					case 'messages':
+						var msgPlayers = self.data.players || self.data;
+						for (var xuid in msgPlayers) {
+							if (!msgPlayers.hasOwnProperty(xuid)) continue;
+							database.clearMessagesSQL(xuid);
+							var msgs = msgPlayers[xuid].messages || [];
+							msgs.forEach(function(m) {
+								database.addMessageSQL(xuid, m);
+							});
+						}
+						break;
+					case 'homes':
+						for (var xuid in self.data) {
+							if (!self.data.hasOwnProperty(xuid)) continue;
+							database.setHomesSQL(xuid, self.data[xuid]);
+						}
+						break;
+					default:
+						for (var key in self.data) {
+							if (!self.data.hasOwnProperty(key)) continue;
+							database.sqlSet(self.sqlPrefix, key, self.data[key]);
+						}
+				}
+			} catch (e) {
+				logger.error('SQL保存失败[' + self.sqlPrefix + ']：' + e.message);
+			}
+		};
+		if (immediate) {
+			doSQLSave();
+			database.savePlayerDatabase();
+		} else {
+			debouncedSave(this.saveKey, doSQLSave, this.saveDelay);
+		}
+		return;
+	}
+	// JSON 模式
 	var doSave = function() {
 		try {
 			U.ensureDir(self.path);
@@ -367,17 +478,48 @@ const IPV4_MESSAGE = C.IPV4_MESSAGE;
 const IPV6_MESSAGE = C.IPV6_MESSAGE;
 
 function initPlayerData() {
-	playerData = playerDataDM.load();
+	if (database.isPlayerDbReady()) {
+		// SQL 模式：从数据库加载玩家核心数据
+		var sqlPlayers = database.getAllPlayerDataSQL();
+		var sqlNextUid = database.getNextUidSQL();
+		playerData = { nextUid: sqlNextUid, players: sqlPlayers };
+		logger.info('[NLCE] 玩家核心数据已从SQL加载 (' + Object.keys(sqlPlayers).length + ' 个玩家)');
+	} else {
+		playerData = playerDataDM.load();
+	}
 	if (!playerData.players) playerData.players = {};
 	if (!playerData.nextUid) playerData.nextUid = 10000;
 }
 
 function savePlayerData() {
-	playerDataDM.save();
+	if (database.isPlayerDbReady()) {
+		// SQL 模式：批量保存玩家核心数据
+		var ops = [];
+		for (var xuid in playerData.players) {
+			if (!playerData.players.hasOwnProperty(xuid)) continue;
+			(function(xuid, data) {
+				ops.push(function() { database.setPlayerDataSQL(xuid, data); });
+			})(xuid, playerData.players[xuid]);
+		}
+		database.batchSavePlayerDb(ops);
+	} else {
+		playerDataDM.save();
+	}
 }
 
 function savePlayerDataNow() {
-	playerDataDM.save(true);
+	if (database.isPlayerDbReady()) {
+		var ops = [];
+		for (var xuid in playerData.players) {
+			if (!playerData.players.hasOwnProperty(xuid)) continue;
+			(function(xuid, data) {
+				ops.push(function() { database.setPlayerDataSQL(xuid, data); });
+			})(xuid, playerData.players[xuid]);
+		}
+		database.batchSavePlayerDb(ops);
+	} else {
+		playerDataDM.save(true);
+	}
 }
 
 function initPlayerSettings() {
@@ -453,14 +595,14 @@ var playerDataDM = registerDataManager('playerData', PLAYER_DATA_PATH, {
 var wishDM = registerDataManager('wish', WISH_DATA_PATH, {
 	players: {}
 });
-var deathPointDM = registerDataManager('deathPoint', DEATH_POINT_DATA_PATH, {
-	players: {}
+var deathPointDM = registerDataManager('deathPoint', DEATH_POINT_DATA_PATH, {}, {
+	sqlPrefix: 'deathPoints'
 });
-var friendDM = registerDataManager('friend', FRIEND_DATA_PATH, {
-	players: {}
+var friendDM = registerDataManager('friend', FRIEND_DATA_PATH, {}, {
+	sqlPrefix: 'friends'
 });
-var messageDM = registerDataManager('message', MESSAGE_DATA_PATH, {
-	players: {}
+var messageDM = registerDataManager('message', MESSAGE_DATA_PATH, {}, {
+	sqlPrefix: 'messages'
 });
 var banDM = registerDataManager('ban', BAN_DATA_PATH, {
 	entries: {}
@@ -477,12 +619,15 @@ var quickMenuConfigDM = registerDataManager('quickMenuConfig', QUICK_MENU_CONFIG
 	items: []
 });
 var playerSettingsDM = registerDataManager('playerSettings', PLAYER_SETTINGS_PATH, {}, {
-	pretty: false
+	pretty: false,
+	sqlPrefix: 'settings'
 });
 var narConfigDM = registerDataManager('narConfig', NAR_CONFIG_PATH, {
 	npc_actions: {}
 });
-var homesDM = registerDataManager('homes', HOMES_DATA_PATH, {});
+var homesDM = registerDataManager('homes', HOMES_DATA_PATH, {}, {
+	sqlPrefix: 'homes'
+});
 var warpsDM = registerDataManager('warps', WARPS_DATA_PATH, {});
 
 var DEFAULT_ENCHANT_BOOK_CONFIG = C.DEFAULT_ENCHANT_BOOK_CONFIG;
@@ -604,9 +749,16 @@ function performCurrentOperation(player, amount) { return commonDeps.bankModule.
 function depositFixed(player, amount, days) { return commonDeps.bankModule.depositFixed(player, amount, days); }
 function withdrawFixed(player, depositId) { return commonDeps.bankModule.withdrawFixed(player, depositId); }
 
-function initAllConfigs() {
+async function initAllConfigs() {
 	initLevelExpTable();
 	initRankConfig();
+	// 初始化玩家数据库(SQL)
+	try {
+		await database.initPlayerDatabase();
+		logger.info('[NLCE] 玩家数据库(SQL)初始化完成');
+	} catch (e) {
+		logger.error('[NLCE] 玩家数据库初始化失败，使用JSON模式: ' + e.message);
+	}
 	initPlayerData();
 	initPlayerSettings();
 	initShopData();
@@ -1857,8 +2009,8 @@ mc.listen("onTick", () => {
 	}
 });
 
-mc.listen("onServerStarted", () => {
-	initAllConfigs();
+mc.listen("onServerStarted", async () => {
+	await initAllConfigs();
 	registerAllCommands();
 	banModule.registerConsoleCommands();
 	banModule.registerGameCommands();
@@ -1871,6 +2023,18 @@ mc.listen("onServerStarted", () => {
 	chatLog.init();
 
 	setInterval(function() { mailModule.checkScheduledMails(); }, 30000);
+
+	// 定期保存玩家数据库（性能优化：减少频繁磁盘写入）
+	if (database.isPlayerDbReady()) {
+		setInterval(function() {
+			try {
+				database.savePlayerDatabase();
+			} catch (e) {
+				logger.error('[NLCE] 定期保存玩家数据库失败: ' + e.message);
+			}
+		}, 60000);
+		logger.info('[NLCE] 已启用玩家数据库定期保存（60秒间隔）');
+	}
 
 	var mem = process.memoryUsage();
 	logger.info('[NLCE] 内存使用 - 堆已用: ' + (mem.heapUsed / 1024 / 1024).toFixed(2) + 'MB, 堆总量: ' + (mem.heapTotal / 1024 / 1024).toFixed(2) + 'MB, RSS: ' + (mem.rss / 1024 / 1024).toFixed(2) + 'MB');
@@ -3203,13 +3367,12 @@ if (typeof ll !== 'undefined' && ll.onUnload) {
 	});
 }
 
-colorLog("yellow",    " _   _   _         _____   ______ ",
-colorLog("yellow",    "| \\ | | | |       / ____| |  ____|",
-colorLog("yellow",    "|  \\| | | |      | |      | |__   ",
-colorLog("yellow",    "| . ` | | |      | |      |  __|  ",
-colorLog("yellow",    "| |\\  | | |____  | |____  | |____ ",
-colorLog("yellow",    "|_| \\_| |______|  \\_____| |______|"
-);
+colorLog("yellow",    " _   _   _         _____   ______ ");
+colorLog("yellow",    "| \\ | | | |       / ____| |  ____|");
+colorLog("yellow",    "|  \\| | | |      | |      | |__   ");
+colorLog("yellow",    "| . ` | | |      | |      |  __|  ");
+colorLog("yellow",    "| |\\  | | |____  | |____  | |____ ");
+colorLog("yellow",    "|_| \\_| |______|  \\_____| |______|");
 
 logger.info("");
 logger.info(`       NLCE 1.9.9 (${DESIGNATION_NAME})`);

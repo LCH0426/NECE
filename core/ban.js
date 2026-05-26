@@ -40,6 +40,7 @@ function saveData() {
 function resolvePlayer(identifier) {
     var result = null;
     var playerData = _deps.playerData || {};
+    var players = playerData.players || playerData;
 
     var onlinePlayer = mc.getPlayer(identifier);
     if (onlinePlayer) {
@@ -52,9 +53,9 @@ function resolvePlayer(identifier) {
         };
     }
 
-    for (var xuid in playerData) {
-        if (!playerData.hasOwnProperty(xuid)) continue;
-        var info = playerData[xuid];
+    for (var xuid in players) {
+        if (!players.hasOwnProperty(xuid)) continue;
+        var info = players[xuid];
         if (info.name && info.name.toLowerCase() === identifier.toLowerCase()) {
             result = {
                 xuid: xuid,
@@ -341,18 +342,17 @@ function registerGameCommands() {
         banCmd.overload(['target', 'reason']);
         banCmd.setCallback(function(_cmd, origin, output, results) {
             var player = origin.player;
-            if (!player) {
-                output.error('此命令仅游戏内可用');
-                return;
-            }
             var identifier = String(results.target || '').trim();
             var reason = String(results.reason || '管理员封禁').trim();
             if (!identifier) {
-                player.tell('§c用法: /ban <玩家ID/UID/XUID> [原因]');
+                if (player) player.tell('§c用法: /ban <玩家ID/UID/XUID> [原因]');
+                else logger.info('用法: ban <玩家ID/UID/XUID> [原因]');
                 return;
             }
-            var result = banPlayer(identifier, reason, player.name);
-            player.tell(result.success ? '§a' + result.message : '§c' + result.message);
+            var operator = player ? player.name : '控制台';
+            var result = banPlayer(identifier, reason, operator);
+            if (player) player.tell(result.success ? '§a' + result.message : '§c' + result.message);
+            else logger.info(result.message);
         });
         banCmd.setup();
     } catch (error) {
@@ -365,17 +365,15 @@ function registerGameCommands() {
         unbanCmd.overload(['target']);
         unbanCmd.setCallback(function(_cmd, origin, output, results) {
             var player = origin.player;
-            if (!player) {
-                output.error('此命令仅游戏内可用');
-                return;
-            }
             var identifier = String(results.target || '').trim();
             if (!identifier) {
-                player.tell('§c用法: /unban <玩家ID/UID/XUID>');
+                if (player) player.tell('§c用法: /unban <玩家ID/UID/XUID>');
+                else logger.info('用法: unban <玩家ID/UID/XUID>');
                 return;
             }
             var result = unbanPlayer(identifier);
-            player.tell(result.success ? '§a' + result.message : '§c' + result.message);
+            if (player) player.tell(result.success ? '§a' + result.message : '§c' + result.message);
+            else logger.info(result.message);
         });
         unbanCmd.setup();
     } catch (error) {
@@ -387,11 +385,19 @@ function registerGameCommands() {
         banlistCmd.overload([]);
         banlistCmd.setCallback(function(_cmd, origin, output, results) {
             var player = origin.player;
-            if (!player) {
-                output.error('此命令仅游戏内可用');
-                return;
+            if (player) {
+                showBanListForm(player);
+            } else {
+                var list = getBanList();
+                if (list.length === 0) {
+                    logger.info('当前没有封禁的玩家');
+                } else {
+                    logger.info('封禁列表 (' + list.length + ' 人)：');
+                    list.forEach(function(entry) {
+                        logger.info('  ' + entry.name + ' | XUID: ' + entry.xuid + ' | 原因: ' + entry.reason);
+                    });
+                }
             }
-            showBanListForm(player);
         });
         banlistCmd.setup();
     } catch (error) {

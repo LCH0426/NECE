@@ -101,20 +101,20 @@ function waitForSaveHold(callback, maxRetries, retryInterval) {
                 if (result.success && (
                     output.indexOf('Files are now ready to be copied') !== -1 ||
                     output.indexOf('Data saved') !== -1)) {
-                    logger.info('[备份] save query 确认文件已准备好 (第' + retries + '次查询)');
+                    logger.info('save query 确认文件已准备好 (第' + retries + '次查询)');
                     callback(true);
                     return;
                 }
                 if (retries <= 3 || retries % 5 === 0) {
-                    logger.info('[备份] save query 第' + retries + '次查询, success=' + result.success + ', output=' + (output.substring(0, 200) || '(空)'));
+                    logger.info('save query 第' + retries + '次查询, success=' + result.success + ', output=' + (output.substring(0, 200) || '(空)'));
                 }
             }
         } catch (e) {
-            logger.error('[备份] save query 异常: ' + e.message);
+            logger.error('save query 异常: ' + e.message);
         }
 
         if (retries >= maxRetries) {
-            logger.error('[备份] save query 超时 (' + maxRetries + '次查询)，无法确认文件是否准备好');
+            logger.error('save query 超时 (' + maxRetries + '次查询)，无法确认文件是否准备好');
             callback(false);
             return;
         }
@@ -141,17 +141,17 @@ function executeBackup(callback) {
         try {
             var holdResult = mc.runcmdEx('save hold');
             if (holdResult && holdResult.output) {
-                logger.info('[备份] save hold 输出: ' + holdResult.output.trim());
+                logger.info('save hold 输出: ' + holdResult.output.trim());
             }
         } catch (e) {
-            logger.error('[备份] save hold 执行失败: ' + e.message);
+            logger.error('save hold 执行失败: ' + e.message);
         }
 
         waitForSaveHold(function(holdSuccess) {
             if (!holdSuccess) {
                 try {
                     var resumeResult = mc.runcmdEx('save resume');
-                    logger.info('[备份] save resume (hold失败) 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
+                    logger.info('save resume (hold失败) 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
                 } catch (e) {}
                 isBackingUp = false;
                 callback({ error: 'save hold 超时，无法锁定世界存档' });
@@ -183,7 +183,7 @@ function executeBackup(callback) {
                     return;
                 }
 
-                logger.info('[备份] 开始复制世界文件到临时目录...');
+                logger.info('开始复制世界文件到临时目录...');
                 var copyErrors = [];
                 worldNames.forEach(function(worldName) {
                     var worldPath = pathModule.resolve(process.cwd(), 'worlds', worldName);
@@ -197,20 +197,20 @@ function executeBackup(callback) {
 
                 try {
                     var resumeResult = mc.runcmdEx('save resume');
-                    logger.info('[备份] save resume 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
+                    logger.info('save resume 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
                 } catch (e) {
-                    logger.error('[备份] save resume 执行失败: ' + e.message);
+                    logger.error('save resume 执行失败: ' + e.message);
                 }
 
                 if (copyErrors.length > 0) {
-                    logger.error('[备份] 复制世界文件时出错: ' + JSON.stringify(copyErrors));
+                    logger.error('复制世界文件时出错: ' + JSON.stringify(copyErrors));
                 }
 
                 onlinePlayers.forEach(function(p) {
                     try { p.sendToast('地图快照已完成，正在后台压缩', '§6压缩中'); } catch (e) {}
                 });
 
-                logger.info('[备份] 世界文件复制完成，save resume 已执行，开始后台压缩...');
+                logger.info('世界文件复制完成，save resume 已执行，开始后台压缩...');
 
                 var results = [];
                 var completed = 0;
@@ -237,7 +237,7 @@ function executeBackup(callback) {
                             try {
                                 U.rmrf(tempDir);
                             } catch (e) {
-                                logger.error('[备份] 清理临时目录失败: ' + e.message);
+                                logger.error('清理临时目录失败: ' + e.message);
                             }
 
                             var elapsed = Date.now() - startTime;
@@ -260,9 +260,9 @@ function executeBackup(callback) {
 
                             try {
                                 if (failCount === 0) {
-                                    logger.info('§a[备份] 备份完成！耗时 ' + elapsedSec + ' 秒，总大小 ' + formatFileSize(totalBackupSize) + '，成功 ' + successCount + '/' + total);
+                                    logger.info('备份完成！耗时 ' + elapsedSec + ' 秒，总大小 ' + formatFileSize(totalBackupSize) + '，成功 ' + successCount + '/' + total);
                                 } else {
-                                    logger.info('§e[备份] 备份完成！耗时 ' + elapsedSec + ' 秒，成功 ' + successCount + '/' + total + '，失败 ' + failCount + '/' + total);
+                                    logger.info('备份完成！耗时 ' + elapsedSec + ' 秒，成功 ' + successCount + '/' + total + '，失败 ' + failCount + '/' + total);
                                 }
                                 results.forEach(function(r) {
                                     if (r.success) {
@@ -282,7 +282,7 @@ function executeBackup(callback) {
             } catch (e) {
                 try {
                     mc.runcmdEx('save resume');
-                    logger.error('[备份] 异常后 save resume 已执行');
+                    logger.error('异常后 save resume 已执行');
                 } catch (ex) {}
                 isBackingUp = false;
                 callback({ error: '备份失败: ' + e.message });
@@ -396,7 +396,7 @@ function cleanupOldBackups() {
                 var result = deleteBackup(b.filename);
                 if (result.success) {
                     deleted.push({ filename: b.filename, reason: '过期', ageDays: ageDays });
-                    try { logger.info('[备份] 已删除 ' + ageDays + ' 天前的备份: ' + b.filename); } catch (e) {}
+                    try { logger.info('已删除 ' + ageDays + ' 天前的备份: ' + b.filename); } catch (e) {}
                 }
             }
         });
@@ -411,7 +411,7 @@ function cleanupOldBackups() {
             var result = deleteBackup(oldest.filename);
             if (result.success) {
                 deleted.push({ filename: oldest.filename, reason: '超出数量限制', ageDays: ageDays });
-                try { logger.info('[备份] 备份数量超出限制(' + maxCount + ')，已删除 ' + ageDays + ' 天前的备份: ' + oldest.filename); } catch (e) {}
+                try { logger.info('备份数量超出限制(' + maxCount + ')，已删除 ' + ageDays + ' 天前的备份: ' + oldest.filename); } catch (e) {}
             }
         }
     }

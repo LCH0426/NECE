@@ -21,11 +21,14 @@ const pathModule = require('path');
 const crypto = require('crypto');
 
 const DB_PATH = 'plugins/NLCE/data/nlce.db';
+const PLAYER_DB_PATH = 'plugins/NLCE/data/playerdata.db';
 const SALT_LENGTH = 32;
 const HASH_ITERATIONS = 10000;
 const HASH_LENGTH = 64;
 
 let db = null;
+let playerDb = null;
+let playerDbReady = false;
 
 function ensureDir(filePath) {
     var dir = pathModule.dirname(filePath);
@@ -99,7 +102,7 @@ function saveDatabase() {
         ensureDir(DB_PATH);
         fs.writeFileSync(DB_PATH, buffer);
     } catch (e) {
-        console.error('[DB] 保存数据库失败:', e.message);
+        console.error('保存数据库失败:', e.message);
     }
 }
 
@@ -112,7 +115,7 @@ function cleanExpiredData() {
         db.run('DELETE FROM refresh_tokens WHERE expires_at < ?', [now]);
         db.run('DELETE FROM access_token_blacklist WHERE expires_at < ?', [now]);
     } catch (e) {
-        console.error('[DB] 清理过期数据失败:', e.message);
+        console.error('清理过期数据失败:', e.message);
     }
 }
 
@@ -282,6 +285,402 @@ function cleanExpiredBlacklist() {
     saveDatabase();
 }
 
+// ===================== 玩家数据 SQL 方法 =====================
+
+async function initPlayerDatabase() {
+    ensureDir(PLAYER_DB_PATH);
+    const SQL = await initSqlJs();
+    if (fs.existsSync(PLAYER_DB_PATH)) {
+        const buffer = fs.readFileSync(PLAYER_DB_PATH);
+        playerDb = new SQL.Database(buffer);
+    } else {
+        playerDb = new SQL.Database();
+    }
+    playerDb.run("PRAGMA journal_mode=WAL");
+    playerDb.run("PRAGMA synchronous=NORMAL");
+    playerDb.run("PRAGMA cache_size=-64000");
+    playerDbReady = true;
+    savePlayerDatabase();
+    return playerDb;
+}
+
+function isPlayerDbReady() {
+    return playerDbReady && playerDb !== null;
+}
+
+function savePlayerDatabase() {
+    if (!playerDb) return;
+    try {
+        const data = playerDb.export();
+        const buffer = Buffer.from(data);
+        ensureDir(PLAYER_DB_PATH);
+        fs.writeFileSync(PLAYER_DB_PATH, buffer);
+    } catch (e) {
+        console.error('[PlayerDB] 保存失败:', e.message);
+    }
+}
+
+// --- 玩家核心数据 ---
+
+function getPlayerDataSQL(xuid) {
+    if (!playerDb) return null;
+    var result = playerDb.exec(
+        'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count FROM player_data WHERE xuid = ?',
+        [xuid]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    var row = result[0].values[0];
+    return {
+        uid: row[0],
+        name: row[1],
+        uuid: row[2],
+        registerTime: row[3],
+        leavetime: row[4],
+        healthBonus: row[5],
+        rw: row[6],
+        taxdata: JSON.parse(row[7] || '{}'),
+        bankdata: JSON.parse(row[8] || '{}'),
+        quickmenu: JSON.parse(row[9] || '{}'),
+        vipdata: JSON.parse(row[10] || '{}'),
+        avatar: JSON.parse(row[11] || '{}'),
+        count: JSON.parse(row[12] || '{}')
+    };
+}
+
+function setPlayerDataSQL(xuid, data) {
+    if (!playerDb) return;
+    playerDb.run(
+        `INSERT OR REPLACE INTO player_data
+         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [xuid, data.uid, data.name, data.uuid, data.registerTime,
+         String(data.leavetime || ''), data.healthBonus || 0, data.rw,
+         JSON.stringify(data.taxdata || {}), JSON.stringify(data.bankdata || {}),
+         JSON.stringify(data.quickmenu || {}), JSON.stringify(data.vipdata || {}),
+         JSON.stringify(data.avatar || {}), JSON.stringify(data.count || {})]
+    );
+}
+
+function getAllPlayerDataSQL() {
+    if (!playerDb) return {};
+    var result = playerDb.exec(
+        'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count FROM player_data'
+    );
+    var players = {};
+    if (result.length === 0) return players;
+    var cols = result[0].columns;
+    result[0].values.forEach(function(row) {
+        var obj = {};
+        for (var i = 1; i < cols.length; i++) {
+            obj[cols[i]] = row[i];
+        }
+        players[row[0]] = {
+            uid: obj.uid,
+            name: obj.name,
+            uuid: obj.uuid,
+            registerTime: obj.register_time,
+            leavetime: obj.leave_time,
+            healthBonus: obj.health_bonus,
+            rw: obj.rw,
+            taxdata: JSON.parse(obj.tax_data || '{}'),
+            bankdata: JSON.parse(obj.bank_data || '{}'),
+            quickmenu: JSON.parse(obj.quick_menu || '{}'),
+            vipdata: JSON.parse(obj.vip_data || '{}'),
+            avatar: JSON.parse(obj.avatar || '{}'),
+            count: JSON.parse(obj.count || '{}')
+        };
+    });
+    return players;
+}
+
+function getNextUidSQL() {
+    if (!playerDb) return 10000;
+    var result = playerDb.exec('SELECT MAX(uid) FROM player_data');
+    if (result.length === 0 || result[0].values.length === 0 || result[0].values[0][0] === null) return 10000;
+    return (result[0].values[0][0] || 10000) + 1;
+}
+
+// --- 玩家设置 ---
+
+function getPlayerSettingsSQL(xuid) {
+    if (!playerDb) return {};
+    var result = playerDb.exec('SELECT key, value FROM player_settings WHERE xuid = ?', [xuid]);
+    var settings = {};
+    if (result.length === 0) return settings;
+    result[0].values.forEach(function(row) {
+        try { settings[row[0]] = JSON.parse(row[1]); }
+        catch (e) { settings[row[0]] = row[1]; }
+    });
+    return settings;
+}
+
+function getAllPlayerSettingsSQL() {
+    if (!playerDb) return {};
+    var result = playerDb.exec('SELECT xuid, key, value FROM player_settings');
+    var all = {};
+    if (result.length === 0) return all;
+    result[0].values.forEach(function(row) {
+        if (!all[row[0]]) all[row[0]] = {};
+        try { all[row[0]][row[1]] = JSON.parse(row[2]); }
+        catch (e) { all[row[0]][row[1]] = row[2]; }
+    });
+    return all;
+}
+
+function setPlayerSettingSQL(xuid, key, value) {
+    if (!playerDb) return;
+    playerDb.run(
+        'INSERT OR REPLACE INTO player_settings (xuid, key, value) VALUES (?, ?, ?)',
+        [xuid, key, JSON.stringify(value)]
+    );
+}
+
+// --- 死亡点 ---
+
+function getDeathPointsSQL(xuid) {
+    if (!playerDb) return [];
+    var result = playerDb.exec('SELECT data FROM death_points WHERE xuid = ? ORDER BY id', [xuid]);
+    if (result.length === 0) return [];
+    return result[0].values.map(function(row) { return JSON.parse(row[0]); });
+}
+
+function getAllDeathPointsSQL() {
+    if (!playerDb) return {};
+    var result = playerDb.exec('SELECT xuid, data FROM death_points ORDER BY id');
+    var all = {};
+    if (result.length === 0) return all;
+    result[0].values.forEach(function(row) {
+        if (!all[row[0]]) all[row[0]] = [];
+        all[row[0]].push(JSON.parse(row[1]));
+    });
+    return all;
+}
+
+function setDeathPointsSQL(xuid, points) {
+    if (!playerDb) return;
+    playerDb.run('DELETE FROM death_points WHERE xuid = ?', [xuid]);
+    if (points && points.length > 0) {
+        var stmt = playerDb.prepare('INSERT INTO death_points (xuid, data) VALUES (?, ?)');
+        points.forEach(function(p) {
+            stmt.run([xuid, JSON.stringify(p)]);
+        });
+        stmt.free();
+    }
+}
+
+// --- 好友 ---
+
+function getFriendsSQL(xuid) {
+    if (!playerDb) return { friends: [], requests: [], sentRequests: [] };
+    var friends = [];
+    var fr = playerDb.exec('SELECT friend_xuid, friend_name, add_time FROM friends WHERE xuid = ?', [xuid]);
+    if (fr.length > 0) {
+        friends = fr[0].values.map(function(r) { return { xuid: r[0], name: r[1], addTime: r[2] }; });
+    }
+    var requests = [];
+    var req = playerDb.exec('SELECT from_xuid, from_name, message, time, handled, rejected FROM friend_requests WHERE xuid = ? AND is_sent = 0', [xuid]);
+    if (req.length > 0) {
+        requests = req[0].values.map(function(r) {
+            return { xuid: r[0], name: r[1], message: r[2], time: r[3], handled: r[4] === 1, rejected: r[5] === 1 };
+        });
+    }
+    var sentRequests = [];
+    var sent = playerDb.exec('SELECT from_xuid, from_name, message, time, handled, rejected FROM friend_requests WHERE xuid = ? AND is_sent = 1', [xuid]);
+    if (sent.length > 0) {
+        sentRequests = sent[0].values.map(function(r) {
+            return { xuid: r[0], name: r[1], message: r[2], time: r[3], handled: r[4] === 1, rejected: r[5] === 1 };
+        });
+    }
+    return { friends: friends, requests: requests, sentRequests: sentRequests };
+}
+
+function getAllFriendsSQL() {
+    if (!playerDb) return {};
+    var result = playerDb.exec('SELECT DISTINCT xuid FROM friends UNION SELECT DISTINCT xuid FROM friend_requests');
+    var all = {};
+    if (result.length === 0) return all;
+    result[0].values.forEach(function(row) {
+        all[row[0]] = getFriendsSQL(row[0]);
+    });
+    return all;
+}
+
+function addFriendSQL(xuid, friendXuid, friendName, addTime) {
+    if (!playerDb) return;
+    playerDb.run('INSERT OR REPLACE INTO friends (xuid, friend_xuid, friend_name, add_time) VALUES (?, ?, ?, ?)',
+        [xuid, friendXuid, friendName, addTime]);
+}
+
+function removeFriendSQL(xuid, friendXuid) {
+    if (!playerDb) return;
+    playerDb.run('DELETE FROM friends WHERE xuid = ? AND friend_xuid = ?', [xuid, friendXuid]);
+}
+
+function addFriendRequestSQL(xuid, fromXuid, fromName, message, time, isSent) {
+    if (!playerDb) return;
+    playerDb.run('INSERT INTO friend_requests (xuid, from_xuid, from_name, message, time, handled, rejected, is_sent) VALUES (?, ?, ?, ?, ?, 0, 0, ?)',
+        [xuid, fromXuid, fromName, message, time, isSent ? 1 : 0]);
+}
+
+function handleFriendRequestSQL(xuid, fromXuid, rejected) {
+    if (!playerDb) return;
+    playerDb.run('UPDATE friend_requests SET handled = 1, rejected = ? WHERE xuid = ? AND from_xuid = ? AND handled = 0',
+        [rejected ? 1 : 0, xuid, fromXuid]);
+}
+
+function clearFriendRequestsSQL(xuid) {
+    if (!playerDb) return;
+    playerDb.run('DELETE FROM friend_requests WHERE xuid = ?', [xuid]);
+}
+
+// --- 私信消息 ---
+
+function getMessagesSQL(xuid) {
+    if (!playerDb) return [];
+    var result = playerDb.exec('SELECT from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages WHERE xuid = ? ORDER BY id', [xuid]);
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return { fromXuid: r[0], fromName: r[1], toXuid: r[2], toName: r[3], content: r[4], time: r[5], read: r[6] === 1 };
+    });
+}
+
+function getAllMessagesSQL() {
+    if (!playerDb) return {};
+    var result = playerDb.exec('SELECT DISTINCT xuid FROM messages');
+    var all = {};
+    if (result.length === 0) return all;
+    result[0].values.forEach(function(row) {
+        all[row[0]] = { messages: getMessagesSQL(row[0]) };
+    });
+    return all;
+}
+
+function addMessageSQL(xuid, msg) {
+    if (!playerDb) return;
+    playerDb.run(
+        'INSERT INTO messages (xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [xuid, msg.fromXuid, msg.fromName, msg.toXuid, msg.toName, msg.content, msg.time, msg.read ? 1 : 0]
+    );
+}
+
+function markMessagesReadSQL(xuid, fromXuid) {
+    if (!playerDb) return;
+    playerDb.run('UPDATE messages SET is_read = 1 WHERE xuid = ? AND from_xuid = ? AND is_read = 0', [xuid, fromXuid]);
+}
+
+function deleteMessageSQL(xuid, fromXuid, time) {
+    if (!playerDb) return;
+    playerDb.run('DELETE FROM messages WHERE xuid = ? AND from_xuid = ? AND time = ?', [xuid, fromXuid, time]);
+}
+
+function clearMessagesSQL(xuid) {
+    if (!playerDb) return;
+    playerDb.run('DELETE FROM messages WHERE xuid = ?', [xuid]);
+}
+
+// --- 家园传送点 ---
+
+function getHomesSQL(xuid) {
+    if (!playerDb) return [];
+    var result = playerDb.exec('SELECT name, x, y, z, dim, last_use FROM homes WHERE xuid = ?', [xuid]);
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return { name: r[0], x: r[1], y: r[2], z: r[3], dim: r[4], lastUse: r[5] };
+    });
+}
+
+function getAllHomesSQL() {
+    if (!playerDb) return {};
+    var result = playerDb.exec('SELECT DISTINCT xuid FROM homes');
+    var all = {};
+    if (result.length === 0) return all;
+    result[0].values.forEach(function(row) {
+        all[row[0]] = getHomesSQL(row[0]);
+    });
+    return all;
+}
+
+function setHomesSQL(xuid, homes) {
+    if (!playerDb) return;
+    playerDb.run('DELETE FROM homes WHERE xuid = ?', [xuid]);
+    if (homes && homes.length > 0) {
+        var stmt = playerDb.prepare('INSERT INTO homes (xuid, name, x, y, z, dim, last_use) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        homes.forEach(function(h) {
+            stmt.run([xuid, h.name, h.x, h.y, h.z, h.dim || 0, h.lastUse || 0]);
+        });
+        stmt.free();
+    }
+}
+
+function addHomeSQL(xuid, home) {
+    if (!playerDb) return;
+    playerDb.run('INSERT INTO homes (xuid, name, x, y, z, dim, last_use) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [xuid, home.name, home.x, home.y, home.z, home.dim || 0, home.lastUse || 0]);
+}
+
+function removeHomeSQL(xuid, name) {
+    if (!playerDb) return;
+    playerDb.run('DELETE FROM homes WHERE xuid = ? AND name = ?', [xuid, name]);
+}
+
+function updateHomeSQL(xuid, name, home) {
+    if (!playerDb) return;
+    playerDb.run('UPDATE homes SET x = ?, y = ?, z = ?, dim = ?, last_use = ? WHERE xuid = ? AND name = ?',
+        [home.x, home.y, home.z, home.dim || 0, home.lastUse || 0, xuid, name]);
+}
+
+// --- 批量保存优化 ---
+
+function batchSavePlayerDb(operations) {
+    if (!playerDb) return;
+    playerDb.run('BEGIN TRANSACTION');
+    try {
+        operations.forEach(function(op) { op(); });
+        playerDb.run('COMMIT');
+    } catch (e) {
+        playerDb.run('ROLLBACK');
+        console.error('[PlayerDB] 批量操作失败:', e.message);
+    }
+}
+
+// --- 通用SQL DataManager 辅助方法 ---
+
+function sqlGetAll(prefix) {
+    if (!playerDb) return {};
+    var table = 'dm_' + prefix;
+    try {
+        var result = playerDb.exec('SELECT xuid, data FROM ' + table);
+        var all = {};
+        if (result.length === 0) return all;
+        result[0].values.forEach(function(row) {
+            try { all[row[0]] = JSON.parse(row[1]); }
+            catch (e) { all[row[0]] = {}; }
+        });
+        return all;
+    } catch (e) {
+        return {};
+    }
+}
+
+function sqlSet(prefix, xuid, data) {
+    if (!playerDb) return;
+    var table = 'dm_' + prefix;
+    playerDb.run('INSERT OR REPLACE INTO ' + table + ' (xuid, data) VALUES (?, ?)',
+        [xuid, JSON.stringify(data)]);
+}
+
+function sqlDelete(prefix, xuid) {
+    if (!playerDb) return;
+    var table = 'dm_' + prefix;
+    playerDb.run('DELETE FROM ' + table + ' WHERE xuid = ?', [xuid]);
+}
+
+function sqlEnsureTable(prefix) {
+    if (!playerDb) return;
+    var table = 'dm_' + prefix;
+    playerDb.run('CREATE TABLE IF NOT EXISTS ' + table + ' (xuid TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT "{}")');
+}
+
 module.exports = {
     initDatabase,
     saveDatabase,
@@ -303,5 +702,44 @@ module.exports = {
     cleanExpiredRefreshTokens,
     blacklistAccessToken,
     isAccessTokenBlacklisted,
-    cleanExpiredBlacklist
+    cleanExpiredBlacklist,
+    // 玩家数据SQL
+    initPlayerDatabase,
+    isPlayerDbReady,
+    savePlayerDatabase,
+    getPlayerDataSQL,
+    setPlayerDataSQL,
+    getAllPlayerDataSQL,
+    getNextUidSQL,
+    getPlayerSettingsSQL,
+    getAllPlayerSettingsSQL,
+    setPlayerSettingSQL,
+    getDeathPointsSQL,
+    getAllDeathPointsSQL,
+    setDeathPointsSQL,
+    getFriendsSQL,
+    getAllFriendsSQL,
+    addFriendSQL,
+    removeFriendSQL,
+    addFriendRequestSQL,
+    handleFriendRequestSQL,
+    clearFriendRequestsSQL,
+    getMessagesSQL,
+    getAllMessagesSQL,
+    addMessageSQL,
+    markMessagesReadSQL,
+    deleteMessageSQL,
+    clearMessagesSQL,
+    getHomesSQL,
+    getAllHomesSQL,
+    setHomesSQL,
+    addHomeSQL,
+    removeHomeSQL,
+    updateHomeSQL,
+    batchSavePlayerDb,
+    // 通用SQL辅助
+    sqlGetAll,
+    sqlSet,
+    sqlDelete,
+    sqlEnsureTable
 };
