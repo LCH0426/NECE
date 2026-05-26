@@ -15,6 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE VIP会员系统
+ * VIP购买、续费、到期管理及VIP专属权益功能
+ */
+
+
 //vip模块
 
 var vipModule = {
@@ -181,7 +187,7 @@ function createVipModule(deps) {
                 return;
             }
 
-            if (typeof data !== "object" || !Array.isArray(data) || data.length < 1) {
+            if (typeof data !== "object" || !Array.isArray(data) || data.length < 2) {
                 p.tell("§c选择无效，请重新选择");
                 showVipMenu(p);
                 return;

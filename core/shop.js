@@ -13,7 +13,13 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */ 
+ */
+
+/**
+ * NLCE 商店与回收系统
+ * 商品购买/出售、物品回收、商店分组与物品管理
+ */
+
 
 const fs = require('fs');
 const U = require('./utils');
@@ -567,7 +573,7 @@ function showBuyItemForm(player, item, deps) {
 	fm.addInput("输入购买数量", "正整数", "");
 	fm.addSlider("快速选择数量", 0, 128, 1, 0);
 	player.sendForm(fm, function(p, data) {
-		if (data === null) return;
+		if (data === null || !Array.isArray(data)) return;
 		var inputStr = (data[1] || "").trim();
 		var sliderVal = data[2] || 0;
 		var count;
@@ -731,7 +737,7 @@ function showSellItemForm(player, item, deps) {
 	fm.addSwitch("全部出售", false);
 	fm.addInput("输入出售数量", "正整数", "");
 	player.sendForm(fm, function(p, data) {
-		if (data === null) return;
+		if (data === null || !Array.isArray(data)) return;
 		var sellAll = data[1] || false;
 		var inputStr = (data[2] || "").trim();
 		var count;

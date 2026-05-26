@@ -15,11 +15,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 邮件系统
+ * 玩家间邮件收发，支持定时邮件和附件，管理员可群发系统邮件
+ */
+
+
+var D = require('./debug');
 var mailDM = null;
 var mailData = null;
 var _deps = {};
 
 function init(dm, deps) {
+	D.debugLogModule('mail')('init: 初始化完成');
     mailDM = dm;
     _deps = deps || {};
     mailData = mailDM.load();
@@ -616,7 +624,7 @@ function showSendGlobalMailForm(player) {
     gui.addDropdown("物品5", itemOptions, 0);
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined) {
+        if (data === null || data === undefined || !Array.isArray(data)) {
             showMailSystemForm(p);
             return;
         }
@@ -786,7 +794,7 @@ function showSearchPlayerForMailForm(player) {
     gui.addInput("搜索关键词", "输入UID或玩家名称", "");
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined) {
+        if (data === null || data === undefined || !Array.isArray(data)) {
             showMailSystemForm(p);
             return;
         }
@@ -889,7 +897,7 @@ function showSendSingleMailForm(player, target) {
     gui.addDropdown("物品5", itemOptions, 0);
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined) {
+        if (data === null || data === undefined || !Array.isArray(data)) {
             showMailSystemForm(p);
             return;
         }
@@ -1043,7 +1051,7 @@ function showPlayerSendMailForm(player) {
     gui.addDropdown("物品3", itemOptions, 0);
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined) {
+        if (data === null || data === undefined || !Array.isArray(data)) {
             showMailSystemForm(p);
             return;
         }

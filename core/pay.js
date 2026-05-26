@@ -13,7 +13,13 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */ 
+ */
+
+/**
+ * NLCE 经济与支付系统
+ * 玩家间转账、货币增减、余额查询等经济操作
+ */
+
 
 const fs = require('fs');
 const U = require('./utils');
@@ -104,7 +110,7 @@ function showTransferOnlineForm(player, deps) {
 	fm.addDropdown("选择玩家", names, 0);
 	fm.addInput("输入转账金额", "正整数", "");
 	player.sendForm(fm, function(p, data) {
-		if (data === null) return;
+		if (data === null || !Array.isArray(data)) return;
 		var targetName = names[data[0]];
 		var amountStr = (data[1] || "").trim();
 		if (!amountStr || !U.isInteger(amountStr) || Number(amountStr) <= 0) {
@@ -139,7 +145,7 @@ function showTransferOfflineForm(player, deps) {
 	fm.setTitle("转账给离线玩家");
 	fm.addInput("输入玩家名称或UID", "", "");
 	player.sendForm(fm, function(p, data) {
-		if (data === null) return;
+		if (data === null || !Array.isArray(data)) return;
 		var keyword = (data[0] || "").trim();
 		if (!keyword) {
 			p.tell("请输入搜索内容");
@@ -191,7 +197,7 @@ function showTransferOfflineAmountForm(player, target, deps) {
 	fm.addLabel("目标: " + target.name + " (UID: " + target.uid + ")");
 	fm.addInput("输入转账金额", "正整数", "");
 	player.sendForm(fm, function(p, data) {
-		if (data === null) return;
+		if (data === null || !Array.isArray(data)) return;
 		var amountStr = (data[1] || "").trim();
 		if (!amountStr || !U.isInteger(amountStr) || Number(amountStr) <= 0) {
 			p.tell("请输入有效的转账金额");

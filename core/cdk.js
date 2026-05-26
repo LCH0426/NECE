@@ -15,6 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE CDK兑换码系统
+ * 创建和管理礼包兑换码，支持物品、货币等多种奖励类型
+ */
+
+
 var cdkModuleInstance = null;
 
 function createCdkModule(deps) {

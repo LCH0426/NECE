@@ -15,6 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 管理员操作审计日志模块
+ * 记录管理员在Web面板和游戏内的所有操作，支持按日期查询
+ */
+
+
 const fs = require('fs');
 const pathModule = require('path');
 

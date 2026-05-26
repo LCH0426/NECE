@@ -13,10 +13,17 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */ 
+ */
+
+/**
+ * NLCE 留言板系统
+ * 玩家留言板的发布、查看和管理功能
+ */
+
 
 var C = require('./constants');
 var U = require('./utils');
+var D = require('./debug');
 
 var messageBoardDM = null;
 var messageBoardData = {
@@ -26,6 +33,7 @@ var messageBoardData = {
 var _onSaveCallbacks = [];
 
 function init(dm) {
+	D.debugLogModule('messageBoard')('init: 初始化完成');
     messageBoardDM = dm;
     messageBoardData = messageBoardDM.load();
     if (!Array.isArray(messageBoardData.messages)) messageBoardData.messages = [];

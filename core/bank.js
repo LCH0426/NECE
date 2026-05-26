@@ -15,6 +15,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 银行系统
+ * 提供活期存款和定期存款功能，自动计算利息收益
+ */
+
 
 var FIXED_DEPOSIT_CONFIG = {
     7: { rate: 0.001, name: "周" },

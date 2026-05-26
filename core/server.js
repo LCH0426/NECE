@@ -15,6 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE Web管理面板服务器
+ * Express.js REST API，提供玩家管理、数据查询、系统监控等管理接口，JWT认证
+ */
+
+
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');

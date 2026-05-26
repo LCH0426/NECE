@@ -15,6 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 系统资源监控
+ * 监控CPU、内存、磁盘等服务器硬件资源使用情况
+ */
+
+
 const os = require('os');
 const fs = require('fs');
 const pathModule = require('path');

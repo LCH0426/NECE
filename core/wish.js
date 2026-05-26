@@ -15,9 +15,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 祈愿抽卡系统
+ * 模拟原神祈愿机制，支持四星/五星保底、概率配置和历史记录
+ */
+
+
 const fs = require('fs');
 var C = require('./constants');
 var U = require('./utils');
+var D = require('./debug');
 
 var wishDM = null;
 var enchantBookShopDM = null;
@@ -32,6 +39,7 @@ var spawnEggShopConfig = {
 var _deps = {};
 
 function init(dm, enchDm, spawnDm, cfg, deps) {
+	D.debugLogModule('wish')('init: 初始化完成');
     wishDM = dm;
     enchantBookShopDM = enchDm;
     spawnEggShopDM = spawnDm;

@@ -15,6 +15,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 常量定义与路径配置
+ * 集中管理所有文件路径、默认设置、枚举值等全局常量
+ */
+
 
 const PATHS = {
     CONFIG: "plugins/NLCE/config.json",

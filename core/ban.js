@@ -15,9 +15,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 玩家封禁系统
+ * 支持按名称/UID/XUID封禁解封玩家，IP关联封禁检测，游戏内命令与GUI表单操作
+ */
+
+
 const fs = require('fs');
 const pathModule = require('path');
 var U = require('./utils');
+var D = require('./debug');
 
 var banDM = null;
 var banData = {
@@ -26,6 +33,7 @@ var banData = {
 var _deps = {};
 
 function init(dm, deps) {
+	D.debugLogModule('ban')('init: 初始化完成');
     banDM = dm;
     _deps = deps || {};
     banData = banDM.load();
@@ -267,7 +275,7 @@ function showBanPlayerForm(player) {
     gui.addInput("封禁原因", "输入封禁原因（可选）", "管理员封禁");
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined) {
+        if (data === null || data === undefined || !Array.isArray(data)) {
             showBanListForm(p);
             return;
         }

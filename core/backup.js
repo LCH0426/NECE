@@ -13,8 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */ 
+ */
 
+/**
+ * NLCE 自动备份系统
+ * 定时自动备份玩家数据和配置文件，支持备份列表管理和恢复
+ */
+
+
+var D = require('./debug');
 const fs = require('fs');
 const pathModule = require('path');
 const _7z = require('7zip-min');
@@ -26,6 +33,7 @@ var isBackingUp = false;
 var scheduledTimer = null;
 
 function init(cfg) {
+	D.debugLogModule('backup')('init: 初始化完成');
     backupConfig = cfg || {};
     backupDir = pathModule.resolve(process.cwd(), 'backup');
     if (!fs.existsSync(backupDir)) {

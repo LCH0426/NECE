@@ -15,6 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 工具函数
+ * 提供时间格式化、目录创建、文件操作等通用工具方法
+ */
+
+
 const fs = require('fs');
 const pathModule = require('path');
 

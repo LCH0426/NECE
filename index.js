@@ -17,6 +17,7 @@
 
 const fs = require('fs');
 const database = require('./core/database');
+const debugModule = require('./core/debug');
 const webServer = require('./core/server');
 const behaviorLog = require('./core/behaviorLog');
 const chatLog = require('./core/chatLog');
@@ -105,13 +106,13 @@ var commonDeps = null;
 var _debugMode = false;
 function debugLog() {
     if (!_debugMode) return;
-    var args = ['§7[DEBUG]'];
+    var args = ['[DEBUG]'];
     for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
     logger.info.apply(logger, args);
 }
 function debugWarn() {
     if (!_debugMode) return;
-    var args = ['§e[DEBUG]'];
+    var args = ['[DEBUG WARN]'];
     for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
     logger.warn.apply(logger, args);
 }
@@ -224,7 +225,8 @@ DataManager.prototype.save = function(immediate) {
 	// SQL 模式
 	if (this.useSQL) {
 		var doSQLSave = function() {
-			debugLog('DataManager.save: SQL模式 [' + self.sqlPrefix + ']');			try {
+			debugLog('DataManager.save: SQL模式 [' + self.sqlPrefix + ']');
+			try {
 				switch (self.sqlPrefix) {
 					case 'settings':
 						for (var xuid in self.data) {
@@ -237,6 +239,7 @@ DataManager.prototype.save = function(immediate) {
 						break;
 					case 'deathPoints':
 						var dpPlayers = self.data.players || self.data;
+					debugLog('save deathPoints: dpPlayers keys=' + Object.keys(dpPlayers).length);
 						for (var xuid in dpPlayers) {
 							if (!dpPlayers.hasOwnProperty(xuid)) continue;
 							database.setDeathPointsSQL(xuid, dpPlayers[xuid]);
@@ -244,6 +247,7 @@ DataManager.prototype.save = function(immediate) {
 						break;
 					case 'friends':
 						var frPlayers = self.data.players || self.data;
+					debugLog('save friends: frPlayers keys=' + Object.keys(frPlayers).length);
 						for (var xuid in frPlayers) {
 							if (!frPlayers.hasOwnProperty(xuid)) continue;
 							var fd = frPlayers[xuid];
@@ -261,6 +265,7 @@ DataManager.prototype.save = function(immediate) {
 						break;
 					case 'messages':
 						var msgPlayers = self.data.players || self.data;
+					debugLog('save messages: msgPlayers keys=' + Object.keys(msgPlayers).length);
 						for (var xuid in msgPlayers) {
 							if (!msgPlayers.hasOwnProperty(xuid)) continue;
 							database.clearMessagesSQL(xuid);
@@ -271,6 +276,7 @@ DataManager.prototype.save = function(immediate) {
 						}
 						break;
 					case 'homes':
+					debugLog('save homes: data keys=' + Object.keys(self.data).length);
 						for (var xuid in self.data) {
 							if (!self.data.hasOwnProperty(xuid)) continue;
 							database.setHomesSQL(xuid, self.data[xuid]);
@@ -290,13 +296,18 @@ DataManager.prototype.save = function(immediate) {
 			doSQLSave();
 			database.savePlayerDatabase();
 		} else {
-			debouncedSave(this.saveKey, doSQLSave, this.saveDelay);
+			// 内存变更防抖后写入，随后触发2秒防抖写磁盘
+			debouncedSave(this.saveKey, function() {
+				doSQLSave();
+				database.requestSavePlayerDb();
+			}, this.saveDelay);
 		}
 		return;
 	}
 	// JSON 模式
 	var doSave = function() {
-		debugLog('DataManager.save: JSON模式 [' + self.path + ']');		try {
+		debugLog('DataManager.save: JSON模式 [' + self.path + ']');
+		try {
 			U.ensureDir(self.path);
 			fs.writeFileSync(self.path, JSON.stringify(self.data, null, self.pretty ? 2 : 0), 'utf-8');
 		} catch (e) {
@@ -431,6 +442,7 @@ function initRankConfig() {
 		config = new JsonConfigFileAdapter(CONFIG_PATH);
 		config.init("debug", false);
 		_debugMode = config.get("debug", false);
+		debugModule.setDebugMode(_debugMode);
 		config.init("currencyName", "星茜");
 		config.init("enableRank", true);
 		config.init("enableShop", true);
@@ -514,7 +526,6 @@ function initPlayerData() {
 
 function savePlayerData() {
 	if (database.isPlayerDbReady()) {
-		// SQL 模式：批量保存玩家核心数据
 		var ops = [];
 		for (var xuid in playerData.players) {
 			if (!playerData.players.hasOwnProperty(xuid)) continue;
@@ -523,6 +534,8 @@ function savePlayerData() {
 			})(xuid, playerData.players[xuid]);
 		}
 		database.batchSavePlayerDb(ops);
+		// 2秒防抖写磁盘
+		database.requestSavePlayerDb();
 	} else {
 		playerDataDM.save();
 	}
@@ -538,6 +551,9 @@ function savePlayerDataNow() {
 			})(xuid, playerData.players[xuid]);
 		}
 		database.batchSavePlayerDb(ops);
+		// 立即写磁盘
+		database.cancelPendingSave();
+		database.savePlayerDatabase();
 	} else {
 		playerDataDM.save(true);
 	}
@@ -793,16 +809,16 @@ async function initAllConfigs() {
 	initWishConfig();
 	spawnEggShopConfig = spawnEggShopDM.load();
 	initDeathPointData();
-	friendModule.init(friendDM, messageDM, {
 	debugLog('friendModule.init: 好友模块初始化, playerData.players 条目=' + Object.keys(playerData.players || {}).length);
+	friendModule.init(friendDM, messageDM, {
 		playerData: playerData.players,
 		getPlayerInfoByXuid: getPlayerInfoByXuid,
 		getPlayerAvatarUrl: getPlayerAvatarUrl,
 		getPlayerSetting: getPlayerSetting,
 		showPersonalCenterForm: showPersonalCenterForm
 	});
-	banModule.init(banDM, {
 	debugLog('banModule.init: 封禁模块初始化完成');
+	banModule.init(banDM, {
 		playerData: playerData.players
 	});
 	mailModule.init(mailDM, {
@@ -1013,11 +1029,30 @@ function getAllPlayersSorted() {
 // 4. 事件监听
 mc.listen("onJoin", (player) => {
 	const playerXUID = player.xuid;
-	debugLog('onJoin: 玩家加入 ' + playerName + ' (XUID: ' + playerXUID + '), playerData.players 条目数=' + Object.keys(playerData.players || {}).length + ', 已存在=' + (!!playerData.players[playerXUID]));	const playerName = player.name;
+	const playerName = player.name;
 	const playerUUID = player.uuid;
+	debugLog('onJoin: 玩家加入 ' + playerName + ' (XUID: ' + playerXUID + '), playerData.players 条目数=' + Object.keys(playerData.players || {}).length + ', 已存在=' + (!!playerData.players[playerXUID]));
 
 	if (!playerData.players[playerXUID]) {
 		var nextUid = playerData.nextUid || 10000;
+			// 防止UID冲突：检查nextUid是否已被其他玩家使用
+			var _uidTaken = false;
+			for (var _xuid in playerData.players) {
+				if (playerData.players[_xuid] && playerData.players[_xuid].uid === nextUid) {
+					_uidTaken = true;
+					debugWarn('onJoin: UID ' + nextUid + ' 已被 XUID ' + _xuid + ' 使用，寻找下一个可用UID');
+					break;
+				}
+			}
+			if (_uidTaken) {
+				var _maxUid = nextUid;
+				for (var _xuid in playerData.players) {
+					if (playerData.players[_xuid] && playerData.players[_xuid].uid > _maxUid) _maxUid = playerData.players[_xuid].uid;
+				}
+				nextUid = _maxUid + 1;
+				playerData.nextUid = nextUid;
+				debugLog('onJoin: 修正后UID=' + nextUid);
+			}
 		playerData.players[playerXUID] = {
 			uid: nextUid,
 			registerTime: system.getTimeStr(),
@@ -2051,17 +2086,16 @@ mc.listen("onServerStarted", async () => {
 
 	setInterval(function() { mailModule.checkScheduledMails(); }, 30000);
 
-	// 定期保存玩家数据库（性能优化：减少频繁磁盘写入）
-	if (database.isPlayerDbReady()) {
-		setInterval(function() {
-			try {
-				database.savePlayerDatabase();
-			} catch (e) {
-				logger.error('[NLCE] 定期保存玩家数据库失败: ' + e.message);
-			}
-		}, 60000);
-		logger.info('[NLCE] 已启用玩家数据库定期保存（60秒间隔）');
-	}
+	// 服务器关闭时刷新所有待写入数据（防止数据丢失）
+	mc.listen("onServerStopping", function() {
+		logger.info('[NLCE] 正在保存所有待写入数据...');
+		flushAllSaves();
+		if (database.isPlayerDbReady()) {
+			database.cancelPendingSave();
+			savePlayerDataNow();
+			database.savePlayerDatabase();
+		}
+	});
 
 	var mem = process.memoryUsage();
 	logger.info('[NLCE] 内存使用 - 堆已用: ' + (mem.heapUsed / 1024 / 1024).toFixed(2) + 'MB, 堆总量: ' + (mem.heapTotal / 1024 / 1024).toFixed(2) + 'MB, RSS: ' + (mem.rss / 1024 / 1024).toFixed(2) + 'MB');
@@ -3309,6 +3343,7 @@ function registerWebCommands() {
 		mc.regConsoleCmd('debug', '切换Debug模式', function(args) {
 			_debugMode = !_debugMode;
 			database.setDebugMode(_debugMode);
+			debugModule.setDebugMode(_debugMode);
 			logger.info('Debug模式已' + (_debugMode ? '开启' : '关闭'));
 		});
 	} catch (error) {

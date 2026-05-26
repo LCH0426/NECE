@@ -15,6 +15,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 玩家行为日志模块
+ * 记录玩家的方块放置/破坏、击杀、死亡等行为事件
+ */
+
+
+var D = require('./debug');
 const fs = require('fs');
 const pathModule = require('path');
 const csv = require('csv-parser');
@@ -143,6 +150,7 @@ function rotateIfNeeded() {
 }
 
 function init() {
+	D.debugLogModule('behaviorLog')('init: 初始化完成');
     ensureFileOpen();
 
     setInterval(function() {

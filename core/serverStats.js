@@ -14,8 +14,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */ 
+ */
 
+/**
+ * NLCE 服务器性能监控
+ * 实时追踪TPS和MSPT，提供性能数据接口
+ */
+
+
+var D = require('./debug');
 var tpsDataRef = null;
 var moneyRef = null;
 var playerDataDMRef = null;
@@ -38,6 +45,7 @@ var economyRankCache = {
 var ECONOMY_RANK_CACHE_TTL = 300000;
 
 function init(tpsData, money, playerDataDM) {
+	D.debugLogModule('serverStats')('init: 初始化完成');
     tpsDataRef = tpsData;
     moneyRef = money;
     playerDataDMRef = playerDataDM;

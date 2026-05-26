@@ -15,6 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE SQLite数据库管理
+ * 管理认证数据（用户/管理员/JWT令牌）和玩家数据（核心/设置/好友/消息/家园等）的SQL存储
+ */
+
+
 const initSqlJs = require('sql.js');
 const fs = require('fs');
 const pathModule = require('path');
@@ -302,14 +308,17 @@ async function initPlayerDatabase() {
     if (fs.existsSync(PLAYER_DB_PATH)) {
         const buffer = fs.readFileSync(PLAYER_DB_PATH);
         playerDb = new SQL.Database(buffer);
-        dbDebugLog('initPlayerDatabase: 加载现有数据库, 大小=' + buffer.length + ' bytes');    } else {
+        dbDebugLog('initPlayerDatabase: 加载现有数据库, 大小=' + buffer.length + ' bytes');
+    } else {
         playerDb = new SQL.Database();
-        dbDebugLog('initPlayerDatabase: 创建新数据库');    }
+        dbDebugLog('initPlayerDatabase: 创建新数据库');
+    }
     playerDb.run("PRAGMA journal_mode=WAL");
     playerDb.run("PRAGMA synchronous=NORMAL");
     playerDb.run("PRAGMA cache_size=-64000");
     playerDbReady = true;
-    dbDebugLog('initPlayerDatabase: 数据库就绪');    savePlayerDatabase();
+    dbDebugLog('initPlayerDatabase: 数据库就绪');
+    savePlayerDatabase();
     return playerDb;
 }
 
@@ -321,11 +330,28 @@ function savePlayerDatabase() {
     if (!playerDb) return;
     try {
         const data = playerDb.export();
-        dbDebugLog('savePlayerDatabase: 导出并保存数据库');        const buffer = Buffer.from(data);
+        dbDebugLog('savePlayerDatabase: 导出并保存数据库');
+        const buffer = Buffer.from(data);
         ensureDir(PLAYER_DB_PATH);
         fs.writeFileSync(PLAYER_DB_PATH, buffer);
     } catch (e) {
         console.error('[PlayerDB] 保存失败:', e.message);
+    }
+}
+
+var _playerDbSaveTimer = null;
+function requestSavePlayerDb() {
+    if (_playerDbSaveTimer) clearTimeout(_playerDbSaveTimer);
+    _playerDbSaveTimer = setTimeout(function() {
+        _playerDbSaveTimer = null;
+        savePlayerDatabase();
+    }, 2000);
+}
+
+function cancelPendingSave() {
+    if (_playerDbSaveTimer) {
+        clearTimeout(_playerDbSaveTimer);
+        _playerDbSaveTimer = null;
     }
 }
 
@@ -358,9 +384,10 @@ function getPlayerDataSQL(xuid) {
 
 function setPlayerDataSQL(xuid, data) {
     if (!playerDb) return;
+    dbDebugLog('setPlayerDataSQL: 保存玩家数据 xuid=' + xuid);
     playerDb.run(
         `INSERT OR REPLACE INTO player_data
-    dbDebugLog('setPlayerDataSQL: 保存玩家数据 xuid=' + xuid);         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count)
+         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [xuid, data.uid, data.name, data.uuid, data.registerTime,
          String(data.leavetime || ''), data.healthBonus || 0, data.rw,
@@ -372,7 +399,8 @@ function setPlayerDataSQL(xuid, data) {
 
 function getAllPlayerDataSQL() {
     if (!playerDb) return {};
-    dbDebugLog('getAllPlayerDataSQL: 查询所有玩家数据');    var result = playerDb.exec(
+    dbDebugLog('getAllPlayerDataSQL: 查询所有玩家数据');
+    var result = playerDb.exec(
         'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count FROM player_data'
     );
     var players = {};
@@ -565,10 +593,10 @@ function getAllMessagesSQL() {
 }
 
 function addMessageSQL(xuid, msg) {
-    if (!playerDb) return;
+    if (!playerDb || !msg) return;
     playerDb.run(
         'INSERT INTO messages (xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [xuid, msg.fromXuid, msg.fromName, msg.toXuid, msg.toName, msg.content, msg.time, msg.read ? 1 : 0]
+        [xuid, msg.fromXuid || '', msg.fromName || '', msg.toXuid || '', msg.toName || '', msg.content || '', msg.time || '', msg.read ? 1 : 0]
     );
 }
 
@@ -716,6 +744,8 @@ module.exports = {
     initPlayerDatabase,
     isPlayerDbReady,
     savePlayerDatabase,
+    requestSavePlayerDb,
+    cancelPendingSave,
     getPlayerDataSQL,
     setPlayerDataSQL,
     getAllPlayerDataSQL,

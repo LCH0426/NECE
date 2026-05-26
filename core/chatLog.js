@@ -15,6 +15,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 聊天记录日志模块
+ * 持久化存储聊天记录，支持按日期查询和Web面板查看
+ */
+
+
+var D = require('./debug');
 const fs = require('fs');
 const pathModule = require('path');
 
@@ -84,6 +91,7 @@ function checkDateChange() {
 }
 
 function init() {
+	D.debugLogModule('chatLog')('init: 初始化完成');
     openLogFile();
 
     setInterval(function() {

@@ -15,8 +15,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 好友与私信系统
+ * 好友添加/删除/请求管理，玩家间私信发送与对话历史
+ */
+
+
 var C = require('./constants');
 var U = require('./utils');
+var D = require('./debug');
 
 var friendDM = null;
 var messageDM = null;
@@ -46,6 +53,7 @@ function parseTimeToNum(timeStr) {
 }
 
 function init(fdm, mdm, deps) {
+	D.debugLogModule('friend')('init: 初始化完成');
     friendDM = fdm;
     messageDM = mdm;
     _deps = deps || {};
@@ -497,7 +505,7 @@ function showSearchFriendForm(player) {
     gui.addInput("搜索关键词", "输入玩家名称或UID", "");
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined) {
+        if (data === null || data === undefined || !Array.isArray(data) || data.length < 2) {
             showMyFriendsForm(p);
             return;
         }
@@ -608,7 +616,7 @@ function showSendFriendRequestForm(player, targetInfo) {
     gui.addInput("验证消息", "请输入验证消息（可选）", "我是" + player.name);
 
     player.sendForm(gui, function(p, data) {
-        if (data === null) {
+        if (data === null || !Array.isArray(data) || data.length < 2) {
             showPlayerDetailForm(p, targetInfo);
             return;
         }

@@ -15,6 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/**
+ * NLCE 排行榜系统
+ * UID、在线时间、余额等多维度排行榜数据计算与展示
+ */
+
+
 var RANK_PAGE_SIZE = 10;
 
 function createRankModule(deps) {
