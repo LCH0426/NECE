@@ -25,7 +25,7 @@ const fs = require('fs');
 const pathModule = require('path');
 
 function ensureDir(filePath) {
-    var dir = pathModule.dirname(filePath);
+    const dir = pathModule.dirname(filePath);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
@@ -33,11 +33,11 @@ function ensureDir(filePath) {
 
 function formatTime(totalSeconds) {
     totalSeconds = Math.floor(totalSeconds);
-    var days = Math.floor(totalSeconds / 86400);
-    var hours = Math.floor((totalSeconds % 86400) / 3600);
-    var minutes = Math.floor((totalSeconds % 3600) / 60);
-    var seconds = totalSeconds % 60;
-    var result = "";
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    let result = "";
     if (days > 0) result += days + "天";
     if (hours > 0) result += hours + "小时";
     if (minutes > 0) result += minutes + "分";
@@ -46,13 +46,13 @@ function formatTime(totalSeconds) {
 }
 
 function getCurrentTimeString() {
-    var now = new Date();
-    var year = now.getFullYear();
-    var month = String(now.getMonth() + 1).padStart(2, '0');
-    var day = String(now.getDate()).padStart(2, '0');
-    var hour = String(now.getHours()).padStart(2, '0');
-    var minute = String(now.getMinutes()).padStart(2, '0');
-    var second = String(now.getSeconds()).padStart(2, '0');
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hour = String(now.getHours()).padStart(2, '0');
+    const minute = String(now.getMinutes()).padStart(2, '0');
+    let second = String(now.getSeconds()).padStart(2, '0');
     return year + "." + month + "." + day + "." + hour + "." + minute + "." + second;
 }
 
@@ -74,9 +74,9 @@ function stripIpPort(ip) {
     if (ip.startsWith("[") && ip.includes("]:")) {
         return ip.substring(1, ip.indexOf("]"));
     }
-    var lastColon = ip.lastIndexOf(":");
+    const lastColon = ip.lastIndexOf(":");
     if (lastColon !== -1) {
-        var afterColon = ip.substring(lastColon + 1);
+        const afterColon = ip.substring(lastColon + 1);
         if (/^\d+$/.test(afterColon)) {
             return ip.substring(0, lastColon);
         }
@@ -89,10 +89,10 @@ function getNetworkType(ip) {
     ip = stripIpPort(ip);
     if (ip === "127.0.0.1" || ip === "::1" || ip === "0.0.0.0") return "中续转发";
     if (detectIPv6(ip)) return "公网IPv6";
-    var parts = ip.split(".");
+    const parts = ip.split(".");
     if (parts.length === 4) {
-        var first = parseInt(parts[0]);
-        var second = parseInt(parts[1]);
+        let first = parseInt(parts[0]);
+        let second = parseInt(parts[1]);
         if (first === 10) return "内网连接";
         if (first === 172 && second >= 16 && second <= 31) return "内网连接";
         if (first === 192 && second === 168) return "内网连接";
@@ -106,16 +106,14 @@ function cleanFormatting(text) {
 }
 
 function copyDirSync(src, dest) {
-    var fs = require('fs');
-    var pathModule = require('path');
     if (!fs.existsSync(dest)) {
         fs.mkdirSync(dest, { recursive: true });
     }
-    var entries = fs.readdirSync(src, { withFileTypes: true });
-    for (var i = 0; i < entries.length; i++) {
-        var entry = entries[i];
-        var srcPath = pathModule.join(src, entry.name);
-        var destPath = pathModule.join(dest, entry.name);
+    let entries = fs.readdirSync(src, { withFileTypes: true });
+    for (let i = 0; i < entries.length; i++) {
+        let entry = entries[i];
+        const srcPath = pathModule.join(src, entry.name);
+        const destPath = pathModule.join(dest, entry.name);
         if (entry.isDirectory()) {
             copyDirSync(srcPath, destPath);
         } else {
@@ -125,13 +123,11 @@ function copyDirSync(src, dest) {
 }
 
 function rmrf(dirPath) {
-    var fs = require('fs');
-    var pathModule = require('path');
     if (!fs.existsSync(dirPath)) return;
-    var entries = fs.readdirSync(dirPath, { withFileTypes: true });
-    for (var i = 0; i < entries.length; i++) {
-        var entry = entries[i];
-        var fullPath = pathModule.join(dirPath, entry.name);
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const fullPath = pathModule.join(dirPath, entry.name);
         if (entry.isDirectory()) {
             rmrf(fullPath);
         } else {

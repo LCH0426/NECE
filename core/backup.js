@@ -21,16 +21,16 @@
  */
 
 
-var D = require('./debug');
+const D = require('./debug');
 const fs = require('fs');
 const pathModule = require('path');
 const _7z = require('7zip-min');
 const U = require('./utils');
 
-var backupConfig = null;
-var backupDir = '';
-var isBackingUp = false;
-var scheduledTimer = null;
+let backupConfig = null;
+let backupDir = '';
+let isBackingUp = false;
+let scheduledTimer = null;
 
 function init(cfg) {
 	D.debugLogModule('backup')('init: 初始化完成');
@@ -57,9 +57,9 @@ function startScheduledBackup() {
         clearInterval(scheduledTimer);
         scheduledTimer = null;
     }
-    var intervalHours = backupConfig.interval || 0;
+    const intervalHours = backupConfig.interval || 0;
     if (intervalHours <= 0) return;
-    var intervalMs = intervalHours * 3600 * 1000;
+    const intervalMs = intervalHours * 3600 * 1000;
     scheduledTimer = setInterval(function() {
         executeBackup(function() {});
     }, intervalMs);
@@ -73,7 +73,7 @@ function stopScheduledBackup() {
 }
 
 function getWorldNames() {
-    var worldsDir = pathModule.resolve(process.cwd(), 'worlds');
+    const worldsDir = pathModule.resolve(process.cwd(), 'worlds');
     if (!fs.existsSync(worldsDir)) return [];
     try {
         return fs.readdirSync(worldsDir, { withFileTypes: true })
@@ -85,27 +85,27 @@ function getWorldNames() {
 }
 
 function formatBackupTime() {
-    var now = new Date();
-    var y = now.getFullYear();
-    var M = String(now.getMonth() + 1).padStart(2, '0');
-    var d = String(now.getDate()).padStart(2, '0');
-    var h = String(now.getHours()).padStart(2, '0');
-    var m = String(now.getMinutes()).padStart(2, '0');
-    var s = String(now.getSeconds()).padStart(2, '0');
+    let now = new Date();
+    let y = now.getFullYear();
+    let M = String(now.getMonth() + 1).padStart(2, '0');
+    let d = String(now.getDate()).padStart(2, '0');
+    let h = String(now.getHours()).padStart(2, '0');
+    let m = String(now.getMinutes()).padStart(2, '0');
+    let s = String(now.getSeconds()).padStart(2, '0');
     return y + '-' + M + '-' + d + '_' + h + '-' + m + '-' + s;
 }
 
 function waitForSaveHold(callback, maxRetries, retryInterval) {
-    var retries = 0;
+    let retries = 0;
     maxRetries = maxRetries || 30;
     retryInterval = retryInterval || 1000;
 
     function check() {
         retries++;
         try {
-            var result = mc.runcmdEx('save query');
+            let result = mc.runcmdEx('save query');
             if (result) {
-                var output = result.output || '';
+                let output = result.output || '';
                 if (result.success && (
                     output.indexOf('Files are now ready to be copied') !== -1 ||
                     output.indexOf('Data saved') !== -1)) {
@@ -138,16 +138,16 @@ function executeBackup(callback) {
         return;
     }
     isBackingUp = true;
-    var startTime = Date.now();
+    const startTime = Date.now();
 
-    var onlinePlayers = mc.getOnlinePlayers();
+    const onlinePlayers = mc.getOnlinePlayers();
     onlinePlayers.forEach(function(p) {
         try { p.sendToast('服务器正在进行地图备份，请耐心等待', '§6备份中'); } catch (e) {}
     });
 
     setTimeout(function() {
         try {
-            var holdResult = mc.runcmdEx('save hold');
+            const holdResult = mc.runcmdEx('save hold');
             if (holdResult && holdResult.output) {
                 logger.info('save hold 输出: ' + holdResult.output.trim());
             }
@@ -158,7 +158,7 @@ function executeBackup(callback) {
         waitForSaveHold(function(holdSuccess) {
             if (!holdSuccess) {
                 try {
-                    var resumeResult = mc.runcmdEx('save resume');
+                    let resumeResult = mc.runcmdEx('save resume');
                     logger.info('save resume (hold失败) 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
                 } catch (e) {}
                 isBackingUp = false;
@@ -168,7 +168,7 @@ function executeBackup(callback) {
 
             setTimeout(function() {
             try {
-                var worldNames = getWorldNames();
+                const worldNames = getWorldNames();
                 if (worldNames.length === 0) {
                     try { mc.runcmdEx('save resume'); } catch (e) {}
                     isBackingUp = false;
@@ -176,12 +176,12 @@ function executeBackup(callback) {
                     return;
                 }
 
-                var compressionLevel = backupConfig.compressionLevel || 5;
+                let compressionLevel = backupConfig.compressionLevel || 5;
                 if (compressionLevel < 0) compressionLevel = 0;
                 if (compressionLevel > 9) compressionLevel = 9;
 
-                var timestamp = formatBackupTime();
-                var tempDir = pathModule.join(backupDir, '_temp_' + timestamp);
+                const timestamp = formatBackupTime();
+                const tempDir = pathModule.join(backupDir, '_temp_' + timestamp);
                 try {
                     fs.mkdirSync(tempDir, { recursive: true });
                 } catch (e) {
@@ -192,10 +192,10 @@ function executeBackup(callback) {
                 }
 
                 logger.info('开始复制世界文件到临时目录...');
-                var copyErrors = [];
+                const copyErrors = [];
                 worldNames.forEach(function(worldName) {
-                    var worldPath = pathModule.resolve(process.cwd(), 'worlds', worldName);
-                    var tempWorldPath = pathModule.join(tempDir, worldName);
+                    const worldPath = pathModule.resolve(process.cwd(), 'worlds', worldName);
+                    let tempWorldPath = pathModule.join(tempDir, worldName);
                     try {
                         U.copyDirSync(worldPath, tempWorldPath);
                     } catch (e) {
@@ -204,7 +204,7 @@ function executeBackup(callback) {
                 });
 
                 try {
-                    var resumeResult = mc.runcmdEx('save resume');
+                    const resumeResult = mc.runcmdEx('save resume');
                     logger.info('save resume 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
                 } catch (e) {
                     logger.error('save resume 执行失败: ' + e.message);
@@ -220,21 +220,21 @@ function executeBackup(callback) {
 
                 logger.info('世界文件复制完成，save resume 已执行，开始后台压缩...');
 
-                var results = [];
-                var completed = 0;
-                var total = worldNames.length;
+                const results = [];
+                let completed = 0;
+                const total = worldNames.length;
 
                 worldNames.forEach(function(worldName) {
-                    var tempWorldPath = pathModule.join(tempDir, worldName);
-                    var archiveName = worldName + '_' + timestamp + '.7z';
-                    var archivePath = pathModule.join(backupDir, archiveName);
+                    const tempWorldPath = pathModule.join(tempDir, worldName);
+                    const archiveName = worldName + '_' + timestamp + '.7z';
+                    const archivePath = pathModule.join(backupDir, archiveName);
 
                     compressTo7z(tempWorldPath, archivePath, compressionLevel, function(err) {
                         completed++;
                         if (!err) {
-                            var fileSize = 0;
+                            let fileSize = 0;
                             try {
-                                var stat = fs.statSync(archivePath);
+                                let stat = fs.statSync(archivePath);
                                 fileSize = stat.size;
                             } catch (e) {}
                             results.push({ world: worldName, file: archiveName, success: true, size: fileSize, sizeFormatted: formatFileSize(fileSize) });
@@ -248,11 +248,11 @@ function executeBackup(callback) {
                                 logger.error('清理临时目录失败: ' + e.message);
                             }
 
-                            var elapsed = Date.now() - startTime;
-                            var elapsedSec = (elapsed / 1000).toFixed(1);
-                            var totalBackupSize = 0;
-                            var successCount = 0;
-                            var failCount = 0;
+                            const elapsed = Date.now() - startTime;
+                            const elapsedSec = (elapsed / 1000).toFixed(1);
+                            let totalBackupSize = 0;
+                            let successCount = 0;
+                            let failCount = 0;
                             results.forEach(function(r) {
                                 if (r.success) {
                                     successCount++;
@@ -301,7 +301,7 @@ function executeBackup(callback) {
 }
 
 function compressTo7z(sourcePath, archivePath, compressionLevel, callback) {
-    var args = [
+    const args = [
         'a',
         '-t7z',
         '-mx=' + compressionLevel,
@@ -314,9 +314,9 @@ function compressTo7z(sourcePath, archivePath, compressionLevel, callback) {
 
     _7z.cmd(args, function(err) {
         if (err) {
-            var detail = err.message || 'Unknown error';
+            let detail = err.message || 'Unknown error';
             if (err.stderr) detail += ' | stderr: ' + err.stderr.trim();
-            var enhancedErr = new Error(detail);
+            const enhancedErr = new Error(detail);
             enhancedErr.code = err.code;
             callback(enhancedErr);
         } else {
@@ -328,14 +328,14 @@ function compressTo7z(sourcePath, archivePath, compressionLevel, callback) {
 function getBackupList() {
     if (!fs.existsSync(backupDir)) return [];
     try {
-        var files = fs.readdirSync(backupDir);
-        var backups = [];
+        const files = fs.readdirSync(backupDir);
+        let backups = [];
         files.forEach(function(file) {
             if (!file.endsWith('.7z')) return;
-            var filePath = pathModule.join(backupDir, file);
+            let filePath = pathModule.join(backupDir, file);
             try {
-                var stat = fs.statSync(filePath);
-                var parsed = parseBackupFilename(file);
+                const stat = fs.statSync(filePath);
+                const parsed = parseBackupFilename(file);
                 backups.push({
                     filename: file,
                     size: stat.size,
@@ -354,7 +354,7 @@ function getBackupList() {
 }
 
 function parseBackupFilename(filename) {
-    var match = filename.match(/^(.+)_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.7z$/);
+    const match = filename.match(/^(.+)_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.7z$/);
     if (match) {
         return { world: match[1], timestamp: match[2] };
     }
@@ -362,8 +362,8 @@ function parseBackupFilename(filename) {
 }
 
 function getBackupStats() {
-    var backups = getBackupList();
-    var totalSize = 0;
+    let backups = getBackupList();
+    let totalSize = 0;
     backups.forEach(function(b) { totalSize += b.size; });
     return {
         count: backups.length,
@@ -379,7 +379,7 @@ function deleteBackup(filename) {
         return { error: '非法文件名' };
     }
     if (!filename.endsWith('.7z')) return { error: '只能删除.7z备份文件' };
-    var filePath = pathModule.join(backupDir, filename);
+    const filePath = pathModule.join(backupDir, filename);
     if (!fs.existsSync(filePath)) return { error: '文件不存在' };
     try {
         fs.unlinkSync(filePath);
@@ -390,18 +390,18 @@ function deleteBackup(filename) {
 }
 
 function cleanupOldBackups() {
-    var maxAgeDays = backupConfig.maxAgeDays || 0;
-    var maxCount = backupConfig.maxCount || 0;
-    var backups = getBackupList();
-    var deleted = [];
+    const maxAgeDays = backupConfig.maxAgeDays || 0;
+    const maxCount = backupConfig.maxCount || 0;
+    let backups = getBackupList();
+    const deleted = [];
 
     if (maxAgeDays > 0) {
-        var now = Date.now();
-        var maxAgeMs = maxAgeDays * 24 * 3600 * 1000;
+        const now = Date.now();
+        const maxAgeMs = maxAgeDays * 24 * 3600 * 1000;
         backups.forEach(function(b) {
             if (now - b.time > maxAgeMs) {
-                var ageDays = Math.floor((now - b.time) / (24 * 3600 * 1000));
-                var result = deleteBackup(b.filename);
+                let ageDays = Math.floor((now - b.time) / (24 * 3600 * 1000));
+                let result = deleteBackup(b.filename);
                 if (result.success) {
                     deleted.push({ filename: b.filename, reason: '过期', ageDays: ageDays });
                     try { logger.info('已删除 ' + ageDays + ' 天前的备份: ' + b.filename); } catch (e) {}
@@ -412,11 +412,11 @@ function cleanupOldBackups() {
 
     if (maxCount > 0) {
         backups = getBackupList();
-        var sorted = backups.slice().sort(function(a, b) { return a.time - b.time; });
+        const sorted = backups.slice().sort(function(a, b) { return a.time - b.time; });
         while (sorted.length > maxCount) {
-            var oldest = sorted.shift();
-            var ageDays = Math.floor((Date.now() - oldest.time) / (24 * 3600 * 1000));
-            var result = deleteBackup(oldest.filename);
+            const oldest = sorted.shift();
+            const ageDays = Math.floor((Date.now() - oldest.time) / (24 * 3600 * 1000));
+            const result = deleteBackup(oldest.filename);
             if (result.success) {
                 deleted.push({ filename: oldest.filename, reason: '超出数量限制', ageDays: ageDays });
                 try { logger.info('备份数量超出限制(' + maxCount + ')，已删除 ' + ageDays + ' 天前的备份: ' + oldest.filename); } catch (e) {}
@@ -433,20 +433,20 @@ function isBackupRunning() {
 
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 B';
-    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    var i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = Math.floor(Math.log(bytes) / Math.log(1024));
     if (i >= units.length) i = units.length - 1;
     return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + units[i];
 }
 
 function formatDateTime(date) {
-    var d = new Date(date);
-    var y = d.getFullYear();
-    var M = String(d.getMonth() + 1).padStart(2, '0');
-    var day = String(d.getDate()).padStart(2, '0');
-    var h = String(d.getHours()).padStart(2, '0');
-    var m = String(d.getMinutes()).padStart(2, '0');
-    var s = String(d.getSeconds()).padStart(2, '0');
+    const d = new Date(date);
+    const y = d.getFullYear();
+    const M = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    const s = String(d.getSeconds()).padStart(2, '0');
     return y + '-' + M + '-' + day + ' ' + h + ':' + m + ':' + s;
 }
 

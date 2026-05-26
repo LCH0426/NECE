@@ -40,13 +40,13 @@ let _debug = false;
 function setDebugMode(enabled) { _debug = !!enabled; }
 function dbDebugLog() {
     if (!_debug) return;
-    var args = ['[DB]'];
-    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    const args = ['[DB]'];
+    for (let i = 0; i < arguments.length; i++) args.push(arguments[i]);
     console.log(args.join(' '));
 }
 
 function ensureDir(filePath) {
-    var dir = pathModule.dirname(filePath);
+    const dir = pathModule.dirname(filePath);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
@@ -121,11 +121,27 @@ function saveDatabase() {
     }
 }
 
+let _authDbSaveTimer = null;
+function requestSaveAuthDb() {
+    if (_authDbSaveTimer) clearTimeout(_authDbSaveTimer);
+    _authDbSaveTimer = setTimeout(function() {
+        _authDbSaveTimer = null;
+        saveDatabase();
+    }, 2000);
+}
+
+function cancelPendingAuthSave() {
+    if (_authDbSaveTimer) {
+        clearTimeout(_authDbSaveTimer);
+        _authDbSaveTimer = null;
+    }
+}
+
 function cleanExpiredData() {
     if (!db) return;
     try {
-        var now = Date.now();
-        var captchaExpire = now - 5 * 60 * 1000;
+        let now = Date.now();
+        const captchaExpire = now - 5 * 60 * 1000;
         db.run('DELETE FROM captcha WHERE created_at < ?', [captchaExpire]);
         db.run('DELETE FROM refresh_tokens WHERE expires_at < ?', [now]);
         db.run('DELETE FROM access_token_blacklist WHERE expires_at < ?', [now]);
@@ -152,7 +168,7 @@ function setPassword(uid, password) {
     } else {
         db.run('INSERT INTO users (uid, password_hash, salt) VALUES (?, ?, ?)', [uid, hash, salt]);
     }
-    saveDatabase();
+    requestSaveAuthDb();
     return true;
 }
 
@@ -175,7 +191,7 @@ function addAdmin(uid) {
     const existing = db.exec('SELECT uid FROM admins WHERE uid = ?', [uid]);
     if (existing.length > 0 && existing[0].values.length > 0) return false;
     db.run('INSERT INTO admins (uid) VALUES (?)', [uid]);
-    saveDatabase();
+    requestSaveAuthDb();
     return true;
 }
 
@@ -183,7 +199,7 @@ function removeAdmin(uid) {
     const existing = db.exec('SELECT uid FROM admins WHERE uid = ?', [uid]);
     if (existing.length === 0 || existing[0].values.length === 0) return false;
     db.run('DELETE FROM admins WHERE uid = ?', [uid]);
-    saveDatabase();
+    requestSaveAuthDb();
     return true;
 }
 
@@ -203,7 +219,7 @@ function generateCaptcha(code) {
     const createdAt = Date.now();
 
     db.run('INSERT INTO captcha (captcha_id, code, created_at) VALUES (?, ?, ?)', [captchaId, code, createdAt]);
-    saveDatabase();
+    requestSaveAuthDb();
     return captchaId;
 }
 
@@ -216,12 +232,12 @@ function verifyCaptcha(captchaId, input) {
 
     if (Date.now() - createdAt > 5 * 60 * 1000) {
         db.run('DELETE FROM captcha WHERE captcha_id = ?', [captchaId]);
-        saveDatabase();
+        requestSaveAuthDb();
         return false;
     }
 
     db.run('DELETE FROM captcha WHERE captcha_id = ?', [captchaId]);
-    saveDatabase();
+    requestSaveAuthDb();
 
     return code.toLowerCase() === input.toLowerCase();
 }
@@ -229,26 +245,26 @@ function verifyCaptcha(captchaId, input) {
 function cleanExpiredCaptchas() {
     const expireTime = Date.now() - 5 * 60 * 1000;
     db.run('DELETE FROM captcha WHERE created_at < ?', [expireTime]);
-    saveDatabase();
+    requestSaveAuthDb();
 }
 
 function saveRefreshToken(uid, jti, familyId, expiresAt) {
-    var now = Date.now();
+    let now = Date.now();
     db.run(
         'INSERT INTO refresh_tokens (uid, token_jti, family_id, created_at, expires_at, is_revoked) VALUES (?, ?, ?, ?, ?, 0)',
         [uid, jti, familyId, now, expiresAt]
     );
-    saveDatabase();
+    requestSaveAuthDb();
 }
 
 function findRefreshToken(jti) {
-    var result = db.exec(
+    let result = db.exec(
         'SELECT id, uid, token_jti, family_id, created_at, expires_at, is_revoked FROM refresh_tokens WHERE token_jti = ?',
         [jti]
     );
     if (result.length === 0 || result[0].values.length === 0) return null;
 
-    var row = result[0].values[0];
+    let row = result[0].values[0];
     return {
         id: row[0],
         uid: row[1],
@@ -262,23 +278,23 @@ function findRefreshToken(jti) {
 
 function revokeRefreshToken(jti) {
     db.run('UPDATE refresh_tokens SET is_revoked = 1 WHERE token_jti = ?', [jti]);
-    saveDatabase();
+    requestSaveAuthDb();
 }
 
 function revokeFamilyTokens(familyId) {
     db.run('UPDATE refresh_tokens SET is_revoked = 1 WHERE family_id = ?', [familyId]);
-    saveDatabase();
+    requestSaveAuthDb();
 }
 
 function revokeAllUserTokens(uid) {
     db.run('UPDATE refresh_tokens SET is_revoked = 1 WHERE uid = ?', [uid]);
-    saveDatabase();
+    requestSaveAuthDb();
 }
 
 function cleanExpiredRefreshTokens() {
-    var now = Date.now();
+    let now = Date.now();
     db.run('DELETE FROM refresh_tokens WHERE expires_at < ?', [now]);
-    saveDatabase();
+    requestSaveAuthDb();
 }
 
 function blacklistAccessToken(jti, expiresAt) {
@@ -286,18 +302,18 @@ function blacklistAccessToken(jti, expiresAt) {
         'INSERT OR IGNORE INTO access_token_blacklist (jti, expires_at) VALUES (?, ?)',
         [jti, expiresAt]
     );
-    saveDatabase();
+    requestSaveAuthDb();
 }
 
 function isAccessTokenBlacklisted(jti) {
-    var result = db.exec('SELECT jti FROM access_token_blacklist WHERE jti = ?', [jti]);
+    let result = db.exec('SELECT jti FROM access_token_blacklist WHERE jti = ?', [jti]);
     return result.length > 0 && result[0].values.length > 0;
 }
 
 function cleanExpiredBlacklist() {
-    var now = Date.now();
+    const now = Date.now();
     db.run('DELETE FROM access_token_blacklist WHERE expires_at < ?', [now]);
-    saveDatabase();
+    requestSaveAuthDb();
 }
 
 // ===================== 玩家数据 SQL 方法 =====================
@@ -339,7 +355,7 @@ function savePlayerDatabase() {
     }
 }
 
-var _playerDbSaveTimer = null;
+let _playerDbSaveTimer = null;
 function requestSavePlayerDb() {
     if (_playerDbSaveTimer) clearTimeout(_playerDbSaveTimer);
     _playerDbSaveTimer = setTimeout(function() {
@@ -359,12 +375,12 @@ function cancelPendingSave() {
 
 function getPlayerDataSQL(xuid) {
     if (!playerDb) return null;
-    var result = playerDb.exec(
+    let result = playerDb.exec(
         'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count FROM player_data WHERE xuid = ?',
         [xuid]
     );
     if (result.length === 0 || result[0].values.length === 0) return null;
-    var row = result[0].values[0];
+    const row = result[0].values[0];
     return {
         uid: row[0],
         name: row[1],
@@ -400,15 +416,15 @@ function setPlayerDataSQL(xuid, data) {
 function getAllPlayerDataSQL() {
     if (!playerDb) return {};
     dbDebugLog('getAllPlayerDataSQL: 查询所有玩家数据');
-    var result = playerDb.exec(
+    let result = playerDb.exec(
         'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count FROM player_data'
     );
-    var players = {};
+    const players = {};
     if (result.length === 0) return players;
-    var cols = result[0].columns;
+    const cols = result[0].columns;
     result[0].values.forEach(function(row) {
-        var obj = {};
-        for (var i = 1; i < cols.length; i++) {
+        const obj = {};
+        for (let i = 1; i < cols.length; i++) {
             obj[cols[i]] = row[i];
         }
         players[row[0]] = {
@@ -432,7 +448,7 @@ function getAllPlayerDataSQL() {
 
 function getNextUidSQL() {
     if (!playerDb) return 10000;
-    var result = playerDb.exec('SELECT MAX(uid) FROM player_data');
+    let result = playerDb.exec('SELECT MAX(uid) FROM player_data');
     if (result.length === 0 || result[0].values.length === 0 || result[0].values[0][0] === null) return 10000;
     return (result[0].values[0][0] || 10000) + 1;
 }
@@ -441,8 +457,8 @@ function getNextUidSQL() {
 
 function getPlayerSettingsSQL(xuid) {
     if (!playerDb) return {};
-    var result = playerDb.exec('SELECT key, value FROM player_settings WHERE xuid = ?', [xuid]);
-    var settings = {};
+    let result = playerDb.exec('SELECT key, value FROM player_settings WHERE xuid = ?', [xuid]);
+    const settings = {};
     if (result.length === 0) return settings;
     result[0].values.forEach(function(row) {
         try { settings[row[0]] = JSON.parse(row[1]); }
@@ -453,8 +469,8 @@ function getPlayerSettingsSQL(xuid) {
 
 function getAllPlayerSettingsSQL() {
     if (!playerDb) return {};
-    var result = playerDb.exec('SELECT xuid, key, value FROM player_settings');
-    var all = {};
+    let result = playerDb.exec('SELECT xuid, key, value FROM player_settings');
+    let all = {};
     if (result.length === 0) return all;
     result[0].values.forEach(function(row) {
         if (!all[row[0]]) all[row[0]] = {};
@@ -476,15 +492,15 @@ function setPlayerSettingSQL(xuid, key, value) {
 
 function getDeathPointsSQL(xuid) {
     if (!playerDb) return [];
-    var result = playerDb.exec('SELECT data FROM death_points WHERE xuid = ? ORDER BY id', [xuid]);
+    let result = playerDb.exec('SELECT data FROM death_points WHERE xuid = ? ORDER BY id', [xuid]);
     if (result.length === 0) return [];
     return result[0].values.map(function(row) { return JSON.parse(row[0]); });
 }
 
 function getAllDeathPointsSQL() {
     if (!playerDb) return {};
-    var result = playerDb.exec('SELECT xuid, data FROM death_points ORDER BY id');
-    var all = {};
+    let result = playerDb.exec('SELECT xuid, data FROM death_points ORDER BY id');
+    let all = {};
     if (result.length === 0) return all;
     result[0].values.forEach(function(row) {
         if (!all[row[0]]) all[row[0]] = [];
@@ -497,7 +513,7 @@ function setDeathPointsSQL(xuid, points) {
     if (!playerDb) return;
     playerDb.run('DELETE FROM death_points WHERE xuid = ?', [xuid]);
     if (points && points.length > 0) {
-        var stmt = playerDb.prepare('INSERT INTO death_points (xuid, data) VALUES (?, ?)');
+        let stmt = playerDb.prepare('INSERT INTO death_points (xuid, data) VALUES (?, ?)');
         points.forEach(function(p) {
             stmt.run([xuid, JSON.stringify(p)]);
         });
@@ -509,20 +525,20 @@ function setDeathPointsSQL(xuid, points) {
 
 function getFriendsSQL(xuid) {
     if (!playerDb) return { friends: [], requests: [], sentRequests: [] };
-    var friends = [];
-    var fr = playerDb.exec('SELECT friend_xuid, friend_name, add_time FROM friends WHERE xuid = ?', [xuid]);
+    let friends = [];
+    const fr = playerDb.exec('SELECT friend_xuid, friend_name, add_time FROM friends WHERE xuid = ?', [xuid]);
     if (fr.length > 0) {
         friends = fr[0].values.map(function(r) { return { xuid: r[0], name: r[1], addTime: r[2] }; });
     }
-    var requests = [];
-    var req = playerDb.exec('SELECT from_xuid, from_name, message, time, handled, rejected FROM friend_requests WHERE xuid = ? AND is_sent = 0', [xuid]);
+    let requests = [];
+    const req = playerDb.exec('SELECT from_xuid, from_name, message, time, handled, rejected FROM friend_requests WHERE xuid = ? AND is_sent = 0', [xuid]);
     if (req.length > 0) {
         requests = req[0].values.map(function(r) {
             return { xuid: r[0], name: r[1], message: r[2], time: r[3], handled: r[4] === 1, rejected: r[5] === 1 };
         });
     }
-    var sentRequests = [];
-    var sent = playerDb.exec('SELECT from_xuid, from_name, message, time, handled, rejected FROM friend_requests WHERE xuid = ? AND is_sent = 1', [xuid]);
+    let sentRequests = [];
+    const sent = playerDb.exec('SELECT from_xuid, from_name, message, time, handled, rejected FROM friend_requests WHERE xuid = ? AND is_sent = 1', [xuid]);
     if (sent.length > 0) {
         sentRequests = sent[0].values.map(function(r) {
             return { xuid: r[0], name: r[1], message: r[2], time: r[3], handled: r[4] === 1, rejected: r[5] === 1 };
@@ -533,8 +549,8 @@ function getFriendsSQL(xuid) {
 
 function getAllFriendsSQL() {
     if (!playerDb) return {};
-    var result = playerDb.exec('SELECT DISTINCT xuid FROM friends UNION SELECT DISTINCT xuid FROM friend_requests');
-    var all = {};
+    let result = playerDb.exec('SELECT DISTINCT xuid FROM friends UNION SELECT DISTINCT xuid FROM friend_requests');
+    let all = {};
     if (result.length === 0) return all;
     result[0].values.forEach(function(row) {
         all[row[0]] = getFriendsSQL(row[0]);
@@ -574,7 +590,7 @@ function clearFriendRequestsSQL(xuid) {
 
 function getMessagesSQL(xuid) {
     if (!playerDb) return [];
-    var result = playerDb.exec('SELECT from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages WHERE xuid = ? ORDER BY id', [xuid]);
+    let result = playerDb.exec('SELECT from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages WHERE xuid = ? ORDER BY id', [xuid]);
     if (result.length === 0) return [];
     return result[0].values.map(function(r) {
         return { fromXuid: r[0], fromName: r[1], toXuid: r[2], toName: r[3], content: r[4], time: r[5], read: r[6] === 1 };
@@ -583,8 +599,8 @@ function getMessagesSQL(xuid) {
 
 function getAllMessagesSQL() {
     if (!playerDb) return {};
-    var result = playerDb.exec('SELECT DISTINCT xuid FROM messages');
-    var all = {};
+    let result = playerDb.exec('SELECT DISTINCT xuid FROM messages');
+    let all = {};
     if (result.length === 0) return all;
     result[0].values.forEach(function(row) {
         all[row[0]] = { messages: getMessagesSQL(row[0]) };
@@ -619,7 +635,7 @@ function clearMessagesSQL(xuid) {
 
 function getHomesSQL(xuid) {
     if (!playerDb) return [];
-    var result = playerDb.exec('SELECT name, x, y, z, dim, last_use FROM homes WHERE xuid = ?', [xuid]);
+    let result = playerDb.exec('SELECT name, x, y, z, dim, last_use FROM homes WHERE xuid = ?', [xuid]);
     if (result.length === 0) return [];
     return result[0].values.map(function(r) {
         return { name: r[0], x: r[1], y: r[2], z: r[3], dim: r[4], lastUse: r[5] };
@@ -628,8 +644,8 @@ function getHomesSQL(xuid) {
 
 function getAllHomesSQL() {
     if (!playerDb) return {};
-    var result = playerDb.exec('SELECT DISTINCT xuid FROM homes');
-    var all = {};
+    let result = playerDb.exec('SELECT DISTINCT xuid FROM homes');
+    let all = {};
     if (result.length === 0) return all;
     result[0].values.forEach(function(row) {
         all[row[0]] = getHomesSQL(row[0]);
@@ -641,7 +657,7 @@ function setHomesSQL(xuid, homes) {
     if (!playerDb) return;
     playerDb.run('DELETE FROM homes WHERE xuid = ?', [xuid]);
     if (homes && homes.length > 0) {
-        var stmt = playerDb.prepare('INSERT INTO homes (xuid, name, x, y, z, dim, last_use) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        const stmt = playerDb.prepare('INSERT INTO homes (xuid, name, x, y, z, dim, last_use) VALUES (?, ?, ?, ?, ?, ?, ?)');
         homes.forEach(function(h) {
             stmt.run([xuid, h.name, h.x, h.y, h.z, h.dim || 0, h.lastUse || 0]);
         });
@@ -684,10 +700,10 @@ function batchSavePlayerDb(operations) {
 
 function sqlGetAll(prefix) {
     if (!playerDb) return {};
-    var table = 'dm_' + prefix;
+    let table = 'dm_' + prefix;
     try {
-        var result = playerDb.exec('SELECT xuid, data FROM ' + table);
-        var all = {};
+        const result = playerDb.exec('SELECT xuid, data FROM ' + table);
+        const all = {};
         if (result.length === 0) return all;
         result[0].values.forEach(function(row) {
             try { all[row[0]] = JSON.parse(row[1]); }
@@ -701,26 +717,28 @@ function sqlGetAll(prefix) {
 
 function sqlSet(prefix, xuid, data) {
     if (!playerDb) return;
-    var table = 'dm_' + prefix;
+    let table = 'dm_' + prefix;
     playerDb.run('INSERT OR REPLACE INTO ' + table + ' (xuid, data) VALUES (?, ?)',
         [xuid, JSON.stringify(data)]);
 }
 
 function sqlDelete(prefix, xuid) {
     if (!playerDb) return;
-    var table = 'dm_' + prefix;
+    let table = 'dm_' + prefix;
     playerDb.run('DELETE FROM ' + table + ' WHERE xuid = ?', [xuid]);
 }
 
 function sqlEnsureTable(prefix) {
     if (!playerDb) return;
-    var table = 'dm_' + prefix;
+    const table = 'dm_' + prefix;
     playerDb.run('CREATE TABLE IF NOT EXISTS ' + table + ' (xuid TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT "{}")');
 }
 
 module.exports = {
     initDatabase,
     saveDatabase,
+    requestSaveAuthDb,
+    cancelPendingAuthSave,
     setPassword,
     verifyPassword,
     hasPassword,

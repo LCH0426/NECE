@@ -24,17 +24,17 @@
 const fs = require('fs');
 const U = require('./utils');
 
-var RECYCLE_PAGE_SIZE = 10;
+const RECYCLE_PAGE_SIZE = 10;
 
 function writeShopLog(player, itemName, count, cost, balance) {
 	try {
-		var logDir = "plugins/NLCE/logs";
-		var logPath = logDir + "/shop.log";
+		const logDir = "plugins/NLCE/logs";
+		const logPath = logDir + "/shop.log";
 		if (!fs.existsSync(logDir)) {
 			fs.mkdirSync(logDir, { recursive: true });
 		}
-		var timeStr = new Date().toLocaleString();
-		var entry = timeStr + " | " + player.name + "买了" + count + "个" + itemName + " 花费" + cost + " 余额" + balance + "\n";
+		const timeStr = new Date().toLocaleString();
+		const entry = timeStr + " | " + player.name + "买了" + count + "个" + itemName + " 花费" + cost + " 余额" + balance + "\n";
 		fs.appendFile(logPath, entry, 'utf-8', function(e) {
 			if (e) logger.error("写入商店日志失败: " + e.message);
 		});
@@ -45,13 +45,13 @@ function writeShopLog(player, itemName, count, cost, balance) {
 
 function writeShopSellLog(player, itemName, count, income, balance) {
 	try {
-		var logDir = "plugins/NLCE/logs";
-		var logPath = logDir + "/shop.log";
+		const logDir = "plugins/NLCE/logs";
+		const logPath = logDir + "/shop.log";
 		if (!fs.existsSync(logDir)) {
 			fs.mkdirSync(logDir, { recursive: true });
 		}
-		var timeStr = new Date().toLocaleString();
-		var entry = timeStr + " | " + player.name + "卖了" + count + "个" + itemName + " 获得" + income + " 余额" + balance + "\n";
+		const timeStr = new Date().toLocaleString();
+		const entry = timeStr + " | " + player.name + "卖了" + count + "个" + itemName + " 获得" + income + " 余额" + balance + "\n";
 		fs.appendFile(logPath, entry, 'utf-8', function(e) {
 			if (e) logger.error("写入商店日志失败: " + e.message);
 		});
@@ -61,7 +61,7 @@ function writeShopSellLog(player, itemName, count, income, balance) {
 }
 
 function calcInventorySpace(player, itemId) {
-	var space = 0;
+	let space = 0;
 	player.getInventory().getAllItems().forEach(function(slot) {
 		if (slot.type === '') space += 64;
 		else if (slot.type === itemId) space += 64 - slot.count;
@@ -70,7 +70,7 @@ function calcInventorySpace(player, itemId) {
 }
 
 function countOwnedItems(player, itemId) {
-	var total = 0;
+	let total = 0;
 	player.getInventory().getAllItems().forEach(function(slot) {
 		if (slot && slot.type === itemId) total += slot.count;
 	});
@@ -78,38 +78,38 @@ function countOwnedItems(player, itemId) {
 }
 
 function getRecyclePrice(recycleConfig, itemType) {
-	var recycleItems = recycleConfig.recycleItems || {};
-	var entry = recycleItems[itemType];
+	const recycleItems = recycleConfig.recycleItems || {};
+	const entry = recycleItems[itemType];
 	if (!entry) return 0;
 	if (typeof entry === 'object') return entry.price || 0;
 	return entry;
 }
 
 function getRecycleName(recycleConfig, itemType) {
-	var recycleItems = recycleConfig.recycleItems || {};
-	var entry = recycleItems[itemType];
+	const recycleItems = recycleConfig.recycleItems || {};
+	const entry = recycleItems[itemType];
 	if (entry && typeof entry === 'object' && entry.name) return entry.name;
 	return itemType.replace('minecraft:', '');
 }
 
 function getRecycleImage(recycleConfig, itemType) {
-	var recycleItems = recycleConfig.recycleItems || {};
-	var entry = recycleItems[itemType];
+	const recycleItems = recycleConfig.recycleItems || {};
+	const entry = recycleItems[itemType];
 	if (entry && typeof entry === 'object' && entry.image) return entry.image;
 	return '';
 }
 
 function calculateRecyclableItems(player, recycleConfig) {
-	var recycleItems = recycleConfig.recycleItems || {};
-	var inventory = player.getInventory();
-	var recyclable = {};
-	var totalValue = 0;
+	const recycleItems = recycleConfig.recycleItems || {};
+	const inventory = player.getInventory();
+	const recyclable = {};
+	let totalValue = 0;
 
-	for (var i = 0; i < inventory.size; i++) {
-		var item = inventory.getItem(i);
+	for (let i = 0; i < inventory.size; i++) {
+		const item = inventory.getItem(i);
 		if (!item.isNull() && recycleItems[item.type]) {
-			var itemType = item.type;
-			var price = getRecyclePrice(recycleConfig, itemType);
+			const itemType = item.type;
+			const price = getRecyclePrice(recycleConfig, itemType);
 			recyclable[itemType] = recyclable[itemType] || {
 				count: 0,
 				price: price
@@ -127,12 +127,12 @@ function calculateRecyclableItems(player, recycleConfig) {
 
 function writeRecycleLog(player, items, totalValue, before, after, RECYCLE_LOG_DIR) {
 	try {
-		var logPath = RECYCLE_LOG_DIR + "/" + player.name + ".log";
-		var timeStr = new Date().toLocaleString();
-		var itemsStr = Object.entries(items)
+		const logPath = RECYCLE_LOG_DIR + "/" + player.name + ".log";
+		const timeStr = new Date().toLocaleString();
+		const itemsStr = Object.entries(items)
 			.map(function(entry) { return entry[0].replace('minecraft:', '') + '×' + entry[1].count; })
 			.join(", ");
-		var logEntry = timeStr + " | 回收: " + itemsStr + " | 获得: " + totalValue + " | 余额: " + before + " → " + after + "\n";
+		const logEntry = timeStr + " | 回收: " + itemsStr + " | 获得: " + totalValue + " | 余额: " + before + " → " + after + "\n";
 		U.ensureDir(logPath);
 		fs.appendFile(logPath, logEntry, 'utf-8', function(e) {
 			if (e) logger.error("写入回收日志失败：" + e.message);
@@ -143,20 +143,20 @@ function writeRecycleLog(player, items, totalValue, before, after, RECYCLE_LOG_D
 }
 
 function recycleItemsFromInventory(player, recycleConfig, deps) {
-	var result = calculateRecyclableItems(player, recycleConfig);
-	var recyclable = result.recyclable;
-	var totalValue = result.totalValue;
+	const result = calculateRecyclableItems(player, recycleConfig);
+	const recyclable = result.recyclable;
+	const totalValue = result.totalValue;
 
 	if (totalValue <= 0) {
 		player.tell("§c没有可回收的物品！");
 		return;
 	}
 
-	var currentBalance = deps.getPlayerMoney(player);
+	const currentBalance = deps.getPlayerMoney(player);
 
-	var inventory = player.getInventory();
-	for (var i = 0; i < inventory.size; i++) {
-		var item = inventory.getItem(i);
+	const inventory = player.getInventory();
+	for (let i = 0; i < inventory.size; i++) {
+		const item = inventory.getItem(i);
 		if (!item.isNull() && recyclable[item.type]) {
 			inventory.setItem(i, mc.newItem("minecraft:air", 0));
 		}
@@ -165,7 +165,7 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 
 	deps.addPlayerMoney(player, totalValue, "一键回收");
 
-	var newBalance = deps.getPlayerMoney(player);
+	const newBalance = deps.getPlayerMoney(player);
 
 	writeRecycleLog(player, recyclable, totalValue, currentBalance, newBalance, deps.RECYCLE_LOG_DIR);
 
@@ -174,12 +174,12 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 }
 
 function showRecycleForm(player, recycleConfig, deps) {
-	var result = calculateRecyclableItems(player, recycleConfig);
-	var recyclable = result.recyclable;
-	var totalValue = result.totalValue;
+	const result = calculateRecyclableItems(player, recycleConfig);
+	const recyclable = result.recyclable;
+	const totalValue = result.totalValue;
 
 	if (Object.keys(recyclable).length === 0) {
-		var fm = mc.newSimpleForm();
+		const fm = mc.newSimpleForm();
 		fm.setTitle("§a回收系统");
 		fm.setContent("§c您的背包中没有可回收的物品！");
 		fm.addButton("§a确定");
@@ -187,17 +187,17 @@ function showRecycleForm(player, recycleConfig, deps) {
 		return;
 	}
 
-	var content = "§e背包中可回收的物品：\n§r\n";
+	let content = "§e背包中可回收的物品：\n§r\n";
 
 	Object.keys(recyclable).forEach(function(itemType) {
-		var data = recyclable[itemType];
-		var itemName = getRecycleName(recycleConfig, itemType);
+		const data = recyclable[itemType];
+		const itemName = getRecycleName(recycleConfig, itemType);
 		content += "§f" + itemName + " ×" + data.count + " §8| §e" + (data.count * data.price) + " 点§c" + deps.getCurrencyName() + "§r\n";
 	});
 
 	content += "§r\n§6总价值: §e" + totalValue + " 点§c" + deps.getCurrencyName() + "§r";
 
-	var fm = mc.newSimpleForm();
+	const fm = mc.newSimpleForm();
 	fm.setTitle("§a物品回收");
 	fm.setContent(content);
 	fm.addButton("§b查看所有可回收项", "textures/ui/icon_book_writable");
@@ -215,10 +215,10 @@ function showRecycleForm(player, recycleConfig, deps) {
 }
 
 function showAllRecyclableItems(player, recycleConfig, deps, page) {
-	var recycleItems = recycleConfig.recycleItems || {};
-	var keys = Object.keys(recycleItems);
+	const recycleItems = recycleConfig.recycleItems || {};
+	const keys = Object.keys(recycleItems);
 	if (keys.length === 0) {
-		var fm = mc.newSimpleForm();
+		const fm = mc.newSimpleForm();
 		fm.setTitle("§a所有可回收项");
 		fm.setContent("§c暂无可回收物品配置");
 		fm.addButton("§a返回", "textures/ui/recap_glyph_desaturated");
@@ -228,21 +228,21 @@ function showAllRecyclableItems(player, recycleConfig, deps, page) {
 		return;
 	}
 
-	var totalPages = Math.ceil(keys.length / RECYCLE_PAGE_SIZE);
+	const totalPages = Math.ceil(keys.length / RECYCLE_PAGE_SIZE);
 	if (page < 0) page = 0;
 	if (page >= totalPages) page = totalPages - 1;
 
-	var start = page * RECYCLE_PAGE_SIZE;
-	var end = Math.min(start + RECYCLE_PAGE_SIZE, keys.length);
-	var pageKeys = keys.slice(start, end);
+	const start = page * RECYCLE_PAGE_SIZE;
+	const end = Math.min(start + RECYCLE_PAGE_SIZE, keys.length);
+	const pageKeys = keys.slice(start, end);
 
-	var fm = mc.newSimpleForm();
+	const fm = mc.newSimpleForm();
 	fm.setTitle("§a所有可回收项 §7(" + (page + 1) + "/" + totalPages + ")");
 
 	pageKeys.forEach(function(itemType) {
-		var name = getRecycleName(recycleConfig, itemType);
-		var price = getRecyclePrice(recycleConfig, itemType);
-		var image = getRecycleImage(recycleConfig, itemType);
+		const name = getRecycleName(recycleConfig, itemType);
+		const price = getRecyclePrice(recycleConfig, itemType);
+		const image = getRecycleImage(recycleConfig, itemType);
 		fm.addButton(name + "\n回收价 " + price + deps.getCurrencyName(), image || "");
 	});
 
@@ -256,9 +256,9 @@ function showAllRecyclableItems(player, recycleConfig, deps, page) {
 
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
-		var btnCount = pageKeys.length;
-		var hasPrev = page > 0;
-		var hasNext = page < totalPages - 1;
+		const btnCount = pageKeys.length;
+		const hasPrev = page > 0;
+		const hasNext = page < totalPages - 1;
 
 		if (id < btnCount) {
 			showAllRecyclableItems(p, recycleConfig, deps, page);
@@ -292,10 +292,10 @@ function calculateXPNext(level) {
 }
 
 function calculateTotalXP(currentL, currentXP, upgradeN) {
-	var totalXP = 0;
-	for (var i = 0; i < upgradeN; i++) {
-		var targetLevel = currentL + i;
-		var xpToNext = calculateXPNext(targetLevel);
+	let totalXP = 0;
+	for (let i = 0; i < upgradeN; i++) {
+		const targetLevel = currentL + i;
+		const xpToNext = calculateXPNext(targetLevel);
 		if (i === 0) {
 			totalXP += (xpToNext - currentXP);
 		} else {
@@ -306,18 +306,18 @@ function calculateTotalXP(currentL, currentXP, upgradeN) {
 }
 
 function showXPBuyForm(player, deps) {
-	var currentLevel = player.getLevel();
-	var currentXPInLevel = player.getCurrentExperience();
-	var xpToNextLevel = calculateXPNext(currentLevel);
-	var needXPToCurrentNext = xpToNextLevel - currentXPInLevel;
+	const currentLevel = player.getLevel();
+	const currentXPInLevel = player.getCurrentExperience();
+	const xpToNextLevel = calculateXPNext(currentLevel);
+	const needXPToCurrentNext = xpToNextLevel - currentXPInLevel;
 
-	var xuid = player.xuid;
-	var balance = deps.money.get(xuid) || 0;
+	const xuid = player.xuid;
+	const balance = deps.money.get(xuid) || 0;
 
-	var gui = mc.newCustomForm();
+	const gui = mc.newCustomForm();
 	gui.setTitle("\u00a7l\u00a7b\u7ecf\u9a8c\u8d2d\u4e70");
 
-	var content = "\u00a7a\u5f53\u524d\u7b49\u7ea7\uff1a\u00a7f" + currentLevel + " \u7ea7\n";
+	let content = "\u00a7a\u5f53\u524d\u7b49\u7ea7\uff1a\u00a7f" + currentLevel + " \u7ea7\n";
 	content += "\u00a7a\u5f53\u524d\u7b49\u7ea7\u8fdb\u5ea6\uff1a\u00a7f" + currentXPInLevel + " / " + xpToNextLevel + "\n";
 	content += "\u00a7a\u8ddd\u79bb\u4e0b\u4e00\u7ea7\uff1a\u8fd8\u9700 \u00a7f" + needXPToCurrentNext + " \u70b9\u7ecf\u9a8c\n";
 	content += "\u00a7a\u5151\u6362\u6bd4\u4f8b\uff1a\u00a7f1 \u7ecf\u9a8c = \u00a7e10 \u70b9" + deps.getCurrencyName() + "\n";
@@ -325,8 +325,8 @@ function showXPBuyForm(player, deps) {
 
 	gui.addLabel(content);
 
-	var levelOptions = ["\u624b\u52a8\u8f93\u5165\u7ecf\u9a8c"];
-	for (var i = 1; i <= 10; i++) {
+	const levelOptions = ["\u624b\u52a8\u8f93\u5165\u7ecf\u9a8c"];
+	for (let i = 1; i <= 10; i++) {
 		levelOptions.push("\u5347\u7ea7" + i + "\u7ea7");
 	}
 	gui.addStepSlider("\u9009\u62e9\u5347\u7ea7\u7b49\u7ea7", levelOptions, 0, "\u9009\u62e9\u8981\u5347\u7ea7\u7684\u7b49\u7ea7\u6570");
@@ -339,14 +339,14 @@ function showXPBuyForm(player, deps) {
 			return;
 		}
 
-		var levelIndex = data[1];
-		var customXP = data[2] || "";
+		const levelIndex = data[1];
+		const customXP = data[2] || "";
 
-		var xpAmount = 0;
-		var useCustomXP = false;
+		let xpAmount = 0;
+		let useCustomXP = false;
 
 		if (customXP) {
-			var customXPAmount = parseInt(customXP);
+			const customXPAmount = parseInt(customXP);
 			if (!isNaN(customXPAmount) && customXPAmount > 0) {
 				xpAmount = customXPAmount;
 				useCustomXP = true;
@@ -354,9 +354,9 @@ function showXPBuyForm(player, deps) {
 		}
 
 		if (!useCustomXP && levelIndex > 0) {
-			var upgradeLevels = levelIndex;
-			var newCurrentLevel = p.getLevel();
-			var newCurrentXPInLevel = p.getCurrentExperience();
+			const upgradeLevels = levelIndex;
+			const newCurrentLevel = p.getLevel();
+			const newCurrentXPInLevel = p.getCurrentExperience();
 			xpAmount = calculateTotalXP(newCurrentLevel, newCurrentXPInLevel, upgradeLevels);
 		}
 
@@ -373,8 +373,8 @@ function showXPBuyForm(player, deps) {
 			return;
 		}
 
-		var cost = xpAmount * 10;
-		var playerBalance = deps.money.get(p.xuid) || 0;
+		const cost = xpAmount * 10;
+		const playerBalance = deps.money.get(p.xuid) || 0;
 
 		if (playerBalance < cost) {
 			p.sendModalForm(
@@ -408,16 +408,16 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 				return;
 			}
 
-			var xuid = p.xuid;
-			var reduceSuccess = deps.money.reduce(xuid, cost);
+			const xuid = p.xuid;
+			const reduceSuccess = deps.money.reduce(xuid, cost);
 
 			if (reduceSuccess) {
 				deps.notifyEconomyChange(p, -cost, "\u8d2d\u4e70\u7ecf\u9a8c");
-				var addXPSuccess = p.addExperience(xpAmount);
+				const addXPSuccess = p.addExperience(xpAmount);
 
 				if (addXPSuccess) {
-					var newLevel = p.getLevel();
-					var remainingBalance = deps.money.get(xuid) || 0;
+					const newLevel = p.getLevel();
+					const remainingBalance = deps.money.get(xuid) || 0;
 
 					p.sendModalForm(
 						"\u00a7a\u8d2d\u4e70\u6210\u529f",
@@ -456,7 +456,7 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 }
 
 function showShopMainForm(player, deps) {
-	var fm = mc.newSimpleForm();
+	const fm = mc.newSimpleForm();
 	fm.setTitle("商店");
 	fm.setContent("选择一个功能");
 	fm.addButton("物品购买", "textures/ui/icon_recipe_equipment");
@@ -470,7 +470,7 @@ function showShopMainForm(player, deps) {
 }
 
 function showBuyMenu(player, deps) {
-	var fm = mc.newSimpleForm();
+	const fm = mc.newSimpleForm();
 	fm.setTitle("物品购买");
 	fm.addButton("搜索物品", "textures/ui/magnifyingGlass");
 	if (deps.shopData && deps.shopData.Buy) {
@@ -490,7 +490,7 @@ function showBuyMenu(player, deps) {
 }
 
 function showBuySearchForm(player, deps) {
-	var fm = mc.newCustomForm();
+	const fm = mc.newCustomForm();
 	fm.setTitle("搜索物品");
 	fm.addInput("输入物品名称或ID", "", "");
 	player.sendForm(fm, function(p, data) {
@@ -498,14 +498,14 @@ function showBuySearchForm(player, deps) {
 			showBuyMenu(p, deps);
 			return;
 		}
-		var kw = data[0].trim().toLowerCase();
+		const kw = data[0].trim().toLowerCase();
 		if (!kw) { showBuyMenu(p, deps); return; }
 		showBuySearchResults(p, kw, deps);
 	});
 }
 
 function showBuySearchResults(player, keyword, deps) {
-	var results = [];
+	const results = [];
 	if (deps.shopData && deps.shopData.Buy) {
 		deps.shopData.Buy.forEach(function(grp) {
 			(grp.items || []).forEach(function(it) {
@@ -515,7 +515,7 @@ function showBuySearchResults(player, keyword, deps) {
 			});
 		});
 	}
-	var fm = mc.newSimpleForm();
+	const fm = mc.newSimpleForm();
 	fm.setTitle("搜索: " + keyword);
 	if (results.length === 0) {
 		fm.setContent("未找到匹配的物品");
@@ -534,8 +534,8 @@ function showBuySearchResults(player, keyword, deps) {
 }
 
 function showBuyGroupForm(player, group, deps) {
-	var items = group.items || [];
-	var fm = mc.newSimpleForm();
+	const items = group.items || [];
+	const fm = mc.newSimpleForm();
 	fm.setTitle(group.name);
 	items.forEach(function(it) {
 		fm.addButton(it.name + "\n售价 " + it.money + deps.getCurrencyName() + "/个", it.image || "");
@@ -551,15 +551,15 @@ function showBuyGroupForm(player, group, deps) {
 }
 
 function showBuyItemForm(player, item, deps) {
-	var vipInfo = deps.getVipInfo(player);
-	var hasVip = vipInfo.hasVip;
-	var discount = hasVip ? 0.85 : 1;
-	var unitPrice = item.money;
-	var discountPrice = Math.floor(unitPrice * discount);
-	var balance = deps.getPlayerMoney(player);
-	var invSpace = calcInventorySpace(player, item.id);
+	const vipInfo = deps.getVipInfo(player);
+	const hasVip = vipInfo.hasVip;
+	const discount = hasVip ? 0.85 : 1;
+	const unitPrice = item.money;
+	const discountPrice = Math.floor(unitPrice * discount);
+	const balance = deps.getPlayerMoney(player);
+	const invSpace = calcInventorySpace(player, item.id);
 
-	var content = "物品id: " + item.id.replace("minecraft:", "") + "\n";
+	let content = "物品id: " + item.id.replace("minecraft:", "") + "\n";
 	content += "售价: " + unitPrice + deps.getCurrencyName() + "/个\n";
 	if (hasVip) {
 		content += "优惠价: " + discountPrice + deps.getCurrencyName() + "/个\n";
@@ -567,16 +567,16 @@ function showBuyItemForm(player, item, deps) {
 	content += "余额: " + balance + " " + deps.getCurrencyName() + "\n";
 	content += "背包空间: " + invSpace + "格";
 
-	var fm = mc.newCustomForm();
+	const fm = mc.newCustomForm();
 	fm.setTitle(item.name);
 	fm.addLabel(content);
 	fm.addInput("输入购买数量", "正整数", "");
 	fm.addSlider("快速选择数量", 0, 128, 1, 0);
 	player.sendForm(fm, function(p, data) {
 		if (data === null || !Array.isArray(data)) return;
-		var inputStr = (data[1] || "").trim();
-		var sliderVal = data[2] || 0;
-		var count;
+		const inputStr = (data[1] || "").trim();
+		const sliderVal = data[2] || 0;
+		let count;
 		if (sliderVal > 0) {
 			count = sliderVal;
 		} else if (inputStr && U.isInteger(inputStr) && Number(inputStr) > 0) {
@@ -592,10 +592,10 @@ function showBuyItemForm(player, item, deps) {
 			return;
 		}
 
-		var price = hasVip ? discountPrice : unitPrice;
-		var totalCost = price * count;
-		var currentBalance = deps.getPlayerMoney(p);
-		var currentSpace = calcInventorySpace(p, item.id);
+		const price = hasVip ? discountPrice : unitPrice;
+		const totalCost = price * count;
+		const currentBalance = deps.getPlayerMoney(p);
+		const currentSpace = calcInventorySpace(p, item.id);
 
 		if (currentBalance < totalCost) {
 			p.sendModalForm("余额不足", "需要 " + totalCost + " " + deps.getCurrencyName() + "\n当前余额 " + currentBalance + " " + deps.getCurrencyName(), "返回重新选择", "关闭", function(pl, ok) {
@@ -622,15 +622,15 @@ function executePurchase(player, item, count, unitPrice, totalCost, hasVip, orig
 	deps.giveItemById(player, item.id, count);
 
 	if (hasVip) {
-		var saved = originalUnitPrice * count - totalCost;
-		var xuid = player.xuid;
+		const saved = originalUnitPrice * count - totalCost;
+		const xuid = player.xuid;
 		if (deps.playerData.players[xuid] && deps.playerData.players[xuid].vipdata) {
 			deps.playerData.players[xuid].vipdata.totalSaved = (deps.playerData.players[xuid].vipdata.totalSaved || 0) + saved;
 		}
 		deps.savePlayerDataNow();
 	}
 
-	var newBalance = deps.getPlayerMoney(player);
+	const newBalance = deps.getPlayerMoney(player);
 	writeShopLog(player, item.name, count, totalCost, newBalance);
 	player.tell("购买成功 " + item.name + " x" + count + " 花费" + totalCost + deps.getCurrencyName() + " 余额" + newBalance + deps.getCurrencyName());
 	player.sendModalForm("购买成功", item.name + " x" + count + "\n花费 " + totalCost + " " + deps.getCurrencyName() + "\n余额 " + newBalance + " " + deps.getCurrencyName(), "返回购物", "关闭", function(pl, ok) {
@@ -639,7 +639,7 @@ function executePurchase(player, item, count, unitPrice, totalCost, hasVip, orig
 }
 
 function showSellMenu(player, deps) {
-	var fm = mc.newSimpleForm();
+	const fm = mc.newSimpleForm();
 	fm.setTitle("物品回收");
 	fm.addButton("搜索物品", "textures/ui/magnifyingGlass");
 	fm.addButton("一键回收", "textures/ui/refresh");
@@ -662,7 +662,7 @@ function showSellMenu(player, deps) {
 }
 
 function showSellSearchForm(player, deps) {
-	var fm = mc.newCustomForm();
+	const fm = mc.newCustomForm();
 	fm.setTitle("搜索回收物品");
 	fm.addInput("输入物品名称或ID", "", "");
 	player.sendForm(fm, function(p, data) {
@@ -670,14 +670,14 @@ function showSellSearchForm(player, deps) {
 			showSellMenu(p, deps);
 			return;
 		}
-		var kw = data[0].trim().toLowerCase();
+		const kw = data[0].trim().toLowerCase();
 		if (!kw) { showSellMenu(p, deps); return; }
 		showSellSearchResults(p, kw, deps);
 	});
 }
 
 function showSellSearchResults(player, keyword, deps) {
-	var results = [];
+	const results = [];
 	if (deps.shopData && deps.shopData.Sell) {
 		deps.shopData.Sell.forEach(function(grp) {
 			(grp.items || []).forEach(function(it) {
@@ -687,7 +687,7 @@ function showSellSearchResults(player, keyword, deps) {
 			});
 		});
 	}
-	var fm = mc.newSimpleForm();
+	const fm = mc.newSimpleForm();
 	fm.setTitle("搜索回收: " + keyword);
 	if (results.length === 0) {
 		fm.setContent("未找到匹配的物品");
@@ -706,8 +706,8 @@ function showSellSearchResults(player, keyword, deps) {
 }
 
 function showSellGroupForm(player, group, deps) {
-	var items = group.items || [];
-	var fm = mc.newSimpleForm();
+	const items = group.items || [];
+	const fm = mc.newSimpleForm();
 	fm.setTitle(group.name);
 	items.forEach(function(it) {
 		fm.addButton(it.name + "\n回收价 " + it.money + deps.getCurrencyName() + "/个", it.image || "");
@@ -723,26 +723,26 @@ function showSellGroupForm(player, group, deps) {
 }
 
 function showSellItemForm(player, item, deps) {
-	var balance = deps.getPlayerMoney(player);
-	var owned = countOwnedItems(player, item.id);
+	const balance = deps.getPlayerMoney(player);
+	const owned = countOwnedItems(player, item.id);
 
-	var content = "物品id: " + item.id.replace("minecraft:", "") + "\n";
+	let content = "物品id: " + item.id.replace("minecraft:", "") + "\n";
 	content += "回收价: " + item.money + deps.getCurrencyName() + "/个\n";
 	content += "余额: " + balance + " " + deps.getCurrencyName() + "\n";
 	content += "持有数量: " + owned + "个";
 
-	var fm = mc.newCustomForm();
+	const fm = mc.newCustomForm();
 	fm.setTitle(item.name);
 	fm.addLabel(content);
 	fm.addSwitch("全部出售", false);
 	fm.addInput("输入出售数量", "正整数", "");
 	player.sendForm(fm, function(p, data) {
 		if (data === null || !Array.isArray(data)) return;
-		var sellAll = data[1] || false;
-		var inputStr = (data[2] || "").trim();
-		var count;
+		const sellAll = data[1] || false;
+		const inputStr = (data[2] || "").trim();
+		let count;
 		if (sellAll) {
-			var ownedCount = countOwnedItems(p, item.id);
+			const ownedCount = countOwnedItems(p, item.id);
 			if (ownedCount <= 0) {
 				p.sendModalForm("物品不足", "你没有该物品", "返回重新选择", "关闭", function(pl, ok) {
 					if (ok === true) showSellItemForm(pl, item, deps);
@@ -763,7 +763,7 @@ function showSellItemForm(player, item, deps) {
 			return;
 		}
 
-		var currentOwned = countOwnedItems(p, item.id);
+		const currentOwned = countOwnedItems(p, item.id);
 		if (currentOwned === 0) {
 			p.sendModalForm("物品不足", "你没有该物品", "返回重新选择", "关闭", function(pl, ok) {
 				if (ok === true) showSellItemForm(pl, item, deps);
@@ -777,7 +777,7 @@ function showSellItemForm(player, item, deps) {
 			return;
 		}
 
-		var income = count * item.money;
+		const income = count * item.money;
 		p.sendModalForm("确认回收", item.name + " x" + count + "\n获得 " + income + " " + deps.getCurrencyName(), "确认回收", "取消", function(pl, ok) {
 			if (!ok) return;
 			executeSell(pl, item, count, income, deps);
@@ -788,7 +788,7 @@ function showSellItemForm(player, item, deps) {
 function executeSell(player, item, count, income, deps) {
 	mc.runcmd('clear "' + player.realName + '" ' + item.id + ' 0 ' + count);
 	deps.addPlayerMoney(player, income, "商店回收");
-	var newBalance = deps.getPlayerMoney(player);
+	const newBalance = deps.getPlayerMoney(player);
 	writeShopSellLog(player, item.name, count, income, newBalance);
 	player.tell("回收成功 " + item.name + " x" + count + " 获得" + income + deps.getCurrencyName() + " 余额" + newBalance + deps.getCurrencyName());
 	player.sendModalForm("回收成功", item.name + " x" + count + "\n获得 " + income + " " + deps.getCurrencyName() + "\n余额 " + newBalance + " " + deps.getCurrencyName(), "返回回收", "关闭", function(pl, ok) {

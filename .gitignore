@@ -6,3 +6,5 @@ docs/
 scripts/
 package-lock.json
 teleport.js
+CLAUDE.md
+.claude/

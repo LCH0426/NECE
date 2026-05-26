@@ -24,8 +24,8 @@
 const fs = require('fs');
 const pathModule = require('path');
 
-var LOG_DIR = pathModule.join(__dirname, '..', 'logs');
-var ADMIN_LOG_DIR = pathModule.join(LOG_DIR, 'admin');
+const LOG_DIR = pathModule.join(__dirname, '..', 'logs');
+const ADMIN_LOG_DIR = pathModule.join(LOG_DIR, 'admin');
 
 function ensureDir(dir) {
     if (!fs.existsSync(dir)) {
@@ -36,29 +36,29 @@ function ensureDir(dir) {
 ensureDir(ADMIN_LOG_DIR);
 
 function getLogFile() {
-    var now = new Date();
-    var y = now.getFullYear();
-    var m = String(now.getMonth() + 1).padStart(2, '0');
-    var d = String(now.getDate()).padStart(2, '0');
+    let now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
     return pathModule.join(ADMIN_LOG_DIR, y + '-' + m + '-' + d + '.log');
 }
 
 function log(adminUid, action, target, detail) {
     try {
-        var now = new Date();
-        var timeStr = now.getFullYear() + '-' +
+        let now = new Date();
+        const timeStr = now.getFullYear() + '-' +
             String(now.getMonth() + 1).padStart(2, '0') + '-' +
             String(now.getDate()).padStart(2, '0') + ' ' +
             String(now.getHours()).padStart(2, '0') + ':' +
             String(now.getMinutes()).padStart(2, '0') + ':' +
             String(now.getSeconds()).padStart(2, '0');
 
-        var line = '[' + timeStr + '] 管理员[' + adminUid + '] ' + action;
+        let line = '[' + timeStr + '] 管理员[' + adminUid + '] ' + action;
         if (target) line += ' 目标[' + target + ']';
         if (detail) line += ' 详情: ' + detail;
         line += '\n';
 
-        var file = getLogFile();
+        let file = getLogFile();
         fs.appendFile(file, line, 'utf-8', function(e) {
             if (e) console.error('写入日志失败:', e.message);
         });
@@ -70,31 +70,31 @@ function log(adminUid, action, target, detail) {
 function getLogs(date, page, pageSize) {
     try {
         if (!date) {
-            var now = new Date();
+            const now = new Date();
             date = now.getFullYear() + '-' +
                 String(now.getMonth() + 1).padStart(2, '0') + '-' +
                 String(now.getDate()).padStart(2, '0');
         }
 
-        var file = pathModule.join(ADMIN_LOG_DIR, date + '.log');
+        const file = pathModule.join(ADMIN_LOG_DIR, date + '.log');
         if (!fs.existsSync(file)) {
             return { entries: [], pagination: { page: page || 1, pageSize: pageSize || 50, total: 0, totalPages: 0 } };
         }
 
-        var content = fs.readFileSync(file, 'utf-8');
-        var lines = content.split('\n').filter(function(l) { return l.trim().length > 0; });
+        const content = fs.readFileSync(file, 'utf-8');
+        const lines = content.split('\n').filter(function(l) { return l.trim().length > 0; });
 
         lines.reverse();
 
-        var total = lines.length;
-        var p = page || 1;
-        var ps = pageSize || 50;
-        var totalPages = Math.ceil(total / ps);
-        var start = (p - 1) * ps;
-        var end = start + ps;
-        var paged = lines.slice(start, end);
+        const total = lines.length;
+        const p = page || 1;
+        const ps = pageSize || 50;
+        const totalPages = Math.ceil(total / ps);
+        const start = (p - 1) * ps;
+        const end = start + ps;
+        const paged = lines.slice(start, end);
 
-        var entries = paged.map(function(line) {
+        const entries = paged.map(function(line) {
             return parseLine(line);
         });
 
@@ -114,25 +114,25 @@ function getLogs(date, page, pageSize) {
 }
 
 function parseLine(line) {
-    var result = { raw: line, time: '', admin: '', action: '', target: '', detail: '' };
+    const result = { raw: line, time: '', admin: '', action: '', target: '', detail: '' };
 
-    var timeMatch = line.match(/^\[([^\]]+)\]/);
+    const timeMatch = line.match(/^\[([^\]]+)\]/);
     if (timeMatch) result.time = timeMatch[1];
 
-    var adminMatch = line.match(/管理员\[([^\]]+)\]/);
+    const adminMatch = line.match(/管理员\[([^\]]+)\]/);
     if (adminMatch) result.admin = adminMatch[1];
 
-    var targetMatch = line.match(/目标\[([^\]]+)\]/);
+    const targetMatch = line.match(/目标\[([^\]]+)\]/);
     if (targetMatch) result.target = targetMatch[1];
 
-    var detailMatch = line.match(/详情: (.+)$/);
+    const detailMatch = line.match(/详情: (.+)$/);
     if (detailMatch) result.detail = detailMatch[1];
 
-    var actionMatch = line.match(/\] ([^\[]+) 目标/);
+    const actionMatch = line.match(/\] ([^\[]+) 目标/);
     if (actionMatch) {
         result.action = actionMatch[1].trim();
     } else {
-        var afterAdmin = line.replace(/.*管理员\[[^\]]+\]\s*/, '');
+        let afterAdmin = line.replace(/.*管理员\[[^\]]+\]\s*/, '');
         afterAdmin = afterAdmin.replace(/详情:.*$/, '').trim();
         if (afterAdmin) result.action = afterAdmin;
     }
@@ -143,8 +143,8 @@ function parseLine(line) {
 function getAvailableDates() {
     try {
         ensureDir(ADMIN_LOG_DIR);
-        var files = fs.readdirSync(ADMIN_LOG_DIR);
-        var dates = files
+        const files = fs.readdirSync(ADMIN_LOG_DIR);
+        const dates = files
             .filter(function(f) { return f.endsWith('.log'); })
             .map(function(f) { return f.replace('.log', ''); })
             .sort()

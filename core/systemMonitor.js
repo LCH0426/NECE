@@ -26,7 +26,7 @@ const fs = require('fs');
 const pathModule = require('path');
 const si = require('systeminformation');
 
-var cachedStats = {
+const cachedStats = {
     cpu: { usage: 0, cores: os.cpus().length, model: os.cpus()[0] ? os.cpus()[0].model : 'Unknown', perCore: [] },
     memory: { total: 0, used: 0, free: 0, usagePercent: 0 },
     network: { totalDownload: 0, totalUpload: 0, downloadThroughput: 0, uploadThroughput: 0 },
@@ -37,33 +37,33 @@ var cachedStats = {
     hostname: os.hostname()
 };
 
-var lastCpuSample = null;
-var lastCpuSampleTime = null;
-var cachedCpuUsage = 0;
-var cachedPerCoreUsage = [];
-var cpuPollTimer = null;
-var memPollTimer = null;
-var diskPollTimer = null;
-var worldSizePollTimer = null;
+let lastCpuSample = null;
+let lastCpuSampleTime = null;
+let cachedCpuUsage = 0;
+let cachedPerCoreUsage = [];
+let cpuPollTimer = null;
+let memPollTimer = null;
+let diskPollTimer = null;
+let worldSizePollTimer = null;
 
 function sampleCpu() {
-    var cpus = os.cpus();
-    var totalIdle = 0;
-    var totalTick = 0;
+    const cpus = os.cpus();
+    let totalIdle = 0;
+    let totalTick = 0;
 
-    for (var i = 0; i < cpus.length; i++) {
-        var cpu = cpus[i].times;
-        for (var type in cpu) {
+    for (let i = 0; i < cpus.length; i++) {
+        let cpu = cpus[i].times;
+        for (let type in cpu) {
             totalTick += cpu[type];
         }
         totalIdle += cpu.idle;
     }
 
-    var now = Date.now();
+    const now = Date.now();
 
     if (lastCpuSample !== null && lastCpuSampleTime !== null) {
-        var idleDiff = totalIdle - lastCpuSample.idle;
-        var tickDiff = totalTick - lastCpuSample.tick;
+        const idleDiff = totalIdle - lastCpuSample.idle;
+        const tickDiff = totalTick - lastCpuSample.tick;
         if (tickDiff > 0) {
             cachedCpuUsage = (1 - idleDiff / tickDiff) * 100;
             cachedCpuUsage = Math.min(100, Math.max(0, cachedCpuUsage));
@@ -71,18 +71,18 @@ function sampleCpu() {
 
         if (lastCpuSample.perCore) {
             cachedPerCoreUsage = [];
-            for (var i = 0; i < cpus.length; i++) {
-                var cpuTimes = cpus[i].times;
-                var coreTick = 0;
-                for (var type in cpuTimes) {
+            for (let i = 0; i < cpus.length; i++) {
+                let cpuTimes = cpus[i].times;
+                let coreTick = 0;
+                for (let type in cpuTimes) {
                     coreTick += cpuTimes[type];
                 }
-                var coreIdle = cpuTimes.idle;
-                var prevCore = lastCpuSample.perCore[i];
+                const coreIdle = cpuTimes.idle;
+                const prevCore = lastCpuSample.perCore[i];
                 if (prevCore) {
-                    var coreTickDiff = coreTick - prevCore.tick;
-                    var coreIdleDiff = coreIdle - prevCore.idle;
-                    var coreUsage = coreTickDiff > 0 ? (1 - coreIdleDiff / coreTickDiff) * 100 : 0;
+                    const coreTickDiff = coreTick - prevCore.tick;
+                    const coreIdleDiff = coreIdle - prevCore.idle;
+                    const coreUsage = coreTickDiff > 0 ? (1 - coreIdleDiff / coreTickDiff) * 100 : 0;
                     cachedPerCoreUsage.push({
                         core: i,
                         speed: cpus[i].speed,
@@ -93,11 +93,11 @@ function sampleCpu() {
         }
     }
 
-    var perCore = [];
-    for (var i = 0; i < cpus.length; i++) {
-        var cpuTimes = cpus[i].times;
-        var coreTick = 0;
-        for (var type in cpuTimes) {
+    const perCore = [];
+    for (let i = 0; i < cpus.length; i++) {
+        const cpuTimes = cpus[i].times;
+        let coreTick = 0;
+        for (let type in cpuTimes) {
             coreTick += cpuTimes[type];
         }
         perCore.push({ idle: cpuTimes.idle, tick: coreTick });
@@ -108,9 +108,9 @@ function sampleCpu() {
 }
 
 function getMemoryInfo() {
-    var totalMem = os.totalmem();
-    var freeMem = os.freemem();
-    var usedMem = totalMem - freeMem;
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
 
     return {
         total: totalMem / (1024 * 1024 * 1024),
@@ -122,16 +122,16 @@ function getMemoryInfo() {
 
 async function collectNetworkInfo() {
     try {
-        var stats = await si.networkStats();
+        let stats = await si.networkStats();
         if (!stats || stats.length === 0) return;
 
-        var totalReceived = 0;
-        var totalSent = 0;
-        var currentDownSpeed = 0;
-        var currentUpSpeed = 0;
+        let totalReceived = 0;
+        let totalSent = 0;
+        let currentDownSpeed = 0;
+        let currentUpSpeed = 0;
 
-        for (var i = 0; i < stats.length; i++) {
-            var s = stats[i];
+        for (let i = 0; i < stats.length; i++) {
+            const s = stats[i];
             if (s.iface && (s.iface.startsWith('Loopback') || s.iface === 'lo')) continue;
             totalReceived += s.rx_bytes || 0;
             totalSent += s.tx_bytes || 0;
@@ -150,14 +150,14 @@ async function collectNetworkInfo() {
 
 async function collectDiskInfo() {
     try {
-        var serverDir = process.cwd();
-        var driveLetter = pathModule.parse(serverDir).root.replace('\\', '').replace(':', '');
+        const serverDir = process.cwd();
+        const driveLetter = pathModule.parse(serverDir).root.replace('\\', '').replace(':', '');
 
-        var disks = await si.fsSize();
+        const disks = await si.fsSize();
         if (!disks || disks.length === 0) return;
 
-        for (var i = 0; i < disks.length; i++) {
-            var d = disks[i];
+        for (let i = 0; i < disks.length; i++) {
+            const d = disks[i];
             if (d.fs && d.fs.toUpperCase().indexOf(driveLetter.toUpperCase()) !== -1) {
                 cachedStats.disk = {
                     total: d.size / (1024 * 1024 * 1024),
@@ -169,7 +169,7 @@ async function collectDiskInfo() {
             }
         }
 
-        var first = disks[0];
+        const first = disks[0];
         cachedStats.disk = {
             total: first.size / (1024 * 1024 * 1024),
             used: first.used / (1024 * 1024 * 1024),
@@ -181,26 +181,26 @@ async function collectDiskInfo() {
 
 function getWorldSize() {
     return new Promise(function(resolve) {
-        var worldPath = pathModule.join(process.cwd(), 'worlds', 'Bedrock level');
+        const worldPath = pathModule.join(process.cwd(), 'worlds', 'Bedrock level');
         if (!fs.existsSync(worldPath)) { resolve(0); return; }
 
-        var totalSize = 0;
-        var queue = [worldPath];
+        let totalSize = 0;
+        const queue = [worldPath];
 
         function processBatch() {
-            var batchCount = 0;
+            let batchCount = 0;
             while (queue.length > 0 && batchCount < 50) {
-                var dirPath = queue.shift();
+                const dirPath = queue.shift();
                 try {
-                    var entries = fs.readdirSync(dirPath, { withFileTypes: true });
-                    for (var i = 0; i < entries.length; i++) {
-                        var entry = entries[i];
-                        var fullPath = pathModule.join(dirPath, entry.name);
+                    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+                    for (let i = 0; i < entries.length; i++) {
+                        const entry = entries[i];
+                        const fullPath = pathModule.join(dirPath, entry.name);
                         if (entry.isDirectory()) {
                             queue.push(fullPath);
                         } else if (entry.isFile()) {
                             try {
-                                var stats = fs.statSync(fullPath);
+                                const stats = fs.statSync(fullPath);
                                 totalSize += stats.size;
                             } catch (e) {}
                         }

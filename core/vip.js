@@ -23,30 +23,23 @@
 
 //vip模块
 
-var vipModule = {
-    getVipInfo: null,
-    showVipMenu: null,
-    showVipPurchaseForm: null,
-    checkPlayerHasMoonlightBlessing: null
-};
-
 function createVipModule(deps) {
-    var playerData = deps.playerData;
-    var savePlayerDataNow = deps.savePlayerDataNow;
-    var getPlayerMoney = deps.getPlayerMoney;
-    var reducePlayerMoney = deps.reducePlayerMoney;
-    var addPlayerMoney = deps.addPlayerMoney;
-    var getCurrencyName = deps.getCurrencyName;
-    var openMainMenu = deps.openMainMenu;
+    const playerData = deps.playerData;
+    const savePlayerDataNow = deps.savePlayerDataNow;
+    const getPlayerMoney = deps.getPlayerMoney;
+    const reducePlayerMoney = deps.reducePlayerMoney;
+    const addPlayerMoney = deps.addPlayerMoney;
+    const getCurrencyName = deps.getCurrencyName;
+    const openMainMenu = deps.openMainMenu;
 
     function checkPlayerHasMoonlightBlessing(xuid) {
-        var p = playerData.players[xuid];
+        let p = playerData.players[xuid];
         return !!(p && p.vipdata && (p.vipdata.permanent || (p.vipdata.expireTime && p.vipdata.expireTime > Date.now())));
     }
 
     function getVipInfo(player) {
-        var xuid = player.xuid;
-        var p = playerData.players[xuid];
+        let xuid = player.xuid;
+        const p = playerData.players[xuid];
         if (!p || !p.vipdata) {
             return {
                 hasVip: false,
@@ -56,8 +49,8 @@ function createVipModule(deps) {
             };
         }
 
-        var vipInfo = p.vipdata;
-        var now = Date.now();
+        let vipInfo = p.vipdata;
+        let now = Date.now();
 
         if (vipInfo.permanent) {
             return {
@@ -69,7 +62,7 @@ function createVipModule(deps) {
         }
 
         if (!vipInfo.expireTime || vipInfo.expireTime < now) {
-            var totalSaved = vipInfo.totalSaved || 0;
+            const totalSaved = vipInfo.totalSaved || 0;
             delete p.vipdata;
             savePlayerDataNow();
             return {
@@ -89,19 +82,19 @@ function createVipModule(deps) {
     }
 
     function showVipMenu(player) {
-        var vipInfo = getVipInfo(player);
-        var fm = mc.newSimpleForm();
+        let vipInfo = getVipInfo(player);
+        let fm = mc.newSimpleForm();
         fm.setTitle("§l§b月光祝福");
 
-        var content = "";
+        let content = "";
         if (vipInfo.hasVip) {
             content += "§a当前状态：§e已拥有\n";
             if (vipInfo.permanent) {
                 content += "§a到期时间：§f永不过期\n";
                 content += "§a剩余天数：§f永久\n";
             } else {
-                var expireDate = new Date(vipInfo.expireTime);
-                var remainingDays = Math.ceil((vipInfo.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
+                let expireDate = new Date(vipInfo.expireTime);
+                let remainingDays = Math.ceil((vipInfo.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
                 content += "§a到期时间：§f" + expireDate.getFullYear() + "年" + (expireDate.getMonth() + 1) + "月" + expireDate.getDate() + "日\n";
                 content += "§a剩余天数：§f" + remainingDays + "天\n";
             }
@@ -149,11 +142,11 @@ function createVipModule(deps) {
     }
 
     function showVipPurchaseForm(player) {
-        var vipInfo = getVipInfo(player);
-        var fm = mc.newCustomForm();
+        const vipInfo = getVipInfo(player);
+        const fm = mc.newCustomForm();
         fm.setTitle("§l§b月光祝福");
 
-        var content = "";
+        let content = "";
         if (vipInfo.hasVip) {
             if (vipInfo.permanent) {
                 content += "§a当前状态：§e已拥有\n";
@@ -163,8 +156,8 @@ function createVipModule(deps) {
                 content += "-------------------------\n";
                 content += "§e拥有月光祝福的玩家将可享受商城85%%折扣！";
             } else {
-                var expireDate = new Date(vipInfo.expireTime);
-                var remainingDays = Math.ceil((vipInfo.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
+                let expireDate = new Date(vipInfo.expireTime);
+                let remainingDays = Math.ceil((vipInfo.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
                 content += "§a当前状态：§e已拥有\n";
                 content += "§a到期时间：§f" + expireDate.getFullYear() + "年" + (expireDate.getMonth() + 1) + "月" + expireDate.getDate() + "日\n";
                 content += "§a剩余天数：§f" + remainingDays + "天\n";
@@ -193,11 +186,11 @@ function createVipModule(deps) {
                 return;
             }
 
-            var selection = data[1];
+            const selection = data[1];
 
-            var prices = [800, 4800, 16800, 48000];
-            var durations = [1, 7, 30, 90];
-            var durationNames = ["天", "周", "月", "季"];
+            const prices = [800, 4800, 16800, 48000];
+            const durations = [1, 7, 30, 90];
+            const durationNames = ["天", "周", "月", "季"];
 
             if (typeof selection !== 'number' || isNaN(selection) || selection < 0 || selection >= prices.length) {
                 p.tell("§c选择无效，请重新选择");
@@ -205,11 +198,11 @@ function createVipModule(deps) {
                 return;
             }
 
-            var selectedPrice = prices[selection];
-            var selectedDuration = durations[selection];
-            var durationName = durationNames[selection];
+            const selectedPrice = prices[selection];
+            let selectedDuration = durations[selection];
+            const durationName = durationNames[selection];
 
-            var playerMoney = getPlayerMoney(p);
+            const playerMoney = getPlayerMoney(p);
             if (playerMoney < selectedPrice) {
                 p.sendModalForm(
                     "§c购买失败",
@@ -230,7 +223,7 @@ function createVipModule(deps) {
                 return;
             }
 
-            var reduceSuccess = reducePlayerMoney(p, selectedPrice, "月光祝福");
+            const reduceSuccess = reducePlayerMoney(p, selectedPrice, "月光祝福");
             if (!reduceSuccess) {
                 p.sendModalForm(
                     "§c购买失败",
@@ -249,9 +242,9 @@ function createVipModule(deps) {
                 return;
             }
 
-            var xuid = p.xuid;
-            var now = Date.now();
-            var successMessage = "";
+            const xuid = p.xuid;
+            const now = Date.now();
+            let successMessage = "";
 
             if (selectedDuration === 0) {
                 if (!playerData.players[xuid].vipdata) {
@@ -273,8 +266,8 @@ function createVipModule(deps) {
                     "-------------------------\n" +
                     "§e拥有月光祝福的玩家将可享受商城85%%折扣！";
             } else {
-                var expireTime = vipInfo.hasVip && vipInfo.expireTime ? Math.max(vipInfo.expireTime, now) : now;
-                var newExpireTime = expireTime + (selectedDuration * 24 * 60 * 60 * 1000);
+                let expireTime = vipInfo.hasVip && vipInfo.expireTime ? Math.max(vipInfo.expireTime, now) : now;
+                const newExpireTime = expireTime + (selectedDuration * 24 * 60 * 60 * 1000);
 
                 if (!playerData.players[xuid].vipdata) {
                     playerData.players[xuid].vipdata = {
@@ -285,9 +278,9 @@ function createVipModule(deps) {
                     playerData.players[xuid].vipdata.expireTime = newExpireTime;
                 }
 
-                var expireDate = new Date(newExpireTime);
-                var afterMoney = getPlayerMoney(p);
-                var remainingDays = Math.ceil((newExpireTime - Date.now()) / (1000 * 60 * 60 * 24));
+                const expireDate = new Date(newExpireTime);
+                const afterMoney = getPlayerMoney(p);
+                const remainingDays = Math.ceil((newExpireTime - Date.now()) / (1000 * 60 * 60 * 24));
 
                 successMessage = "-------------------------\n" +
                     "§a购买成功！\n" +

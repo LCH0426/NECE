@@ -22,19 +22,19 @@
  */
 
 
-var D = require('./debug');
-var tpsDataRef = null;
-var moneyRef = null;
-var playerDataDMRef = null;
+const D = require('./debug');
+let tpsDataRef = null;
+let moneyRef = null;
+let playerDataDMRef = null;
 
-var allMoneyCache = {
+const allMoneyCache = {
     totalMoney: 0,
     playerCount: 0,
     timestamp: 0
 };
-var ALL_MONEY_CACHE_TTL = 30000;
+const ALL_MONEY_CACHE_TTL = 30000;
 
-var economyRankCache = {
+const economyRankCache = {
     topBalances: [],
     totalBankCurrent: 0,
     totalBankFixed: 0,
@@ -42,7 +42,7 @@ var economyRankCache = {
     topBankDeposits: [],
     timestamp: 0
 };
-var ECONOMY_RANK_CACHE_TTL = 300000;
+const ECONOMY_RANK_CACHE_TTL = 300000;
 
 function init(tpsData, money, playerDataDM) {
 	D.debugLogModule('serverStats')('init: 初始化完成');
@@ -59,7 +59,7 @@ function getTps() {
 }
 
 function getAllMoney() {
-    var now = Date.now();
+    let now = Date.now();
     if (now - allMoneyCache.timestamp < ALL_MONEY_CACHE_TTL) {
         return {
             totalMoney: allMoneyCache.totalMoney,
@@ -68,24 +68,24 @@ function getAllMoney() {
         };
     }
 
-    var total = 0;
-    var count = 0;
+    let total = 0;
+    let count = 0;
 
     if (!moneyRef || typeof moneyRef.get !== 'function') {
         return { totalMoney: 0, playerCount: 0, cached: false };
     }
 
     if (playerDataDMRef && playerDataDMRef.data && playerDataDMRef.data.players) {
-        var players = playerDataDMRef.data.players;
-        var xuids = Object.keys(players);
-        for (var i = 0; i < xuids.length; i++) {
+        let players = playerDataDMRef.data.players;
+        let xuids = Object.keys(players);
+        for (let i = 0; i < xuids.length; i++) {
             try {
-                var bal = moneyRef.get(xuids[i]);
+                let bal = moneyRef.get(xuids[i]);
                 if (typeof bal === 'number' && !isNaN(bal)) {
                     total += bal;
                     count++;
                 }
-            } catch (e) {}
+            } catch (e) { logger.warn('[ServerStats] ' + e.message); }
         }
     }
 
@@ -97,7 +97,7 @@ function getAllMoney() {
 }
 
 function getEconomyRank() {
-    var now = Date.now();
+    const now = Date.now();
     if (now - economyRankCache.timestamp < ECONOMY_RANK_CACHE_TTL) {
         return Object.assign({}, economyRankCache, { cached: true });
     }
@@ -106,34 +106,34 @@ function getEconomyRank() {
         return { topBalances: [], totalBankCurrent: 0, totalBankFixed: 0, totalBankAll: 0, topBankDeposits: [], cached: false };
     }
 
-    var players = playerDataDMRef.data.players;
-    var xuids = Object.keys(players);
-    var balanceList = [];
-    var bankDepositList = [];
-    var totalBankCurrent = 0;
-    var totalBankFixed = 0;
+    const players = playerDataDMRef.data.players;
+    const xuids = Object.keys(players);
+    const balanceList = [];
+    const bankDepositList = [];
+    let totalBankCurrent = 0;
+    let totalBankFixed = 0;
 
-    for (var i = 0; i < xuids.length; i++) {
-        var xuid = xuids[i];
-        var p = players[xuid];
-        var name = p.name || '';
+    for (let i = 0; i < xuids.length; i++) {
+        const xuid = xuids[i];
+        const p = players[xuid];
+        const name = p.name || '';
 
-        var bal = 0;
+        let bal = 0;
         if (moneyRef && typeof moneyRef.get === 'function') {
-            try { bal = moneyRef.get(xuid) || 0; } catch (e) {}
+            try { bal = moneyRef.get(xuid) || 0; } catch (e) { logger.warn('[ServerStats] ' + e.message); }
         }
         if (typeof bal === 'number' && !isNaN(bal)) {
             balanceList.push({ name: name, xuid: xuid, balance: bal });
         }
 
         if (p.bankdata) {
-            var currentBalance = (p.bankdata.current && typeof p.bankdata.current.balance === 'number') ? p.bankdata.current.balance : 0;
+            const currentBalance = (p.bankdata.current && typeof p.bankdata.current.balance === 'number') ? p.bankdata.current.balance : 0;
             totalBankCurrent += currentBalance;
 
-            var playerFixedTotal = 0;
+            let playerFixedTotal = 0;
             if (Array.isArray(p.bankdata.fixed)) {
-                for (var j = 0; j < p.bankdata.fixed.length; j++) {
-                    var dep = p.bankdata.fixed[j];
+                for (let j = 0; j < p.bankdata.fixed.length; j++) {
+                    const dep = p.bankdata.fixed[j];
                     if (dep.status === 'active' && typeof dep.principal === 'number') {
                         playerFixedTotal += dep.principal;
                     }
@@ -141,7 +141,7 @@ function getEconomyRank() {
             }
             totalBankFixed += playerFixedTotal;
 
-            var playerBankTotal = currentBalance + playerFixedTotal;
+            const playerBankTotal = currentBalance + playerFixedTotal;
             if (playerBankTotal > 0) {
                 bankDepositList.push({ name: name, xuid: xuid, bankTotal: playerBankTotal, current: currentBalance, fixed: playerFixedTotal });
             }
@@ -151,11 +151,11 @@ function getEconomyRank() {
     balanceList.sort(function(a, b) { return b.balance - a.balance; });
     bankDepositList.sort(function(a, b) { return b.bankTotal - a.bankTotal; });
 
-    var topBalances = balanceList.slice(0, 5).map(function(item) {
+    let topBalances = balanceList.slice(0, 5).map(function(item) {
         return { name: item.name, balance: item.balance };
     });
 
-    var topBankDeposits = bankDepositList.slice(0, 5).map(function(item) {
+    let topBankDeposits = bankDepositList.slice(0, 5).map(function(item) {
         return { name: item.name, bankTotal: item.bankTotal, current: item.current, fixed: item.fixed };
     });
 

@@ -20,7 +20,7 @@
  * 所有模块共用的调试日志功能
  */
 
-var _debugMode = false;
+let _debugMode = false;
 
 function setDebugMode(enabled) {
     _debugMode = !!enabled;
@@ -32,23 +32,23 @@ function isDebug() {
 
 function debugLog() {
     if (!_debugMode) return;
-    var args = ['[DEBUG]'];
-    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    let args = ['[DEBUG]'];
+    for (let i = 0; i < arguments.length; i++) args.push(arguments[i]);
     logger.info(args.join(' '));
 }
 
 function debugWarn() {
     if (!_debugMode) return;
-    var args = ['[DEBUG WARN]'];
-    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    let args = ['[DEBUG WARN]'];
+    for (let i = 0; i < arguments.length; i++) args.push(arguments[i]);
     logger.warn(args.join(' '));
 }
 
 function debugLogModule(moduleName) {
     return function() {
         if (!_debugMode) return;
-        var args = ['[DEBUG][' + moduleName + ']'];
-        for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+        const args = ['[DEBUG][' + moduleName + ']'];
+        for (let i = 0; i < arguments.length; i++) args.push(arguments[i]);
         logger.info(args.join(' '));
     };
 }

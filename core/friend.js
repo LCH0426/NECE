@@ -21,23 +21,23 @@
  */
 
 
-var C = require('./constants');
-var U = require('./utils');
-var D = require('./debug');
+const C = require('./constants');
+const U = require('./utils');
+const D = require('./debug');
 
-var friendDM = null;
-var messageDM = null;
-var friendData = {
+let friendDM = null;
+let messageDM = null;
+let friendData = {
     players: {}
 };
-var messageData = {
+let messageData = {
     players: {}
 };
-var _deps = {};
+let _deps = {};
 
 function parseTimeToNum(timeStr) {
     if (!timeStr) return 0;
-    var parts = timeStr.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})/);
+    const parts = timeStr.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})/);
     if (parts) {
         return new Date(
             parseInt(parts[1]),
@@ -48,7 +48,7 @@ function parseTimeToNum(timeStr) {
             parseInt(parts[6])
         ).getTime();
     }
-    var d = new Date(timeStr);
+    const d = new Date(timeStr);
     return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
@@ -98,16 +98,16 @@ function getPlayerMessageData(xuid) {
 }
 
 function isPlayerFriend(xuid1, xuid2) {
-    var fd = getPlayerFriendData(xuid1);
+    const fd = getPlayerFriendData(xuid1);
     return fd.friends.some(function(f) { return f.xuid === xuid2; });
 }
 
 function searchPlayers(keyword, searchType) {
-    var results = [];
-    var players = _deps.playerData || {};
-    for (var xuid in players) {
+    const results = [];
+    const players = _deps.playerData || {};
+    for (let xuid in players) {
         if (!players.hasOwnProperty(xuid)) continue;
-        var info = players[xuid];
+        const info = players[xuid];
         if (searchType === 0) {
             if (info.name && info.name.toLowerCase().indexOf(keyword.toLowerCase()) !== -1) {
                 results.push(Object.assign({ xuid: xuid }, info));
@@ -122,16 +122,16 @@ function searchPlayers(keyword, searchType) {
 }
 
 function sendMessage(fromXuid, fromName, toXuid, content) {
-    var isFriend = isPlayerFriend(toXuid, fromXuid);
+    const isFriend = isPlayerFriend(toXuid, fromXuid);
     if (!isFriend && _deps.getPlayerSetting && !_deps.getPlayerSetting(toXuid, "acceptStrangerMessages")) {
-        var fromPlayer = mc.getPlayer(fromXuid);
+        const fromPlayer = mc.getPlayer(fromXuid);
         if (fromPlayer) {
             fromPlayer.tell("§c对方拒绝接受陌生人私信！");
         }
         return false;
     }
 
-    var targetMessages = getPlayerMessageData(toXuid);
+    const targetMessages = getPlayerMessageData(toXuid);
     targetMessages.messages.push({
         fromXuid: fromXuid,
         fromName: fromName,
@@ -141,10 +141,10 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
         read: false
     });
 
-    var toPlayer = mc.getPlayer(toXuid);
-    var toName = toPlayer ? toPlayer.name : (_deps.getPlayerInfoByXuid ? (_deps.getPlayerInfoByXuid(toXuid) || {}).name : null) || "未知玩家";
+    const toPlayer = mc.getPlayer(toXuid);
+    const toName = toPlayer ? toPlayer.name : (_deps.getPlayerInfoByXuid ? (_deps.getPlayerInfoByXuid(toXuid) || {}).name : null) || "未知玩家";
 
-    var senderMessages = getPlayerMessageData(fromXuid);
+    const senderMessages = getPlayerMessageData(fromXuid);
     senderMessages.messages.push({
         fromXuid: fromXuid,
         fromName: fromName,
@@ -157,9 +157,9 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
 
     saveMessageData();
 
-    var targetPlayer = mc.getPlayer(toXuid);
+    const targetPlayer = mc.getPlayer(toXuid);
     if (targetPlayer && _deps.getPlayerSetting && _deps.getPlayerSetting(toXuid, "enableMessageNotification")) {
-        var relationType = isFriend ? "好友" : "陌生人";
+        const relationType = isFriend ? "好友" : "陌生人";
         targetPlayer.sendToast("§e新消息提醒", "§a您收到了一条来自" + relationType + " §b" + fromName + " §a的私信");
         targetPlayer.tell("§e[私信] §a您收到了一条来自" + relationType + " §b" + fromName + " §a的私信，请在好友系统中查看");
     }
@@ -168,12 +168,12 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
 
 function showSendMessageForm(player, toXuid, toName, page) {
     page = page || 0;
-    var xuid = player.xuid;
-    var gui = mc.newCustomForm();
+    const xuid = player.xuid;
+    const gui = mc.newCustomForm();
     gui.setTitle("§l§b发送消息");
 
-    var myMsgData = getPlayerMessageData(xuid);
-    var chatHistory = [];
+    const myMsgData = getPlayerMessageData(xuid);
+    const chatHistory = [];
 
     myMsgData.messages.forEach(function(msg) {
         if (msg.fromXuid === xuid && msg.toXuid === toXuid) {
@@ -199,14 +199,14 @@ function showSendMessageForm(player, toXuid, toName, page) {
 
     chatHistory.sort(function(a, b) { return b.timeNum - a.timeNum; });
 
-    var messagesPerPage = 5;
-    var totalPages = Math.ceil(chatHistory.length / messagesPerPage) || 1;
-    var currentPage = Math.min(page, totalPages - 1);
-    var startIndex = currentPage * messagesPerPage;
-    var endIndex = Math.min(startIndex + messagesPerPage, chatHistory.length);
-    var pageMessages = chatHistory.slice(startIndex, endIndex);
+    const messagesPerPage = 5;
+    const totalPages = Math.ceil(chatHistory.length / messagesPerPage) || 1;
+    const currentPage = Math.min(page, totalPages - 1);
+    const startIndex = currentPage * messagesPerPage;
+    const endIndex = Math.min(startIndex + messagesPerPage, chatHistory.length);
+    const pageMessages = chatHistory.slice(startIndex, endIndex);
 
-    var historyContent = "-------------------------\n";
+    let historyContent = "-------------------------\n";
     historyContent += "§e与 §b" + toName + " §e的对话历史 (" + (currentPage + 1) + "/" + totalPages + ")\n";
     historyContent += "-------------------------\n";
 
@@ -214,7 +214,7 @@ function showSendMessageForm(player, toXuid, toName, page) {
         historyContent += "暂无对话历史\n";
     } else {
         pageMessages.forEach(function(msg) {
-            var nameColor = msg.isSelf ? "§a" : "§b";
+            const nameColor = msg.isSelf ? "§a" : "§b";
             historyContent += nameColor + msg.fromName + " " + msg.time + "\n";
             historyContent += "§f" + msg.content + "\n";
             historyContent += "-------------------------\n";
@@ -224,8 +224,8 @@ function showSendMessageForm(player, toXuid, toName, page) {
     gui.addLabel(historyContent);
 
     if (totalPages > 1) {
-        var pageOptions = [];
-        for (var i = 0; i < totalPages; i++) {
+        const pageOptions = [];
+        for (let i = 0; i < totalPages; i++) {
             pageOptions.push("第 " + (i + 1) + " 页");
         }
         gui.addDropdown("选择页码", pageOptions, currentPage);
@@ -238,11 +238,11 @@ function showSendMessageForm(player, toXuid, toName, page) {
             return;
         }
 
-        var contentIndex = totalPages > 1 ? 2 : 1;
-        var content = data[contentIndex] ? data[contentIndex].trim() : "";
+        const contentIndex = totalPages > 1 ? 2 : 1;
+        const content = data[contentIndex] ? data[contentIndex].trim() : "";
 
         if (totalPages > 1) {
-            var selectedPage = data[1];
+            const selectedPage = data[1];
             if (selectedPage !== currentPage) {
                 showSendMessageForm(p, toXuid, toName, selectedPage);
                 return;
@@ -255,7 +255,7 @@ function showSendMessageForm(player, toXuid, toName, page) {
             return;
         }
 
-        var success = sendMessage(p.xuid, p.name, toXuid, content);
+        const success = sendMessage(p.xuid, p.name, toXuid, content);
         if (success) {
             p.tell("§a消息已发送给 " + toName + "！");
             showSendMessageForm(p, toXuid, toName, currentPage);
@@ -266,17 +266,17 @@ function showSendMessageForm(player, toXuid, toName, page) {
 }
 
 function showMyMessagesForm(player) {
-    var xuid = player.xuid;
-    var msgData = getPlayerMessageData(xuid);
+    const xuid = player.xuid;
+    const msgData = getPlayerMessageData(xuid);
 
-    var sortedMessages = msgData.messages.slice().sort(function(a, b) {
+    const sortedMessages = msgData.messages.slice().sort(function(a, b) {
         return parseTimeToNum(b.time) - parseTimeToNum(a.time);
     });
 
-    var playerMap = new Map();
+    const playerMap = new Map();
     sortedMessages.forEach(function(msg) {
-        var otherXuid = msg.fromXuid === xuid ? msg.toXuid : msg.fromXuid;
-        var otherName = msg.fromXuid === xuid ? (msg.toName || "未知玩家") : msg.fromName;
+        const otherXuid = msg.fromXuid === xuid ? msg.toXuid : msg.fromXuid;
+        const otherName = msg.fromXuid === xuid ? (msg.toName || "未知玩家") : msg.fromName;
 
         if (!playerMap.has(otherXuid)) {
             playerMap.set(otherXuid, {
@@ -287,29 +287,29 @@ function showMyMessagesForm(player) {
             });
         }
         if (!msg.read) {
-            var msgPlayerData = playerMap.get(otherXuid);
+            const msgPlayerData = playerMap.get(otherXuid);
             msgPlayerData.unreadCount++;
         }
     });
 
-    var playerList = Array.from(playerMap.values()).sort(function(a, b) {
+    const playerList = Array.from(playerMap.values()).sort(function(a, b) {
         return parseTimeToNum(b.latestMsg.time) - parseTimeToNum(a.latestMsg.time);
     });
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§b我的消息");
 
     if (playerList.length === 0) {
         gui.setContent("暂无消息");
     } else {
-        var totalUnread = sortedMessages.filter(function(m) { return !m.read; }).length;
+        const totalUnread = sortedMessages.filter(function(m) { return !m.read; }).length;
         gui.setContent("§a共有 " + playerList.length + " 个对话\n§e未读消息: " + totalUnread + " 条\n点击对话查看详情");
         playerList.forEach(function(playerData) {
-            var status = playerData.unreadCount > 0 ? "§e[" + playerData.unreadCount + "条新] " : "";
-            var preview = playerData.latestMsg.content.length > 15 ?
+            const status = playerData.unreadCount > 0 ? "§e[" + playerData.unreadCount + "条新] " : "";
+            const preview = playerData.latestMsg.content.length > 15 ?
                 playerData.latestMsg.content.substring(0, 15) + "..." :
                 playerData.latestMsg.content;
-            var avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(playerData.fromXuid) : "";
+            const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(playerData.fromXuid) : "";
             gui.addButton(status + playerData.fromName + "\n§6" + playerData.latestMsg.time + ": " + preview, avatarUrl);
         });
     }
@@ -329,10 +329,10 @@ function showMyMessagesForm(player) {
 
 function showConversationHistoryForm(player, targetXuid, targetName, page) {
     page = page || 0;
-    var xuid = player.xuid;
-    var msgData = getPlayerMessageData(xuid);
+    const xuid = player.xuid;
+    const msgData = getPlayerMessageData(xuid);
 
-    var conversation = [];
+    const conversation = [];
 
     msgData.messages.forEach(function(msg) {
         if (msg.fromXuid === targetXuid) {
@@ -347,17 +347,17 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
 
     saveMessageData();
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§b与 " + targetName + " 的对话");
 
-    var messagesPerPage = 5;
-    var totalPages = Math.ceil(conversation.length / messagesPerPage) || 1;
-    var currentPage = Math.min(page, totalPages - 1);
-    var startIndex = currentPage * messagesPerPage;
-    var endIndex = Math.min(startIndex + messagesPerPage, conversation.length);
-    var pageMessages = conversation.slice(startIndex, endIndex);
+    const messagesPerPage = 5;
+    const totalPages = Math.ceil(conversation.length / messagesPerPage) || 1;
+    const currentPage = Math.min(page, totalPages - 1);
+    const startIndex = currentPage * messagesPerPage;
+    const endIndex = Math.min(startIndex + messagesPerPage, conversation.length);
+    const pageMessages = conversation.slice(startIndex, endIndex);
 
-    var content = "-------------------------\n";
+    let content = "-------------------------\n";
     content += "§e与 §b" + targetName + " §e的对话 (" + (currentPage + 1) + "/" + totalPages + ")\n";
     content += "-------------------------\n";
 
@@ -365,8 +365,8 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
         content += "暂无对话历史\n";
     } else {
         pageMessages.forEach(function(msg) {
-            var nameColor = msg.isSelf ? "§a" : "§b";
-            var name = msg.isSelf ? "我" : msg.fromName;
+            const nameColor = msg.isSelf ? "§a" : "§b";
+            const name = msg.isSelf ? "我" : msg.fromName;
             content += nameColor + name + " " + msg.time + "\n";
             content += "§f" + msg.content + "\n";
             content += "-------------------------\n";
@@ -388,7 +388,7 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
 
-        var btnIndex = 0;
+        let btnIndex = 0;
 
         if (currentPage < totalPages - 1) {
             if (id === 0) {
@@ -418,10 +418,10 @@ function showMessageDetailForm(player, message) {
     message.read = true;
     saveMessageData();
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§b消息详情");
 
-    var content = "-------------------------\n";
+    let content = "-------------------------\n";
     content += "§a来自：§f" + message.fromName + "\n";
     content += "§a时间：§f" + message.time + "\n";
     content += "-------------------------\n";
@@ -439,7 +439,7 @@ function showMessageDetailForm(player, message) {
         if (id === 0) {
             showSendMessageForm(p, message.fromXuid, message.fromName);
         } else if (id === 1) {
-            var msgData = getPlayerMessageData(p.xuid);
+            const msgData = getPlayerMessageData(p.xuid);
             msgData.messages = msgData.messages.filter(function(m) { return m !== message; });
             saveMessageData();
             p.tell("§c消息已删除");
@@ -451,16 +451,16 @@ function showMessageDetailForm(player, message) {
 }
 
 function showMyFriendsForm(player) {
-    var xuid = player.xuid;
-    var friendInfo = getPlayerFriendData(xuid);
-    var myFriends = friendInfo.friends;
-    var pendingRequests = friendInfo.requests.filter(function(r) { return !r.handled; });
-    var pendingCount = pendingRequests.length;
+    const xuid = player.xuid;
+    const friendInfo = getPlayerFriendData(xuid);
+    const myFriends = friendInfo.friends;
+    const pendingRequests = friendInfo.requests.filter(function(r) { return !r.handled; });
+    const pendingCount = pendingRequests.length;
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§b我的好友");
 
-    var content = "-------------------------\n";
+    let content = "-------------------------\n";
     content += "§a好友数量：§f" + myFriends.length + "\n";
     content += "§a待处理请求：§f" + pendingCount + "\n";
     content += "-------------------------\n";
@@ -472,9 +472,9 @@ function showMyFriendsForm(player) {
 
     if (myFriends.length > 0) {
         myFriends.forEach(function(friend) {
-            var fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
-            var onlineStatus = mc.getPlayer(friend.xuid) ? "§a[在线]" : "[离线]";
-            var avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(friend.xuid) : "";
+            const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
+            const onlineStatus = mc.getPlayer(friend.xuid) ? "§a[在线]" : "[离线]";
+            const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(friend.xuid) : "";
             gui.addButton(onlineStatus + " §b" + (fi ? fi.name : "未知玩家") + "\n§6UID: " + (fi ? fi.uid : "未知"), avatarUrl);
         });
     }
@@ -499,7 +499,7 @@ function showMyFriendsForm(player) {
 }
 
 function showSearchFriendForm(player) {
-    var gui = mc.newCustomForm();
+    const gui = mc.newCustomForm();
     gui.setTitle("§l§b搜索好友");
     gui.addDropdown("搜索方式", ["玩家名称", "UID"], 0);
     gui.addInput("搜索关键词", "输入玩家名称或UID", "");
@@ -510,8 +510,8 @@ function showSearchFriendForm(player) {
             return;
         }
 
-        var searchType = data[0];
-        var keyword = (data[1] || "").trim();
+        const searchType = data[0];
+        const keyword = (data[1] || "").trim();
 
         if (!keyword) {
             p.tell("§c请输入搜索关键词！");
@@ -519,13 +519,13 @@ function showSearchFriendForm(player) {
             return;
         }
 
-        var results = searchPlayers(keyword, searchType);
+        const results = searchPlayers(keyword, searchType);
         showSearchResultsForm(p, results, keyword);
     });
 }
 
 function showSearchResultsForm(player, results, keyword) {
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§b搜索结果");
 
     if (results.length === 0) {
@@ -533,7 +533,7 @@ function showSearchResultsForm(player, results, keyword) {
     } else {
         gui.setContent("§a找到 " + results.length + " 个匹配结果：\n点击玩家头像查看详情");
         results.forEach(function(p) {
-            var avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(p.xuid) : "";
+            const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(p.xuid) : "";
             gui.addButton("§b" + p.name + "\n§6UID: " + p.uid, avatarUrl);
         });
     }
@@ -552,18 +552,18 @@ function showSearchResultsForm(player, results, keyword) {
 }
 
 function showPlayerDetailForm(player, targetInfo) {
-    var xuid = player.xuid;
-    var myFriends = getPlayerFriendData(xuid);
-    var isFriend = myFriends.friends.some(function(f) { return f.xuid === targetInfo.xuid; });
-    var pendingRequest = myFriends.sentRequests.find(function(r) { return r.xuid === targetInfo.xuid && !r.handled; });
-    var hasPendingRequest = !!pendingRequest;
-    var wasRejected = myFriends.sentRequests.some(function(r) { return r.xuid === targetInfo.xuid && r.handled && r.rejected; });
-    var isSelf = xuid === targetInfo.xuid;
+    const xuid = player.xuid;
+    const myFriends = getPlayerFriendData(xuid);
+    const isFriend = myFriends.friends.some(function(f) { return f.xuid === targetInfo.xuid; });
+    const pendingRequest = myFriends.sentRequests.find(function(r) { return r.xuid === targetInfo.xuid && !r.handled; });
+    const hasPendingRequest = !!pendingRequest;
+    const wasRejected = myFriends.sentRequests.some(function(r) { return r.xuid === targetInfo.xuid && r.handled && r.rejected; });
+    const isSelf = xuid === targetInfo.xuid;
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§b" + targetInfo.name);
 
-    var content = "-------------------------\n";
+    let content = "-------------------------\n";
     content += "§a玩家名称：§f" + targetInfo.name + "\n";
     content += "§aUID：§f" + targetInfo.uid + "\n";
     content += "§a注册时间：§f" + (targetInfo.registerTime || "未知") + "\n";
@@ -592,7 +592,7 @@ function showPlayerDetailForm(player, targetInfo) {
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
 
-        var btnIndex = 0;
+        let btnIndex = 0;
         if (!isSelf && !isFriend && !hasPendingRequest) {
             if (id === 0) {
                 showSendFriendRequestForm(p, targetInfo);
@@ -610,7 +610,7 @@ function showPlayerDetailForm(player, targetInfo) {
 }
 
 function showSendFriendRequestForm(player, targetInfo) {
-    var gui = mc.newCustomForm();
+    const gui = mc.newCustomForm();
     gui.setTitle("§l§a发送好友请求");
     gui.addLabel("§e向 §b" + targetInfo.name + " §e发送好友请求");
     gui.addInput("验证消息", "请输入验证消息（可选）", "我是" + player.name);
@@ -621,7 +621,7 @@ function showSendFriendRequestForm(player, targetInfo) {
             return;
         }
 
-        var message = (data[1] || "").trim() || ("我是" + p.name);
+        const message = (data[1] || "").trim() || ("我是" + p.name);
 
         if (_deps.getPlayerSetting && !_deps.getPlayerSetting(targetInfo.xuid, "allowFriendRequests")) {
             p.tell("§c对方拒绝接受好友请求！");
@@ -629,7 +629,7 @@ function showSendFriendRequestForm(player, targetInfo) {
             return;
         }
 
-        var targetFriends = getPlayerFriendData(targetInfo.xuid);
+        const targetFriends = getPlayerFriendData(targetInfo.xuid);
         targetFriends.requests.push({
             xuid: p.xuid,
             name: p.name,
@@ -638,7 +638,7 @@ function showSendFriendRequestForm(player, targetInfo) {
             handled: false
         });
 
-        var myFriends = getPlayerFriendData(p.xuid);
+        const myFriends = getPlayerFriendData(p.xuid);
         myFriends.sentRequests.push({
             xuid: targetInfo.xuid,
             name: targetInfo.name,
@@ -649,7 +649,7 @@ function showSendFriendRequestForm(player, targetInfo) {
 
         saveData();
 
-        var targetPlayer = mc.getPlayer(targetInfo.xuid);
+        const targetPlayer = mc.getPlayer(targetInfo.xuid);
         if (targetPlayer && _deps.getPlayerSetting && _deps.getPlayerSetting(targetInfo.xuid, "enableFriendRequestNotification")) {
             targetPlayer.sendToast("§e好友请求", "§a玩家 §b" + p.name + " §a请求添加您为好友");
             targetPlayer.tell("§e[好友] §a玩家 §b" + p.name + " §a请求添加您为好友，请在好友系统中查看");
@@ -661,11 +661,11 @@ function showSendFriendRequestForm(player, targetInfo) {
 }
 
 function showFriendRequestsForm(player) {
-    var xuid = player.xuid;
-    var friendInfo = getPlayerFriendData(xuid);
-    var pendingRequests = friendInfo.requests.filter(function(r) { return !r.handled; });
+    const xuid = player.xuid;
+    const friendInfo = getPlayerFriendData(xuid);
+    const pendingRequests = friendInfo.requests.filter(function(r) { return !r.handled; });
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§e好友请求");
 
     if (pendingRequests.length === 0) {
@@ -673,7 +673,7 @@ function showFriendRequestsForm(player) {
     } else {
         gui.setContent("§a您有 " + pendingRequests.length + " 个待处理的好友请求：");
         pendingRequests.forEach(function(req) {
-            var avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(req.xuid) : "";
+            const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(req.xuid) : "";
             gui.addButton("§b" + req.name + "\n§6" + req.message, avatarUrl);
         });
     }
@@ -692,10 +692,10 @@ function showFriendRequestsForm(player) {
 }
 
 function showHandleRequestForm(player, request) {
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§b处理好友请求");
 
-    var content = "-------------------------\n";
+    let content = "-------------------------\n";
     content += "§a来自：§f" + request.name + "\n";
     content += "§a验证消息：§f" + request.message + "\n";
     content += "§a时间：§f" + request.time + "\n";
@@ -710,8 +710,8 @@ function showHandleRequestForm(player, request) {
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
 
-        var myFriends = getPlayerFriendData(p.xuid);
-        var requestIndex = myFriends.requests.findIndex(function(r) { return r.xuid === request.xuid && !r.handled; });
+        const myFriends = getPlayerFriendData(p.xuid);
+        const requestIndex = myFriends.requests.findIndex(function(r) { return r.xuid === request.xuid && !r.handled; });
 
         if (id === 0) {
             if (requestIndex !== -1) {
@@ -722,14 +722,14 @@ function showHandleRequestForm(player, request) {
                     addTime: U.getCurrentTimeString()
                 });
 
-                var targetFriends = getPlayerFriendData(request.xuid);
+                const targetFriends = getPlayerFriendData(request.xuid);
                 targetFriends.friends.push({
                     xuid: p.xuid,
                     name: p.name,
                     addTime: U.getCurrentTimeString()
                 });
 
-                var sentIndex = targetFriends.sentRequests.findIndex(function(r) { return r.xuid === p.xuid && !r.handled; });
+                const sentIndex = targetFriends.sentRequests.findIndex(function(r) { return r.xuid === p.xuid && !r.handled; });
                 if (sentIndex !== -1) {
                     targetFriends.sentRequests[sentIndex].handled = true;
                 }
@@ -741,8 +741,8 @@ function showHandleRequestForm(player, request) {
             if (requestIndex !== -1) {
                 myFriends.requests[requestIndex].handled = true;
 
-                var targetFriends2 = getPlayerFriendData(request.xuid);
-                var sentIndex2 = targetFriends2.sentRequests.findIndex(function(r) { return r.xuid === p.xuid && !r.handled; });
+                const targetFriends2 = getPlayerFriendData(request.xuid);
+                const sentIndex2 = targetFriends2.sentRequests.findIndex(function(r) { return r.xuid === p.xuid && !r.handled; });
                 if (sentIndex2 !== -1) {
                     targetFriends2.sentRequests[sentIndex2].handled = true;
                     targetFriends2.sentRequests[sentIndex2].rejected = true;
@@ -758,16 +758,16 @@ function showHandleRequestForm(player, request) {
 }
 
 function showFriendDetailForm(player, friend) {
-    var fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
-    var friendName = fi ? fi.name : "未知玩家";
-    var friendUid = fi ? fi.uid : "未知";
-    var isOnline = mc.getPlayer(friend.xuid);
-    var onlineStatus = isOnline ? "§a在线" : "离线";
+    const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
+    const friendName = fi ? fi.name : "未知玩家";
+    const friendUid = fi ? fi.uid : "未知";
+    const isOnline = mc.getPlayer(friend.xuid);
+    const onlineStatus = isOnline ? "§a在线" : "离线";
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§b" + friendName);
 
-    var content = "-------------------------\n";
+    let content = "-------------------------\n";
     content += "§a好友名称：§f" + friendName + "\n";
     content += "§aUID：§f" + friendUid + "\n";
     content += "§a状态：" + onlineStatus + "\n";
@@ -793,8 +793,8 @@ function showFriendDetailForm(player, friend) {
 }
 
 function showDeleteFriendConfirmForm(player, friend) {
-    var fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
-    var friendName = fi ? fi.name : "未知玩家";
+    const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
+    const friendName = fi ? fi.name : "未知玩家";
 
     player.sendModalForm(
         "§c删除好友",
@@ -803,10 +803,10 @@ function showDeleteFriendConfirmForm(player, friend) {
         "§a取消",
         function(p, res) {
             if (res) {
-                var myFriends = getPlayerFriendData(p.xuid);
+                const myFriends = getPlayerFriendData(p.xuid);
                 myFriends.friends = myFriends.friends.filter(function(f) { return f.xuid !== friend.xuid; });
 
-                var targetFriends = getPlayerFriendData(friend.xuid);
+                const targetFriends = getPlayerFriendData(friend.xuid);
                 targetFriends.friends = targetFriends.friends.filter(function(f) { return f.xuid !== p.xuid; });
 
                 saveData();
@@ -818,12 +818,12 @@ function showDeleteFriendConfirmForm(player, friend) {
 }
 
 function getPendingRequestCount(xuid) {
-    var friendInfo = getPlayerFriendData(xuid);
+    const friendInfo = getPlayerFriendData(xuid);
     return friendInfo.requests.filter(function(r) { return !r.handled; }).length;
 }
 
 function getUnreadMessageCount(xuid) {
-    var msgData = getPlayerMessageData(xuid);
+    const msgData = getPlayerMessageData(xuid);
     return msgData.messages.filter(function(m) { return !m.read; }).length;
 }
 

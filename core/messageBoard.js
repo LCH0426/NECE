@@ -21,16 +21,16 @@
  */
 
 
-var C = require('./constants');
-var U = require('./utils');
-var D = require('./debug');
+const C = require('./constants');
+const U = require('./utils');
+const D = require('./debug');
 
-var messageBoardDM = null;
-var messageBoardData = {
+let messageBoardDM = null;
+let messageBoardData = {
     messages: [],
     nextId: 1
 };
-var _onSaveCallbacks = [];
+const _onSaveCallbacks = [];
 
 function init(dm) {
 	D.debugLogModule('messageBoard')('init: 初始化完成');
@@ -38,7 +38,7 @@ function init(dm) {
     messageBoardData = messageBoardDM.load();
     if (!Array.isArray(messageBoardData.messages)) messageBoardData.messages = [];
     if (typeof messageBoardData.nextId !== 'number') messageBoardData.nextId = 1;
-    var needFix = false;
+    let needFix = false;
     messageBoardData.messages.forEach(function(msg) {
         if (typeof msg.isDeleted === 'undefined') {
             msg.isDeleted = false;
@@ -64,12 +64,12 @@ function getData() {
 }
 
 function showMainForm(player) {
-    var xuid = player.xuid;
-    var playerName = player.realName;
-    var validMessages = (messageBoardData.messages || []).filter(function(m) { return !m.isDeleted; });
-    var myMessages = validMessages.filter(function(m) { return m.xuid === xuid; });
+    let xuid = player.xuid;
+    const playerName = player.realName;
+    let validMessages = (messageBoardData.messages || []).filter(function(m) { return !m.isDeleted; });
+    let myMessages = validMessages.filter(function(m) { return m.xuid === xuid; });
 
-    var fm = mc.newSimpleForm();
+    let fm = mc.newSimpleForm();
     fm.setTitle("§a留言板");
     fm.setContent("§6——————————————\n§f玩家ID：§a" + playerName + "\n§f服务器总留言数：§a" + messageBoardData.messages.length + " §f条（有效：§a" + validMessages.length + "§f条）\n§f我的有效留言数：§a" + myMessages.length + " §f条\n§6——————————————");
 
@@ -92,7 +92,7 @@ function showMainForm(player) {
 }
 
 function createAddMessageForm(player) {
-    var fm = mc.newCustomForm();
+    let fm = mc.newCustomForm();
     fm.setTitle("§6新增留言");
     fm.addInput("§f请输入留言内容（最多200字符）", "string", "");
     fm.addDropdown("§f选择心情", C.MOOD_OPTIONS, 0);
@@ -102,16 +102,16 @@ function createAddMessageForm(player) {
             showMainForm(pl);
             return;
         }
-        var msg = String(data[0] || "").trim();
-        var moodIndex = typeof data[1] === 'number' ? data[1] : 2;
+        let msg = String(data[0] || "").trim();
+        const moodIndex = typeof data[1] === 'number' ? data[1] : 2;
         if (!msg || msg.length > 200) {
             pl.tell("§c[留言板] 留言内容不能为空且不能超过200字符！");
             createAddMessageForm(pl);
             return;
         }
-        var device = pl.getDevice();
-        var client = device ? device.os : "未知";
-        var newMessage = {
+        const device = pl.getDevice();
+        const client = device ? device.os : "未知";
+        const newMessage = {
             id: messageBoardData.nextId,
             xuid: pl.xuid,
             playerName: pl.realName,
@@ -131,17 +131,17 @@ function createAddMessageForm(player) {
 }
 
 function createMyMessagesForm(player, page) {
-    var xuid = player.xuid;
-    var pageSize = 10;
-    var myMessages = messageBoardData.messages.filter(function(m) { return m.xuid === xuid && !m.isDeleted; }).reverse();
-    var totalPages = Math.ceil(myMessages.length / pageSize) || 1;
-    var startIndex = (page - 1) * pageSize;
-    var pageMessages = myMessages.slice(startIndex, startIndex + pageSize);
+    let xuid = player.xuid;
+    let pageSize = 10;
+    const myMessages = messageBoardData.messages.filter(function(m) { return m.xuid === xuid && !m.isDeleted; }).reverse();
+    let totalPages = Math.ceil(myMessages.length / pageSize) || 1;
+    let startIndex = (page - 1) * pageSize;
+    let pageMessages = myMessages.slice(startIndex, startIndex + pageSize);
 
-    var fm = mc.newSimpleForm();
+    let fm = mc.newSimpleForm();
     fm.setTitle("§6我的留言");
 
-    var content = "§f当前页：§a第 " + page + "/" + totalPages + " 页（每页" + pageSize + "条）\n";
+    let content = "§f当前页：§a第 " + page + "/" + totalPages + " 页（每页" + pageSize + "条）\n";
     content += "§6——————————————\n";
 
     if (pageMessages.length === 0) {
@@ -164,7 +164,7 @@ function createMyMessagesForm(player, page) {
 
     player.sendForm(fm, function(pl, id) {
         if (id === null) return;
-        var buttonIndex = 0;
+        let buttonIndex = 0;
         if (id === buttonIndex) { createAddMessageForm(pl); return; }
         buttonIndex++;
         if (page > 1) {
@@ -180,18 +180,18 @@ function createMyMessagesForm(player, page) {
 }
 
 function createAllMessagesForm(player, page) {
-    var pageSize = 10;
-    var allMessages = messageBoardData.messages.filter(function(m) { return !m.isDeleted; }).reverse();
-    var totalPages = Math.ceil(allMessages.length / pageSize) || 1;
-    var startIndex = (page - 1) * pageSize;
-    var pageMessages = allMessages.slice(startIndex, startIndex + pageSize);
-    var totalCount = messageBoardData.messages.length;
-    var activeCount = allMessages.length;
+    let pageSize = 10;
+    const allMessages = messageBoardData.messages.filter(function(m) { return !m.isDeleted; }).reverse();
+    let totalPages = Math.ceil(allMessages.length / pageSize) || 1;
+    const startIndex = (page - 1) * pageSize;
+    const pageMessages = allMessages.slice(startIndex, startIndex + pageSize);
+    const totalCount = messageBoardData.messages.length;
+    const activeCount = allMessages.length;
 
-    var fm = mc.newSimpleForm();
+    let fm = mc.newSimpleForm();
     fm.setTitle("§d所有留言");
 
-    var content = "§f总留言数：§a" + totalCount + " 条（有效：§a" + activeCount + " 条）\n";
+    let content = "§f总留言数：§a" + totalCount + " 条（有效：§a" + activeCount + " 条）\n";
     content += "§f当前页：§a第 " + page + "/" + totalPages + " 页（每页" + pageSize + "条）\n";
     content += "§6——————————————\n";
 
@@ -215,7 +215,7 @@ function createAllMessagesForm(player, page) {
 
     player.sendForm(fm, function(pl, id) {
         if (id === null) return;
-        var buttonIndex = 0;
+        let buttonIndex = 0;
         if (page > 1) {
             if (id === buttonIndex) { createAllMessagesForm(pl, page - 1); return; }
             buttonIndex++;
@@ -229,8 +229,8 @@ function createAllMessagesForm(player, page) {
 }
 
 function showMessageDetail(player, message) {
-    var isOwnMessage = message.xuid === player.xuid;
-    var content = "§6——————————————\n";
+    const isOwnMessage = message.xuid === player.xuid;
+    let content = "§6——————————————\n";
     content += "§f留言ID：§a" + message.id + "\n";
     content += "§f作者：§a" + message.playerName + "\n";
     content += "§f心情：§a" + message.mood + "\n";
@@ -246,7 +246,7 @@ function showMessageDetail(player, message) {
         content += "§f删除前客户端：§b" + message.client + "\n";
     }
 
-    var fm = mc.newSimpleForm();
+    let fm = mc.newSimpleForm();
     fm.setTitle("§b留言详情 #" + message.id);
     fm.setContent(content);
     if (isOwnMessage && !message.isDeleted) {
@@ -263,7 +263,7 @@ function showMessageDetail(player, message) {
                 "§c删除",
                 "§a取消", function(p, result) {
                     if (result === true) {
-                        var msgIndex = messageBoardData.messages.findIndex(function(m) { return m.id === message.id; });
+                        const msgIndex = messageBoardData.messages.findIndex(function(m) { return m.id === message.id; });
                         if (msgIndex !== -1) {
                             messageBoardData.messages[msgIndex].isDeleted = true;
                             if (saveData()) {
@@ -280,19 +280,19 @@ function showMessageDetail(player, message) {
 }
 
 function showRandomMessage(player) {
-    var validMessages = messageBoardData.messages.filter(function(m) { return !m.isDeleted; });
+    const validMessages = messageBoardData.messages.filter(function(m) { return !m.isDeleted; });
     if (validMessages.length === 0) {
         player.tell("§c[留言板] 暂无有效留言！");
         showMainForm(player);
         return;
     }
-    var randomIndex = Math.floor(Math.random() * validMessages.length);
-    var randomMessage = validMessages[randomIndex];
+    const randomIndex = Math.floor(Math.random() * validMessages.length);
+    const randomMessage = validMessages[randomIndex];
 
-    var fm = mc.newSimpleForm();
+    let fm = mc.newSimpleForm();
     fm.setTitle("§b随机留言 #" + randomMessage.id);
 
-    var content = "§6——————————————\n";
+    let content = "§6——————————————\n";
     content += "§f留言ID：§a" + randomMessage.id + "\n";
     content += "§f作者：§a" + randomMessage.playerName + "\n";
     content += "§f心情：§a" + randomMessage.mood + "\n";
@@ -313,7 +313,7 @@ function showRandomMessage(player) {
 }
 
 function createSearchMessageForm(player) {
-    var fm = mc.newCustomForm();
+    const fm = mc.newCustomForm();
     fm.setTitle("§c搜索留言");
     fm.addInput("§f请输入留言ID（数字）", "ID", "");
 
@@ -322,15 +322,15 @@ function createSearchMessageForm(player) {
             showMainForm(pl);
             return;
         }
-        var input = String((Array.isArray(data) && data[0] !== undefined ? data[0] : "") || "").trim();
+        let input = String((Array.isArray(data) && data[0] !== undefined ? data[0] : "") || "").trim();
         if (input === "") return;
-        var messageId = parseInt(input);
+        const messageId = parseInt(input);
         if (isNaN(messageId) || messageId <= 0) {
             pl.tell("§c[留言板] 输入错误！请输入有效的数字ID！");
             createSearchMessageForm(pl);
             return;
         }
-        var message = messageBoardData.messages.find(function(m) { return m.id === messageId; });
+        const message = messageBoardData.messages.find(function(m) { return m.id === messageId; });
         if (!message) {
             pl.tell("§c[留言板] 未找到留言 #" + messageId + "！");
             createSearchMessageForm(pl);
@@ -340,9 +340,72 @@ function createSearchMessageForm(player) {
     });
 }
 
+// ============ Web API 方法 (原 messageBoardApi) ============
+
+function getMessages(options) {
+    options = options || {};
+    const page = Math.max(1, parseInt(options.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(options.pageSize) || 10));
+    const search = (options.search || '').trim().toLowerCase();
+    const mood = options.mood || '';
+    const xuid = options.xuid || '';
+    const includeDeleted = options.includeDeleted === true;
+
+    const filtered = messageBoardData.messages.filter(function(m) {
+        if (!includeDeleted && m.isDeleted) return false;
+        if (xuid && m.xuid !== xuid) return false;
+        if (mood && m.mood !== mood) return false;
+        if (search) {
+            const msgMatch = (m.msg || '').toLowerCase().indexOf(search) >= 0;
+            const nameMatch = (m.playerName || '').toLowerCase().indexOf(search) >= 0;
+            const idMatch = m.id.toString() === search;
+            if (!msgMatch && !nameMatch && !idMatch) return false;
+        }
+        return true;
+    });
+
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / pageSize) || 1;
+    const start = (page - 1) * pageSize;
+    const paged = filtered.slice(start, start + pageSize).reverse();
+
+    return { messages: paged, total: total, page: page, pageSize: pageSize, totalPages: totalPages };
+}
+
+function getMessageById(id) {
+    return messageBoardData.messages.find(function(m) { return m.id === id; }) || null;
+}
+
+function getNextId() {
+    return messageBoardData.nextId++;
+}
+
+function formatTime() {
+    return U.getCurrentTimeString();
+}
+
+function addMessage(msg) {
+    messageBoardData.messages.push(msg);
+    saveData();
+}
+
+function deleteMessage(id) {
+    const msg = messageBoardData.messages.find(function(m) { return m.id === id; });
+    if (!msg) return false;
+    msg.isDeleted = true;
+    saveData();
+    return true;
+}
+
 module.exports = {
     init: init,
     getData: getData,
     showMainForm: showMainForm,
-    onSave: function(cb) { _onSaveCallbacks.push(cb); }
+    onSave: function(cb) { _onSaveCallbacks.push(cb); },
+    getMessages: getMessages,
+    getMessageById: getMessageById,
+    getNextId: getNextId,
+    formatTime: formatTime,
+    addMessage: addMessage,
+    deleteMessage: deleteMessage
 };

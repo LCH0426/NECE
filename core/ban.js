@@ -23,14 +23,14 @@
 
 const fs = require('fs');
 const pathModule = require('path');
-var U = require('./utils');
-var D = require('./debug');
+const U = require('./utils');
+const D = require('./debug');
 
-var banDM = null;
-var banData = {
+let banDM = null;
+let banData = {
     entries: {}
 };
-var _deps = {};
+let _deps = {};
 
 function init(dm, deps) {
 	D.debugLogModule('ban')('init: 初始化完成');
@@ -46,11 +46,11 @@ function saveData() {
 }
 
 function resolvePlayer(identifier) {
-    var result = null;
-    var playerData = _deps.playerData || {};
-    var players = playerData.players || playerData;
+    let result = null;
+    const playerData = _deps.playerData || {};
+    const players = playerData.players || playerData;
 
-    var onlinePlayer = mc.getPlayer(identifier);
+    let onlinePlayer = mc.getPlayer(identifier);
     if (onlinePlayer) {
         return {
             xuid: onlinePlayer.xuid,
@@ -61,9 +61,9 @@ function resolvePlayer(identifier) {
         };
     }
 
-    for (var xuid in players) {
+    for (let xuid in players) {
         if (!players.hasOwnProperty(xuid)) continue;
-        var info = players[xuid];
+        const info = players[xuid];
         if (info.name && info.name.toLowerCase() === identifier.toLowerCase()) {
             result = {
                 xuid: xuid,
@@ -88,7 +88,7 @@ function resolvePlayer(identifier) {
 
     if (!result) {
         if (banData.entries[identifier]) {
-            var entry = banData.entries[identifier];
+            let entry = banData.entries[identifier];
             return {
                 xuid: identifier,
                 name: entry.name || '未知玩家',
@@ -106,19 +106,19 @@ function banPlayer(identifier, reason, operator) {
     reason = reason || '管理员封禁';
     operator = operator || '控制台';
 
-    var playerInfo = resolvePlayer(identifier);
+    let playerInfo = resolvePlayer(identifier);
     if (!playerInfo) {
         return { success: false, message: '未找到玩家：' + identifier };
     }
 
-    var xuid = playerInfo.xuid;
+    let xuid = playerInfo.xuid;
     if (banData.entries[xuid]) {
         return { success: false, message: '玩家 ' + playerInfo.name + ' 已在封禁列表中' };
     }
 
-    var ip = playerInfo.ip;
+    let ip = playerInfo.ip;
     if (!ip) {
-        var onlinePlayer = mc.getPlayer(xuid);
+        let onlinePlayer = mc.getPlayer(xuid);
         if (onlinePlayer && onlinePlayer.getDevice) {
             ip = onlinePlayer.getDevice().ip;
         }
@@ -135,12 +135,12 @@ function banPlayer(identifier, reason, operator) {
     };
     saveData();
 
-    var onlinePlayer = mc.getPlayer(xuid);
+    const onlinePlayer = mc.getPlayer(xuid);
     if (onlinePlayer) {
         onlinePlayer.kick('§c你已被封禁\n§e原因：' + reason + '\n§e操作者：' + operator);
     }
 
-    var msg = '已封禁玩家 ' + playerInfo.name + ' (XUID: ' + xuid;
+    let msg = '已封禁玩家 ' + playerInfo.name + ' (XUID: ' + xuid;
     if (playerInfo.uid && playerInfo.uid !== xuid) msg += ', UID: ' + playerInfo.uid;
     if (ip) msg += ', IP: ' + ip;
     msg += ')，原因：' + reason;
@@ -149,10 +149,10 @@ function banPlayer(identifier, reason, operator) {
 }
 
 function unbanPlayer(identifier) {
-    var playerInfo = resolvePlayer(identifier);
+    const playerInfo = resolvePlayer(identifier);
     if (!playerInfo) {
         if (banData.entries[identifier]) {
-            var entry = banData.entries[identifier];
+            let entry = banData.entries[identifier];
             delete banData.entries[identifier];
             saveData();
             return { success: true, message: '已解封 XUID: ' + identifier + ' (' + (entry.name || '未知') + ')' };
@@ -160,16 +160,16 @@ function unbanPlayer(identifier) {
         return { success: false, message: '未找到玩家：' + identifier };
     }
 
-    var xuid = playerInfo.xuid;
+    const xuid = playerInfo.xuid;
     if (!banData.entries[xuid]) {
         return { success: false, message: '玩家 ' + playerInfo.name + ' 不在封禁列表中' };
     }
 
-    var entry = banData.entries[xuid];
+    let entry = banData.entries[xuid];
     delete banData.entries[xuid];
     saveData();
 
-    var msg = '已解封玩家 ' + playerInfo.name + ' (XUID: ' + xuid + ')';
+    const msg = '已解封玩家 ' + playerInfo.name + ' (XUID: ' + xuid + ')';
     return { success: true, message: msg };
 }
 
@@ -178,9 +178,9 @@ function isPlayerBanned(xuid, ip) {
         return { banned: true, reason: banData.entries[xuid].reason, entry: banData.entries[xuid] };
     }
     if (ip) {
-        for (var bxuid in banData.entries) {
+        for (let bxuid in banData.entries) {
             if (!banData.entries.hasOwnProperty(bxuid)) continue;
-            var entry = banData.entries[bxuid];
+            let entry = banData.entries[bxuid];
             if (entry.banned && entry.ip && entry.ip === ip) {
                 return { banned: true, reason: 'IP关联封禁 (关联XUID: ' + bxuid + ', 原因: ' + entry.reason + ')', entry: entry };
             }
@@ -190,10 +190,10 @@ function isPlayerBanned(xuid, ip) {
 }
 
 function getBanList() {
-    var list = [];
-    for (var xuid in banData.entries) {
+    let list = [];
+    for (let xuid in banData.entries) {
         if (!banData.entries.hasOwnProperty(xuid)) continue;
-        var entry = banData.entries[xuid];
+        const entry = banData.entries[xuid];
         if (entry.banned) {
             list.push(Object.assign({ xuid: xuid }, entry));
         }
@@ -202,8 +202,8 @@ function getBanList() {
 }
 
 function showBanListForm(player) {
-    var banList = getBanList();
-    var gui = mc.newSimpleForm();
+    let banList = getBanList();
+    let gui = mc.newSimpleForm();
     gui.setTitle("§l§c封禁列表");
 
     if (banList.length === 0) {
@@ -232,10 +232,10 @@ function showBanListForm(player) {
 }
 
 function showBanDetailForm(player, entry) {
-    var gui = mc.newSimpleForm();
+    let gui = mc.newSimpleForm();
     gui.setTitle("§l§c封禁详情 - " + entry.name);
 
-    var content = "-------------------------\n";
+    let content = "-------------------------\n";
     content += "§c玩家名称：§f" + entry.name + "\n";
     content += "§cXUID：§f" + entry.xuid + "\n";
     content += "§cUID：§f" + (entry.uid || "未知") + "\n";
@@ -255,7 +255,7 @@ function showBanDetailForm(player, entry) {
         if (id === 0) {
             p.sendModalForm("§a确认解封", "§a确定要解封玩家 §f" + entry.name + " §a吗？", "§a确认", "§c取消", function(pl, res) {
                 if (res) {
-                    var result = unbanPlayer(entry.xuid);
+                    let result = unbanPlayer(entry.xuid);
                     pl.tell(result.message);
                     showBanListForm(pl);
                 } else {
@@ -269,7 +269,7 @@ function showBanDetailForm(player, entry) {
 }
 
 function showBanPlayerForm(player) {
-    var gui = mc.newCustomForm();
+    const gui = mc.newCustomForm();
     gui.setTitle("§l§c封禁玩家");
     gui.addInput("玩家ID/UID/XUID", "输入玩家名称、UID或XUID", "");
     gui.addInput("封禁原因", "输入封禁原因（可选）", "管理员封禁");
@@ -280,8 +280,8 @@ function showBanPlayerForm(player) {
             return;
         }
 
-        var identifier = (data[0] || "").trim();
-        var reason = (data[1] || "").trim() || "管理员封禁";
+        let identifier = (data[0] || "").trim();
+        let reason = (data[1] || "").trim() || "管理员封禁";
 
         if (!identifier) {
             p.tell("§c请输入玩家标识！");
@@ -289,7 +289,7 @@ function showBanPlayerForm(player) {
             return;
         }
 
-        var result = banPlayer(identifier, reason, p.name);
+        let result = banPlayer(identifier, reason, p.name);
         p.tell(result.success ? "§a" + result.message : "§c" + result.message);
         showBanListForm(p);
     });
@@ -302,9 +302,9 @@ function registerConsoleCommands() {
                 logger.info('用法: ban <玩家ID/UID/XUID> [原因]');
                 return;
             }
-            var identifier = args[0];
-            var reason = args.length > 1 ? args.slice(1).join(' ') : '控制台封禁';
-            var result = banPlayer(identifier, reason, '控制台');
+            let identifier = args[0];
+            let reason = args.length > 1 ? args.slice(1).join(' ') : '控制台封禁';
+            let result = banPlayer(identifier, reason, '控制台');
             logger.info(result.message);
         });
     } catch (error) {
@@ -317,8 +317,8 @@ function registerConsoleCommands() {
                 logger.info('用法: unban <玩家ID/UID/XUID>');
                 return;
             }
-            var identifier = args[0];
-            var result = unbanPlayer(identifier);
+            let identifier = args[0];
+            let result = unbanPlayer(identifier);
             logger.info(result.message);
         });
     } catch (error) {
@@ -327,7 +327,7 @@ function registerConsoleCommands() {
 
     try {
         mc.regConsoleCmd('banlist', '查看封禁列表', function(args) {
-            var banList = getBanList();
+            const banList = getBanList();
             if (banList.length === 0) {
                 logger.info('当前没有封禁的玩家');
                 return;
@@ -344,21 +344,21 @@ function registerConsoleCommands() {
 
 function registerGameCommands() {
     try {
-        var banCmd = mc.newCommand('ban', '封禁玩家', PermType.GameMasters);
+        const banCmd = mc.newCommand('ban', '封禁玩家', PermType.GameMasters);
         banCmd.mandatory('target', ParamType.RawText);
         banCmd.optional('reason', ParamType.RawText);
         banCmd.overload(['target', 'reason']);
         banCmd.setCallback(function(_cmd, origin, output, results) {
-            var player = origin.player;
-            var identifier = String(results.target || '').trim();
-            var reason = String(results.reason || '管理员封禁').trim();
+            let player = origin.player;
+            let identifier = String(results.target || '').trim();
+            const reason = String(results.reason || '管理员封禁').trim();
             if (!identifier) {
                 if (player) player.tell('§c用法: /ban <玩家ID/UID/XUID> [原因]');
                 else logger.info('用法: ban <玩家ID/UID/XUID> [原因]');
                 return;
             }
-            var operator = player ? player.name : '控制台';
-            var result = banPlayer(identifier, reason, operator);
+            const operator = player ? player.name : '控制台';
+            let result = banPlayer(identifier, reason, operator);
             if (player) player.tell(result.success ? '§a' + result.message : '§c' + result.message);
             else logger.info(result.message);
         });
@@ -368,18 +368,18 @@ function registerGameCommands() {
     }
 
     try {
-        var unbanCmd = mc.newCommand('unban', '解封玩家', PermType.GameMasters);
+        const unbanCmd = mc.newCommand('unban', '解封玩家', PermType.GameMasters);
         unbanCmd.mandatory('target', ParamType.RawText);
         unbanCmd.overload(['target']);
         unbanCmd.setCallback(function(_cmd, origin, output, results) {
-            var player = origin.player;
-            var identifier = String(results.target || '').trim();
+            let player = origin.player;
+            const identifier = String(results.target || '').trim();
             if (!identifier) {
                 if (player) player.tell('§c用法: /unban <玩家ID/UID/XUID>');
                 else logger.info('用法: unban <玩家ID/UID/XUID>');
                 return;
             }
-            var result = unbanPlayer(identifier);
+            const result = unbanPlayer(identifier);
             if (player) player.tell(result.success ? '§a' + result.message : '§c' + result.message);
             else logger.info(result.message);
         });
@@ -389,14 +389,14 @@ function registerGameCommands() {
     }
 
     try {
-        var banlistCmd = mc.newCommand('banlist', '查看封禁列表', PermType.GameMasters);
+        const banlistCmd = mc.newCommand('banlist', '查看封禁列表', PermType.GameMasters);
         banlistCmd.overload([]);
         banlistCmd.setCallback(function(_cmd, origin, output, results) {
-            var player = origin.player;
+            const player = origin.player;
             if (player) {
                 showBanListForm(player);
             } else {
-                var list = getBanList();
+                const list = getBanList();
                 if (list.length === 0) {
                     logger.info('当前没有封禁的玩家');
                 } else {

@@ -21,14 +21,14 @@
  */
 
 
-var RANK_PAGE_SIZE = 10;
+const RANK_PAGE_SIZE = 10;
 
 function createRankModule(deps) {
-    var playerData = deps.playerData;
-    var getCurrencyName = deps.getCurrencyName;
+    const playerData = deps.playerData;
+    const getCurrencyName = deps.getCurrencyName;
 
     function showRankMainForm(player) {
-        var fm = mc.newSimpleForm();
+        let fm = mc.newSimpleForm();
         fm.setTitle("排行榜");
         fm.addButton("经济排行榜", "textures/ui/icon_recipe_nature");
         fm.addButton("存款排行榜", "textures/ui/icon_book_writable");
@@ -38,19 +38,19 @@ function createRankModule(deps) {
         fm.addButton("关闭", "textures/ui/cancel");
         player.sendForm(fm, function(p, id) {
             if (id === null || id === 5) return;
-            var types = ["money", "bank", "kills", "deaths", "mining"];
+            const types = ["money", "bank", "kills", "deaths", "mining"];
             showRankDetailForm(p, types[id], 0);
         });
     }
 
     function getRankData(type) {
-        var entries = [];
-        var players = playerData.players || {};
+        const entries = [];
+        const players = playerData.players || {};
         Object.keys(players).forEach(function(xuid) {
-            var p = players[xuid];
+            const p = players[xuid];
             if (!p) return;
-            var name = p.name || "未知";
-            var value = 0;
+            const name = p.name || "未知";
+            let value = 0;
             switch (type) {
                 case "money":
                     if (typeof money !== 'undefined' && money && typeof money.get === 'function') {
@@ -79,7 +79,7 @@ function createRankModule(deps) {
     }
 
     function getRankTitle(type) {
-        var titles = {
+        const titles = {
             money: "经济排行榜",
             bank: "存款排行榜",
             kills: "击杀排行榜",
@@ -90,7 +90,7 @@ function createRankModule(deps) {
     }
 
     function getRankUnit(type) {
-        var units = {
+        const units = {
             money: getCurrencyName(),
             bank: getCurrencyName(),
             kills: "次",
@@ -101,24 +101,24 @@ function createRankModule(deps) {
     }
 
     function showRankDetailForm(player, type, page) {
-        var allData = getRankData(type);
-        var title = getRankTitle(type);
-        var unit = getRankUnit(type);
-        var totalPages = Math.max(1, Math.ceil(allData.length / RANK_PAGE_SIZE));
+        const allData = getRankData(type);
+        const title = getRankTitle(type);
+        const unit = getRankUnit(type);
+        const totalPages = Math.max(1, Math.ceil(allData.length / RANK_PAGE_SIZE));
         if (page >= totalPages) page = totalPages - 1;
         if (page < 0) page = 0;
-        var start = page * RANK_PAGE_SIZE;
-        var end = Math.min(start + RANK_PAGE_SIZE, allData.length);
-        var pageData = allData.slice(start, end);
+        const start = page * RANK_PAGE_SIZE;
+        const end = Math.min(start + RANK_PAGE_SIZE, allData.length);
+        const pageData = allData.slice(start, end);
 
-        var content = "第" + (page + 1) + "/" + totalPages + "页 共" + allData.length + "人\n\n";
+        let content = "第" + (page + 1) + "/" + totalPages + "页 共" + allData.length + "人\n\n";
 
         if (allData.length === 0) {
             content = "暂无数据";
         } else {
             pageData.forEach(function(entry, idx) {
-                var rank = start + idx + 1;
-                var prefix = "";
+                let rank = start + idx + 1;
+                let prefix = "";
                 if (rank === 1) prefix = "第一名 ";
                 else if (rank === 2) prefix = "第二名 ";
                 else if (rank === 3) prefix = "第三名 ";
@@ -127,7 +127,7 @@ function createRankModule(deps) {
             });
         }
 
-        var fm = mc.newSimpleForm();
+        const fm = mc.newSimpleForm();
         fm.setTitle(title);
         fm.setContent(content);
         if (page > 0) fm.addButton("上一页", "textures/ui/arrow_left");
@@ -135,9 +135,9 @@ function createRankModule(deps) {
         fm.addButton("返回排行榜", "textures/ui/recap_glyph_desaturated");
         player.sendForm(fm, function(p, id) {
             if (id === null) return;
-            var btnIdx = 0;
-            var hasPrev = page > 0;
-            var hasNext = page < totalPages - 1;
+            let btnIdx = 0;
+            const hasPrev = page > 0;
+            const hasNext = page < totalPages - 1;
             if (hasPrev && id === btnIdx) {
                 showRankDetailForm(p, type, page - 1);
                 return;

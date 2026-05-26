@@ -21,10 +21,10 @@
  */
 
 
-var D = require('./debug');
-var mailDM = null;
-var mailData = null;
-var _deps = {};
+const D = require('./debug');
+let mailDM = null;
+let mailData = null;
+let _deps = {};
 
 function init(dm, deps) {
 	D.debugLogModule('mail')('init: 初始化完成');
@@ -51,7 +51,7 @@ function addMail(mail) {
 }
 
 function deleteMail(mailId) {
-    var index = mailData.mails.findIndex(function(m) { return m.id === mailId; });
+    const index = mailData.mails.findIndex(function(m) { return m.id === mailId; });
     if (index === -1) return false;
     mailData.mails.splice(index, 1);
     save();
@@ -72,13 +72,13 @@ function incrementNextId() {
 }
 
 function formatMailTime() {
-    var now = new Date();
-    var year = now.getFullYear();
-    var month = String(now.getMonth() + 1).padStart(2, '0');
-    var day = String(now.getDate()).padStart(2, '0');
-    var hour = String(now.getHours()).padStart(2, '0');
-    var minute = String(now.getMinutes()).padStart(2, '0');
-    var second = String(now.getSeconds()).padStart(2, '0');
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hour = String(now.getHours()).padStart(2, '0');
+    const minute = String(now.getMinutes()).padStart(2, '0');
+    const second = String(now.getSeconds()).padStart(2, '0');
     return year + '.' + month + '.' + day + '.' + hour + '.' + minute + '.' + second;
 }
 
@@ -101,7 +101,7 @@ function getUnreadMailCount(xuid) {
 
 function getUnreadMailInfo(xuid) {
     if (!mailData || !mailData.mails) return { count: 0, attachmentCount: 0, normalCount: 0 };
-    var myMails = mailData.mails.filter(function(m) {
+    const myMails = mailData.mails.filter(function(m) {
         if (m.scheduledTime) return false;
         if (m.toXuid === xuid) {
             return !m.read;
@@ -110,8 +110,8 @@ function getUnreadMailInfo(xuid) {
         }
         return false;
     });
-    var attachmentMails = myMails.filter(function(m) { return (m.starQian && m.starQian > 0) || (m.items && m.items.length > 0); });
-    var normalMails = myMails.filter(function(m) { return !((m.starQian && m.starQian > 0) || (m.items && m.items.length > 0)); });
+    const attachmentMails = myMails.filter(function(m) { return (m.starQian && m.starQian > 0) || (m.items && m.items.length > 0); });
+    const normalMails = myMails.filter(function(m) { return !((m.starQian && m.starQian > 0) || (m.items && m.items.length > 0)); });
     return {
         count: myMails.length,
         attachmentCount: attachmentMails.length,
@@ -120,26 +120,26 @@ function getUnreadMailInfo(xuid) {
 }
 
 function checkScheduledMails() {
-    var now = new Date();
-    var currentTimeStr = _deps.U ? _deps.U.getCurrentTimeString() : formatMailTime();
+    const now = new Date();
+    const currentTimeStr = _deps.U ? _deps.U.getCurrentTimeString() : formatMailTime();
 
-    var scheduledMails = mailData.mails.filter(function(mail) { return mail.scheduledTime; });
-    var needSave = false;
+    const scheduledMails = mailData.mails.filter(function(mail) { return mail.scheduledTime; });
+    let needSave = false;
 
     scheduledMails.forEach(function(mail) {
-        var parts = mail.scheduledTime.split('.').map(Number);
-        var year = parts[0], month = parts[1], day = parts[2], hour = parts[3], minute = parts[4] || 0;
-        var scheduledDate = new Date(year, month - 1, day, hour, minute, 0);
+        const parts = mail.scheduledTime.split('.').map(Number);
+        const year = parts[0], month = parts[1], day = parts[2], hour = parts[3], minute = parts[4] || 0;
+        const scheduledDate = new Date(year, month - 1, day, hour, minute, 0);
 
         if (now >= scheduledDate) {
             mail.time = currentTimeStr;
             delete mail.scheduledTime;
             needSave = true;
 
-            var hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
-            var onlinePlayers = mc.getOnlinePlayers();
+            const hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
+            const onlinePlayers = mc.getOnlinePlayers();
             onlinePlayers.forEach(function(onlinePlayer) {
-                var playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(onlinePlayer.xuid, "enableMailNotification") : true;
+                const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(onlinePlayer.xuid, "enableMailNotification") : true;
                 if (hasAttachment && playerSetting) {
                     onlinePlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自 " + mail.fromName + " 的邮件，内含附件奖励");
                     onlinePlayer.tell("§e[邮件] §a您收到了一封来自 " + mail.fromName + " 的邮件，内含附件奖励，请在邮件系统中领取");
@@ -157,9 +157,9 @@ function checkScheduledMails() {
 }
 
 function showScheduledMailManagerForm(player) {
-    var scheduledMails = mailData.mails.filter(function(mail) { return mail.scheduledTime; });
+    const scheduledMails = mailData.mails.filter(function(mail) { return mail.scheduledTime; });
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§6定时邮件管理");
 
     if (scheduledMails.length === 0) {
@@ -168,7 +168,7 @@ function showScheduledMailManagerForm(player) {
         gui.setContent("§7-------------------------\n§a定时邮件数量：§f" + scheduledMails.length + "\n§7-------------------------\n");
 
         scheduledMails.forEach(function(mail, index) {
-            var hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
+            const hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
             gui.addButton((index + 1) + ". " + mail.fromName + "\n§6定时时间：" + mail.scheduledTime + "\n" + (hasAttachment ? "§a[含附件]" : ""));
         });
     }
@@ -187,11 +187,11 @@ function showScheduledMailManagerForm(player) {
 }
 
 function showScheduledMailDetailForm(player, mail) {
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§6定时邮件详情");
 
-    var hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
-    var content = "§7------------------------\n";
+    const hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
+    let content = "§7------------------------\n";
     content += "§a发送者：§f" + mail.fromName + "\n";
     content += "§a定时时间：§f" + mail.scheduledTime + "\n";
     content += "§a邮件内容：\n§f" + mail.content + "\n";
@@ -222,7 +222,7 @@ function showScheduledMailDetailForm(player, mail) {
 }
 
 function showModifyScheduledTimeForm(player, mail) {
-    var gui = mc.newCustomForm();
+    const gui = mc.newCustomForm();
     gui.setTitle("§l§6修改定时时间");
     gui.addLabel("§e请输入新的定时时间");
     gui.addInput("定时时间", "格式：2026.02.12.00.00（年月日时分）", mail.scheduledTime);
@@ -237,17 +237,17 @@ function showModifyScheduledTimeForm(player, mail) {
             return;
         }
 
-        var newScheduledTime = (data && data[1]) ? data[1].trim() : '';
+        const newScheduledTime = (data && data[1]) ? data[1].trim() : '';
         if (!newScheduledTime || !/^\d{4}\.\d{2}\.\d{2}\.\d{2}(\.\d{2})?$/.test(newScheduledTime)) {
             p.tell("§c定时时间格式错误！");
             showModifyScheduledTimeForm(p, mail);
             return;
         }
 
-        var parts = newScheduledTime.split(".").map(Number);
-        var year = parts[0], month = parts[1], day = parts[2], hour = parts[3], minute = parts[4] || 0;
-        var scheduledDate = new Date(year, month - 1, day, hour, minute, 0);
-        var now = new Date();
+        const parts = newScheduledTime.split(".").map(Number);
+        const year = parts[0], month = parts[1], day = parts[2], hour = parts[3], minute = parts[4] || 0;
+        const scheduledDate = new Date(year, month - 1, day, hour, minute, 0);
+        const now = new Date();
 
         if (scheduledDate <= now) {
             p.tell("§c定时时间必须晚于当前时间！");
@@ -263,17 +263,17 @@ function showModifyScheduledTimeForm(player, mail) {
 }
 
 function showMailSystemForm(player) {
-    var isOp = player.isOP();
+    const isOp = player.isOP();
 
     if (!isOp) {
         showPlayerMailSystemForm(player);
         return;
     }
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§d邮件系统");
 
-    var content = "-------------------------\n";
+    let content = "-------------------------\n";
     content += "§e邮件系统功能：\n";
     content += "-------------------------\n";
 
@@ -303,33 +303,33 @@ function showMailSystemForm(player) {
 
 function showMailListForm(player, page) {
     page = page || 0;
-    var xuid = player.xuid;
-    var myMails = mailData.mails.filter(function(m) { return (m.toXuid === xuid || m.toXuid === "all") && !m.scheduledTime; });
+    const xuid = player.xuid;
+    const myMails = mailData.mails.filter(function(m) { return (m.toXuid === xuid || m.toXuid === "all") && !m.scheduledTime; });
 
     myMails.sort(function(a, b) {
         function parseTimeStr(timeStr) {
-            var parts = timeStr.split('.').map(Number);
+            const parts = timeStr.split('.').map(Number);
             return new Date(parts[0], parts[1] - 1, parts[2], parts[3], parts[4], parts[5]);
         }
         return parseTimeStr(b.time) - parseTimeStr(a.time);
     });
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§b我的邮件");
 
-    var mailsPerPage = 5;
-    var totalPages = Math.ceil(myMails.length / mailsPerPage) || 1;
-    var currentPage = Math.min(page, totalPages - 1);
-    var startIndex = currentPage * mailsPerPage;
-    var endIndex = Math.min(startIndex + mailsPerPage, myMails.length);
-    var pageMails = myMails.slice(startIndex, endIndex);
+    const mailsPerPage = 5;
+    const totalPages = Math.ceil(myMails.length / mailsPerPage) || 1;
+    const currentPage = Math.min(page, totalPages - 1);
+    const startIndex = currentPage * mailsPerPage;
+    const endIndex = Math.min(startIndex + mailsPerPage, myMails.length);
+    const pageMails = myMails.slice(startIndex, endIndex);
 
     if (myMails.length === 0) {
         gui.setContent("暂无邮件");
     } else {
         gui.setContent("§a您共有 " + myMails.length + " 封邮件：\n§e当前页：" + (currentPage + 1) + "/" + totalPages);
         pageMails.forEach(function(mail) {
-            var isUnread = false;
+            const isUnread = false;
             if (mail.toXuid === "all") {
                 if (!mail.read || !mail.read[xuid]) {
                     isUnread = true;
@@ -339,8 +339,8 @@ function showMailListForm(player, page) {
                     isUnread = true;
                 }
             }
-            var type = mail.toXuid === "all" ? "[全体] " : "";
-            var icon = isUnread ? "textures/ui/invite_base" : "textures/ui/New_confirm_Hover";
+            const type = mail.toXuid === "all" ? "[全体] " : "";
+            const icon = isUnread ? "textures/ui/invite_base" : "textures/ui/New_confirm_Hover";
             gui.addButton("§b" + type + mail.fromName + "\n" + mail.time, icon);
         });
     }
@@ -357,7 +357,7 @@ function showMailListForm(player, page) {
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
 
-        var btnIndex = 0;
+        let btnIndex = 0;
         if (id >= 0 && id < pageMails.length) {
             showMailDetailForm(p, pageMails[id]);
             return;
@@ -387,7 +387,7 @@ function showMailListForm(player, page) {
 }
 
 function showMailDetailForm(player, mail) {
-    var xuid = player.xuid;
+    const xuid = player.xuid;
 
     if (mail.toXuid === "all") {
         if (!mail.read) mail.read = {};
@@ -397,19 +397,19 @@ function showMailDetailForm(player, mail) {
     }
     save();
 
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§b邮件详情");
 
-    var content = "-------------------------\n";
+    let content = "-------------------------\n";
     content += "§a发件人：§f" + mail.fromName + "\n";
     content += "§a时间：§f" + mail.time + "\n";
     content += "-------------------------\n";
     content += "§f" + mail.content + "\n";
     content += "-------------------------\n";
 
-    var hasAttachment = (mail.starQian && mail.starQian > 0) || (mail.items && mail.items.length > 0);
+    const hasAttachment = (mail.starQian && mail.starQian > 0) || (mail.items && mail.items.length > 0);
 
-    var isClaimed = false;
+    let isClaimed = false;
     if (mail.toXuid === "all") {
         isClaimed = mail.claimed && mail.claimed[xuid];
     } else {
@@ -424,8 +424,8 @@ function showMailDetailForm(player, mail) {
         if (mail.items && mail.items.length > 0) {
             mail.items.forEach(function(item, index) {
                 if (typeof item === 'object' && item.type === 'snbt' && item.snbt) {
-                    var nameMatch = item.snbt.match(/"Name"\s*:\s*"([^"]+)"/);
-                    var displayName = nameMatch ? nameMatch[1].replace('minecraft:', '') : 'SNBT物品';
+                    const nameMatch = item.snbt.match(/"Name"\s*:\s*"([^"]+)"/);
+                    const displayName = nameMatch ? nameMatch[1].replace('minecraft:', '') : 'SNBT物品';
                     content += "§a- " + displayName + "\n";
                 } else if (typeof item === 'object' && item.name) {
                     content += "§a- " + item.name + " x" + (item.count || 1) + "\n";
@@ -452,7 +452,7 @@ function showMailDetailForm(player, mail) {
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
 
-        var btnIndex = 0;
+        let btnIndex = 0;
         if (hasAttachment && !isClaimed) {
             if (id === 0) {
                 claimMailAttachments(p, mail);
@@ -473,9 +473,9 @@ function showMailDetailForm(player, mail) {
 }
 
 function claimMailAttachments(player, mail) {
-    var xuid = player.xuid;
+    const xuid = player.xuid;
 
-    var isClaimed = false;
+    let isClaimed = false;
     if (mail.toXuid === "all") {
         isClaimed = mail.claimed && mail.claimed[xuid];
     } else {
@@ -498,27 +498,27 @@ function claimMailAttachments(player, mail) {
         }
     }
 
-    var allItemsSuccess = true;
+    let allItemsSuccess = true;
     if (mail.items && mail.items.length > 0) {
         mail.items.forEach(function(itemData, index) {
             try {
-                var rawSnbt = typeof itemData === 'object' ? itemData.snbt : itemData;
+                const rawSnbt = typeof itemData === 'object' ? itemData.snbt : itemData;
                 if (!rawSnbt || typeof rawSnbt !== 'string' || !rawSnbt.trim()) {
                     _deps.logger.error("[邮件] 物品" + (index + 1) + "缺少有效的snbt数据，itemData类型: " + typeof itemData);
                     player.tell("§c物品 " + (index + 1) + " 数据无效！");
                     allItemsSuccess = false;
                     return;
                 }
-                var trimmedSnbt = rawSnbt.trim();
+                const trimmedSnbt = rawSnbt.trim();
 
-                var nbt = null;
-                var strategies = [
+                let nbt = null;
+                const strategies = [
                     trimmedSnbt,
                     trimmedSnbt.replace(/\\"/g, '"'),
                     trimmedSnbt.replace(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1:'),
                     trimmedSnbt.replace(/\\"/g, '"').replace(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1:')
                 ];
-                for (var si = 0; si < strategies.length; si++) {
+                for (let si = 0; si < strategies.length; si++) {
                     nbt = NBT.parseSNBT(strategies[si]);
                     if (nbt) {
                         break;
@@ -526,12 +526,12 @@ function claimMailAttachments(player, mail) {
                 }
 
                 if (!nbt) {
-                    var nameMatch = trimmedSnbt.match(/"?Name"?\s*:\s*"([^"]+)"/) || trimmedSnbt.match(/Name\s*:\s*([^,}\s]+)/);
-                    var countMatch = trimmedSnbt.match(/"?Count"?\s*:\s*(\d+)/) || trimmedSnbt.match(/Count\s*:\s*(\d+)/);
+                    const nameMatch = trimmedSnbt.match(/"?Name"?\s*:\s*"([^"]+)"/) || trimmedSnbt.match(/Name\s*:\s*([^,}\s]+)/);
+                    const countMatch = trimmedSnbt.match(/"?Count"?\s*:\s*(\d+)/) || trimmedSnbt.match(/Count\s*:\s*(\d+)/);
                     if (nameMatch) {
-                        var itemId = nameMatch[1];
-                        var itemCount = countMatch ? parseInt(countMatch[1]) : 1;
-                        var fallbackItem = mc.newItem(itemId, itemCount);
+                        const itemId = nameMatch[1];
+                        const itemCount = countMatch ? parseInt(countMatch[1]) : 1;
+                        const fallbackItem = mc.newItem(itemId, itemCount);
                         if (fallbackItem) {
                             if (player.getInventory().hasRoomFor(fallbackItem)) {
                                 player.giveItem(fallbackItem);
@@ -547,7 +547,7 @@ function claimMailAttachments(player, mail) {
                     allItemsSuccess = false;
                     return;
                 }
-                var item = mc.newItem(nbt);
+                const item = mc.newItem(nbt);
                 if (item) {
                     if (player.getInventory().hasRoomFor(item)) {
                         player.giveItem(item);
@@ -587,7 +587,7 @@ function claimMailAttachments(player, mail) {
 }
 
 function showSendGlobalMailForm(player) {
-    var gui = mc.newCustomForm();
+    const gui = mc.newCustomForm();
     gui.setTitle("§l§a发送全体邮件");
     gui.addLabel("§e此邮件将发送给所有玩家");
     gui.addSwitch("使用自定义发件人", false);
@@ -596,10 +596,10 @@ function showSendGlobalMailForm(player) {
     gui.addInput("发放" + getCurrencyName(), "填写数量，为空则不发放", "");
     gui.addInput("定时发送", "格式：2026.02.12.00（年月日时分），为空则立即发送", "");
 
-    var allItems = player.getInventory().getAllItems();
-    var items = [];
+    const allItems = player.getInventory().getAllItems();
+    const items = [];
 
-    for (var key = 0; key < allItems.length; key++) {
+    for (let key = 0; key < allItems.length; key++) {
         if (allItems[key].type == '') {
             continue;
         }
@@ -607,9 +607,9 @@ function showSendGlobalMailForm(player) {
         items.push(allItems[key]);
     }
 
-    var itemOptions = ["无"];
+    const itemOptions = ["无"];
     items.forEach(function(item) {
-        var Enchanted = '';
+        const Enchanted = '';
         if (item.isEnchanted) {
             Enchanted = '§d';
         }
@@ -629,29 +629,29 @@ function showSendGlobalMailForm(player) {
             return;
         }
 
-        var useCustomSender = data[1] || false;
-        var customSender = data[2] ? data[2].trim() : '';
+        const useCustomSender = data[1] || false;
+        const customSender = data[2] ? data[2].trim() : '';
 
-        var content = data[3] ? data[3].trim() : '';
+        const content = data[3] ? data[3].trim() : '';
         if (!content) {
             p.tell("§c邮件内容不能为空！");
             showSendGlobalMailForm(p);
             return;
         }
 
-        var starQianAmount = data[4] ? data[4].trim() : '';
-        var starQian = starQianAmount && /^\d+$/.test(starQianAmount) ? parseInt(starQianAmount) : 0;
+        const starQianAmount = data[4] ? data[4].trim() : '';
+        const starQian = starQianAmount && /^\d+$/.test(starQianAmount) ? parseInt(starQianAmount) : 0;
 
-        var scheduledTime = data[5] ? data[5].trim() : '';
+        const scheduledTime = data[5] ? data[5].trim() : '';
 
-        var selectedItems = [];
-        var selectedIndexSet = new Set();
+        const selectedItems = [];
+        const selectedIndexSet = new Set();
 
-        for (var i = 6; i <= 10; i++) {
-            var selectedIndex = data[i];
+        for (let i = 6; i <= 10; i++) {
+            const selectedIndex = data[i];
             if (selectedIndex > 0 && !selectedIndexSet.has(selectedIndex)) {
                 selectedIndexSet.add(selectedIndex);
-                var item = items[selectedIndex - 1];
+                const item = items[selectedIndex - 1];
                 if (item) {
                     selectedItems.push({
                         name: item.name,
@@ -674,16 +674,16 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     useCustomSender = useCustomSender || false;
     customSender = customSender || '';
 
-    var items = selectedItems.map(function(item) {
+    const items = selectedItems.map(function(item) {
         return {
             snbt: item.snbt,
             name: item.name,
             count: item.count
         };
     });
-    var hasAttachment = starQian > 0 || items.length > 0;
+    const hasAttachment = starQian > 0 || items.length > 0;
 
-    var fromName;
+    let fromName;
     if (useCustomSender) {
         if (customSender) {
             fromName = customSender;
@@ -696,10 +696,10 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
 
     if (scheduledTime) {
         if (/^\d{4}\.\d{2}\.\d{2}\.\d{2}(\.\d{2})?$/.test(scheduledTime)) {
-            var parts = scheduledTime.split(".").map(Number);
-            var year = parts[0], month = parts[1], day = parts[2], hour = parts[3], minute = parts[4] || 0;
-            var scheduledDate = new Date(year, month - 1, day, hour, minute, 0);
-            var now = new Date();
+            const parts = scheduledTime.split(".").map(Number);
+            const year = parts[0], month = parts[1], day = parts[2], hour = parts[3], minute = parts[4] || 0;
+            const scheduledDate = new Date(year, month - 1, day, hour, minute, 0);
+            const now = new Date();
 
             if (scheduledDate > now) {
                 mailData.mails.push({
@@ -718,7 +718,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
                 save();
                 player.tell("§a定时邮件设置成功！将在 " + scheduledTime + " 发送" + (hasAttachment ? "（含附件）" : ""));
 
-                var successForm = mc.newSimpleForm();
+                const successForm = mc.newSimpleForm();
                 successForm.setTitle("§l§a邮件发送成功");
                 successForm.setContent("§7-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n§7-------------------------\n§e邮件内容：\n" + content + "\n§7-------------------------\n§a发件人：§e" + fromName + "\n§a" + getCurrencyName() + "奖励：§e" + starQian + " 点\n§a附件物品：§e" + items.length + " 个\n§a定时发送：§e" + scheduledTime + "\n§7-------------------------\n");
                 successForm.addButton("§b返回邮件系统", "textures/ui/recap_glyph_desaturated");
@@ -756,10 +756,10 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     });
     save();
 
-    var onlinePlayers = mc.getOnlinePlayers();
+    const onlinePlayers = mc.getOnlinePlayers();
     onlinePlayers.forEach(function(onlinePlayer) {
         if (onlinePlayer.xuid !== player.xuid) {
-            var playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(onlinePlayer.xuid, "enableMailNotification") : true;
+            const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(onlinePlayer.xuid, "enableMailNotification") : true;
             if (hasAttachment && playerSetting) {
                 onlinePlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自 " + fromName + " 的邮件，内含附件奖励");
                 onlinePlayer.tell("§e[邮件] §a您收到了一封来自 " + fromName + " 的邮件，内含附件奖励，请在邮件系统中领取");
@@ -771,7 +771,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     });
 
     if (!scheduledTime) {
-        var successForm = mc.newSimpleForm();
+        const successForm = mc.newSimpleForm();
         successForm.setTitle("§l§a邮件发送成功");
         successForm.setContent("§7-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n§7-------------------------\n§e邮件内容：\n" + content + "\n§7-------------------------\n§a发件人：§e" + fromName + "\n§a" + getCurrencyName() + "奖励：§e" + starQian + " 点\n§a附件物品：§e" + items.length + " 个\n§a发送时间：§e" + (_deps.U ? _deps.U.getCurrentTimeString() : formatMailTime()) + "\n§7-------------------------\n");
         successForm.addButton("§b返回邮件系统", "textures/ui/recap_glyph_desaturated");
@@ -788,7 +788,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
 }
 
 function showSearchPlayerForMailForm(player) {
-    var gui = mc.newCustomForm();
+    const gui = mc.newCustomForm();
     gui.setTitle("§l§e选择收件人");
     gui.addDropdown("搜索方式", ["UID", "玩家名称"], 0);
     gui.addInput("搜索关键词", "输入UID或玩家名称", "");
@@ -799,8 +799,8 @@ function showSearchPlayerForMailForm(player) {
             return;
         }
 
-        var searchType = data[0];
-        var keyword = data[1] ? data[1].trim() : '';
+        const searchType = data[0];
+        const keyword = data[1] ? data[1].trim() : '';
 
         if (!keyword) {
             p.tell("§c请输入搜索关键词！");
@@ -808,7 +808,7 @@ function showSearchPlayerForMailForm(player) {
             return;
         }
 
-        var results = _deps.searchPlayers ? _deps.searchPlayers(keyword, searchType === 1 ? 0 : 1) : [];
+        const results = _deps.searchPlayers ? _deps.searchPlayers(keyword, searchType === 1 ? 0 : 1) : [];
         if (results.length === 0) {
             p.tell("§c未找到匹配的玩家！");
             showSearchPlayerForMailForm(p);
@@ -824,12 +824,12 @@ function showSearchPlayerForMailForm(player) {
 }
 
 function showMailTargetSelectForm(player, results) {
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§b选择收件人");
     gui.setContent("§e找到多个匹配结果，请选择：");
 
     results.forEach(function(p) {
-        var avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(p.xuid) : "textures/ui/icon_steve";
+        const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(p.xuid) : "textures/ui/icon_steve";
         gui.addButton("§b" + p.name + "\n§6UID: " + p.uid, avatarUrl);
     });
 
@@ -847,21 +847,21 @@ function showMailTargetSelectForm(player, results) {
 }
 
 function showSendSingleMailForm(player, target) {
-    var gui = mc.newCustomForm();
+    const gui = mc.newCustomForm();
     gui.setTitle("§l§e发送邮件");
     gui.addLabel("§e收件人：§b" + target.name);
     gui.addInput("邮件内容", "请输入邮件内容", "");
     gui.addInput("发放" + getCurrencyName(), "填写数量，为空则不发放", "");
 
-    var inventory = player.getInventory();
-    var items = [];
-    var slotCount = 36;
+    const inventory = player.getInventory();
+    const items = [];
+    const slotCount = 36;
 
-    for (var slot = 0; slot < slotCount; slot++) {
+    for (let slot = 0; slot < slotCount; slot++) {
         try {
-            var item = inventory.getItem(slot);
+            const item = inventory.getItem(slot);
             if (!item) continue;
-            var type = item.type;
+            const type = item.type;
             if (!type || type === '' || type === 'minecraft:air') continue;
 
             items.push({
@@ -880,9 +880,9 @@ function showSendSingleMailForm(player, target) {
         }
     }
 
-    var itemOptions = ["无"];
+    const itemOptions = ["无"];
     items.forEach(function(item) {
-        var Enchanted = '';
+        const Enchanted = '';
         if (item.isEnchanted) {
             Enchanted = '§d';
         }
@@ -902,24 +902,24 @@ function showSendSingleMailForm(player, target) {
             return;
         }
 
-        var content = data[1] ? data[1].trim() : '';
+        const content = data[1] ? data[1].trim() : '';
         if (!content) {
             p.tell("§c邮件内容不能为空！");
             showSendSingleMailForm(p, target);
             return;
         }
 
-        var starQianAmount = data[2] ? data[2].trim() : '';
-        var starQian = starQianAmount && /^\d+$/.test(starQianAmount) ? parseInt(starQianAmount) : 0;
+        const starQianAmount = data[2] ? data[2].trim() : '';
+        const starQian = starQianAmount && /^\d+$/.test(starQianAmount) ? parseInt(starQianAmount) : 0;
 
-        var selectedItems = [];
-        var selectedIndexSet = new Set();
+        const selectedItems = [];
+        const selectedIndexSet = new Set();
 
-        for (var i = 4; i <= 8; i++) {
-            var selectedIndex = data[i];
+        for (let i = 4; i <= 8; i++) {
+            const selectedIndex = data[i];
             if (selectedIndex > 0 && !selectedIndexSet.has(selectedIndex)) {
                 selectedIndexSet.add(selectedIndex);
-                var item = items[selectedIndex - 1];
+                const item = items[selectedIndex - 1];
                 selectedItems.push({
                     name: item.name,
                     count: item.count,
@@ -937,14 +937,14 @@ function showSendSingleMailForm(player, target) {
 }
 
 function sendSingleMail(player, target, content, starQian, selectedItems) {
-    var items = selectedItems.map(function(item) {
+    const items = selectedItems.map(function(item) {
         return {
             snbt: item.snbt,
             name: item.name,
             count: item.count
         };
     });
-    var hasAttachment = starQian > 0 || items.length > 0;
+    const hasAttachment = starQian > 0 || items.length > 0;
 
     mailData.mails.push({
         id: mailData.nextId++,
@@ -960,9 +960,9 @@ function sendSingleMail(player, target, content, starQian, selectedItems) {
     });
     save();
 
-    var targetPlayer = mc.getPlayer(target.xuid);
+    const targetPlayer = mc.getPlayer(target.xuid);
     if (targetPlayer) {
-        var playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(target.xuid, "enableMailNotification") : true;
+        const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(target.xuid, "enableMailNotification") : true;
         if (playerSetting) {
             if (hasAttachment) {
                 targetPlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自管理员 §b" + player.name + " §a的邮件，内含附件奖励");
@@ -979,9 +979,9 @@ function sendSingleMail(player, target, content, starQian, selectedItems) {
 }
 
 function showPlayerSendMailForm(player) {
-    var onlinePlayers = mc.getOnlinePlayers();
-    var playerOptions = [];
-    var playerList = [];
+    const onlinePlayers = mc.getOnlinePlayers();
+    const playerOptions = [];
+    const playerList = [];
 
     onlinePlayers.forEach(function(onlinePlayer) {
         if (onlinePlayer.xuid !== player.xuid) {
@@ -999,7 +999,7 @@ function showPlayerSendMailForm(player) {
         return;
     }
 
-    var gui = mc.newCustomForm();
+    const gui = mc.newCustomForm();
     gui.setTitle("§l§a发送邮件");
     gui.addLabel("§e发送邮件收费标准：");
     gui.addLabel("§c基础费用：100" + getCurrencyName());
@@ -1009,15 +1009,15 @@ function showPlayerSendMailForm(player) {
     gui.addLabel("§e请输入邮件内容：");
     gui.addInput("邮件内容", "请输入邮件内容", "");
 
-    var inventory = player.getInventory();
-    var items = [];
-    var slotCount = 36;
+    const inventory = player.getInventory();
+    const items = [];
+    const slotCount = 36;
 
-    for (var slot = 0; slot < slotCount; slot++) {
+    for (let slot = 0; slot < slotCount; slot++) {
         try {
-            var item = inventory.getItem(slot);
+            const item = inventory.getItem(slot);
             if (!item) continue;
-            var type = item.type;
+            const type = item.type;
             if (!type || type === '' || type === 'minecraft:air') continue;
 
             items.push({
@@ -1036,9 +1036,9 @@ function showPlayerSendMailForm(player) {
         }
     }
 
-    var itemOptions = ["无"];
+    const itemOptions = ["无"];
     items.forEach(function(item) {
-        var Enchanted = '';
+        const Enchanted = '';
         if (item.isEnchanted) {
             Enchanted = '§d';
         }
@@ -1056,26 +1056,26 @@ function showPlayerSendMailForm(player) {
             return;
         }
 
-        var targetIndex = data[4];
-        var target = playerList[targetIndex];
+        const targetIndex = data[4];
+        const target = playerList[targetIndex];
         if (!target) {
             p.tell("§c收件人选择错误！");
             showPlayerSendMailForm(p);
             return;
         }
 
-        var content = data[6] ? data[6].trim() : '';
+        const content = data[6] ? data[6].trim() : '';
         if (!content) {
             p.tell("§c邮件内容不能为空！");
             showPlayerSendMailForm(p);
             return;
         }
 
-        var selectedItems = [];
-        var selectedIndices = new Set();
+        const selectedItems = [];
+        const selectedIndices = new Set();
 
-        for (var i = 8; i <= 10; i++) {
-            var selectedIndex = data[i];
+        for (let i = 8; i <= 10; i++) {
+            const selectedIndex = data[i];
             if (selectedIndex > 0) {
                 if (selectedIndices.has(selectedIndex)) {
                     p.tell("§c不能重复选择同一物品作为附件！");
@@ -1084,7 +1084,7 @@ function showPlayerSendMailForm(player) {
                 }
                 selectedIndices.add(selectedIndex);
 
-                var item = items[selectedIndex - 1];
+                const item = items[selectedIndex - 1];
                 if (item) {
                     selectedItems.push({
                         name: item.name,
@@ -1096,11 +1096,11 @@ function showPlayerSendMailForm(player) {
             }
         }
 
-        var baseCost = 100;
-        var attachmentCost = selectedItems.length * 200;
-        var totalCost = baseCost + attachmentCost;
+        const baseCost = 100;
+        const attachmentCost = selectedItems.length * 200;
+        const totalCost = baseCost + attachmentCost;
 
-        var currentStarQian = _deps.money ? _deps.money.get(p.xuid) || 0 : 0;
+        const currentStarQian = _deps.money ? _deps.money.get(p.xuid) || 0 : 0;
         if (currentStarQian < totalCost) {
             p.tell("§c" + getCurrencyName() + "不足！发送邮件需要 " + totalCost + " " + getCurrencyName() + "，您当前只有 " + currentStarQian + " " + getCurrencyName());
             showPlayerSendMailForm(p);
@@ -1116,7 +1116,7 @@ function showPlayerSendMailForm(player) {
         }
         if (_deps.notifyEconomyChange) _deps.notifyEconomyChange(p, -totalCost, "发送邮件");
 
-        var itemsFormatted = selectedItems.map(function(item) {
+        const itemsFormatted = selectedItems.map(function(item) {
             return {
                 snbt: item.snbt,
                 name: item.name,
@@ -1138,9 +1138,9 @@ function showPlayerSendMailForm(player) {
         });
         save();
 
-        var targetPlayer = mc.getPlayer(target.xuid);
+        const targetPlayer = mc.getPlayer(target.xuid);
         if (targetPlayer) {
-            var playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(target.xuid, "enableMailNotification") : true;
+            const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(target.xuid, "enableMailNotification") : true;
             if (playerSetting) {
                 if (selectedItems.length > 0) {
                     targetPlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自玩家 §b" + p.name + " §a的邮件，内含附件");
@@ -1154,10 +1154,10 @@ function showPlayerSendMailForm(player) {
 
         selectedItems.forEach(function(selectedItem, idx) {
             try {
-                var slotIndex = parseInt(selectedItem.slot);
-                var count = parseInt(selectedItem.count);
+                const slotIndex = parseInt(selectedItem.slot);
+                const count = parseInt(selectedItem.count);
 
-                var slotType, replaceSlot;
+                let slotType, replaceSlot;
                 if (slotIndex <= 8) {
                     slotType = "slot.hotbar";
                     replaceSlot = slotIndex;
@@ -1166,23 +1166,23 @@ function showPlayerSendMailForm(player) {
                     replaceSlot = slotIndex - 9;
                 }
 
-                var playerInventory = p.getInventory();
-                var currentItem = playerInventory.getItem(slotIndex);
+                const playerInventory = p.getInventory();
+                const currentItem = playerInventory.getItem(slotIndex);
 
                 if (!currentItem || currentItem.type === '' || currentItem.type === 'minecraft:air') {
                     _deps.logger.warn("[邮件系统] 槽位 " + slotIndex + " 没有物品");
                     return;
                 }
 
-                var currentCount = currentItem.count;
+                const currentCount = currentItem.count;
 
                 if (currentCount <= count) {
-                    var cmd = 'replaceitem entity "' + p.name + '" ' + slotType + ' ' + replaceSlot + ' minecraft:air';
+                    const cmd = 'replaceitem entity "' + p.name + '" ' + slotType + ' ' + replaceSlot + ' minecraft:air';
                     mc.runcmd(cmd);
                 } else {
-                    var newCount = currentCount - count;
-                    var itemType = currentItem.type;
-                    var cmd = 'replaceitem entity "' + p.name + '" ' + slotType + ' ' + replaceSlot + ' ' + itemType + ' ' + newCount;
+                    const newCount = currentCount - count;
+                    const itemType = currentItem.type;
+                    const cmd = 'replaceitem entity "' + p.name + '" ' + slotType + ' ' + replaceSlot + ' ' + itemType + ' ' + newCount;
                     mc.runcmd(cmd);
                 }
             } catch (error) {
@@ -1190,8 +1190,8 @@ function showPlayerSendMailForm(player) {
             }
         });
 
-        var hasAttachment = selectedItems.length > 0;
-        var successForm = mc.newSimpleForm();
+        const hasAttachment = selectedItems.length > 0;
+        const successForm = mc.newSimpleForm();
         successForm.setTitle("§l§a邮件发送成功");
         successForm.setContent("§7-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n§7-------------------------\n§e邮件内容：\n" + content + "\n§7-------------------------\n§a发件人：§e" + p.name + "\n§a收件人：§e" + target.name + "\n§a附件物品：§e" + selectedItems.length + " 个\n§a发送时间：§e" + (_deps.U ? _deps.U.getCurrentTimeString() : formatMailTime()) + "\n§7-------------------------\n§c扣除" + getCurrencyName() + "：§e" + totalCost + " 点\n§7-------------------------\n");
         successForm.addButton("§b返回邮件系统", "textures/ui/recap_glyph_desaturated");
@@ -1209,10 +1209,10 @@ function showPlayerSendMailForm(player) {
 }
 
 function showPlayerMailSystemForm(player) {
-    var gui = mc.newSimpleForm();
+    const gui = mc.newSimpleForm();
     gui.setTitle("§l§d邮件系统");
 
-    var content = "-------------------------\n";
+    let content = "-------------------------\n";
     content += "§e邮件系统功能：\n";
     content += "-------------------------\n";
 
