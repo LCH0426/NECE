@@ -20,17 +20,19 @@
  * 玩家核心数据和设置的保存、查询，物品数据映射
  */
 
-let _database = null;
-let _C = null;
-let _fs = null;
-let _playerDataDM = null;
-let _itemsDataPath = '';
-let _getPlayerData = null;
-let _getPlayerSettings = null;
-let _savePlayerSettings = null;
+let _database = null;         // database.js 模块引用
+let _C = null;                // constants 模块引用
+let _fs = null;               // fs 模块引用
+let _playerDataDM = null;     // 玩家数据的 DataManager 实例（JSON 模式回退用）
+let _itemsDataPath = '';      // items.json 文件路径
+let _getPlayerData = null;    // 获取全局玩家数据的函数
+let _getPlayerSettings = null; // 获取全局玩家设置的函数
+let _savePlayerSettings = null; // 保存玩家设置的函数
 
+/** 物品 ID -> { name, texture } 映射，启动时从 items.json 加载 */
 let itemsDataMap = {};
 
+/** 注入依赖，由 index.js 的 initAllConfigs 调用 */
 function init(deps) {
     _database = deps.database;
     _C = deps.constants;
@@ -41,14 +43,21 @@ function init(deps) {
     _savePlayerSettings = deps.savePlayerSettings;
 }
 
+/** 设置 DataManager 实例，用于 SQL 不可用时回退到 JSON 存储 */
 function setDataManagers(playerDataDM) {
     _playerDataDM = playerDataDM;
 }
 
+/** 获取物品数据映射表的引用 */
 function getItemsDataMap() {
     return itemsDataMap;
 }
 
+/**
+ * 保存玩家数据（防抖模式）
+ * SQL 模式：批量写入 + 2秒防抖写盘
+ * JSON 模式：通过 DataManager 防抖保存
+ */
 function savePlayerData() {
     let playerData = _getPlayerData();
     if (_database.isPlayerDbReady()) {
@@ -66,6 +75,10 @@ function savePlayerData() {
     }
 }
 
+/**
+ * 立即保存玩家数据（用于关服等关键操作）
+ * 取消待执行的防抖定时器，直接写盘
+ */
 function savePlayerDataNow() {
     const playerData = _getPlayerData();
     if (_database.isPlayerDbReady()) {
@@ -84,6 +97,16 @@ function savePlayerDataNow() {
     }
 }
 
+/** 只保存单个玩家的数据（防抖写盘），用于只修改了部分玩家时减少写入量 */
+function saveSinglePlayerData(xuid) {
+    const playerData = _getPlayerData();
+    if (_database.isPlayerDbReady() && playerData.players && playerData.players[xuid]) {
+        _database.setPlayerDataSQL(xuid, playerData.players[xuid]);
+        _database.requestSavePlayerDb();
+    }
+}
+
+/** 从 items.json 加载物品数据到内存映射表，文件不存在则置空 */
 function loadItemsDataMap() {
     try {
         const content = _fs.readFileSync(_itemsDataPath, 'utf-8');
@@ -94,6 +117,11 @@ function loadItemsDataMap() {
     }
 }
 
+/**
+ * 根据物品 ID 获取中文名和贴图路径，自动去除 minecraft: 前缀
+ * @param {string} itemId - 物品完整 ID（如 "minecraft:diamond_sword"）
+ * @returns {{ name: string, texture: string }}
+ */
 function getItemInfoById(itemId) {
     const shortId = itemId.replace(/^minecraft:/, '');
     let item = itemsDataMap[shortId];
@@ -106,6 +134,12 @@ function getItemInfoById(itemId) {
     return { name: shortId, texture: '' };
 }
 
+/**
+ * 获取玩家单项设置值，未设置时返回默认值
+ * @param {string} xuid - 玩家 XUID
+ * @param {string} key - 设置项 key
+ * @returns {*} 设置值（默认 false）
+ */
 function getPlayerSetting(xuid, key) {
     let playerSettings = _getPlayerSettings();
     if (!playerSettings[xuid]) {
@@ -114,6 +148,12 @@ function getPlayerSetting(xuid, key) {
     return playerSettings[xuid][key] !== undefined ? playerSettings[xuid][key] : false;
 }
 
+/**
+ * 设置玩家单项设置并持久化，玩家无设置记录时自动初始化
+ * @param {string} xuid - 玩家 XUID
+ * @param {string} key - 设置项 key
+ * @param {*} value - 设置值
+ */
 function setPlayerSetting(xuid, key, value) {
     const playerSettings = _getPlayerSettings();
     if (!playerSettings[xuid]) {
@@ -129,6 +169,7 @@ module.exports = {
     getItemsDataMap: getItemsDataMap,
     savePlayerData: savePlayerData,
     savePlayerDataNow: savePlayerDataNow,
+    saveSinglePlayerData: saveSinglePlayerData,
     loadItemsDataMap: loadItemsDataMap,
     getItemInfoById: getItemInfoById,
     getPlayerSetting: getPlayerSetting,

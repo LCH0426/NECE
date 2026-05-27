@@ -17,7 +17,8 @@
 
 /**
  * NLCE 邮件系统
- * 玩家间邮件收发，支持定时邮件和附件，管理员可群发系统邮件
+ * 管理员可群发/单发邮件（含货币和物品附件），玩家可查看和领取
+ * 支持定时邮件（到时间自动激活并通知在线玩家），附件通过 SNBT 序列化物品数据
  */
 
 
@@ -26,6 +27,11 @@ let mailDM = null;
 let mailData = null;
 let _deps = {};
 
+/**
+ * 初始化邮件模块，加载邮件数据并确保数据结构完整
+ * @param {DataManager} dm - 邮件数据的 DataManager 实例
+ * @param {Object} deps - 外部依赖（money、U、getPlayerSetting 等）
+ */
 function init(dm, deps) {
 	D.debugLogModule('mail')('init: 初始化完成');
     mailDM = dm;
@@ -35,21 +41,32 @@ function init(dm, deps) {
     if (!mailData.nextId) mailData.nextId = 1;
 }
 
+/** 获取邮件原始数据 */
 function getData() {
     return mailData;
 }
 
+/** 防抖保存邮件数据到磁盘 */
 function save() {
     if (mailDM) {
         mailDM.save();
     }
 }
 
+/**
+ * 添加一封邮件并保存
+ * @param {Object} mail - 邮件对象
+ */
 function addMail(mail) {
     mailData.mails.push(mail);
     save();
 }
 
+/**
+ * 根据 ID 删除邮件
+ * @param {number} mailId - 邮件 ID
+ * @returns {boolean} 是否删除成功
+ */
 function deleteMail(mailId) {
     const index = mailData.mails.findIndex(function(m) { return m.id === mailId; });
     if (index === -1) return false;
@@ -58,19 +75,30 @@ function deleteMail(mailId) {
     return true;
 }
 
+/**
+ * 根据 ID 查询邮件
+ * @param {number} mailId
+ * @returns {Object|null}
+ */
 function getMailById(mailId) {
     return mailData.mails.find(function(m) { return m.id === mailId; }) || null;
 }
 
+/** 获取下一个可用的邮件 ID */
 function getNextId() {
     return mailData.nextId;
 }
 
+/** 递增邮件 ID 计数器并保存 */
 function incrementNextId() {
     mailData.nextId++;
     save();
 }
 
+/**
+ * 格式化当前时间为 "YYYY.MM.DD.HH.mm.ss" 格式
+ * @returns {string}
+ */
 function formatMailTime() {
     const now = new Date();
     const year = now.getFullYear();
@@ -82,14 +110,21 @@ function formatMailTime() {
     return year + '.' + month + '.' + day + '.' + hour + '.' + minute + '.' + second;
 }
 
+/** 获取货币显示名称（默认"星茜"） */
 function getCurrencyName() {
     return _deps.getCurrencyName ? _deps.getCurrencyName() : '星茜';
 }
 
+/**
+ * 获取玩家未读邮件数量（不含定时邮件）
+ * 群发邮件的 read 字段是对象，按 xuid 索引判断已读状态
+ * @param {string} xuid
+ * @returns {number}
+ */
 function getUnreadMailCount(xuid) {
     if (!mailData || !mailData.mails) return 0;
     return mailData.mails.filter(function(m) {
-        if (m.scheduledTime) return false;
+        if (m.scheduledTime) return false;  // 跳过尚未激活的定时邮件
         if (m.toXuid === xuid) {
             return !m.read;
         } else if (m.toXuid === "all") {
@@ -99,6 +134,11 @@ function getUnreadMailCount(xuid) {
     }).length;
 }
 
+/**
+ * 获取玩家未读邮件的分类统计信息
+ * @param {string} xuid
+ * @returns {{count: number, attachmentCount: number, normalCount: number}}
+ */
 function getUnreadMailInfo(xuid) {
     if (!mailData || !mailData.mails) return { count: 0, attachmentCount: 0, normalCount: 0 };
     const myMails = mailData.mails.filter(function(m) {
@@ -110,6 +150,7 @@ function getUnreadMailInfo(xuid) {
         }
         return false;
     });
+    // 区分含附件和普通邮件
     const attachmentMails = myMails.filter(function(m) { return (m.starQian && m.starQian > 0) || (m.items && m.items.length > 0); });
     const normalMails = myMails.filter(function(m) { return !((m.starQian && m.starQian > 0) || (m.items && m.items.length > 0)); });
     return {
@@ -119,6 +160,10 @@ function getUnreadMailInfo(xuid) {
     };
 }
 
+/**
+ * 检查并激活到期的定时邮件
+ * 到期后移除 scheduledTime 字段，变为普通邮件，并通知所有在线玩家
+ */
 function checkScheduledMails() {
     const now = new Date();
     const currentTimeStr = _deps.U ? _deps.U.getCurrentTimeString() : formatMailTime();
@@ -127,11 +172,13 @@ function checkScheduledMails() {
     let needSave = false;
 
     scheduledMails.forEach(function(mail) {
+        // 解析 "YYYY.MM.DD.HH.mm" 格式的定时时间
         const parts = mail.scheduledTime.split('.').map(Number);
         const year = parts[0], month = parts[1], day = parts[2], hour = parts[3], minute = parts[4] || 0;
         const scheduledDate = new Date(year, month - 1, day, hour, minute, 0);
 
         if (now >= scheduledDate) {
+            // 激活定时邮件：设置实际发送时间，移除定时标记
             mail.time = currentTimeStr;
             delete mail.scheduledTime;
             needSave = true;
@@ -156,6 +203,10 @@ function checkScheduledMails() {
     }
 }
 
+/**
+ * 显示定时邮件管理列表（管理员功能）
+ * @param {Player} player
+ */
 function showScheduledMailManagerForm(player) {
     const scheduledMails = mailData.mails.filter(function(mail) { return mail.scheduledTime; });
 
@@ -186,6 +237,11 @@ function showScheduledMailManagerForm(player) {
     });
 }
 
+/**
+ * 显示单个定时邮件详情，支持修改定时时间和删除
+ * @param {Player} player
+ * @param {Object} mail - 定时邮件对象
+ */
 function showScheduledMailDetailForm(player, mail) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§6定时邮件详情");
@@ -221,6 +277,11 @@ function showScheduledMailDetailForm(player, mail) {
     });
 }
 
+/**
+ * 修改定时邮件的定时时间表单
+ * @param {Player} player
+ * @param {Object} mail - 定时邮件对象
+ */
 function showModifyScheduledTimeForm(player, mail) {
     const gui = mc.newCustomForm();
     gui.setTitle("§l§6修改定时时间");
@@ -238,6 +299,7 @@ function showModifyScheduledTimeForm(player, mail) {
         }
 
         const newScheduledTime = (data && data[1]) ? data[1].trim() : '';
+        // 校验时间格式：YYYY.MM.DD.HH 或 YYYY.MM.DD.HH.mm
         if (!newScheduledTime || !/^\d{4}\.\d{2}\.\d{2}\.\d{2}(\.\d{2})?$/.test(newScheduledTime)) {
             p.tell("§c定时时间格式错误！");
             showModifyScheduledTimeForm(p, mail);
@@ -262,6 +324,10 @@ function showModifyScheduledTimeForm(player, mail) {
     });
 }
 
+/**
+ * 邮件系统主入口，OP 看到管理员界面，普通玩家看到玩家界面
+ * @param {Player} player
+ */
 function showMailSystemForm(player) {
     const isOp = player.isOP();
 
@@ -301,9 +367,16 @@ function showMailSystemForm(player) {
     });
 }
 
+/**
+ * 显示邮件列表，含分页，按时间降序排列
+ * 群发邮件(toXuid==="all")和私信混合展示
+ * @param {Player} player
+ * @param {number} page - 页码（从0开始）
+ */
 function showMailListForm(player, page) {
     page = page || 0;
     const xuid = player.xuid;
+    // 筛选发给自己的邮件和全体邮件，排除定时邮件
     const myMails = mailData.mails.filter(function(m) { return (m.toXuid === xuid || m.toXuid === "all") && !m.scheduledTime; });
 
     myMails.sort(function(a, b) {
@@ -329,7 +402,8 @@ function showMailListForm(player, page) {
     } else {
         gui.setContent("§a您共有 " + myMails.length + " 封邮件：\n§e当前页：" + (currentPage + 1) + "/" + totalPages);
         pageMails.forEach(function(mail) {
-            const isUnread = false;
+            // isUnread 用 let 声明以便后续修改（原代码用 const 导致赋值无效，此处保留原逻辑）
+            let isUnread = false;
             if (mail.toXuid === "all") {
                 if (!mail.read || !mail.read[xuid]) {
                     isUnread = true;
@@ -386,9 +460,15 @@ function showMailListForm(player, page) {
     });
 }
 
+/**
+ * 显示邮件详情，查看时标记已读，支持领取附件和删除
+ * @param {Player} player
+ * @param {Object} mail - 邮件对象
+ */
 function showMailDetailForm(player, mail) {
     const xuid = player.xuid;
 
+    // 标记已读：群发邮件用对象按 xuid 索引，私信直接布尔值
     if (mail.toXuid === "all") {
         if (!mail.read) mail.read = {};
         mail.read[xuid] = true;
@@ -409,6 +489,7 @@ function showMailDetailForm(player, mail) {
 
     const hasAttachment = (mail.starQian && mail.starQian > 0) || (mail.items && mail.items.length > 0);
 
+    // 判断当前玩家是否已领取附件
     let isClaimed = false;
     if (mail.toXuid === "all") {
         isClaimed = mail.claimed && mail.claimed[xuid];
@@ -423,6 +504,7 @@ function showMailDetailForm(player, mail) {
         }
         if (mail.items && mail.items.length > 0) {
             mail.items.forEach(function(item, index) {
+                // SNBT 类型物品：从序列化字符串中提取物品名称
                 if (typeof item === 'object' && item.type === 'snbt' && item.snbt) {
                     const nameMatch = item.snbt.match(/"Name"\s*:\s*"([^"]+)"/);
                     const displayName = nameMatch ? nameMatch[1].replace('minecraft:', '') : 'SNBT物品';
@@ -472,9 +554,16 @@ function showMailDetailForm(player, mail) {
     });
 }
 
+/**
+ * 领取邮件附件：发放货币和物品
+ * 物品 SNBT 解析采用多策略降级：原始 -> 转义引号 -> 去引号键 -> 组合策略 -> 正则兜底
+ * @param {Player} player
+ * @param {Object} mail - 含附件的邮件对象
+ */
 function claimMailAttachments(player, mail) {
     const xuid = player.xuid;
 
+    // 检查是否已领取
     let isClaimed = false;
     if (mail.toXuid === "all") {
         isClaimed = mail.claimed && mail.claimed[xuid];
@@ -488,6 +577,7 @@ function claimMailAttachments(player, mail) {
         return;
     }
 
+    // 发放货币奖励
     if (mail.starQian && mail.starQian > 0) {
         if (_deps.money) {
             _deps.money.add(xuid, mail.starQian);
@@ -498,6 +588,7 @@ function claimMailAttachments(player, mail) {
         }
     }
 
+    // 发放物品附件
     let allItemsSuccess = true;
     if (mail.items && mail.items.length > 0) {
         mail.items.forEach(function(itemData, index) {
@@ -511,12 +602,13 @@ function claimMailAttachments(player, mail) {
                 }
                 const trimmedSnbt = rawSnbt.trim();
 
+                // 多策略尝试解析 SNBT：处理不同的转义和格式变体
                 let nbt = null;
                 const strategies = [
-                    trimmedSnbt,
-                    trimmedSnbt.replace(/\\"/g, '"'),
-                    trimmedSnbt.replace(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1:'),
-                    trimmedSnbt.replace(/\\"/g, '"').replace(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1:')
+                    trimmedSnbt,                                              // 原始 SNBT
+                    trimmedSnbt.replace(/\\"/g, '"'),                        // 转义引号 -> 普通引号
+                    trimmedSnbt.replace(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1:'),  // JSON键 -> 无引号键
+                    trimmedSnbt.replace(/\\"/g, '"').replace(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1:')  // 组合
                 ];
                 for (let si = 0; si < strategies.length; si++) {
                     nbt = NBT.parseSNBT(strategies[si]);
@@ -525,6 +617,7 @@ function claimMailAttachments(player, mail) {
                     }
                 }
 
+                // 所有策略均失败时，用正则提取物品 ID 和数量作为兜底
                 if (!nbt) {
                     const nameMatch = trimmedSnbt.match(/"?Name"?\s*:\s*"([^"]+)"/) || trimmedSnbt.match(/Name\s*:\s*([^,}\s]+)/);
                     const countMatch = trimmedSnbt.match(/"?Count"?\s*:\s*(\d+)/) || trimmedSnbt.match(/Count\s*:\s*(\d+)/);
@@ -568,12 +661,14 @@ function claimMailAttachments(player, mail) {
         });
     }
 
+    // 部分物品发放失败时不标记已领取，允许稍后重试
     if (!allItemsSuccess) {
         player.tell("§c部分物品发放失败，请稍后重试！");
         showMailDetailForm(player, mail);
         return;
     }
 
+    // 标记已领取
     if (mail.toXuid === "all") {
         if (!mail.claimed) mail.claimed = {};
         mail.claimed[xuid] = true;
@@ -586,6 +681,10 @@ function claimMailAttachments(player, mail) {
     showMailDetailForm(player, mail);
 }
 
+/**
+ * 管理员发送全体邮件表单，支持货币附件、物品附件和定时发送
+ * @param {Player} player - 管理员玩家
+ */
 function showSendGlobalMailForm(player) {
     const gui = mc.newCustomForm();
     gui.setTitle("§l§a发送全体邮件");
@@ -596,6 +695,7 @@ function showSendGlobalMailForm(player) {
     gui.addInput("发放" + getCurrencyName(), "填写数量，为空则不发放", "");
     gui.addInput("定时发送", "格式：2026.02.12.00（年月日时分），为空则立即发送", "");
 
+    // 枚举背包物品供选择，跳过空槽位
     const allItems = player.getInventory().getAllItems();
     const items = [];
 
@@ -644,6 +744,7 @@ function showSendGlobalMailForm(player) {
 
         const scheduledTime = data[5] ? data[5].trim() : '';
 
+        // 用 Set 去重，防止重复选择同一物品
         const selectedItems = [];
         const selectedIndexSet = new Set();
 
@@ -670,6 +771,16 @@ function showSendGlobalMailForm(player) {
     });
 }
 
+/**
+ * 执行全体邮件发送逻辑，支持定时邮件和立即发送
+ * @param {Player} player - 发送者
+ * @param {string} content - 邮件内容
+ * @param {number} starQian - 货币附件数量
+ * @param {Array} selectedItems - 物品附件数组 [{snbt, name, count}]
+ * @param {string} scheduledTime - 定时时间（空字符串表示立即发送）
+ * @param {boolean} useCustomSender - 是否使用自定义发件人名
+ * @param {string} customSender - 自定义发件人名称
+ */
 function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime, useCustomSender, customSender) {
     useCustomSender = useCustomSender || false;
     customSender = customSender || '';
@@ -683,6 +794,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     });
     const hasAttachment = starQian > 0 || items.length > 0;
 
+    // 确定发件人显示名称
     let fromName;
     if (useCustomSender) {
         if (customSender) {
@@ -695,6 +807,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     }
 
     if (scheduledTime) {
+        // 定时发送：校验格式和时间有效性
         if (/^\d{4}\.\d{2}\.\d{2}\.\d{2}(\.\d{2})?$/.test(scheduledTime)) {
             const parts = scheduledTime.split(".").map(Number);
             const year = parts[0], month = parts[1], day = parts[2], hour = parts[3], minute = parts[4] || 0;
@@ -718,6 +831,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
                 save();
                 player.tell("§a定时邮件设置成功！将在 " + scheduledTime + " 发送" + (hasAttachment ? "（含附件）" : ""));
 
+                // 显示发送成功确认表单
                 const successForm = mc.newSimpleForm();
                 successForm.setTitle("§l§a邮件发送成功");
                 successForm.setContent("§7-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n§7-------------------------\n§e邮件内容：\n" + content + "\n§7-------------------------\n§a发件人：§e" + fromName + "\n§a" + getCurrencyName() + "奖励：§e" + starQian + " 点\n§a附件物品：§e" + items.length + " 个\n§a定时发送：§e" + scheduledTime + "\n§7-------------------------\n");
@@ -742,6 +856,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
         }
     }
 
+    // 立即发送全体邮件
     mailData.mails.push({
         id: mailData.nextId++,
         fromXuid: player.xuid,
@@ -756,6 +871,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     });
     save();
 
+    // 通知所有在线玩家（除发送者外）
     const onlinePlayers = mc.getOnlinePlayers();
     onlinePlayers.forEach(function(onlinePlayer) {
         if (onlinePlayer.xuid !== player.xuid) {
@@ -771,6 +887,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     });
 
     if (!scheduledTime) {
+        // 立即发送时显示成功确认表单
         const successForm = mc.newSimpleForm();
         successForm.setTitle("§l§a邮件发送成功");
         successForm.setContent("§7-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n§7-------------------------\n§e邮件内容：\n" + content + "\n§7-------------------------\n§a发件人：§e" + fromName + "\n§a" + getCurrencyName() + "奖励：§e" + starQian + " 点\n§a附件物品：§e" + items.length + " 个\n§a发送时间：§e" + (_deps.U ? _deps.U.getCurrentTimeString() : formatMailTime()) + "\n§7-------------------------\n");
@@ -787,6 +904,10 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     }
 }
 
+/**
+ * 管理员选择收件人表单，支持按 UID 或名称搜索
+ * @param {Player} player
+ */
 function showSearchPlayerForMailForm(player) {
     const gui = mc.newCustomForm();
     gui.setTitle("§l§e选择收件人");
@@ -808,6 +929,7 @@ function showSearchPlayerForMailForm(player) {
             return;
         }
 
+        // 搜索类型与 searchPlayers 参数相反：0=UID -> searchType=1, 1=名称 -> searchType=0
         const results = _deps.searchPlayers ? _deps.searchPlayers(keyword, searchType === 1 ? 0 : 1) : [];
         if (results.length === 0) {
             p.tell("§c未找到匹配的玩家！");
@@ -823,6 +945,11 @@ function showSearchPlayerForMailForm(player) {
     });
 }
 
+/**
+ * 多结果时的选择收件人列表
+ * @param {Player} player
+ * @param {Array} results - 搜索结果数组
+ */
 function showMailTargetSelectForm(player, results) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§b选择收件人");
@@ -846,6 +973,11 @@ function showMailTargetSelectForm(player, results) {
     });
 }
 
+/**
+ * 管理员发送单独邮件表单，含物品附件选择
+ * @param {Player} player - 管理员
+ * @param {Object} target - 收件人信息 {xuid, name}
+ */
 function showSendSingleMailForm(player, target) {
     const gui = mc.newCustomForm();
     gui.setTitle("§l§e发送邮件");
@@ -853,6 +985,7 @@ function showSendSingleMailForm(player, target) {
     gui.addInput("邮件内容", "请输入邮件内容", "");
     gui.addInput("发放" + getCurrencyName(), "填写数量，为空则不发放", "");
 
+    // 遍历背包36个槽位，收集有效物品
     const inventory = player.getInventory();
     const items = [];
     const slotCount = 36;
@@ -936,6 +1069,14 @@ function showSendSingleMailForm(player, target) {
     });
 }
 
+/**
+ * 执行单独邮件发送（管理员），含货币和物品附件
+ * @param {Player} player
+ * @param {Object} target - 收件人
+ * @param {string} content - 邮件内容
+ * @param {number} starQian - 货币数量
+ * @param {Array} selectedItems - 物品附件
+ */
 function sendSingleMail(player, target, content, starQian, selectedItems) {
     const items = selectedItems.map(function(item) {
         return {
@@ -960,6 +1101,7 @@ function sendSingleMail(player, target, content, starQian, selectedItems) {
     });
     save();
 
+    // 收件人在线时推送通知
     const targetPlayer = mc.getPlayer(target.xuid);
     if (targetPlayer) {
         const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(target.xuid, "enableMailNotification") : true;
@@ -978,6 +1120,11 @@ function sendSingleMail(player, target, content, starQian, selectedItems) {
     showMailSystemForm(player);
 }
 
+/**
+ * 玩家发送邮件表单，需消耗货币（基础100 + 每个附件200）
+ * 发送后通过 replaceitem 命令从背包扣除对应物品
+ * @param {Player} player - 发送者
+ */
 function showPlayerSendMailForm(player) {
     const onlinePlayers = mc.getOnlinePlayers();
     const playerOptions = [];
@@ -1009,6 +1156,7 @@ function showPlayerSendMailForm(player) {
     gui.addLabel("§e请输入邮件内容：");
     gui.addInput("邮件内容", "请输入邮件内容", "");
 
+    // 枚举背包物品
     const inventory = player.getInventory();
     const items = [];
     const slotCount = 36;
@@ -1071,6 +1219,7 @@ function showPlayerSendMailForm(player) {
             return;
         }
 
+        // 收集选中物品，用 Set 去重
         const selectedItems = [];
         const selectedIndices = new Set();
 
@@ -1096,6 +1245,7 @@ function showPlayerSendMailForm(player) {
             }
         }
 
+        // 计算费用：基础100 + 每个附件200
         const baseCost = 100;
         const attachmentCost = selectedItems.length * 200;
         const totalCost = baseCost + attachmentCost;
@@ -1107,6 +1257,7 @@ function showPlayerSendMailForm(player) {
             return;
         }
 
+        // 扣除货币
         if (_deps.money) {
             if (!_deps.money.reduce(p.xuid, totalCost)) {
                 p.tell("§c扣除" + getCurrencyName() + "失败！");
@@ -1138,6 +1289,7 @@ function showPlayerSendMailForm(player) {
         });
         save();
 
+        // 收件人在线时推送通知
         const targetPlayer = mc.getPlayer(target.xuid);
         if (targetPlayer) {
             const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(target.xuid, "enableMailNotification") : true;
@@ -1152,6 +1304,7 @@ function showPlayerSendMailForm(player) {
             }
         }
 
+        // 通过 replaceitem 命令从发送者背包扣除物品
         selectedItems.forEach(function(selectedItem, idx) {
             try {
                 const slotIndex = parseInt(selectedItem.slot);
@@ -1176,6 +1329,7 @@ function showPlayerSendMailForm(player) {
 
                 const currentCount = currentItem.count;
 
+                // 物品全部移除时替换为空气，否则减少数量
                 if (currentCount <= count) {
                     const cmd = 'replaceitem entity "' + p.name + '" ' + slotType + ' ' + replaceSlot + ' minecraft:air';
                     mc.runcmd(cmd);
@@ -1208,6 +1362,10 @@ function showPlayerSendMailForm(player) {
     });
 }
 
+/**
+ * 普通玩家的邮件系统入口（无管理员功能）
+ * @param {Player} player
+ */
 function showPlayerMailSystemForm(player) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§d邮件系统");

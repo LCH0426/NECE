@@ -18,6 +18,7 @@
 /**
  * NLCE 好友与私信系统
  * 好友添加/删除/请求管理，玩家间私信发送与对话历史
+ * 数据通过 DataManager 持久化，支持陌生人私信开关和消息通知设置
  */
 
 
@@ -35,6 +36,12 @@ let messageData = {
 };
 let _deps = {};
 
+/**
+ * 将时间字符串解析为时间戳数值，用于消息排序
+ * 支持 "2026.05.27 14:30:00" 格式和标准 Date 可解析格式
+ * @param {string} timeStr - 时间字符串
+ * @returns {number} 毫秒时间戳，解析失败返回 0
+ */
 function parseTimeToNum(timeStr) {
     if (!timeStr) return 0;
     const parts = timeStr.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})/);
@@ -52,6 +59,12 @@ function parseTimeToNum(timeStr) {
     return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
+/**
+ * 初始化好友与私信模块
+ * @param {DataManager} fdm - 好友数据的 DataManager 实例
+ * @param {DataManager} mdm - 私信数据的 DataManager 实例
+ * @param {Object} deps - 外部依赖（playerData、getPlayerSetting 等）
+ */
 function init(fdm, mdm, deps) {
 	D.debugLogModule('friend')('init: 初始化完成');
     friendDM = fdm;
@@ -63,18 +76,25 @@ function init(fdm, mdm, deps) {
     if (!messageData.players) messageData.players = {};
 }
 
+/** 立即持久化好友数据到磁盘 */
 function saveData() {
     if (!friendData.players) friendData.players = {};
     friendDM.save(true);
     return true;
 }
 
+/** 立即持久化私信数据到磁盘 */
 function saveMessageData() {
     if (!messageData.players) messageData.players = {};
     messageDM.save(true);
     return true;
 }
 
+/**
+ * 获取玩家的好友数据，不存在时自动初始化空结构并保存
+ * @param {string} xuid - 玩家 XUID
+ * @returns {{friends: Array, requests: Array, sentRequests: Array}}
+ */
 function getPlayerFriendData(xuid) {
     if (!friendData.players[xuid]) {
         friendData.players[xuid] = {
@@ -87,6 +107,11 @@ function getPlayerFriendData(xuid) {
     return friendData.players[xuid];
 }
 
+/**
+ * 获取玩家的私信数据，不存在时自动初始化
+ * @param {string} xuid - 玩家 XUID
+ * @returns {{messages: Array}}
+ */
 function getPlayerMessageData(xuid) {
     if (!messageData.players[xuid]) {
         messageData.players[xuid] = {
@@ -97,11 +122,23 @@ function getPlayerMessageData(xuid) {
     return messageData.players[xuid];
 }
 
+/**
+ * 判断两个玩家是否为好友关系
+ * @param {string} xuid1 - 玩家1的 XUID
+ * @param {string} xuid2 - 玩家2的 XUID
+ * @returns {boolean}
+ */
 function isPlayerFriend(xuid1, xuid2) {
     const fd = getPlayerFriendData(xuid1);
     return fd.friends.some(function(f) { return f.xuid === xuid2; });
 }
 
+/**
+ * 按名称或 UID 搜索玩家
+ * @param {string} keyword - 搜索关键词
+ * @param {number} searchType - 0 按名称模糊匹配，1 按 UID 精确匹配
+ * @returns {Array} 匹配的玩家信息数组（含 xuid）
+ */
 function searchPlayers(keyword, searchType) {
     const results = [];
     const players = _deps.playerData || {};
@@ -121,8 +158,18 @@ function searchPlayers(keyword, searchType) {
     return results;
 }
 
+/**
+ * 发送私信给目标玩家
+ * 会检查陌生人私信接收设置，双方均保存消息记录，目标在线时推送通知
+ * @param {string} fromXuid - 发送者 XUID
+ * @param {string} fromName - 发送者名称
+ * @param {string} toXuid - 接收者 XUID
+ * @param {string} content - 消息内容
+ * @returns {boolean} 是否发送成功
+ */
 function sendMessage(fromXuid, fromName, toXuid, content) {
     const isFriend = isPlayerFriend(toXuid, fromXuid);
+    // 非好友关系时检查接收者是否允许陌生人私信
     if (!isFriend && _deps.getPlayerSetting && !_deps.getPlayerSetting(toXuid, "acceptStrangerMessages")) {
         const fromPlayer = mc.getPlayer(fromXuid);
         if (fromPlayer) {
@@ -131,6 +178,7 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
         return false;
     }
 
+    // 接收方消息记录（标记未读）
     const targetMessages = getPlayerMessageData(toXuid);
     targetMessages.messages.push({
         fromXuid: fromXuid,
@@ -141,9 +189,11 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
         read: false
     });
 
+    // 解析接收者名称用于发送方记录
     const toPlayer = mc.getPlayer(toXuid);
     const toName = toPlayer ? toPlayer.name : (_deps.getPlayerInfoByXuid ? (_deps.getPlayerInfoByXuid(toXuid) || {}).name : null) || "未知玩家";
 
+    // 发送方消息记录（标记已读）
     const senderMessages = getPlayerMessageData(fromXuid);
     senderMessages.messages.push({
         fromXuid: fromXuid,
@@ -157,6 +207,7 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
 
     saveMessageData();
 
+    // 在线时推送 toast 通知
     const targetPlayer = mc.getPlayer(toXuid);
     if (targetPlayer && _deps.getPlayerSetting && _deps.getPlayerSetting(toXuid, "enableMessageNotification")) {
         const relationType = isFriend ? "好友" : "陌生人";
@@ -166,12 +217,20 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
     return true;
 }
 
+/**
+ * 显示发送消息表单，含对话历史回溯和分页
+ * @param {Player} player - 发送者玩家对象
+ * @param {string} toXuid - 接收者 XUID
+ * @param {string} toName - 接收者名称
+ * @param {number} page - 当前页码（从0开始）
+ */
 function showSendMessageForm(player, toXuid, toName, page) {
     page = page || 0;
     const xuid = player.xuid;
     const gui = mc.newCustomForm();
     gui.setTitle("§l§b发送消息");
 
+    // 筛选与目标玩家的双向消息，构建聊天历史
     const myMsgData = getPlayerMessageData(xuid);
     const chatHistory = [];
 
@@ -197,6 +256,7 @@ function showSendMessageForm(player, toXuid, toName, page) {
         }
     });
 
+    // 按时间降序排列，最新的消息在前
     chatHistory.sort(function(a, b) { return b.timeNum - a.timeNum; });
 
     const messagesPerPage = 5;
@@ -238,6 +298,7 @@ function showSendMessageForm(player, toXuid, toName, page) {
             return;
         }
 
+        // 根据是否有分页下拉框，内容输入框的索引不同
         const contentIndex = totalPages > 1 ? 2 : 1;
         const content = data[contentIndex] ? data[contentIndex].trim() : "";
 
@@ -265,14 +326,20 @@ function showSendMessageForm(player, toXuid, toName, page) {
     });
 }
 
+/**
+ * 显示"我的消息"列表，按对话对象分组，显示未读数和最新消息预览
+ * @param {Player} player
+ */
 function showMyMessagesForm(player) {
     const xuid = player.xuid;
     const msgData = getPlayerMessageData(xuid);
 
+    // 按时间降序排列所有消息
     const sortedMessages = msgData.messages.slice().sort(function(a, b) {
         return parseTimeToNum(b.time) - parseTimeToNum(a.time);
     });
 
+    // 按对话对方 XUID 分组，记录最新消息和未读计数
     const playerMap = new Map();
     sortedMessages.forEach(function(msg) {
         const otherXuid = msg.fromXuid === xuid ? msg.toXuid : msg.fromXuid;
@@ -292,6 +359,7 @@ function showMyMessagesForm(player) {
         }
     });
 
+    // 按最新消息时间降序排列对话列表
     const playerList = Array.from(playerMap.values()).sort(function(a, b) {
         return parseTimeToNum(b.latestMsg.time) - parseTimeToNum(a.latestMsg.time);
     });
@@ -306,6 +374,7 @@ function showMyMessagesForm(player) {
         gui.setContent("§a共有 " + playerList.length + " 个对话\n§e未读消息: " + totalUnread + " 条\n点击对话查看详情");
         playerList.forEach(function(playerData) {
             const status = playerData.unreadCount > 0 ? "§e[" + playerData.unreadCount + "条新] " : "";
+            // 消息预览截断到15字符
             const preview = playerData.latestMsg.content.length > 15 ?
                 playerData.latestMsg.content.substring(0, 15) + "..." :
                 playerData.latestMsg.content;
@@ -327,6 +396,13 @@ function showMyMessagesForm(player) {
     });
 }
 
+/**
+ * 显示与指定玩家的对话历史，查看时自动标记对方消息为已读
+ * @param {Player} player
+ * @param {string} targetXuid - 对方 XUID
+ * @param {string} targetName - 对方名称
+ * @param {number} page - 页码（从0开始）
+ */
 function showConversationHistoryForm(player, targetXuid, targetName, page) {
     page = page || 0;
     const xuid = player.xuid;
@@ -337,7 +413,7 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     msgData.messages.forEach(function(msg) {
         if (msg.fromXuid === targetXuid) {
             conversation.push(Object.assign({}, msg, { isSelf: false, timeNum: parseTimeToNum(msg.time) }));
-            msg.read = true;
+            msg.read = true;  // 查看时自动标记已读
         } else if (msg.fromXuid === xuid && msg.toXuid === targetXuid) {
             conversation.push(Object.assign({}, msg, { isSelf: true, timeNum: parseTimeToNum(msg.time) }));
         }
@@ -388,6 +464,7 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
 
+        // 按钮索引根据分页按钮的有无动态计算
         let btnIndex = 0;
 
         if (currentPage < totalPages - 1) {
@@ -414,6 +491,11 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     });
 }
 
+/**
+ * 显示单条消息详情，支持回复和删除操作
+ * @param {Player} player
+ * @param {Object} message - 消息对象
+ */
 function showMessageDetailForm(player, message) {
     message.read = true;
     saveMessageData();
@@ -439,6 +521,7 @@ function showMessageDetailForm(player, message) {
         if (id === 0) {
             showSendMessageForm(p, message.fromXuid, message.fromName);
         } else if (id === 1) {
+            // 通过引用比较删除特定消息对象
             const msgData = getPlayerMessageData(p.xuid);
             msgData.messages = msgData.messages.filter(function(m) { return m !== message; });
             saveMessageData();
@@ -450,6 +533,10 @@ function showMessageDetailForm(player, message) {
     });
 }
 
+/**
+ * 显示好友主界面，包含好友列表、待处理请求数量和在线状态
+ * @param {Player} player
+ */
 function showMyFriendsForm(player) {
     const xuid = player.xuid;
     const friendInfo = getPlayerFriendData(xuid);
@@ -498,6 +585,10 @@ function showMyFriendsForm(player) {
     });
 }
 
+/**
+ * 显示搜索好友表单，支持按名称或 UID 搜索
+ * @param {Player} player
+ */
 function showSearchFriendForm(player) {
     const gui = mc.newCustomForm();
     gui.setTitle("§l§b搜索好友");
@@ -524,6 +615,12 @@ function showSearchFriendForm(player) {
     });
 }
 
+/**
+ * 显示搜索结果列表
+ * @param {Player} player
+ * @param {Array} results - 匹配的玩家数组
+ * @param {string} keyword - 搜索关键词（用于空结果提示）
+ */
 function showSearchResultsForm(player, results, keyword) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§b搜索结果");
@@ -551,6 +648,11 @@ function showSearchResultsForm(player, results, keyword) {
     });
 }
 
+/**
+ * 显示目标玩家详情页，根据关系状态显示不同操作按钮
+ * @param {Player} player
+ * @param {Object} targetInfo - 目标玩家信息 {xuid, name, uid, registerTime}
+ */
 function showPlayerDetailForm(player, targetInfo) {
     const xuid = player.xuid;
     const myFriends = getPlayerFriendData(xuid);
@@ -581,6 +683,7 @@ function showPlayerDetailForm(player, targetInfo) {
 
     gui.setContent(content);
 
+    // 根据关系状态动态显示按钮
     if (!isSelf && !isFriend && !hasPendingRequest) {
         gui.addButton("§a添加好友", "textures/ui/color_plus");
     }
@@ -609,6 +712,12 @@ function showPlayerDetailForm(player, targetInfo) {
     });
 }
 
+/**
+ * 发送好友请求表单，附带验证消息
+ * 同时在双方的请求记录中添加对应条目
+ * @param {Player} player
+ * @param {Object} targetInfo - 目标玩家信息
+ */
 function showSendFriendRequestForm(player, targetInfo) {
     const gui = mc.newCustomForm();
     gui.setTitle("§l§a发送好友请求");
@@ -623,12 +732,14 @@ function showSendFriendRequestForm(player, targetInfo) {
 
         const message = (data[1] || "").trim() || ("我是" + p.name);
 
+        // 检查对方是否允许接收好友请求
         if (_deps.getPlayerSetting && !_deps.getPlayerSetting(targetInfo.xuid, "allowFriendRequests")) {
             p.tell("§c对方拒绝接受好友请求！");
             showPlayerDetailForm(p, targetInfo);
             return;
         }
 
+        // 在对方的收到请求列表中添加记录
         const targetFriends = getPlayerFriendData(targetInfo.xuid);
         targetFriends.requests.push({
             xuid: p.xuid,
@@ -638,6 +749,7 @@ function showSendFriendRequestForm(player, targetInfo) {
             handled: false
         });
 
+        // 在自己的已发送请求列表中添加记录
         const myFriends = getPlayerFriendData(p.xuid);
         myFriends.sentRequests.push({
             xuid: targetInfo.xuid,
@@ -649,6 +761,7 @@ function showSendFriendRequestForm(player, targetInfo) {
 
         saveData();
 
+        // 对方在线时推送通知
         const targetPlayer = mc.getPlayer(targetInfo.xuid);
         if (targetPlayer && _deps.getPlayerSetting && _deps.getPlayerSetting(targetInfo.xuid, "enableFriendRequestNotification")) {
             targetPlayer.sendToast("§e好友请求", "§a玩家 §b" + p.name + " §a请求添加您为好友");
@@ -660,6 +773,10 @@ function showSendFriendRequestForm(player, targetInfo) {
     });
 }
 
+/**
+ * 显示待处理的好友请求列表
+ * @param {Player} player
+ */
 function showFriendRequestsForm(player) {
     const xuid = player.xuid;
     const friendInfo = getPlayerFriendData(xuid);
@@ -691,6 +808,11 @@ function showFriendRequestsForm(player) {
     });
 }
 
+/**
+ * 处理单个好友请求：接受则双向添加好友，拒绝则标记已处理
+ * @param {Player} player
+ * @param {Object} request - 请求对象 {xuid, name, message, time}
+ */
 function showHandleRequestForm(player, request) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§b处理好友请求");
@@ -714,8 +836,9 @@ function showHandleRequestForm(player, request) {
         const requestIndex = myFriends.requests.findIndex(function(r) { return r.xuid === request.xuid && !r.handled; });
 
         if (id === 0) {
+            // 接受：双向添加好友，彻底移除双方请求记录
             if (requestIndex !== -1) {
-                myFriends.requests[requestIndex].handled = true;
+                myFriends.requests.splice(requestIndex, 1);
                 myFriends.friends.push({
                     xuid: request.xuid,
                     name: request.name,
@@ -729,23 +852,24 @@ function showHandleRequestForm(player, request) {
                     addTime: U.getCurrentTimeString()
                 });
 
-                const sentIndex = targetFriends.sentRequests.findIndex(function(r) { return r.xuid === p.xuid && !r.handled; });
+                // 彻底移除对方的已发送请求
+                const sentIndex = targetFriends.sentRequests.findIndex(function(r) { return r.xuid === p.xuid; });
                 if (sentIndex !== -1) {
-                    targetFriends.sentRequests[sentIndex].handled = true;
+                    targetFriends.sentRequests.splice(sentIndex, 1);
                 }
 
                 saveData();
                 p.tell("§a已接受 " + request.name + " 的好友请求！");
             }
         } else if (id === 1) {
+            // 拒绝：彻底移除请求记录
             if (requestIndex !== -1) {
-                myFriends.requests[requestIndex].handled = true;
+                myFriends.requests.splice(requestIndex, 1);
 
                 const targetFriends2 = getPlayerFriendData(request.xuid);
-                const sentIndex2 = targetFriends2.sentRequests.findIndex(function(r) { return r.xuid === p.xuid && !r.handled; });
+                const sentIndex2 = targetFriends2.sentRequests.findIndex(function(r) { return r.xuid === p.xuid; });
                 if (sentIndex2 !== -1) {
-                    targetFriends2.sentRequests[sentIndex2].handled = true;
-                    targetFriends2.sentRequests[sentIndex2].rejected = true;
+                    targetFriends2.sentRequests.splice(sentIndex2, 1);
                 }
 
                 saveData();
@@ -757,6 +881,11 @@ function showHandleRequestForm(player, request) {
     });
 }
 
+/**
+ * 显示好友详情页，可发送消息或删除好友
+ * @param {Player} player
+ * @param {Object} friend - 好友记录 {xuid, name, addTime}
+ */
 function showFriendDetailForm(player, friend) {
     const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
     const friendName = fi ? fi.name : "未知玩家";
@@ -792,6 +921,11 @@ function showFriendDetailForm(player, friend) {
     });
 }
 
+/**
+ * 删除好友确认弹窗，双向删除好友关系
+ * @param {Player} player
+ * @param {Object} friend - 好友记录
+ */
 function showDeleteFriendConfirmForm(player, friend) {
     const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
     const friendName = fi ? fi.name : "未知玩家";
@@ -803,11 +937,16 @@ function showDeleteFriendConfirmForm(player, friend) {
         "§a取消",
         function(p, res) {
             if (res) {
+                // 双向从好友列表中移除，并清理相关请求记录
                 const myFriends = getPlayerFriendData(p.xuid);
                 myFriends.friends = myFriends.friends.filter(function(f) { return f.xuid !== friend.xuid; });
+                myFriends.requests = myFriends.requests.filter(function(r) { return r.xuid !== friend.xuid; });
+                myFriends.sentRequests = myFriends.sentRequests.filter(function(r) { return r.xuid !== friend.xuid; });
 
                 const targetFriends = getPlayerFriendData(friend.xuid);
                 targetFriends.friends = targetFriends.friends.filter(function(f) { return f.xuid !== p.xuid; });
+                targetFriends.requests = targetFriends.requests.filter(function(r) { return r.xuid !== p.xuid; });
+                targetFriends.sentRequests = targetFriends.sentRequests.filter(function(r) { return r.xuid !== p.xuid; });
 
                 saveData();
                 p.tell("§c已删除好友 " + friendName);
@@ -817,11 +956,21 @@ function showDeleteFriendConfirmForm(player, friend) {
     );
 }
 
+/**
+ * 获取玩家未处理的好友请求数量（用于侧边栏/通知角标）
+ * @param {string} xuid
+ * @returns {number}
+ */
 function getPendingRequestCount(xuid) {
     const friendInfo = getPlayerFriendData(xuid);
     return friendInfo.requests.filter(function(r) { return !r.handled; }).length;
 }
 
+/**
+ * 获取玩家未读私信数量
+ * @param {string} xuid
+ * @returns {number}
+ */
 function getUnreadMessageCount(xuid) {
     const msgData = getPlayerMessageData(xuid);
     return msgData.messages.filter(function(m) { return !m.read; }).length;

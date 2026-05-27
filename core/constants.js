@@ -21,6 +21,7 @@
  */
 
 
+/** 所有数据文件路径配置（JSON 数据、日志目录、配置文件等） */
 const PATHS = {
     CONFIG: "plugins/NLCE/config.json",
     PLAYER_DATA: "plugins/NLCE/data/playerdata.json",
@@ -50,11 +51,15 @@ const PATHS = {
     BAN_DATA: "plugins/NLCE/data/BanData.json"
 };
 
+/** IPv4 用户进服时的 IPv6 提示消息 */
 const IPV4_MESSAGE = "§a本服务器已接入IPv6网络，访问 §rhttps://citlalia.cn/v6 §a来了解如何启用";
+/** IPv6 用户进服时的确认消息 */
 const IPV6_MESSAGE = "§a您正在使用IPv6网络访问本服务器";
 
+/** 玩家可选的心情状态 */
 const MOOD_OPTIONS = ['开心', '难过', '平静', '兴奋', '生气'];
 
+/** Minecraft 生物群系英文 ID 到中文名称的映射 */
 const BIOME_NAMES = {
     "ocean": "海洋",
     "plains": "平原",
@@ -145,14 +150,18 @@ const BIOME_NAMES = {
     "pale_garden": "苍白之园"
 };
 
+/** actionbar 侧边栏各显示项对应的玩家设置 key */
 const SIDEBAR_SETTING_KEYS = [
     'enableActionbarPing', 'enableActionbarMoney', 'enableActionbarTime',
     'enableActionbarTps', 'enableActionbarSpeed', 'enableActionbarBiome'
 ];
 
+/** 侧边栏信息缓存有效期（毫秒），避免每帧重新计算 */
 const SIDEBAR_CACHE_TTL = 5000;
+/** 余额缓存有效期（毫秒），余额变化频率低可适当延长 */
 const SIDEBAR_MONEY_CACHE_TTL = 3000;
 
+/** 击杀特效附带的药水效果参数 */
 const KillEffectConfig = {
     RESISTANCE: {
         id: 11,
@@ -165,6 +174,7 @@ const KillEffectConfig = {
     }
 };
 
+/** 玩家设置的默认值，新玩家注册时以此为初始配置 */
 const DEFAULT_PLAYER_SETTINGS = {
     enableWelcome: true,
     enableActionbar: true,
@@ -188,6 +198,7 @@ const DEFAULT_PLAYER_SETTINGS = {
     enableTpaRejectMode: false
 };
 
+/** 设置界面表单描述：type=label 为分组标题，type 未指定为可切换的布尔设置项 */
 const PLAYER_SETTINGS_SCHEMA = [
     { type: 'label', text: '§b进服提醒' },
     { key: 'enableWelcome', label: '§e入服欢迎' },
@@ -217,6 +228,7 @@ const PLAYER_SETTINGS_SCHEMA = [
     { key: 'enableTpaRejectMode', label: '§c拒绝所有传送请求' }
 ];
 
+/** 附魔书商店默认配置：附魔ID -> { 中文名, 最大等级, 每级花费 } */
 const DEFAULT_ENCHANT_BOOK_CONFIG = {
     enchantments: {
         "0": { name: "保护", max_lv: 4, cost_per_level: 100 },
@@ -264,6 +276,7 @@ const DEFAULT_ENCHANT_BOOK_CONFIG = {
     }
 };
 
+/** 每级升级所需经验值阶梯，索引为等级（从第1级开始） */
 const LEVEL_EXP_STEPS = [
     375, 500, 625, 725, 850, 950, 1075, 1200, 1300, 1425,
     1525, 1650, 1775, 1875, 2000, 2375, 2500, 2625, 2775, 2825,

@@ -17,701 +17,859 @@
 
 /**
  * NLCE 个人中心模块
- * 包含：个人中心UI、冒险等级UI、等级工具函数、UID搜索、Player原型扩展
+ * 核心功能：个人中心UI面板、冒险等级系统（经验值/升级/奖励）、数据统计、UID搜索
+ * 扩展功能：在 LLSE_Player 原型上注入 uid 和 adventureLevelInfo 访问器
+ * 入口：时钟右键打开主菜单，或通过命令进入各子面板
  */
 
 const U = require('./utils');
 const C = require('./constants');
 
 let _deps = {};
+
+// 冒险等级升级经验表，由 index.js 通过 setLevelUpExp 注入
+// _levelUpExp[i] 表示达到第 i+1 级所需的累计经验
 let _levelUpExp = [];
+
+// 时钟右键节流记录，xuid -> 上次触发时间戳，800ms内重复使用忽略
 const _clockThrottle = {};
 
+/**
+ * 初始化个人中心模块
+ * @param {object} deps - 依赖对象（money, getPlayerData, friendModule, mailModule 等）
+ */
 function init(deps) {
-    _deps = deps;
+	_deps = deps;
 }
 
+/**
+ * 设置冒险等级升级经验表
+ * @param {number[]} table - 经验阈值数组，table[i] 为达到第 i+1 级的累计经验
+ */
 function setLevelUpExp(table) {
-    _levelUpExp = table;
+	_levelUpExp = table;
 }
 
 // ============ 等级/统计工具函数 ============
 
+/**
+ * 获取或初始化玩家的统计计数块（挖掘/放置/击杀/死亡/游玩时长/生物击杀）
+ * @param {string} xuid - 玩家XUID
+ * @returns {object|null} 统计数据对象，玩家不存在时返回null
+ */
 function obtainStatBlock(xuid) {
-    let pd = _deps.getPlayerData();
-    let p = pd.players[xuid];
-    if (!p) return null;
-    if (!p.count) {
-        p.count = { mining: 0, placing: 0, kills: 0, deaths: 0, playTime: 0, mobKills: 0 };
-    }
-    if (p.count.mobKills === undefined) p.count.mobKills = 0;
-    return p.count;
+	let pd = _deps.getPlayerData();
+	let p = pd.players[xuid];
+	if (!p) return null;
+	if (!p.count) {
+		p.count = { mining: 0, placing: 0, kills: 0, deaths: 0, playTime: 0, mobKills: 0 };
+	}
+	if (p.count.mobKills === undefined) p.count.mobKills = 0;
+	return p.count;
 }
 
+/**
+ * 对玩家的指定统计字段增加数值
+ * @param {string} xuid - 玩家XUID
+ * @param {string} field - 统计字段名（mining/placing/kills/deaths/playTime/mobKills）
+ * @param {number} amount - 增加的数量
+ */
 function bumpStat(xuid, field, amount) {
-    const blk = obtainStatBlock(xuid);
-    if (!blk) return;
-    blk[field] = (blk[field] || 0) + amount;
+	const blk = obtainStatBlock(xuid);
+	if (!blk) return;
+	blk[field] = (blk[field] || 0) + amount;
 }
 
+/**
+ * 获取玩家的累计经验（以 playTime 字段作为经验值来源）
+ * @param {string} xuid - 玩家XUID
+ * @returns {number} 累计经验（取整）
+ */
 function getPlayerExpByXuid(xuid) {
-    let pd = _deps.getPlayerData();
-    let p = pd.players[xuid];
-    if (p && p.count && p.count.playTime !== undefined) {
-        return Math.floor(p.count.playTime);
-    }
-    return 0;
+	let pd = _deps.getPlayerData();
+	let p = pd.players[xuid];
+	if (p && p.count && p.count.playTime !== undefined) {
+		return Math.floor(p.count.playTime);
+	}
+	return 0;
 }
 
+/**
+ * 根据累计经验通过二分查找计算冒险等级
+ * @param {number} exp - 累计经验值
+ * @returns {{ level: number, currentExp: number, nextExp: number, totalExp: number }}
+ *   level: 当前等级（1-based）, currentExp: 当前级已获经验, nextExp: 升级所需经验, totalExp: 累计总经验
+ */
 function calculateAdventureLevel(exp) {
-    exp = Math.max(0, exp);
-    const maxLevel = _levelUpExp.length;
-    let lo = 0, hi = maxLevel - 1;
-    while (lo < hi) {
-        const mid = Math.ceil((lo + hi) / 2);
-        if (exp >= _levelUpExp[mid]) {
-            lo = mid;
-        } else {
-            hi = mid - 1;
-        }
-    }
-    const level = lo + 1;
-    let currentExp = exp - _levelUpExp[lo];
-    let nextExp = lo + 1 < maxLevel ? _levelUpExp[lo + 1] - _levelUpExp[lo] : 0;
-    if (level >= maxLevel) {
-        nextExp = 0;
-        currentExp = exp - _levelUpExp[maxLevel - 1];
-    }
-    return {
-        level: level,
-        currentExp: currentExp,
-        nextExp: nextExp,
-        totalExp: exp
-    };
+	exp = Math.max(0, exp);
+	const maxLevel = _levelUpExp.length;
+	// 二分查找：找到 exp >= _levelUpExp[mid] 的最大 mid
+	let lo = 0, hi = maxLevel - 1;
+	while (lo < hi) {
+		const mid = Math.ceil((lo + hi) / 2);
+		if (exp >= _levelUpExp[mid]) {
+			lo = mid;
+		} else {
+			hi = mid - 1;
+		}
+	}
+	const level = lo + 1;
+	let currentExp = exp - _levelUpExp[lo];
+	let nextExp = lo + 1 < maxLevel ? _levelUpExp[lo + 1] - _levelUpExp[lo] : 0;
+	if (level >= maxLevel) {
+		// 已满级
+		nextExp = 0;
+		currentExp = exp - _levelUpExp[maxLevel - 1];
+	}
+	return {
+		level: level,
+		currentExp: currentExp,
+		nextExp: nextExp,
+		totalExp: exp
+	};
 }
 
+/**
+ * 获取指定等级所需的累计经验
+ * @param {number} targetLevel - 目标等级（1-based）
+ * @returns {number} 该等级的累计经验阈值
+ */
 function getTotalExpByLevel(targetLevel) {
-    targetLevel = Math.max(1, Math.min(targetLevel, _levelUpExp.length));
-    return _levelUpExp[targetLevel - 1] || 0;
+	targetLevel = Math.max(1, Math.min(targetLevel, _levelUpExp.length));
+	return _levelUpExp[targetLevel - 1] || 0;
 }
 
+/**
+ * 获取玩家已领取的等级奖励范围
+ * @param {string} xuid - 玩家XUID
+ * @returns {{ min: number, max: number }} 已领取的等级范围，rw字段格式为 "min-max"
+ */
 function getPlayerRewardRange(xuid) {
-    let pd = _deps.getPlayerData();
-    let p = pd.players[xuid];
-    if (!p || !p.rw) return { min: 1, max: 0 };
-    const parts = p.rw.split("-");
-    return {
-        min: parseInt(parts[0]) || 1,
-        max: parseInt(parts[1]) || 0
-    };
+	let pd = _deps.getPlayerData();
+	let p = pd.players[xuid];
+	if (!p || !p.rw) return { min: 1, max: 0 };
+	const parts = p.rw.split("-");
+	return {
+		min: parseInt(parts[0]) || 1,
+		max: parseInt(parts[1]) || 0
+	};
 }
 
+/**
+ * 更新玩家的等级奖励领取记录（扩展上限），并立即持久化
+ * @param {string} xuid - 玩家XUID
+ * @param {number} newMaxLevel - 新的最大已领取等级
+ * @returns {boolean} 是否有更新（新等级大于旧上限时才更新）
+ */
 function updatePlayerRewardRecord(xuid, newMaxLevel) {
-    let pd = _deps.getPlayerData();
-    let p = pd.players[xuid];
-    if (!p) return false;
-    const oldRange = getPlayerRewardRange(xuid);
-    if (newMaxLevel <= oldRange.max) return false;
-    p.rw = "1-" + newMaxLevel;
-    _deps.savePlayerDataNow();
-    return true;
+	let pd = _deps.getPlayerData();
+	let p = pd.players[xuid];
+	if (!p) return false;
+	const oldRange = getPlayerRewardRange(xuid);
+	if (newMaxLevel <= oldRange.max) return false;
+	p.rw = "1-" + newMaxLevel;
+	_deps.savePlayerDataNow();  // 奖励记录变更立即写盘，防止崩溃丢失
+	return true;
 }
 
+/**
+ * 领取等级奖励，将经验转换为货币添加到玩家账户
+ * @param {Player} player - 玩家
+ * @param {number} rewardExp - 奖励经验值（即货币数量）
+ * @returns {boolean} 是否领取成功
+ */
 function claimLevelReward(player, rewardExp) {
-    if (rewardExp <= 0) return false;
-    try {
-        if (_deps.money.add(player.xuid, rewardExp)) {
-            _deps.notifyEconomyChange(player, rewardExp, "等级奖励");
-            return true;
-        }
-        return false;
-    } catch (error) {
-        logger.error('玩家 ' + player.name + ' 领取奖励失败：' + error.message);
-        return false;
-    }
+	if (rewardExp <= 0) return false;
+	try {
+		if (_deps.money.add(player.xuid, rewardExp)) {
+			_deps.notifyEconomyChange(player, rewardExp, "等级奖励");
+			return true;
+		}
+		return false;
+	} catch (error) {
+		logger.error('玩家 ' + player.name + ' 领取奖励失败：' + error.message);
+		return false;
+	}
 }
 
+/**
+ * 通过UID在玩家数据中查找并返回完整玩家信息（含冒险等级）
+ * @param {number} targetUid - 目标UID
+ * @returns {object|null} 玩家信息对象，未找到返回null
+ */
 function findPlayerByUid(targetUid) {
-    let pd = _deps.getPlayerData();
-    for (let xuid in pd.players) {
-        const player = pd.players[xuid];
-        if (player && player.uid === targetUid) {
-            let exp = getPlayerExpByXuid(xuid);
-            let levelInfo = calculateAdventureLevel(exp);
-            return {
-                name: player.name,
-                uid: player.uid,
-                registerTime: player.registerTime,
-                rw: player.rw,
-                count: player.count,
-                xuid: xuid,
-                adventureLevel: levelInfo.level,
-                adventureExp: levelInfo.currentExp + '/' + (levelInfo.nextExp || '已满级'),
-                totalExp: levelInfo.totalExp
-            };
-        }
-    }
-    return null;
+	let pd = _deps.getPlayerData();
+	for (let xuid in pd.players) {
+		const player = pd.players[xuid];
+		if (player && player.uid === targetUid) {
+			let exp = getPlayerExpByXuid(xuid);
+			let levelInfo = calculateAdventureLevel(exp);
+			return {
+				name: player.name,
+				uid: player.uid,
+				registerTime: player.registerTime,
+				rw: player.rw,
+				count: player.count,
+				xuid: xuid,
+				adventureLevel: levelInfo.level,
+				adventureExp: levelInfo.currentExp + '/' + (levelInfo.nextExp || '已满级'),
+				totalExp: levelInfo.totalExp
+			};
+		}
+	}
+	return null;
 }
 
+/**
+ * 获取所有有效玩家并按UID升序排列（用于UID列表分页展示）
+ * @returns {Array} 排序后的玩家数组
+ */
 function getAllPlayersSorted() {
-    let pd = _deps.getPlayerData();
-    return Object.values(pd.players)
-        .filter(function(player) { return player && player.uid !== undefined; })
-        .sort(function(a, b) { return a.uid - b.uid; });
+	let pd = _deps.getPlayerData();
+	return Object.values(pd.players)
+		.filter(function(player) { return player && player.uid !== undefined; })
+		.sort(function(a, b) { return a.uid - b.uid; });
 }
 
 // ============ Player 原型扩展 ============
 
+/**
+ * 在 LLSE_Player 原型上定义 uid 和 adventureLevelInfo 只读属性
+ * uid: 从玩家数据中读取，未注册时返回 "未注册"
+ * adventureLevelInfo: 动态计算冒险等级信息
+ */
 function installPrototypeExtensions() {
-    Object.defineProperty(LLSE_Player.prototype, "uid", {
-        get: function() {
-            let pd = _deps.getPlayerData();
-            const p = pd.players[this.xuid];
-            return p && p.uid !== undefined ? p.uid : "未注册";
-        },
-        set: function() {
-            logger.error('禁止修改玩家UID！玩家：' + this.name + '（XUID: ' + this.xuid + '）');
-            return false;
-        },
-        enumerable: true
-    });
+	Object.defineProperty(LLSE_Player.prototype, "uid", {
+		get: function() {
+			let pd = _deps.getPlayerData();
+			const p = pd.players[this.xuid];
+			return p && p.uid !== undefined ? p.uid : "未注册";
+		},
+		set: function() {
+			logger.error('禁止修改玩家UID！玩家：' + this.name + '（XUID: ' + this.xuid + '）');
+			return false;
+		},
+		enumerable: true
+	});
 
-    Object.defineProperty(LLSE_Player.prototype, "adventureLevelInfo", {
-        get: function() {
-            const exp = getPlayerExpByXuid(this.xuid);
-            return calculateAdventureLevel(exp);
-        },
-        enumerable: true
-    });
+	Object.defineProperty(LLSE_Player.prototype, "adventureLevelInfo", {
+		get: function() {
+			const exp = getPlayerExpByXuid(this.xuid);
+			return calculateAdventureLevel(exp);
+		},
+		enumerable: true
+	});
 }
 
 // ============ 冒险等级 UI ============
 
+/**
+ * 显示冒险等级详情面板（弹窗形式），展示等级、经验、升级进度
+ * @param {Player} player - 玩家
+ */
 function showAdventureLevelDetail(player) {
-    let levelInfo = player.adventureLevelInfo;
-    let content = '';
-    content += '§a玩家名：§f' + player.name + '\n';
-    content += '§aUID：§f' + player.uid + '\n';
-    content += '§a冒险等级：§f' + levelInfo.level + '级\n';
-    content += '§a累计经验：§f' + levelInfo.totalExp + '点\n';
-    if (levelInfo.nextExp > 0) {
-        content += '§a当前进度：§f' + levelInfo.currentExp + '/' + levelInfo.nextExp + '\n';
-        content += '§a升级所需：§f' + (levelInfo.nextExp - levelInfo.currentExp) + ' 点经验\n';
-    } else {
-        content += '§a当前级进度：§f已满级（' + levelInfo.currentExp + '经验）\n';
-        content += '§a提示：§f您已达到最高冒险等级！\n';
-    }
-    content += '-------------------------\n';
+	let levelInfo = player.adventureLevelInfo;
+	let content = '';
+	content += '§a玩家名：§f' + player.name + '\n';
+	content += '§aUID：§f' + player.uid + '\n';
+	content += '§a冒险等级：§f' + levelInfo.level + '级\n';
+	content += '§a累计经验：§f' + levelInfo.totalExp + '点\n';
+	if (levelInfo.nextExp > 0) {
+		content += '§a当前进度：§f' + levelInfo.currentExp + '/' + levelInfo.nextExp + '\n';
+		content += '§a升级所需：§f' + (levelInfo.nextExp - levelInfo.currentExp) + ' 点经验\n';
+	} else {
+		content += '§a当前级进度：§f已满级（' + levelInfo.currentExp + '经验）\n';
+		content += '§a提示：§f您已达到最高冒险等级！\n';
+	}
+	content += '-------------------------\n';
 
-    player.sendModalForm(
-        '§a冒险等级详情',
-        content,
-        '§a返回面板',
-        '§c关闭',
-        function(p, res) {
-            if (res === true) showAdventureLevelPanel(p);
-        }
-    );
+	player.sendModalForm(
+		'§a冒险等级详情',
+		content,
+		'§a返回面板',
+		'§c关闭',
+		function(p, res) {
+			if (res === true) showAdventureLevelPanel(p);
+		}
+	);
 }
 
+/**
+ * 显示冒险等级主面板，包含等级概览和功能按钮（详情/奖励/返回）
+ * @param {Player} player - 玩家
+ */
 function showAdventureLevelPanel(player) {
-    let levelInfo = player.adventureLevelInfo;
-    const levelPanel = mc.newSimpleForm();
-    levelPanel.setTitle('§a冒险等级面板');
+	let levelInfo = player.adventureLevelInfo;
+	const levelPanel = mc.newSimpleForm();
+	levelPanel.setTitle('§a冒险等级面板');
 
-    let content = '-------------------------\n';
-    content += '§a当前等级：§f' + levelInfo.level + '级\n';
-    content += '§a总经验值：§f' + levelInfo.totalExp + '\n';
-    if (levelInfo.nextExp > 0) {
-        content += '§a当前进度：§f' + levelInfo.currentExp + '/' + levelInfo.nextExp + '\n';
-        content += '§a升级所需：§f' + (levelInfo.nextExp - levelInfo.currentExp) + '经验\n';
-    } else {
-        content += '§a当前进度：§f' + levelInfo.currentExp + '/已满级\n';
-        content += '§a状态：§f已达到最高等级！\n';
-    }
-    content += '-------------------------\n';
-    content += '§a选择功能操作';
+	let content = '-------------------------\n';
+	content += '§a当前等级：§f' + levelInfo.level + '级\n';
+	content += '§a总经验值：§f' + levelInfo.totalExp + '\n';
+	if (levelInfo.nextExp > 0) {
+		content += '§a当前进度：§f' + levelInfo.currentExp + '/' + levelInfo.nextExp + '\n';
+		content += '§a升级所需：§f' + (levelInfo.nextExp - levelInfo.currentExp) + '经验\n';
+	} else {
+		content += '§a当前进度：§f' + levelInfo.currentExp + '/已满级\n';
+		content += '§a状态：§f已达到最高等级！\n';
+	}
+	content += '-------------------------\n';
+	content += '§a选择功能操作';
 
-    levelPanel.setContent(content);
-    levelPanel.addButton('§a冒险等级详情', 'textures/ui/sidebar_icons/dressing_room_capes.png');
-    levelPanel.addButton('§6等级奖励', 'textures/ui/pary');
-    levelPanel.addButton('§c返回个人中心', 'textures/ui/recap_glyph_desaturated');
+	levelPanel.setContent(content);
+	levelPanel.addButton('§a冒险等级详情', 'textures/ui/sidebar_icons/dressing_room_capes.png');
+	levelPanel.addButton('§6等级奖励', 'textures/ui/pary');
+	levelPanel.addButton('§c返回个人中心', 'textures/ui/recap_glyph_desaturated');
 
-    player.sendForm(levelPanel, function(p, btnIndex) {
-        if (btnIndex === null) return;
-        if (btnIndex === 0) showAdventureLevelDetail(p);
-        if (btnIndex === 1) showLevelRewardForm(p);
-        if (btnIndex === 2) showPersonalCenterForm(p);
-    });
+	player.sendForm(levelPanel, function(p, btnIndex) {
+		if (btnIndex === null) return;
+		if (btnIndex === 0) showAdventureLevelDetail(p);
+		if (btnIndex === 1) showLevelRewardForm(p);
+		if (btnIndex === 2) showPersonalCenterForm(p);
+	});
 }
 
+/**
+ * 显示"无可用奖励"提示弹窗
+ * @param {Player} player - 玩家
+ * @param {object} levelInfo - 冒险等级信息
+ * @param {object} rwRange - 已领取等级范围 { min, max }
+ */
 function showNoRewardForm(player, levelInfo, rwRange) {
-    let content = '-------------------------\n' +
-        '§c您当前没有可领取的奖励！\n' +
-        '§a已领取等级范围：§f' + rwRange.min + '-' + rwRange.max + '级\n' +
-        '§a当前冒险等级：§f' + levelInfo.level + '级\n' +
-        '-------------------------\n';
+	let content = '-------------------------\n' +
+		'§c您当前没有可领取的奖励！\n' +
+		'§a已领取等级范围：§f' + rwRange.min + '-' + rwRange.max + '级\n' +
+		'§a当前冒险等级：§f' + levelInfo.level + '级\n' +
+		'-------------------------\n';
 
-    player.sendModalForm(
-        '§c无可用奖励',
-        content,
-        '§a返回面板',
-        '§c关闭',
-        function(p, res) {
-            if (res === true) showAdventureLevelPanel(p);
-        }
-    );
+	player.sendModalForm(
+		'§c无可用奖励',
+		content,
+		'§a返回面板',
+		'§c关闭',
+		function(p, res) {
+			if (res === true) showAdventureLevelPanel(p);
+		}
+	);
 }
 
+/**
+ * 显示奖励领取确认弹窗，确认后扣除经验差额并发放货币
+ * @param {Player} player - 玩家
+ * @param {string} xuid - 玩家XUID
+ * @param {number} rewardExp - 待领取的奖励经验
+ * @param {number} availableLevel - 可领取到的最高等级
+ * @param {object} rwRange - 已领取等级范围
+ */
 function showRewardClaimForm(player, xuid, rewardExp, availableLevel, rwRange) {
-    const cn = _deps.getCurrencyName();
-    let content = '-------------------------\n' +
-        '§a可领取等级：§f' + (rwRange.max + 1) + '-' + availableLevel + '级\n' +
-        '§a奖励§c' + cn + '§r：§f' + rewardExp + ' \n' +
-        '§a领取后将记录等级：§f1-' + availableLevel + '级\n' +
-        '-------------------------\n' +
-        '§c提示：领取后无法重复领取同等级奖励！';
+	const cn = _deps.getCurrencyName();
+	let content = '-------------------------\n' +
+		'§a可领取等级：§f' + (rwRange.max + 1) + '-' + availableLevel + '级\n' +
+		'§a奖励§c' + cn + '§r：§f' + rewardExp + ' \n' +
+		'§a领取后将记录等级：§f1-' + availableLevel + '级\n' +
+		'-------------------------\n' +
+		'§c提示：领取后无法重复领取同等级奖励！';
 
-    player.sendModalForm(
-        '§6等级奖励领取',
-        content,
-        '§a确认领取',
-        '§c取消',
-        function(p, res) {
-            if (!res) return;
+	player.sendModalForm(
+		'§6等级奖励领取',
+		content,
+		'§a确认领取',
+		'§c取消',
+		function(p, res) {
+			if (!res) return;
 
-            const claimSuccess = claimLevelReward(p, rewardExp);
-            if (claimSuccess) {
-                updatePlayerRewardRecord(xuid, availableLevel);
-                let playerMoney = _deps.money.get(p.xuid) || 0;
-                const successContent = '-------------------------\n' +
-                    '§a恭喜！成功领取等级奖励！\n' +
-                    '§a领取等级：§f' + (rwRange.max + 1) + '-' + availableLevel + '级\n' +
-                    '§a获得§c' + cn + '§r：§f' + rewardExp + ' §c' + cn + '§r\n' +
-                    '§a当前§c' + cn + '余额：§f' + playerMoney + '\n' +
-                    '-------------------------\n';
+			const claimSuccess = claimLevelReward(p, rewardExp);
+			if (claimSuccess) {
+				updatePlayerRewardRecord(xuid, availableLevel);
+				let playerMoney = _deps.money.get(p.xuid) || 0;
+				const successContent = '-------------------------\n' +
+					'§a恭喜！成功领取等级奖励！\n' +
+					'§a领取等级：§f' + (rwRange.max + 1) + '-' + availableLevel + '级\n' +
+					'§a获得§c' + cn + '§r：§f' + rewardExp + ' §c' + cn + '§r\n' +
+					'§a当前§c' + cn + '余额：§f' + playerMoney + '\n' +
+					'-------------------------\n';
 
-                player.sendModalForm(
-                    '§a领取成功',
-                    successContent,
-                    '§a返回面板',
-                    '§c关闭',
-                    function(pp, res2) {
-                        if (res2 === true) showAdventureLevelPanel(pp);
-                    }
-                );
-            } else {
-                const failContent = '-------------------------\n' +
-                    '§c奖励领取失败，请稍后重试！\n' +
-                    '-------------------------\n';
+				player.sendModalForm(
+					'§a领取成功',
+					successContent,
+					'§a返回面板',
+					'§c关闭',
+					function(pp, res2) {
+						if (res2 === true) showAdventureLevelPanel(pp);
+					}
+				);
+			} else {
+				const failContent = '-------------------------\n' +
+					'§c奖励领取失败，请稍后重试！\n' +
+					'-------------------------\n';
 
-                player.sendModalForm(
-                    '§c领取失败',
-                    failContent,
-                    '§a返回面板',
-                    '§c关闭',
-                    function(pp, res2) {
-                        if (res2 === true) showAdventureLevelPanel(pp);
-                    }
-                );
-            }
-        }
-    );
+				player.sendModalForm(
+					'§c领取失败',
+					failContent,
+					'§a返回面板',
+					'§c关闭',
+					function(pp, res2) {
+						if (res2 === true) showAdventureLevelPanel(pp);
+					}
+				);
+			}
+		}
+	);
 }
 
+/**
+ * 处理等级奖励领取逻辑：计算可领取范围和奖励经验，无奖励则显示提示
+ * @param {Player} player - 玩家
+ */
 function showLevelRewardForm(player) {
-    let xuid = player.xuid;
-    let levelInfo = player.adventureLevelInfo;
-    const rwRange = getPlayerRewardRange(xuid);
-    const maxClaimLevel = Math.min(levelInfo.level, _levelUpExp.length - 1);
-    let availableLevel = maxClaimLevel > rwRange.max ? maxClaimLevel : 0;
+	let xuid = player.xuid;
+	let levelInfo = player.adventureLevelInfo;
+	const rwRange = getPlayerRewardRange(xuid);
+	// 可领取的最大等级不超过经验表上限
+	const maxClaimLevel = Math.min(levelInfo.level, _levelUpExp.length - 1);
+	let availableLevel = maxClaimLevel > rwRange.max ? maxClaimLevel : 0;
 
-    if (availableLevel === 0) {
-        showNoRewardForm(player, levelInfo, rwRange);
-        return;
-    }
+	if (availableLevel === 0) {
+		showNoRewardForm(player, levelInfo, rwRange);
+		return;
+	}
 
-    const oldTotalExp = getTotalExpByLevel(rwRange.max);
-    const newTotalExp = getTotalExpByLevel(availableLevel);
-    const rewardExp = newTotalExp - oldTotalExp;
+	// 奖励经验 = 新上限的累计经验 - 旧上限的累计经验
+	const oldTotalExp = getTotalExpByLevel(rwRange.max);
+	const newTotalExp = getTotalExpByLevel(availableLevel);
+	const rewardExp = newTotalExp - oldTotalExp;
 
-    showRewardClaimForm(player, xuid, rewardExp, availableLevel, rwRange);
+	showRewardClaimForm(player, xuid, rewardExp, availableLevel, rwRange);
 }
 
 // ============ UID 搜索与列表 ============
 
+/**
+ * 显示UID搜索输入表单
+ * @param {Player} player - 玩家
+ */
 function showUidSearchInputForm(player) {
-    const inputForm = mc.newCustomForm();
-    inputForm.setTitle('UID搜索');
-    inputForm.addInput('请输入要查询的UID', '例如：10000', '');
+	const inputForm = mc.newCustomForm();
+	inputForm.setTitle('UID搜索');
+	inputForm.addInput('请输入要查询的UID', '例如：10000', '');
 
-    player.sendForm(inputForm, function(p, inputData) {
-        if (inputData === null) return;
-        const inputUidStr = inputData[0];
-        const targetUid = parseInt(inputUidStr);
-        if (isNaN(targetUid) || inputUidStr.trim() === '') {
-            p.tell('§c请输入有效的数字UID！', 1);
-            return;
-        }
-        showUidSearchResultForm(p, targetUid);
-    });
+	player.sendForm(inputForm, function(p, inputData) {
+		if (inputData === null) return;
+		const inputUidStr = inputData[0];
+		const targetUid = parseInt(inputUidStr);
+		if (isNaN(targetUid) || inputUidStr.trim() === '') {
+			p.tell('§c请输入有效的数字UID！', 1);
+			return;
+		}
+		showUidSearchResultForm(p, targetUid);
+	});
 }
 
+/**
+ * 显示UID搜索结果弹窗
+ * @param {Player} player - 玩家
+ * @param {number} targetUid - 要搜索的UID
+ */
 function showUidSearchResultForm(player, targetUid) {
-    let playerInfo = findPlayerByUid(targetUid);
-    let formTitle, formContent;
+	let playerInfo = findPlayerByUid(targetUid);
+	let formTitle, formContent;
 
-    if (playerInfo) {
-        formTitle = '§a搜索结果';
-        formContent =
-            '§aUID: ' + playerInfo.uid + '\n' +
-            '§a玩家名: §f' + (playerInfo.name || '未知') + '\n' +
-            '§a冒险等级: §f' + (playerInfo.adventureLevel || 1) + '级\n' +
-            '§a注册时间: §f' + (playerInfo.registerTime || '未知') + '\n';
-    } else {
-        formTitle = '§c搜索结果';
-        formContent = '§c未找到 UID: ' + targetUid + ' 的玩家信息';
-    }
+	if (playerInfo) {
+		formTitle = '§a搜索结果';
+		formContent =
+			'§aUID: ' + playerInfo.uid + '\n' +
+			'§a玩家名: §f' + (playerInfo.name || '未知') + '\n' +
+			'§a冒险等级: §f' + (playerInfo.adventureLevel || 1) + '级\n' +
+			'§a注册时间: §f' + (playerInfo.registerTime || '未知') + '\n';
+	} else {
+		formTitle = '§c搜索结果';
+		formContent = '§c未找到 UID: ' + targetUid + ' 的玩家信息';
+	}
 
-    player.sendModalForm(
-        formTitle,
-        formContent,
-        '§a返回搜索',
-        '§c关闭',
-        function(_, res) {
-            if (res === true) showUidSearchInputForm(player);
-        }
-    );
+	player.sendModalForm(
+		formTitle,
+		formContent,
+		'§a返回搜索',
+		'§c关闭',
+		function(_, res) {
+			if (res === true) showUidSearchInputForm(player);
+		}
+	);
 }
 
+/**
+ * 显示UID列表（分页），每页20人，支持翻页
+ * @param {Player} player - 玩家
+ * @param {number} [currentPage=1] - 当前页码（1-based）
+ */
 function showUidListForm(player, currentPage) {
-    currentPage = currentPage || 1;
-    const allPlayers = getAllPlayersSorted();
-    const pageSize = 20;
-    const totalPlayers = allPlayers.length;
-    const totalPages = Math.max(1, Math.ceil(totalPlayers / pageSize));
-    currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+	currentPage = currentPage || 1;
+	const allPlayers = getAllPlayersSorted();
+	const pageSize = 20;
+	const totalPlayers = allPlayers.length;
+	const totalPages = Math.max(1, Math.ceil(totalPlayers / pageSize));
+	currentPage = Math.min(Math.max(currentPage, 1), totalPages);
 
-    const listForm = mc.newSimpleForm();
-    listForm.setTitle('UID列表 第 ' + currentPage + '/' + totalPages + ' 页');
+	const listForm = mc.newSimpleForm();
+	listForm.setTitle('UID列表 第 ' + currentPage + '/' + totalPages + ' 页');
 
-    let formContent = '§a玩家UID列表\n-------------------------\n';
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, totalPlayers);
-    const currentPagePlayers = allPlayers.slice(startIndex, endIndex);
+	let formContent = '§a玩家UID列表\n-------------------------\n';
+	const startIndex = (currentPage - 1) * pageSize;
+	const endIndex = Math.min(startIndex + pageSize, totalPlayers);
+	const currentPagePlayers = allPlayers.slice(startIndex, endIndex);
 
-    currentPagePlayers.forEach(function(item) {
-        formContent +=
-            '§a玩家: §f' + (item.name || '未知') + '\n' +
-            '§eUID: ' + (item.uid || '未分配') + '\n' +
-            '§b注册时间: §f' + (item.registerTime || '未知') + '\n\n';
-    });
+	currentPagePlayers.forEach(function(item) {
+		formContent +=
+			'§a玩家: §f' + (item.name || '未知') + '\n' +
+			'§eUID: ' + (item.uid || '未分配') + '\n' +
+			'§b注册时间: §f' + (item.registerTime || '未知') + '\n\n';
+	});
 
-    listForm.setContent(formContent);
-    const buttonIndexMap = { prev: -1, close: -1, next: -1 };
+	listForm.setContent(formContent);
+	// 动态按钮索引映射，根据是否有上/下一页调整
+	const buttonIndexMap = { prev: -1, close: -1, next: -1 };
 
-    if (currentPage > 1) {
-        listForm.addButton('上一页', 'textures/ui/arrow_left');
-        buttonIndexMap.prev = 0;
-    }
-    listForm.addButton('关闭', 'textures/ui/cancel');
-    buttonIndexMap.close = currentPage > 1 ? 1 : 0;
-    if (currentPage < totalPages) {
-        listForm.addButton('下一页', 'textures/ui/arrow_right');
-        buttonIndexMap.next = currentPage > 1 ? 2 : 1;
-    }
+	if (currentPage > 1) {
+		listForm.addButton('上一页', 'textures/ui/arrow_left');
+		buttonIndexMap.prev = 0;
+	}
+	listForm.addButton('关闭', 'textures/ui/cancel');
+	buttonIndexMap.close = currentPage > 1 ? 1 : 0;
+	if (currentPage < totalPages) {
+		listForm.addButton('下一页', 'textures/ui/arrow_right');
+		buttonIndexMap.next = currentPage > 1 ? 2 : 1;
+	}
 
-    player.sendForm(listForm, function(p, buttonIndex) {
-        if (buttonIndex === null) return;
-        if (buttonIndex === buttonIndexMap.prev) showUidListForm(p, currentPage - 1);
-        if (buttonIndex === buttonIndexMap.next) showUidListForm(p, currentPage + 1);
-    });
+	player.sendForm(listForm, function(p, buttonIndex) {
+		if (buttonIndex === null) return;
+		if (buttonIndex === buttonIndexMap.prev) showUidListForm(p, currentPage - 1);
+		if (buttonIndex === buttonIndexMap.next) showUidListForm(p, currentPage + 1);
+	});
 }
 
 // ============ 个人中心 UI ============
 
+/**
+ * 显示游戏内主菜单（时钟右键触发），包含个人中心、留言板、传送系统入口
+ * 按钮顺序和可见性根据配置动态调整
+ * @param {Player} player - 玩家
+ */
 function openMainMenu(player) {
-    let xuid = player.xuid;
-    const bal = _deps.money ? _deps.money.get(xuid) || 0 : 0;
-    const fm = mc.newSimpleForm();
-    fm.setTitle('§e Citlalia ');
-    fm.setContent('§f' + player.name + ' §7| §e' + bal + ' ' + _deps.getCurrencyName());
-    let avatarUrl = _deps.getPlayerAvatarUrl(xuid);
-    fm.addButton('§9个人中心', avatarUrl);
-    const hasMessageBoard = _deps.config.get('enableMessageBoard');
-    if (hasMessageBoard) {
-        fm.addButton('§b留言板', 'textures/ui/comment');
-    }
-    if (_deps.teleportModule.tpsConfig().enabled) {
-        fm.addButton('§a传送系统', 'textures/ui/icon_multiplayer');
-    }
-    player.sendForm(fm, function(p, idx) {
-        if (idx === null) return;
-        if (idx === 0) showPersonalCenterForm(p);
-        else if (idx === 1 && hasMessageBoard) _deps.messageBoardModule.showMainForm(p);
-        else if ((idx === 2 && hasMessageBoard) || (idx === 1 && !hasMessageBoard)) _deps.teleportModule.showTpgMainMenu(p, _deps.commonDeps);
-    });
+	let xuid = player.xuid;
+	const bal = _deps.money ? _deps.money.get(xuid) || 0 : 0;
+	const fm = mc.newSimpleForm();
+	fm.setTitle('§e Citlalia ');
+	fm.setContent('§f' + player.name + ' §7| §e' + bal + ' ' + _deps.getCurrencyName());
+	let avatarUrl = _deps.getPlayerAvatarUrl(xuid);
+	fm.addButton('§9个人中心', avatarUrl);
+	const hasMessageBoard = _deps.config.get('enableMessageBoard');
+	if (hasMessageBoard) {
+		fm.addButton('§b留言板', 'textures/ui/comment');
+	}
+	if (_deps.teleportModule.tpsConfig().enabled) {
+		fm.addButton('§a传送系统', 'textures/ui/icon_multiplayer');
+	}
+	player.sendForm(fm, function(p, idx) {
+		if (idx === null) return;
+		// 根据留言板配置动态映射按钮索引
+		if (idx === 0) showPersonalCenterForm(p);
+		else if (idx === 1 && hasMessageBoard) _deps.messageBoardModule.showMainForm(p);
+		else if ((idx === 2 && hasMessageBoard) || (idx === 1 && !hasMessageBoard)) _deps.teleportModule.showTpgMainMenu(p, _deps.commonDeps);
+	});
 }
 
+/**
+ * 显示个人中心面板，包含10个功能入口（信息/好友/消息/邮件/冒险等级/统计/属性/偏好/头像/返回）
+ * 未读消息和邮件数量显示在按钮文本中
+ * @param {Player} player - 玩家
+ */
 function showPersonalCenterForm(player) {
-    let playerXUID = player.xuid;
-    let levelInfo = player.adventureLevelInfo;
-    let playerMoney = _deps.money ? _deps.money.get(playerXUID) || 0 : 0;
+	let playerXUID = player.xuid;
+	let levelInfo = player.adventureLevelInfo;
+	let playerMoney = _deps.money ? _deps.money.get(playerXUID) || 0 : 0;
 
-    const centerForm = mc.newSimpleForm();
-    centerForm.setTitle('§a个人中心');
-    centerForm.setContent(
-        '§a玩家名称：' + player.name + '\n' +
-        '§a现金：§e' + playerMoney + ' 点§c' + _deps.getCurrencyName() + '§r\n' +
-        '-------------------------\n' +
-        '§a选择功能操作'
-    );
+	const centerForm = mc.newSimpleForm();
+	centerForm.setTitle('§a个人中心');
+	centerForm.setContent(
+		'§a玩家名称：' + player.name + '\n' +
+		'§a现金：§e' + playerMoney + ' 点§c' + _deps.getCurrencyName() + '§r\n' +
+		'-------------------------\n' +
+		'§a选择功能操作'
+	);
 
-    const avatarUrl = _deps.getPlayerAvatarUrl(playerXUID);
-    const unreadMsgCount = _deps.friendModule.getUnreadMessageCount(playerXUID);
-    const unreadMailCount = _deps.mailModule.getUnreadMailCount(playerXUID);
+	const avatarUrl = _deps.getPlayerAvatarUrl(playerXUID);
+	const unreadMsgCount = _deps.friendModule.getUnreadMessageCount(playerXUID);
+	const unreadMailCount = _deps.mailModule.getUnreadMailCount(playerXUID);
 
-    centerForm.addButton('§a个人信息', avatarUrl);
-    centerForm.addButton('§b我的好友', 'textures/ui/FriendsIcon');
-    centerForm.addButton('§e我的消息 ' + (unreadMsgCount > 0 ? '§c(' + unreadMsgCount + ')' : ''), 'textures/ui/Feedback');
-    centerForm.addButton('§d邮件系统 ' + (unreadMailCount > 0 ? '§c(' + unreadMailCount + ')' : ''), 'textures/ui/Envelope');
-    centerForm.addButton('§a冒险等级', 'textures/ui/achievements_pause_menu_icon');
-    centerForm.addButton('§6数据统计', 'textures/ui/copy');
-    centerForm.addButton('§c属性提升', 'textures/ui/jump_boost_effect');
-    centerForm.addButton('§6个人偏好设置', 'textures/ui/color_picker');
-    centerForm.addButton('§e个人头像设置', 'textures/ui/dressing_room_customization');
-    centerForm.addButton('§c返回主菜单', 'textures/ui/recap_glyph_desaturated');
+	centerForm.addButton('§a个人信息', avatarUrl);
+	centerForm.addButton('§b我的好友', 'textures/ui/FriendsIcon');
+	centerForm.addButton('§e我的消息 ' + (unreadMsgCount > 0 ? '§c(' + unreadMsgCount + ')' : ''), 'textures/ui/Feedback');
+	centerForm.addButton('§d邮件系统 ' + (unreadMailCount > 0 ? '§c(' + unreadMailCount + ')' : ''), 'textures/ui/Envelope');
+	centerForm.addButton('§a冒险等级', 'textures/ui/achievements_pause_menu_icon');
+	centerForm.addButton('§6数据统计', 'textures/ui/copy');
+	centerForm.addButton('§c属性提升', 'textures/ui/jump_boost_effect');
+	centerForm.addButton('§6个人偏好设置', 'textures/ui/color_picker');
+	centerForm.addButton('§e个人头像设置', 'textures/ui/dressing_room_customization');
+	centerForm.addButton('§c返回主菜单', 'textures/ui/recap_glyph_desaturated');
 
-    player.sendForm(centerForm, function(p, buttonIndex) {
-        if (buttonIndex === null) return;
-        if (buttonIndex === 0) showPersonalInfoForm(p);
-        if (buttonIndex === 1) _deps.friendModule.showMyFriendsForm(p);
-        if (buttonIndex === 2) _deps.friendModule.showMyMessagesForm(p);
-        if (buttonIndex === 3) _deps.mailModule.showMailSystemForm(p);
-        if (buttonIndex === 4) showAdventureLevelPanel(p);
-        if (buttonIndex === 5) showDataStatisticsForm(p);
-        if (buttonIndex === 6) _deps.wishModule.showAttributeUpgradeForm(p);
-        if (buttonIndex === 7) showPlayerSettingsForm(p);
-        if (buttonIndex === 8) _deps.showAvatarSettingsForm(p);
-        if (buttonIndex === 9) openMainMenu(p);
-    });
+	player.sendForm(centerForm, function(p, buttonIndex) {
+		if (buttonIndex === null) return;
+		if (buttonIndex === 0) showPersonalInfoForm(p);
+		if (buttonIndex === 1) _deps.friendModule.showMyFriendsForm(p);
+		if (buttonIndex === 2) _deps.friendModule.showMyMessagesForm(p);
+		if (buttonIndex === 3) _deps.mailModule.showMailSystemForm(p);
+		if (buttonIndex === 4) showAdventureLevelPanel(p);
+		if (buttonIndex === 5) showDataStatisticsForm(p);
+		if (buttonIndex === 6) _deps.wishModule.showAttributeUpgradeForm(p);
+		if (buttonIndex === 7) showPlayerSettingsForm(p);
+		if (buttonIndex === 8) _deps.showAvatarSettingsForm(p);
+		if (buttonIndex === 9) openMainMenu(p);
+	});
 }
 
+/**
+ * 显示个人信息面板（名称、UID、冒险等级、注册时间）
+ * @param {Player} player - 玩家
+ */
 function showPersonalInfoForm(player) {
-    let playerXUID = player.xuid;
-    let pd = _deps.getPlayerData();
-    let playerInfo = pd.players[playerXUID] || {};
-    let levelInfo = player.adventureLevelInfo;
+	let playerXUID = player.xuid;
+	let pd = _deps.getPlayerData();
+	let playerInfo = pd.players[playerXUID] || {};
+	let levelInfo = player.adventureLevelInfo;
 
-    const infoForm = mc.newSimpleForm();
-    infoForm.setTitle('§a个人信息');
+	const infoForm = mc.newSimpleForm();
+	infoForm.setTitle('§a个人信息');
 
-    let content = '-------------------------\n';
-    content += '§a玩家名：§f' + player.name + '\n';
-    content += '§aUID：§f' + player.uid + '\n';
-    content += '§a冒险等级：§f' + levelInfo.level + '级\n';
-    content += '§a注册时间：§f' + (playerInfo.registerTime || '未知') + '\n';
-    content += '-------------------------\n';
+	let content = '-------------------------\n';
+	content += '§a玩家名：§f' + player.name + '\n';
+	content += '§aUID：§f' + player.uid + '\n';
+	content += '§a冒险等级：§f' + levelInfo.level + '级\n';
+	content += '§a注册时间：§f' + (playerInfo.registerTime || '未知') + '\n';
+	content += '-------------------------\n';
 
-    infoForm.setContent(content);
-    infoForm.addButton('§c返回个人中心', 'textures/ui/recap_glyph_desaturated');
+	infoForm.setContent(content);
+	infoForm.addButton('§c返回个人中心', 'textures/ui/recap_glyph_desaturated');
 
-    player.sendForm(infoForm, function(p, buttonIndex) {
-        if (buttonIndex === null) return;
-        if (buttonIndex === 0) showPersonalCenterForm(p);
-    });
+	player.sendForm(infoForm, function(p, buttonIndex) {
+		if (buttonIndex === null) return;
+		if (buttonIndex === 0) showPersonalCenterForm(p);
+	});
 }
 
+/**
+ * 显示数据统计面板，展示玩家的各项游戏数据（挖掘/放置/击杀/死亡/游玩时长等）
+ * @param {Player} player - 玩家
+ */
 function showDataStatisticsForm(player) {
-    let playerXUID = player.xuid;
-    let pd = _deps.getPlayerData();
-    const pCount = (pd.players[playerXUID] && pd.players[playerXUID].count) || {};
-    const levelInfo = player.adventureLevelInfo;
-    const playerMoney = _deps.money ? _deps.money.get(playerXUID) || 0 : 0;
+	let playerXUID = player.xuid;
+	let pd = _deps.getPlayerData();
+	const pCount = (pd.players[playerXUID] && pd.players[playerXUID].count) || {};
+	const levelInfo = player.adventureLevelInfo;
+	const playerMoney = _deps.money ? _deps.money.get(playerXUID) || 0 : 0;
 
-    const statsForm = mc.newSimpleForm();
-    statsForm.setTitle('§6数据统计');
+	const statsForm = mc.newSimpleForm();
+	statsForm.setTitle('§6数据统计');
 
-    let content = '-------------------------\n';
-    content += '§a玩家名：§f' + player.name + '\n';
-    content += '§aUID：§f' + player.uid + '\n';
-    content += '§a冒险等级：§f' + levelInfo.level + '级\n';
-    content += '§a累计经验：§f' + levelInfo.totalExp + '点\n';
-    content += '§a现金：§e' + playerMoney + ' 点§c' + _deps.getCurrencyName() + '§r\n';
-    content += '§a游玩时长：§f' + U.formatTime(pCount.playTime || 0) + '\n';
-    content += '§a挖掘方块：§f' + (pCount.mining || 0) + '个\n';
-    content += '§a放置方块：§f' + (pCount.placing || 0) + '个\n';
-    content += '§a击杀玩家：§f' + (pCount.kills || 0) + '次\n';
-    content += '§a死亡次数：§f' + (pCount.deaths || 0) + '次\n';
-    content += '-------------------------\n';
+	let content = '-------------------------\n';
+	content += '§a玩家名：§f' + player.name + '\n';
+	content += '§aUID：§f' + player.uid + '\n';
+	content += '§a冒险等级：§f' + levelInfo.level + '级\n';
+	content += '§a累计经验：§f' + levelInfo.totalExp + '点\n';
+	content += '§a现金：§e' + playerMoney + ' 点§c' + _deps.getCurrencyName() + '§r\n';
+	content += '§a游玩时长：§f' + U.formatTime(pCount.playTime || 0) + '\n';
+	content += '§a挖掘方块：§f' + (pCount.mining || 0) + '个\n';
+	content += '§a放置方块：§f' + (pCount.placing || 0) + '个\n';
+	content += '§a击杀玩家：§f' + (pCount.kills || 0) + '次\n';
+	content += '§a死亡次数：§f' + (pCount.deaths || 0) + '次\n';
+	content += '-------------------------\n';
 
-    statsForm.setContent(content);
-    statsForm.addButton('§c返回个人中心', 'textures/ui/recap_glyph_desaturated');
+	statsForm.setContent(content);
+	statsForm.addButton('§c返回个人中心', 'textures/ui/recap_glyph_desaturated');
 
-    player.sendForm(statsForm, function(p, buttonIndex) {
-        if (buttonIndex === null) return;
-        if (buttonIndex === 0) showPersonalCenterForm(p);
-    });
+	player.sendForm(statsForm, function(p, buttonIndex) {
+		if (buttonIndex === null) return;
+		if (buttonIndex === 0) showPersonalCenterForm(p);
+	});
 }
 
+/**
+ * 显示网络信息面板（IP、网络类型、延迟、丢包率、设备系统）
+ * 管理员（permLevel !== 0）额外显示所有在线玩家的IP列表
+ * @param {Player} player - 玩家
+ */
 function showNetworkInfoForm(player) {
-    const playerXUID = player.xuid;
-    const pd = _deps.getPlayerData();
-    const playerInfo = pd.players[playerXUID] || {};
-    const device = player.getDevice();
+	const playerXUID = player.xuid;
+	const pd = _deps.getPlayerData();
+	const playerInfo = pd.players[playerXUID] || {};
+	const device = player.getDevice();
 
-    const ip = (device && device.ip) ? U.stripIpPort(device.ip) : '未知';
-    let networkType = U.getNetworkType(ip);
-    let avgPing = (device && device.avgPing !== undefined) ? device.avgPing : 'N/A';
-    let avgPacketLoss = (device && device.avgPacketLoss !== undefined) ? (device.avgPacketLoss * 100).toFixed(1) + '%' : 'N/A';
-    let os = (device && device.os) ? device.os : '未知';
-    if (os === 'Win32') os = 'GDK';
+	const ip = (device && device.ip) ? U.stripIpPort(device.ip) : '未知';
+	let networkType = U.getNetworkType(ip);
+	let avgPing = (device && device.avgPing !== undefined) ? device.avgPing : 'N/A';
+	let avgPacketLoss = (device && device.avgPacketLoss !== undefined) ? (device.avgPacketLoss * 100).toFixed(1) + '%' : 'N/A';
+	let os = (device && device.os) ? device.os : '未知';
+	if (os === 'Win32') os = 'GDK';
 
-    let networkTypeColor = '§f';
-    if (networkType === '中续转发') networkTypeColor = '§e';
-    else if (networkType === '内网连接') networkTypeColor = '§b';
-    else if (networkType === '公网IPv4') networkTypeColor = '§a';
-    else if (networkType === '公网IPv6') networkTypeColor = '§d';
+	// 网络类型颜色：中续转发黄、内网蓝、公网IPv4绿、公网IPv6粉
+	let networkTypeColor = '§f';
+	if (networkType === '中续转发') networkTypeColor = '§e';
+	else if (networkType === '内网连接') networkTypeColor = '§b';
+	else if (networkType === '公网IPv4') networkTypeColor = '§a';
+	else if (networkType === '公网IPv6') networkTypeColor = '§d';
 
-    let pingColor = '§a';
-    if (typeof avgPing === 'number') {
-        if (avgPing > 200) pingColor = '§c';
-        else if (avgPing > 95) pingColor = '§6';
-    }
+	// 延迟颜色：>200ms红, >95ms黄, 否则绿
+	let pingColor = '§a';
+	if (typeof avgPing === 'number') {
+		if (avgPing > 200) pingColor = '§c';
+		else if (avgPing > 95) pingColor = '§6';
+	}
 
-    let packetLossColor = '§a';
-    if (typeof avgPacketLoss === 'string' && avgPacketLoss !== 'N/A') {
-        const lossVal = parseFloat(avgPacketLoss);
-        if (lossVal > 5) packetLossColor = '§c';
-        else if (lossVal > 1) packetLossColor = '§6';
-    }
+	// 丢包率颜色：>5%红, >1%黄, 否则绿
+	let packetLossColor = '§a';
+	if (typeof avgPacketLoss === 'string' && avgPacketLoss !== 'N/A') {
+		const lossVal = parseFloat(avgPacketLoss);
+		if (lossVal > 5) packetLossColor = '§c';
+		else if (lossVal > 1) packetLossColor = '§6';
+	}
 
-    const gui = mc.newSimpleForm();
-    gui.setTitle('§9网络信息');
+	const gui = mc.newSimpleForm();
+	gui.setTitle('§9网络信息');
 
-    let content = '-------------------------\n';
-    content += '§a玩家名称：§f' + player.name + '\n';
-    content += '§aUID：§f' + (playerInfo.uid || '未知') + '\n';
-    content += '§aIP地址：§f' + ip + '\n';
-    content += '§a网络类型：§f' + networkTypeColor + networkType + '\n';
-    content += '§a平均延迟：§f' + pingColor + avgPing + 'ms\n';
-    content += '§a平均丢包率：§f' + packetLossColor + avgPacketLoss + '%%\n';
-    content += '§a设备系统：§f' + os + '\n';
-    content += '-------------------------\n';
+	let content = '-------------------------\n';
+	content += '§a玩家名称：§f' + player.name + '\n';
+	content += '§aUID：§f' + (playerInfo.uid || '未知') + '\n';
+	content += '§aIP地址：§f' + ip + '\n';
+	content += '§a网络类型：§f' + networkTypeColor + networkType + '\n';
+	content += '§a平均延迟：§f' + pingColor + avgPing + 'ms\n';
+	content += '§a平均丢包率：§f' + packetLossColor + avgPacketLoss + '%%\n';
+	content += '§a设备系统：§f' + os + '\n';
+	content += '-------------------------\n';
 
-    if (player.permLevel !== 0) {
-        const onlinePlayers = mc.getOnlinePlayers();
-        const otherPlayers = onlinePlayers.filter(function(p) { return p.xuid !== playerXUID; });
-        if (otherPlayers.length > 0) {
-            content += '\n§6§l在线玩家IP列表：\n';
-            content += '-------------------------\n';
-            otherPlayers.forEach(function(p) {
-                const pDevice = p.getDevice();
-                const pIp = (pDevice && pDevice.ip) ? U.stripIpPort(pDevice.ip) : '未知';
-                const pType = U.getNetworkType(pIp);
-                const pPing = (pDevice && pDevice.avgPing !== undefined) ? pDevice.avgPing + 'ms' : 'N/A';
-                content += '§b' + p.name + ' §f- §7' + pIp + ' §f(' + pType + ' §a' + pPing + '§f)\n';
-            });
-            content += '-------------------------\n';
-        }
-    }
+	// 管理员可见：列出所有在线玩家的IP信息
+	if (player.permLevel !== 0) {
+		const onlinePlayers = mc.getOnlinePlayers();
+		const otherPlayers = onlinePlayers.filter(function(p) { return p.xuid !== playerXUID; });
+		if (otherPlayers.length > 0) {
+			content += '\n§6§l在线玩家IP列表：\n';
+			content += '-------------------------\n';
+			otherPlayers.forEach(function(p) {
+				const pDevice = p.getDevice();
+				const pIp = (pDevice && pDevice.ip) ? U.stripIpPort(pDevice.ip) : '未知';
+				const pType = U.getNetworkType(pIp);
+				const pPing = (pDevice && pDevice.avgPing !== undefined) ? pDevice.avgPing + 'ms' : 'N/A';
+				content += '§b' + p.name + ' §f- §7' + pIp + ' §f(' + pType + ' §a' + pPing + '§f)\n';
+			});
+			content += '-------------------------\n';
+		}
+	}
 
-    gui.setContent(content);
-    gui.addButton('§c关闭', 'textures/ui/cancel');
+	gui.setContent(content);
+	gui.addButton('§c关闭', 'textures/ui/cancel');
 
-    player.sendForm(gui, function(p, id) {
-        if (id === null) return;
-    });
+	player.sendForm(gui, function(p, id) {
+		if (id === null) return;
+	});
 }
 
+/**
+ * 显示个人偏好设置表单，基于 PLAYER_SETTINGS_SCHEMA 动态生成开关控件
+ * 只有值实际变更的设置才会写入并通知玩家
+ * @param {Player} player - 玩家
+ */
 function showPlayerSettingsForm(player) {
-    let xuid = player.xuid;
-    const settingsForm = mc.newCustomForm();
-    settingsForm.setTitle('§6个人设置');
-    const switchIndices = [];
-    let dataIdx = 0;
-    const schema = C.PLAYER_SETTINGS_SCHEMA;
-    for (let i = 0; i < schema.length; i++) {
-        const item = schema[i];
-        if (item.type === 'label') {
-            settingsForm.addLabel(item.text);
-            dataIdx++;
-        } else {
-            settingsForm.addSwitch(item.label, _deps.getPlayerSetting(xuid, item.key));
-            switchIndices.push({
-                idx: dataIdx,
-                key: item.key,
-                label: item.label
-            });
-            dataIdx++;
-        }
-    }
-    player.sendForm(settingsForm, function(p, data) {
-        if (data === null || data === undefined) {
-            showPersonalCenterForm(p);
-            return;
-        }
-        if (!Array.isArray(data)) {
-            showPlayerSettingsForm(p);
-            return;
-        }
-        let changed = false;
-        for (let j = 0; j < switchIndices.length; j++) {
-            const si = switchIndices[j];
-            const newVal = Boolean(data[si.idx]);
-            const oldVal = _deps.getPlayerSetting(xuid, si.key);
-            if (newVal !== oldVal) {
-                _deps.setPlayerSetting(xuid, si.key, newVal);
-                p.tell('§a' + si.label.replace(/§./g, '') + '已' + (newVal ? '开启' : '关闭') + '！');
-                changed = true;
-            }
-        }
-        if (changed) {
-            p.sendModalForm('§a设置修改成功', '§a您的个人设置已成功修改！\n\n请选择操作：', '§a返回个人中心', '§c关闭', function(pl, result) {
-                if (result) showPersonalCenterForm(pl);
-            });
-        } else {
-            showPersonalCenterForm(p);
-        }
-    });
+	let xuid = player.xuid;
+	const settingsForm = mc.newCustomForm();
+	settingsForm.setTitle('§6个人设置');
+	const switchIndices = [];  // 记录每个开关在表单数据中的索引及其对应key
+	let dataIdx = 0;
+	const schema = C.PLAYER_SETTINGS_SCHEMA;
+	for (let i = 0; i < schema.length; i++) {
+		const item = schema[i];
+		if (item.type === 'label') {
+			settingsForm.addLabel(item.text);
+			dataIdx++;
+		} else {
+			settingsForm.addSwitch(item.label, _deps.getPlayerSetting(xuid, item.key));
+			switchIndices.push({
+				idx: dataIdx,
+				key: item.key,
+				label: item.label
+			});
+			dataIdx++;
+		}
+	}
+	player.sendForm(settingsForm, function(p, data) {
+		if (data === null || data === undefined) {
+			showPersonalCenterForm(p);
+			return;
+		}
+		if (!Array.isArray(data)) {
+			showPlayerSettingsForm(p);
+			return;
+		}
+		// 对比新旧值，仅对变更项调用 setPlayerSetting
+		let changed = false;
+		for (let j = 0; j < switchIndices.length; j++) {
+			const si = switchIndices[j];
+			const newVal = Boolean(data[si.idx]);
+			const oldVal = _deps.getPlayerSetting(xuid, si.key);
+			if (newVal !== oldVal) {
+				_deps.setPlayerSetting(xuid, si.key, newVal);
+				// 去掉Minecraft颜色代码后通知玩家
+				p.tell('§a' + si.label.replace(/§./g, '') + '已' + (newVal ? '开启' : '关闭') + '！');
+				changed = true;
+			}
+		}
+		if (changed) {
+			p.sendModalForm('§a设置修改成功', '§a您的个人设置已成功修改！\n\n请选择操作：', '§a返回个人中心', '§c关闭', function(pl, result) {
+				if (result) showPersonalCenterForm(pl);
+			});
+		} else {
+			showPersonalCenterForm(p);
+		}
+	});
 }
 
 // ============ 时钟菜单事件 ============
 
+/**
+ * 注册时钟右键监听，右键方块时打开主菜单
+ * 内置800ms节流防止连续触发
+ */
 function registerClockListener() {
-    mc.listen('onUseItemOn', function(pl, it) {
-        if (!pl || !pl.xuid) return;
-        if (it.type !== 'minecraft:clock') return;
-        const now = Date.now();
-        const xuid = pl.xuid;
-        if (_clockThrottle[xuid] && now - _clockThrottle[xuid] < 800) return;
-        _clockThrottle[xuid] = now;
-        openMainMenu(pl);
-    });
+	mc.listen('onUseItemOn', function(pl, it) {
+		if (!pl || !pl.xuid) return;
+		if (it.type !== 'minecraft:clock') return;
+		const now = Date.now();
+		const xuid = pl.xuid;
+		// 节流：800ms内重复右键忽略
+		if (_clockThrottle[xuid] && now - _clockThrottle[xuid] < 800) return;
+		_clockThrottle[xuid] = now;
+		openMainMenu(pl);
+	});
 }
 
 module.exports = {
-    init: init,
-    setLevelUpExp: setLevelUpExp,
-    installPrototypeExtensions: installPrototypeExtensions,
-    registerClockListener: registerClockListener,
+	init: init,
+	setLevelUpExp: setLevelUpExp,
+	installPrototypeExtensions: installPrototypeExtensions,
+	registerClockListener: registerClockListener,
 
-    // 工具函数 — 供 index.js 事件监听器使用
-    obtainStatBlock: obtainStatBlock,
-    bumpStat: bumpStat,
-    getPlayerExpByXuid: getPlayerExpByXuid,
-    calculateAdventureLevel: calculateAdventureLevel,
-    findPlayerByUid: findPlayerByUid,
-    getAllPlayersSorted: getAllPlayersSorted,
+	// 工具函数 — 供 index.js 事件监听器使用
+	obtainStatBlock: obtainStatBlock,
+	bumpStat: bumpStat,
+	getPlayerExpByXuid: getPlayerExpByXuid,
+	calculateAdventureLevel: calculateAdventureLevel,
+	findPlayerByUid: findPlayerByUid,
+	getAllPlayersSorted: getAllPlayersSorted,
 
-    // UI入口 — 供命令注册和菜单使用
-    openMainMenu: openMainMenu,
-    showPersonalCenterForm: showPersonalCenterForm,
-    showAdventureLevelPanel: showAdventureLevelPanel,
-    showUidSearchInputForm: showUidSearchInputForm,
-    showUidListForm: showUidListForm,
-    showNetworkInfoForm: showNetworkInfoForm,
-    showLevelRewardForm: showLevelRewardForm,
-    showPlayerSettingsForm: showPlayerSettingsForm
+	// UI入口 — 供命令注册和菜单使用
+	openMainMenu: openMainMenu,
+	showPersonalCenterForm: showPersonalCenterForm,
+	showAdventureLevelPanel: showAdventureLevelPanel,
+	showUidSearchInputForm: showUidSearchInputForm,
+	showUidListForm: showUidListForm,
+	showNetworkInfoForm: showNetworkInfoForm,
+	showLevelRewardForm: showLevelRewardForm,
+	showPlayerSettingsForm: showPlayerSettingsForm
 };

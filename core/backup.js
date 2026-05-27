@@ -17,7 +17,8 @@
 
 /**
  * NLCE 自动备份系统
- * 定时自动备份玩家数据和配置文件，支持备份列表管理和恢复
+ * 定时自动备份玩家数据和配置文件，支持7z压缩、备份列表管理和恢复
+ * 备份流程：save hold -> 复制世界文件到临时目录 -> 7z压缩 -> save resume -> 清理临时目录
  */
 
 
@@ -27,13 +28,17 @@ const pathModule = require('path');
 const _7z = require('7zip-min');
 const U = require('./utils');
 
-let backupConfig = null;
-let backupDir = '';
-let isBackingUp = false;
-let scheduledTimer = null;
+let backupConfig = null;    // 备份配置（interval、compressionLevel、maxAgeDays、maxCount）
+let backupDir = '';         // 备份文件存储目录
+let isBackingUp = false;    // 备份进行中标记，防止并发备份
+let scheduledTimer = null;  // 定时备份的interval句柄
 
+/**
+ * 初始化备份模块，创建备份目录并启动定时备份
+ * @param {Object} cfg - 备份配置对象
+ */
 function init(cfg) {
-	D.debugLogModule('backup')('init: 初始化完成');
+    D.debugLogModule('backup')('init: 初始化完成');
     backupConfig = cfg || {};
     backupDir = pathModule.resolve(process.cwd(), 'backup');
     if (!fs.existsSync(backupDir)) {
@@ -42,16 +47,22 @@ function init(cfg) {
     startScheduledBackup();
 }
 
+/**
+ * 热重载备份配置，重启定时器
+ * @param {Object} cfg - 新的备份配置
+ */
 function reload(cfg) {
     stopScheduledBackup();
     backupConfig = cfg || {};
     startScheduledBackup();
 }
 
+/** 获取当前备份配置 */
 function getConfig() {
     return backupConfig;
 }
 
+/** 启动定时备份，interval为0时禁用 */
 function startScheduledBackup() {
     if (scheduledTimer) {
         clearInterval(scheduledTimer);
@@ -65,6 +76,7 @@ function startScheduledBackup() {
     }, intervalMs);
 }
 
+/** 停止定时备份 */
 function stopScheduledBackup() {
     if (scheduledTimer) {
         clearInterval(scheduledTimer);
@@ -72,6 +84,10 @@ function stopScheduledBackup() {
     }
 }
 
+/**
+ * 扫描worlds目录获取所有世界存档名称
+ * @returns {string[]} 世界目录名列表
+ */
 function getWorldNames() {
     const worldsDir = pathModule.resolve(process.cwd(), 'worlds');
     if (!fs.existsSync(worldsDir)) return [];
@@ -84,6 +100,10 @@ function getWorldNames() {
     }
 }
 
+/**
+ * 格式化当前时间为备份文件名时间戳，格式YYYY-MM-DD_hh-mm-ss
+ * @returns {string}
+ */
 function formatBackupTime() {
     let now = new Date();
     let y = now.getFullYear();
@@ -95,6 +115,13 @@ function formatBackupTime() {
     return y + '-' + M + '-' + d + '_' + h + '-' + m + '-' + s;
 }
 
+/**
+ * 轮询等待BDS的save hold完成，确认世界文件已锁定可安全复制
+ * 通过反复执行save query命令检查文件是否就绪
+ * @param {Function} callback - 回调(true/false)表示是否成功锁定
+ * @param {number} [maxRetries=30] - 最大重试次数
+ * @param {number} [retryInterval=1000] - 每次重试间隔(ms)
+ */
 function waitForSaveHold(callback, maxRetries, retryInterval) {
     let retries = 0;
     maxRetries = maxRetries || 30;
@@ -113,6 +140,7 @@ function waitForSaveHold(callback, maxRetries, retryInterval) {
                     callback(true);
                     return;
                 }
+                // 前3次和每5次输出一次调试日志
                 if (retries <= 3 || retries % 5 === 0) {
                     logger.info('save query 第' + retries + '次查询, success=' + result.success + ', output=' + (output.substring(0, 200) || '(空)'));
                 }
@@ -129,9 +157,15 @@ function waitForSaveHold(callback, maxRetries, retryInterval) {
         setTimeout(check, retryInterval);
     }
 
+    // 延迟5秒开始查询，等待save hold生效
     setTimeout(check, 5000);
 }
 
+/**
+ * 执行完整的世界备份流程
+ * 1. 通知在线玩家 -> 2. save hold -> 3. 等待锁定 -> 4. 复制世界文件 -> 5. save resume -> 6. 后台7z压缩 -> 7. 清理旧备份
+ * @param {Function} callback - callback(err, result)，err为错误对象，result包含备份详情
+ */
 function executeBackup(callback) {
     if (isBackingUp) {
         callback({ error: '备份正在进行中，请稍后再试' });
@@ -140,11 +174,13 @@ function executeBackup(callback) {
     isBackingUp = true;
     const startTime = Date.now();
 
+    // 通知所有在线玩家
     const onlinePlayers = mc.getOnlinePlayers();
     onlinePlayers.forEach(function(p) {
-        try { p.sendToast('服务器正在进行地图备份，请耐心等待', '§6备份中'); } catch (e) {}
+        try { p.sendToast('服务器正在进行地图备份，请耐心等待', '§6备份中'); } catch (e) { logger.warn('[Backup] 发送备份通知失败: ' + e.message); }
     });
 
+    // 延迟1秒后执行save hold，给toast通知显示时间
     setTimeout(function() {
         try {
             const holdResult = mc.runcmdEx('save hold');
@@ -157,25 +193,28 @@ function executeBackup(callback) {
 
         waitForSaveHold(function(holdSuccess) {
             if (!holdSuccess) {
+                // hold失败时恢复存档写入
                 try {
                     let resumeResult = mc.runcmdEx('save resume');
                     logger.info('save resume (hold失败) 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
-                } catch (e) {}
+                } catch (e) { logger.error('[Backup] save resume (hold失败) 异常: ' + e.message); }
                 isBackingUp = false;
                 callback({ error: 'save hold 超时，无法锁定世界存档' });
                 return;
             }
 
+            // 等待3秒确保文件系统同步
             setTimeout(function() {
             try {
                 const worldNames = getWorldNames();
                 if (worldNames.length === 0) {
-                    try { mc.runcmdEx('save resume'); } catch (e) {}
+                    try { mc.runcmdEx('save resume'); } catch (e) { logger.error('[Backup] save resume 失败: ' + e.message); }
                     isBackingUp = false;
                     callback({ error: '未找到世界存档目录' });
                     return;
                 }
 
+                // 限制压缩级别在0-9范围内
                 let compressionLevel = backupConfig.compressionLevel || 5;
                 if (compressionLevel < 0) compressionLevel = 0;
                 if (compressionLevel > 9) compressionLevel = 9;
@@ -185,7 +224,7 @@ function executeBackup(callback) {
                 try {
                     fs.mkdirSync(tempDir, { recursive: true });
                 } catch (e) {
-                    try { mc.runcmdEx('save resume'); } catch (ex) {}
+                    try { mc.runcmdEx('save resume'); } catch (ex) { logger.error('[Backup] save resume 失败: ' + ex.message); }
                     isBackingUp = false;
                     callback({ error: '创建临时目录失败: ' + e.message });
                     return;
@@ -203,6 +242,7 @@ function executeBackup(callback) {
                     }
                 });
 
+                // 复制完成后立即resume，减少存档锁定时间
                 try {
                     const resumeResult = mc.runcmdEx('save resume');
                     logger.info('save resume 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
@@ -215,11 +255,12 @@ function executeBackup(callback) {
                 }
 
                 onlinePlayers.forEach(function(p) {
-                    try { p.sendToast('地图快照已完成，正在后台压缩', '§6压缩中'); } catch (e) {}
+                    try { p.sendToast('地图快照已完成，正在后台压缩', '§6压缩中'); } catch (e) { logger.warn('[Backup] 发送压缩通知失败: ' + e.message); }
                 });
 
                 logger.info('世界文件复制完成，save resume 已执行，开始后台压缩...');
 
+                // 逐个世界进行7z压缩
                 const results = [];
                 let completed = 0;
                 const total = worldNames.length;
@@ -236,11 +277,13 @@ function executeBackup(callback) {
                             try {
                                 let stat = fs.statSync(archivePath);
                                 fileSize = stat.size;
-                            } catch (e) {}
+                            } catch (e) { logger.warn('[Backup] 获取备份文件大小失败: ' + e.message); }
                             results.push({ world: worldName, file: archiveName, success: true, size: fileSize, sizeFormatted: formatFileSize(fileSize) });
                         } else {
                             results.push({ world: worldName, file: archiveName, success: false, error: err.message || String(err) });
                         }
+
+                        // 所有世界压缩完成后清理和汇报
                         if (completed >= total) {
                             try {
                                 U.rmrf(tempDir);
@@ -263,7 +306,7 @@ function executeBackup(callback) {
                             });
 
                             onlinePlayers.forEach(function(p) {
-                                try { p.sendToast('地图备份已完成', '备份完成'); } catch (e) {}
+                                try { p.sendToast('地图备份已完成', '备份完成'); } catch (e) { logger.warn('[Backup] 发送备份完成通知失败: ' + e.message); }
                             });
 
                             try {
@@ -279,7 +322,7 @@ function executeBackup(callback) {
                                         logger.info('§c  ✗ ' + (r.file || r.world) + ' - ' + (r.error || '未知错误'));
                                     }
                                 });
-                            } catch (e) {}
+                            } catch (e) { logger.warn('[Backup] 输出备份结果失败: ' + e.message); }
 
                             cleanupOldBackups();
                             isBackingUp = false;
@@ -291,7 +334,7 @@ function executeBackup(callback) {
                 try {
                     mc.runcmdEx('save resume');
                     logger.error('异常后 save resume 已执行');
-                } catch (ex) {}
+                } catch (ex) { logger.error('[Backup] 异常后 save resume 也失败: ' + ex.message); }
                 isBackingUp = false;
                 callback({ error: '备份失败: ' + e.message });
             }
@@ -300,14 +343,21 @@ function executeBackup(callback) {
     }, 1000);
 }
 
+/**
+ * 使用7zip-min压缩目录为7z归档
+ * @param {string} sourcePath - 待压缩的源目录
+ * @param {string} archivePath - 输出的7z文件路径
+ * @param {number} compressionLevel - 压缩级别(0-9)
+ * @param {Function} callback - callback(err)
+ */
 function compressTo7z(sourcePath, archivePath, compressionLevel, callback) {
     const args = [
-        'a',
-        '-t7z',
-        '-mx=' + compressionLevel,
-        '-m0=LZMA2',
-        '-aoa',
-        '-ssw',
+        'a',                    // 添加文件到归档
+        '-t7z',                 // 7z格式
+        '-mx=' + compressionLevel, // 压缩级别
+        '-m0=LZMA2',           // 使用LZMA2算法
+        '-aoa',                // 覆盖所有已存在的文件
+        '-ssw',                // 压缩共享文件（BDS可能仍在访问部分文件）
         archivePath,
         sourcePath
     ];
@@ -325,6 +375,10 @@ function compressTo7z(sourcePath, archivePath, compressionLevel, callback) {
     });
 }
 
+/**
+ * 获取备份文件列表，按时间倒序排列
+ * @returns {Array<{filename: string, size: number, sizeFormatted: string, time: number, timeFormatted: string, world: string}>}
+ */
 function getBackupList() {
     if (!fs.existsSync(backupDir)) return [];
     try {
@@ -344,7 +398,7 @@ function getBackupList() {
                     timeFormatted: formatDateTime(stat.mtime),
                     world: parsed.world
                 });
-            } catch (e) {}
+            } catch (e) { logger.warn('[Backup] 读取备份文件信息失败: ' + e.message); }
         });
         backups.sort(function(a, b) { return b.time - a.time; });
         return backups;
@@ -353,6 +407,12 @@ function getBackupList() {
     }
 }
 
+/**
+ * 从备份文件名中解析世界名和时间戳
+ * 文件名格式：WorldName_YYYY-MM-DD_hh-mm-ss.7z
+ * @param {string} filename
+ * @returns {{world: string, timestamp: string}}
+ */
 function parseBackupFilename(filename) {
     const match = filename.match(/^(.+)_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.7z$/);
     if (match) {
@@ -361,6 +421,10 @@ function parseBackupFilename(filename) {
     return { world: 'unknown', timestamp: '' };
 }
 
+/**
+ * 获取备份统计信息（数量和总大小）
+ * @returns {{count: number, totalSize: number, totalSizeFormatted: string, backups: Array}}
+ */
 function getBackupStats() {
     let backups = getBackupList();
     let totalSize = 0;
@@ -373,8 +437,14 @@ function getBackupStats() {
     };
 }
 
+/**
+ * 删除指定备份文件，包含路径遍历安全检查
+ * @param {string} filename - 备份文件名（仅允许.7z文件）
+ * @returns {{success?: boolean, error?: string}}
+ */
 function deleteBackup(filename) {
     if (!filename) return { error: '文件名不能为空' };
+    // 防止路径遍历攻击
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
         return { error: '非法文件名' };
     }
@@ -389,12 +459,18 @@ function deleteBackup(filename) {
     }
 }
 
+/**
+ * 清理过期和超出数量限制的旧备份
+ * 先按maxAgeDays删除过期备份，再按maxCount删除最旧的
+ * @returns {Array} 被删除的备份列表
+ */
 function cleanupOldBackups() {
     const maxAgeDays = backupConfig.maxAgeDays || 0;
     const maxCount = backupConfig.maxCount || 0;
     let backups = getBackupList();
     const deleted = [];
 
+    // 按天数删除过期备份
     if (maxAgeDays > 0) {
         const now = Date.now();
         const maxAgeMs = maxAgeDays * 24 * 3600 * 1000;
@@ -404,12 +480,13 @@ function cleanupOldBackups() {
                 let result = deleteBackup(b.filename);
                 if (result.success) {
                     deleted.push({ filename: b.filename, reason: '过期', ageDays: ageDays });
-                    try { logger.info('已删除 ' + ageDays + ' 天前的备份: ' + b.filename); } catch (e) {}
+                    logger.info('已删除 ' + ageDays + ' 天前的备份: ' + b.filename);
                 }
             }
         });
     }
 
+    // 按数量限制删除最旧的备份
     if (maxCount > 0) {
         backups = getBackupList();
         const sorted = backups.slice().sort(function(a, b) { return a.time - b.time; });
@@ -419,7 +496,7 @@ function cleanupOldBackups() {
             const result = deleteBackup(oldest.filename);
             if (result.success) {
                 deleted.push({ filename: oldest.filename, reason: '超出数量限制', ageDays: ageDays });
-                try { logger.info('备份数量超出限制(' + maxCount + ')，已删除 ' + ageDays + ' 天前的备份: ' + oldest.filename); } catch (e) {}
+                logger.info('备份数量超出限制(' + maxCount + ')，已删除 ' + ageDays + ' 天前的备份: ' + oldest.filename);
             }
         }
     }
@@ -427,10 +504,16 @@ function cleanupOldBackups() {
     return deleted;
 }
 
+/** 检查是否正在备份中 */
 function isBackupRunning() {
     return isBackingUp;
 }
 
+/**
+ * 格式化文件大小为人类可读字符串
+ * @param {number} bytes - 字节数
+ * @returns {string} 如"1.50 GB"
+ */
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 B';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -439,6 +522,11 @@ function formatFileSize(bytes) {
     return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + units[i];
 }
 
+/**
+ * 格式化日期为 YYYY-MM-DD hh:mm:ss 字符串
+ * @param {Date|string|number} date
+ * @returns {string}
+ */
 function formatDateTime(date) {
     const d = new Date(date);
     const y = d.getFullYear();

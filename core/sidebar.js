@@ -16,174 +16,207 @@
  */
 
 /**
- * NLCE 侧边栏渲染
- * 侧边栏/actionbar 信息渲染，每秒更新
+ * NLCE 侧边栏渲染模块
+ * 每秒遍历在线玩家，根据个人设置渲染 actionbar（UID显示）和侧边栏信息面板
+ * 支持的信息项：余额、延迟、TPS、移动速度、生物群系、当前时间
+ * 支持紧凑模式（compact）将多行合并为一个侧边栏条目
  */
 
 let _deps = {};
+
+// 侧边栏设置缓存，避免每秒重复读取数据库；xuid -> { enableActionbar, sidebarSettings }
 let _sidebarCache = {};
-let _sidebarCacheTime = 0;
+let _sidebarCacheTime = 0;  // 上次全局缓存刷新时间戳
+
+// 余额缓存，减少每秒频繁调用 money.get()；xuid -> number
 let _sidebarMoneyCache = {};
-let _sidebarMoneyCacheTime = 0;
+let _sidebarMoneyCacheTime = 0;  // 上次余额缓存刷新时间戳
 
+/**
+ * 初始化侧边栏模块并启动渲染循环
+ * @param {object} deps - 依赖对象（constants, getPlayerSetting, money, config, tpsData 等）
+ */
 function init(deps) {
-    _deps = deps;
-    startRenderLoop();
+	_deps = deps;
+	startRenderLoop();
 }
 
+/**
+ * 启动每秒一次的渲染定时器
+ * 遍历所有在线玩家，根据各自的侧边栏开关决定显示内容
+ */
 function startRenderLoop() {
-    const SIDEBAR_SETTING_KEYS = _deps.constants.SIDEBAR_SETTING_KEYS;
-    const SIDEBAR_CACHE_TTL = _deps.constants.SIDEBAR_CACHE_TTL;
-    const SIDEBAR_MONEY_CACHE_TTL = _deps.constants.SIDEBAR_MONEY_CACHE_TTL;
-    const BIOME_NAMES = _deps.constants.BIOME_NAMES;
+	const SIDEBAR_SETTING_KEYS = _deps.constants.SIDEBAR_SETTING_KEYS;
+	const SIDEBAR_CACHE_TTL = _deps.constants.SIDEBAR_CACHE_TTL;
+	const SIDEBAR_MONEY_CACHE_TTL = _deps.constants.SIDEBAR_MONEY_CACHE_TTL;
+	const BIOME_NAMES = _deps.constants.BIOME_NAMES;
 
-    setInterval(function() {
-        const onlinePlayers = mc.getOnlinePlayers();
-        if (onlinePlayers.length === 0) return;
-        const now = Date.now();
-        if (now - _sidebarCacheTime > SIDEBAR_CACHE_TTL) {
-            _sidebarCache = {};
-            _sidebarCacheTime = now;
-        }
-        if (now - _sidebarMoneyCacheTime > SIDEBAR_MONEY_CACHE_TTL) {
-            _sidebarMoneyCache = {};
-            _sidebarMoneyCacheTime = now;
-        }
-        onlinePlayers.forEach(function(pl) {
-            if (pl.isSimulatedPlayer()) return;
-            const xuid = pl.xuid;
+	setInterval(function() {
+		const onlinePlayers = mc.getOnlinePlayers();
+		if (onlinePlayers.length === 0) return;
+		const now = Date.now();
 
-            let cached = _sidebarCache[xuid];
-            if (!cached) {
-                cached = {
-                    enableActionbar: _deps.getPlayerSetting(xuid, "enableActionbar"),
-                    sidebarSettings: {}
-                };
-                for (let k = 0; k < SIDEBAR_SETTING_KEYS.length; k++) {
-                    const key = SIDEBAR_SETTING_KEYS[k];
-                    cached.sidebarSettings[key] = _deps.getPlayerSetting(xuid, key);
-                }
-                _sidebarCache[xuid] = cached;
-            }
+		// 定期清空设置缓存，使玩家修改的设置能生效
+		if (now - _sidebarCacheTime > SIDEBAR_CACHE_TTL) {
+			_sidebarCache = {};
+			_sidebarCacheTime = now;
+		}
+		// 余额缓存独立刷新周期，避免过于频繁查询
+		if (now - _sidebarMoneyCacheTime > SIDEBAR_MONEY_CACHE_TTL) {
+			_sidebarMoneyCache = {};
+			_sidebarMoneyCacheTime = now;
+		}
 
-            if (cached.enableActionbar) {
-                let uidText;
-                try {
-                    let uid = pl.uid;
-                    uidText = uid === "配置异常" ? "§c配置异常" :
-                        uid === "未注册" ? "§c未注册" : "" + uid;
-                } catch (error) {
-                    uidText = "§c获取失败";
-                }
-                pl.setTitle("UID: " + uidText, 4);
-            }
+		onlinePlayers.forEach(function(pl) {
+			if (pl.isSimulatedPlayer()) return;
+			const xuid = pl.xuid;
 
-            let hasSidebar = false;
-            const sidebarSettings = cached.sidebarSettings;
-            for (let sk in sidebarSettings) {
-                if (sidebarSettings[sk]) { hasSidebar = true; break; }
-            }
+			// 懒加载：首次遇到玩家时读取其侧边栏相关设置并缓存
+			let cached = _sidebarCache[xuid];
+			if (!cached) {
+				cached = {
+					enableActionbar: _deps.getPlayerSetting(xuid, "enableActionbar"),
+					sidebarSettings: {}
+				};
+				for (let k = 0; k < SIDEBAR_SETTING_KEYS.length; k++) {
+					const key = SIDEBAR_SETTING_KEYS[k];
+					cached.sidebarSettings[key] = _deps.getPlayerSetting(xuid, key);
+				}
+				_sidebarCache[xuid] = cached;
+			}
 
-            if (hasSidebar) {
-                try {
-                    const sidebarData = {};
-                    let sidebarScore = 100;
-                    const compactLines = [];
-                    const isCompact = _deps.config.get("sidebarCompact");
+			// ---- actionbar: 显示 UID ----
+			if (cached.enableActionbar) {
+				let uidText;
+				try {
+					let uid = pl.uid;
+					uidText = uid === "配置异常" ? "§c配置异常" :
+						uid === "未注册" ? "§c未注册" : "" + uid;
+				} catch (error) {
+					uidText = "§c获取失败";
+				}
+				// setTitle type=4 表示 actionbar 区域
+				pl.setTitle("UID: " + uidText, 4);
+			}
 
-                    if (sidebarSettings.enableActionbarMoney) {
-                        if (_sidebarMoneyCache[xuid] === undefined) {
-                            _sidebarMoneyCache[xuid] = _deps.money.get(xuid) || 0;
-                        }
-                        const moneyLine = "§6§c" + _deps.getCurrencyName() + "§r: " + _sidebarMoneyCache[xuid];
-                        if (isCompact) { compactLines.push(moneyLine); } else { sidebarData[moneyLine] = sidebarScore--; }
-                    }
+			// ---- 侧边栏面板 ----
+			let hasSidebar = false;
+			const sidebarSettings = cached.sidebarSettings;
+			for (let sk in sidebarSettings) {
+				if (sidebarSettings[sk]) { hasSidebar = true; break; }
+			}
 
-                    if (sidebarSettings.enableActionbarPing) {
-                        const device = pl.getDevice();
-                        let pingLine;
-                        if (device && device.lastPing !== undefined && device.lastPing !== null) {
-                            const ping = device.lastPing;
-                            const pingColor = ping > 200 ? "§m" : ping > 95 ? "§6" : "§a";
-                            pingLine = "§6延迟: " + pingColor + ping + "ms";
-                        } else {
-                            pingLine = "§e延迟: N/A";
-                        }
-                        if (isCompact) { compactLines.push(pingLine); } else { sidebarData[pingLine] = sidebarScore--; }
-                    }
+			if (hasSidebar) {
+				try {
+					const sidebarData = {};
+					let sidebarScore = 100;  // 递减分数值控制显示顺序
+					const compactLines = [];
+					const isCompact = _deps.config.get("sidebarCompact");
 
-                    if (sidebarSettings.enableActionbarTps) {
-                        const tpsData = _deps.tpsData;
-                        const tps = parseFloat(tpsData['tps']);
-                        const tpsColor = tps <= 12 ? "§c" : tps <= 17 ? "§e" : "§a";
-                        const tpsLine = "§6TPS:" + tpsColor + tpsData['tps'];
-                        if (isCompact) { compactLines.push(tpsLine); } else { sidebarData[tpsLine] = sidebarScore--; }
-                    }
+					// 余额行
+					if (sidebarSettings.enableActionbarMoney) {
+						if (_sidebarMoneyCache[xuid] === undefined) {
+							_sidebarMoneyCache[xuid] = _deps.money.get(xuid) || 0;
+						}
+						const moneyLine = "§6§c" + _deps.getCurrencyName() + "§r: " + _sidebarMoneyCache[xuid];
+						if (isCompact) { compactLines.push(moneyLine); } else { sidebarData[moneyLine] = sidebarScore--; }
+					}
 
-                    if (sidebarSettings.enableActionbarSpeed) {
-                        let speedLine;
-                        try {
-                            const speed = pl.speed;
-                            if (speed !== undefined && speed !== null) {
-                                const speedColor = speed <= 10 ? "§a" : speed <= 20 ? "§b" : "§6";
-                                speedLine = "§6速度: " + speedColor + speed.toFixed(2);
-                            } else {
-                                speedLine = "§e速度: N/A";
-                            }
-                        } catch (error) {
-                            speedLine = "§e速度: N/A";
-                        }
-                        if (isCompact) { compactLines.push(speedLine); } else { sidebarData[speedLine] = sidebarScore--; }
-                    }
+					// 延迟行，根据ping值着色（>200ms红色, >95ms黄色, 否则绿色）
+					if (sidebarSettings.enableActionbarPing) {
+						const device = pl.getDevice();
+						let pingLine;
+						if (device && device.lastPing !== undefined && device.lastPing !== null) {
+							const ping = device.lastPing;
+							const pingColor = ping > 200 ? "§m" : ping > 95 ? "§6" : "§a";
+							pingLine = "§6延迟: " + pingColor + ping + "ms";
+						} else {
+							pingLine = "§e延迟: N/A";
+						}
+						if (isCompact) { compactLines.push(pingLine); } else { sidebarData[pingLine] = sidebarScore--; }
+					}
 
-                    if (sidebarSettings.enableActionbarBiome) {
-                        let biomeLine;
-                        try {
-                            const biome = pl.getBiomeName();
-                            if (biome !== undefined && biome !== null) {
-                                let biomeId = biome;
-                                if (biomeId.startsWith("minecraft:")) biomeId = biomeId.substring(10);
-                                const chineseBiomeName = BIOME_NAMES[biomeId] || biomeId;
-                                biomeLine = "§d" + chineseBiomeName;
-                            } else {
-                                biomeLine = "§e生物群系: N/A";
-                            }
-                        } catch (error) {
-                            biomeLine = "§e生物群系: N/A";
-                        }
-                        if (isCompact) { compactLines.push(biomeLine); } else { sidebarData[biomeLine] = sidebarScore--; }
-                    }
+					// TPS行，<=12红色, <=17黄色, 否则绿色
+					if (sidebarSettings.enableActionbarTps) {
+						const tpsData = _deps.tpsData;
+						const tps = parseFloat(tpsData['tps']);
+						const tpsColor = tps <= 12 ? "§c" : tps <= 17 ? "§e" : "§a";
+						const tpsLine = "§6TPS:" + tpsColor + tpsData['tps'];
+						if (isCompact) { compactLines.push(tpsLine); } else { sidebarData[tpsLine] = sidebarScore--; }
+					}
 
-                    if (sidebarSettings.enableActionbarTime) {
-                        const timeNow = new Date();
-                        const h = timeNow.getHours();
-                        const m = timeNow.getMinutes();
-                        const s = timeNow.getSeconds();
-                        const timeLine = "§b时间: " + (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
-                        if (isCompact) { compactLines.push(timeLine); } else { sidebarData[timeLine] = sidebarScore--; }
-                    }
+					// 移动速度行
+					if (sidebarSettings.enableActionbarSpeed) {
+						let speedLine;
+						try {
+							const speed = pl.speed;
+							if (speed !== undefined && speed !== null) {
+								const speedColor = speed <= 10 ? "§a" : speed <= 20 ? "§b" : "§6";
+								speedLine = "§6速度: " + speedColor + speed.toFixed(2);
+							} else {
+								speedLine = "§e速度: N/A";
+							}
+						} catch (error) {
+							speedLine = "§e速度: N/A";
+						}
+						if (isCompact) { compactLines.push(speedLine); } else { sidebarData[speedLine] = sidebarScore--; }
+					}
 
-                    if (isCompact && compactLines.length > 0) {
-                        sidebarData[compactLines.join("\n")] = 100;
-                    }
+					// 生物群系行，将英文ID映射为中文名称
+					if (sidebarSettings.enableActionbarBiome) {
+						let biomeLine;
+						try {
+							const biome = pl.getBiomeName();
+							if (biome !== undefined && biome !== null) {
+								let biomeId = biome;
+								if (biomeId.startsWith("minecraft:")) biomeId = biomeId.substring(10);
+								const chineseBiomeName = BIOME_NAMES[biomeId] || biomeId;
+								biomeLine = "§d" + chineseBiomeName;
+							} else {
+								biomeLine = "§e生物群系: N/A";
+							}
+						} catch (error) {
+							biomeLine = "§e生物群系: N/A";
+						}
+						if (isCompact) { compactLines.push(biomeLine); } else { sidebarData[biomeLine] = sidebarScore--; }
+					}
 
-                    pl.removeSidebar();
-                    pl.setSidebar("§a侧边栏信息", sidebarData, 0);
-                } catch (error) {}
-            } else {
-                try {
-                    pl.removeSidebar();
-                } catch (error) {}
-            }
-        });
-    }, 1000);
+					// 当前时间行，格式 HH:MM:SS
+					if (sidebarSettings.enableActionbarTime) {
+						const timeNow = new Date();
+						const h = timeNow.getHours();
+						const m = timeNow.getMinutes();
+						const s = timeNow.getSeconds();
+						const timeLine = "§b时间: " + (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+						if (isCompact) { compactLines.push(timeLine); } else { sidebarData[timeLine] = sidebarScore--; }
+					}
+
+					// 紧凑模式：所有行用换行符拼接为一个侧边栏条目
+					if (isCompact && compactLines.length > 0) {
+						sidebarData[compactLines.join("\n")] = 100;
+					}
+
+					pl.removeSidebar();
+					pl.setSidebar("§a侧边栏信息", sidebarData, 0);
+				} catch (error) {}
+			} else {
+				try {
+					pl.removeSidebar();
+				} catch (error) {}
+			}
+		});
+	}, 1000);
 }
 
+/**
+ * 清除指定玩家的侧边栏设置缓存，下次渲染时重新读取
+ * @param {string} xuid - 玩家XUID
+ */
 function clearPlayerCache(xuid) {
-    delete _sidebarCache[xuid];
+	delete _sidebarCache[xuid];
 }
 
 module.exports = {
-    init: init,
-    clearPlayerCache: clearPlayerCache
+	init: init,
+	clearPlayerCache: clearPlayerCache
 };

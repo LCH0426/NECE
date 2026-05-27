@@ -20,16 +20,23 @@
  * 所有模块共用的调试日志功能
  */
 
+/** 全局调试模式开关 */
 let _debugMode = false;
 
+/**
+ * 设置调试模式开关
+ * @param {boolean} enabled - 是否启用调试日志
+ */
 function setDebugMode(enabled) {
     _debugMode = !!enabled;
 }
 
+/** 查询当前是否处于调试模式 */
 function isDebug() {
     return _debugMode;
 }
 
+/** 调试日志输出，仅在调试模式下生效（info 级别） */
 function debugLog() {
     if (!_debugMode) return;
     let args = ['[DEBUG]'];
@@ -37,6 +44,7 @@ function debugLog() {
     logger.info(args.join(' '));
 }
 
+/** 调试警告输出，仅在调试模式下生效（warn 级别） */
 function debugWarn() {
     if (!_debugMode) return;
     let args = ['[DEBUG WARN]'];
@@ -44,6 +52,11 @@ function debugWarn() {
     logger.warn(args.join(' '));
 }
 
+/**
+ * 创建带模块名前缀的调试日志函数，方便按模块过滤日志
+ * @param {string} moduleName - 模块名称（如 "chat"、"economy"）
+ * @returns {Function} 该模块专用的调试日志函数
+ */
 function debugLogModule(moduleName) {
     return function() {
         if (!_debugMode) return;

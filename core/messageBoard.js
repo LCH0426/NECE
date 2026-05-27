@@ -17,7 +17,8 @@
 
 /**
  * NLCE 留言板系统
- * 玩家留言板的发布、查看和管理功能
+ * 玩家可发布带心情标签的留言，支持浏览、搜索、随机查看和删除
+ * 数据通过 DataManager 持久化，同时提供 Web API 接口供管理面板调用
  */
 
 
@@ -30,14 +31,20 @@ let messageBoardData = {
     messages: [],
     nextId: 1
 };
+// 数据保存后的回调列表（Web 面板等模块注册刷新逻辑）
 const _onSaveCallbacks = [];
 
+/**
+ * 初始化留言板模块，加载数据并修复缺失字段
+ * @param {DataManager} dm - 留言板数据的 DataManager 实例
+ */
 function init(dm) {
 	D.debugLogModule('messageBoard')('init: 初始化完成');
     messageBoardDM = dm;
     messageBoardData = messageBoardDM.load();
     if (!Array.isArray(messageBoardData.messages)) messageBoardData.messages = [];
     if (typeof messageBoardData.nextId !== 'number') messageBoardData.nextId = 1;
+    // 修复旧数据中缺少的字段（兼容迁移）
     let needFix = false;
     messageBoardData.messages.forEach(function(msg) {
         if (typeof msg.isDeleted === 'undefined') {
@@ -52,17 +59,26 @@ function init(dm) {
     if (needFix) saveData();
 }
 
+/**
+ * 保存数据并触发所有注册的保存回调
+ * @returns {boolean} 始终返回 true
+ */
 function saveData() {
     if (!Array.isArray(messageBoardData.messages)) messageBoardData.messages = [];
     messageBoardDM.save();
-    _onSaveCallbacks.forEach(function(cb) { try { cb(); } catch(e) {} });
+    _onSaveCallbacks.forEach(function(cb) { try { cb(); } catch(e) { logger.warn('[MessageBoard] 保存回调执行失败: ' + e.message); } });
     return true;
 }
 
+/** 获取留言板原始数据 */
 function getData() {
     return messageBoardData;
 }
 
+/**
+ * 显示留言板主表单，展示统计信息和功能入口
+ * @param {Player} player
+ */
 function showMainForm(player) {
     let xuid = player.xuid;
     const playerName = player.realName;
@@ -91,6 +107,11 @@ function showMainForm(player) {
     });
 }
 
+/**
+ * 新增留言表单，包含内容输入和心情选择
+ * 留言内容限制 200 字符，自动记录客户端类型
+ * @param {Player} player
+ */
 function createAddMessageForm(player) {
     let fm = mc.newCustomForm();
     fm.setTitle("§6新增留言");
@@ -130,9 +151,15 @@ function createAddMessageForm(player) {
     });
 }
 
+/**
+ * "我的留言"分页列表，仅显示当前玩家的未删除留言
+ * @param {Player} player
+ * @param {number} page - 页码（从1开始）
+ */
 function createMyMessagesForm(player, page) {
     let xuid = player.xuid;
     let pageSize = 10;
+    // 按时间降序排列（最新在前）
     const myMessages = messageBoardData.messages.filter(function(m) { return m.xuid === xuid && !m.isDeleted; }).reverse();
     let totalPages = Math.ceil(myMessages.length / pageSize) || 1;
     let startIndex = (page - 1) * pageSize;
@@ -164,6 +191,7 @@ function createMyMessagesForm(player, page) {
 
     player.sendForm(fm, function(pl, id) {
         if (id === null) return;
+        // 动态按钮索引计算：根据分页按钮有无偏移
         let buttonIndex = 0;
         if (id === buttonIndex) { createAddMessageForm(pl); return; }
         buttonIndex++;
@@ -179,6 +207,11 @@ function createMyMessagesForm(player, page) {
     });
 }
 
+/**
+ * "所有留言"分页列表，显示全部未删除留言（含作者和客户端信息）
+ * @param {Player} player
+ * @param {number} page - 页码（从1开始）
+ */
 function createAllMessagesForm(player, page) {
     let pageSize = 10;
     const allMessages = messageBoardData.messages.filter(function(m) { return !m.isDeleted; }).reverse();
@@ -228,6 +261,11 @@ function createAllMessagesForm(player, page) {
     });
 }
 
+/**
+ * 显示留言详情，作者本人可删除自己的留言
+ * @param {Player} player
+ * @param {Object} message - 留言对象
+ */
 function showMessageDetail(player, message) {
     const isOwnMessage = message.xuid === player.xuid;
     let content = "§6——————————————\n";
@@ -249,6 +287,7 @@ function showMessageDetail(player, message) {
     let fm = mc.newSimpleForm();
     fm.setTitle("§b留言详情 #" + message.id);
     fm.setContent(content);
+    // 仅作者可见删除按钮
     if (isOwnMessage && !message.isDeleted) {
         fm.addButton("§c删除这条留言", "textures/ui/trash_default");
     }
@@ -263,6 +302,7 @@ function showMessageDetail(player, message) {
                 "§c删除",
                 "§a取消", function(p, result) {
                     if (result === true) {
+                        // 软删除：标记 isDeleted 而非从数组移除
                         const msgIndex = messageBoardData.messages.findIndex(function(m) { return m.id === message.id; });
                         if (msgIndex !== -1) {
                             messageBoardData.messages[msgIndex].isDeleted = true;
@@ -279,6 +319,10 @@ function showMessageDetail(player, message) {
     });
 }
 
+/**
+ * 随机展示一条有效留言，可反复随机
+ * @param {Player} player
+ */
 function showRandomMessage(player) {
     const validMessages = messageBoardData.messages.filter(function(m) { return !m.isDeleted; });
     if (validMessages.length === 0) {
@@ -312,6 +356,10 @@ function showRandomMessage(player) {
     });
 }
 
+/**
+ * 按 ID 搜索留言表单
+ * @param {Player} player
+ */
 function createSearchMessageForm(player) {
     const fm = mc.newCustomForm();
     fm.setTitle("§c搜索留言");
@@ -342,6 +390,11 @@ function createSearchMessageForm(player) {
 
 // ============ Web API 方法 (原 messageBoardApi) ============
 
+/**
+ * Web API：按条件查询留言列表，支持分页、关键词搜索、心情筛选
+ * @param {Object} options - {page, pageSize, search, mood, xuid, includeDeleted}
+ * @returns {{messages: Array, total: number, page: number, pageSize: number, totalPages: number}}
+ */
 function getMessages(options) {
     options = options || {};
     const page = Math.max(1, parseInt(options.page) || 1);
@@ -356,6 +409,7 @@ function getMessages(options) {
         if (xuid && m.xuid !== xuid) return false;
         if (mood && m.mood !== mood) return false;
         if (search) {
+            // 同时搜索留言内容、作者名和 ID
             const msgMatch = (m.msg || '').toLowerCase().indexOf(search) >= 0;
             const nameMatch = (m.playerName || '').toLowerCase().indexOf(search) >= 0;
             const idMatch = m.id.toString() === search;
@@ -367,28 +421,48 @@ function getMessages(options) {
     const total = filtered.length;
     const totalPages = Math.ceil(total / pageSize) || 1;
     const start = (page - 1) * pageSize;
+    // 结果按时间降序返回
     const paged = filtered.slice(start, start + pageSize).reverse();
 
     return { messages: paged, total: total, page: page, pageSize: pageSize, totalPages: totalPages };
 }
 
+/**
+ * Web API：根据 ID 查询单条留言
+ * @param {number} id
+ * @returns {Object|null}
+ */
 function getMessageById(id) {
     return messageBoardData.messages.find(function(m) { return m.id === id; }) || null;
 }
 
+/**
+ * Web API：获取下一个可用 ID 并自增
+ * @returns {number} 当前可用的留言 ID
+ */
 function getNextId() {
     return messageBoardData.nextId++;
 }
 
+/** 获取当前格式化时间字符串 */
 function formatTime() {
     return U.getCurrentTimeString();
 }
 
+/**
+ * Web API：添加新留言并保存
+ * @param {Object} msg - 留言对象
+ */
 function addMessage(msg) {
     messageBoardData.messages.push(msg);
     saveData();
 }
 
+/**
+ * Web API：软删除指定 ID 的留言
+ * @param {number} id - 留言 ID
+ * @returns {boolean} 是否删除成功
+ */
 function deleteMessage(id) {
     const msg = messageBoardData.messages.find(function(m) { return m.id === id; });
     if (!msg) return false;
@@ -401,6 +475,7 @@ module.exports = {
     init: init,
     getData: getData,
     showMainForm: showMainForm,
+    /** 注册数据保存后的回调函数 */
     onSave: function(cb) { _onSaveCallbacks.push(cb); },
     getMessages: getMessages,
     getMessageById: getMessageById,

@@ -18,6 +18,7 @@
 /**
  * NLCE 玩家封禁系统
  * 支持按名称/UID/XUID封禁解封玩家，IP关联封禁检测，游戏内命令与GUI表单操作
+ * 封禁数据通过DataManager持久化存储
  */
 
 
@@ -26,30 +27,43 @@ const pathModule = require('path');
 const U = require('./utils');
 const D = require('./debug');
 
-let banDM = null;
+let banDM = null;       // 封禁数据的DataManager实例
 let banData = {
-    entries: {}
+    entries: {}         // {xuid: {name, uid, ip, reason, operator, time, banned}}
 };
 let _deps = {};
 
+/**
+ * 初始化封禁模块
+ * @param {Object} dm - DataManager实例，用于封禁数据持久化
+ * @param {Object} deps - 外部依赖（playerData等）
+ */
 function init(dm, deps) {
-	D.debugLogModule('ban')('init: 初始化完成');
+    D.debugLogModule('ban')('init: 初始化完成');
     banDM = dm;
     _deps = deps || {};
     banData = banDM.load();
     if (!banData.entries) banData.entries = {};
 }
 
+/** 立即保存封禁数据到磁盘 */
 function saveData() {
     if (!banData.entries) banData.entries = {};
     banDM.save(true);
 }
 
+/**
+ * 根据标识符（名称/UID/XUID/在线玩家名）解析出玩家信息
+ * 优先匹配在线玩家，其次遍历玩家数据，最后检查封禁列表
+ * @param {string} identifier - 玩家名称、UID或XUID
+ * @returns {?{xuid: string, name: string, uid: string, ip: string, online: boolean}} 解析结果，未找到返回null
+ */
 function resolvePlayer(identifier) {
     let result = null;
     const playerData = _deps.playerData || {};
     const players = playerData.players || playerData;
 
+    // 优先检查在线玩家
     let onlinePlayer = mc.getPlayer(identifier);
     if (onlinePlayer) {
         return {
@@ -61,6 +75,7 @@ function resolvePlayer(identifier) {
         };
     }
 
+    // 遍历玩家数据，按名称或UID匹配（不区分大小写）
     for (let xuid in players) {
         if (!players.hasOwnProperty(xuid)) continue;
         const info = players[xuid];
@@ -86,6 +101,7 @@ function resolvePlayer(identifier) {
         }
     }
 
+    // 未在玩家数据中找到时，检查是否为已封禁的XUID
     if (!result) {
         if (banData.entries[identifier]) {
             let entry = banData.entries[identifier];
@@ -102,6 +118,13 @@ function resolvePlayer(identifier) {
     return result;
 }
 
+/**
+ * 封禁玩家：记录封禁信息并踢出在线玩家
+ * @param {string} identifier - 玩家标识（名称/UID/XUID）
+ * @param {string} [reason='管理员封禁'] - 封禁原因
+ * @param {string} [operator='控制台'] - 操作者名称
+ * @returns {{success: boolean, message: string, xuid?: string}}
+ */
 function banPlayer(identifier, reason, operator) {
     reason = reason || '管理员封禁';
     operator = operator || '控制台';
@@ -116,6 +139,7 @@ function banPlayer(identifier, reason, operator) {
         return { success: false, message: '玩家 ' + playerInfo.name + ' 已在封禁列表中' };
     }
 
+    // 尝试获取IP（离线玩家可能没有）
     let ip = playerInfo.ip;
     if (!ip) {
         let onlinePlayer = mc.getPlayer(xuid);
@@ -135,6 +159,7 @@ function banPlayer(identifier, reason, operator) {
     };
     saveData();
 
+    // 在线玩家直接踢出
     const onlinePlayer = mc.getPlayer(xuid);
     if (onlinePlayer) {
         onlinePlayer.kick('§c你已被封禁\n§e原因：' + reason + '\n§e操作者：' + operator);
@@ -148,9 +173,15 @@ function banPlayer(identifier, reason, operator) {
     return { success: true, message: msg, xuid: xuid };
 }
 
+/**
+ * 解封玩家：从封禁列表中移除
+ * @param {string} identifier - 玩家标识（名称/UID/XUID）
+ * @returns {{success: boolean, message: string}}
+ */
 function unbanPlayer(identifier) {
     const playerInfo = resolvePlayer(identifier);
     if (!playerInfo) {
+        // 玩家数据中找不到时，尝试直接按XUID从封禁列表解封
         if (banData.entries[identifier]) {
             let entry = banData.entries[identifier];
             delete banData.entries[identifier];
@@ -173,10 +204,18 @@ function unbanPlayer(identifier) {
     return { success: true, message: msg };
 }
 
+/**
+ * 检查玩家是否被封禁，支持IP关联封禁检测
+ * @param {string} xuid - 玩家XUID
+ * @param {string} [ip] - 玩家IP，提供后会检查是否有相同IP的封禁记录
+ * @returns {{banned: boolean, reason?: string, entry?: Object}}
+ */
 function isPlayerBanned(xuid, ip) {
+    // 先按XUID检查
     if (banData.entries[xuid] && banData.entries[xuid].banned) {
         return { banned: true, reason: banData.entries[xuid].reason, entry: banData.entries[xuid] };
     }
+    // 再按IP关联检查，防止换号绕过封禁
     if (ip) {
         for (let bxuid in banData.entries) {
             if (!banData.entries.hasOwnProperty(bxuid)) continue;
@@ -189,6 +228,10 @@ function isPlayerBanned(xuid, ip) {
     return { banned: false };
 }
 
+/**
+ * 获取所有封禁玩家列表
+ * @returns {Array<{xuid: string, name: string, uid: string, ip: string, reason: string, operator: string, time: string}>}
+ */
 function getBanList() {
     let list = [];
     for (let xuid in banData.entries) {
@@ -201,6 +244,10 @@ function getBanList() {
     return list;
 }
 
+/**
+ * 显示封禁列表GUI表单，可查看详情或添加新封禁
+ * @param {Player} player - 打开表单的玩家
+ */
 function showBanListForm(player) {
     let banList = getBanList();
     let gui = mc.newSimpleForm();
@@ -215,6 +262,7 @@ function showBanListForm(player) {
         });
     }
 
+    // 最后两个按钮：封禁玩家、返回
     gui.addButton("§a封禁玩家", "textures/ui/color_plus");
     gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
 
@@ -231,6 +279,11 @@ function showBanListForm(player) {
     });
 }
 
+/**
+ * 显示单个封禁记录的详情表单，提供解封操作
+ * @param {Player} player - 打开表单的玩家
+ * @param {Object} entry - 封禁记录对象
+ */
 function showBanDetailForm(player, entry) {
     let gui = mc.newSimpleForm();
     gui.setTitle("§l§c封禁详情 - " + entry.name);
@@ -253,6 +306,7 @@ function showBanDetailForm(player, entry) {
         if (id === null) return;
 
         if (id === 0) {
+            // 解封前弹出二次确认
             p.sendModalForm("§a确认解封", "§a确定要解封玩家 §f" + entry.name + " §a吗？", "§a确认", "§c取消", function(pl, res) {
                 if (res) {
                     let result = unbanPlayer(entry.xuid);
@@ -268,6 +322,10 @@ function showBanDetailForm(player, entry) {
     });
 }
 
+/**
+ * 显示封禁玩家的自定义表单，输入标识符和原因
+ * @param {Player} player - 打开表单的玩家
+ */
 function showBanPlayerForm(player) {
     const gui = mc.newCustomForm();
     gui.setTitle("§l§c封禁玩家");
@@ -295,6 +353,7 @@ function showBanPlayerForm(player) {
     });
 }
 
+/** 注册控制台命令：ban、unban、banlist */
 function registerConsoleCommands() {
     try {
         mc.regConsoleCmd('ban', '封禁玩家 (支持ID/UID/XUID)', function(args) {
@@ -342,6 +401,7 @@ function registerConsoleCommands() {
     }
 }
 
+/** 注册游戏内命令：/ban、/unban、/banlist（需要GameMasters权限） */
 function registerGameCommands() {
     try {
         const banCmd = mc.newCommand('ban', '封禁玩家', PermType.GameMasters);
@@ -413,18 +473,22 @@ function registerGameCommands() {
     }
 }
 
+/** Web API用封禁接口，默认操作者为"API" */
 function apiBan(identifier, reason, operator) {
     return banPlayer(identifier, reason || 'API封禁', operator || 'API');
 }
 
+/** Web API用解封接口 */
 function apiUnban(identifier) {
     return unbanPlayer(identifier);
 }
 
+/** Web API用获取封禁列表接口 */
 function apiGetBanList() {
     return getBanList();
 }
 
+/** Web API用封禁状态检查接口 */
 function apiIsBanned(xuid, ip) {
     return isPlayerBanned(xuid, ip);
 }

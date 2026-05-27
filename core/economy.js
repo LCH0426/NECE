@@ -24,13 +24,14 @@ const fs = require('fs');
 const U = require('./utils');
 
 let _config = null;
-let _currencyNameCache = null;
+let _currencyNameCache = null; // 货币名称缓存，避免重复读取配置
 let _deps = {};
 
-// 待领取转账
+// 待领取转账 —— 离线玩家收到转账时暂存于此，上线后自动通知
 const pendingTransfersPath = "plugins/NLCE/data/pendingTransfers.json";
 let pendingTransfers = {};
 
+/** 初始化经济模块，加载待领取转账数据 */
 function init(deps) {
     _config = deps.config;
     _currencyNameCache = null;
@@ -38,12 +39,19 @@ function init(deps) {
     _loadPendingTransfers();
 }
 
+/** 获取货币名称（带缓存），默认返回"星茜" */
 function getCurrencyName() {
     if (_currencyNameCache !== null) return _currencyNameCache;
     _currencyNameCache = _config.get("currencyName") || "星茜";
     return _currencyNameCache;
 }
 
+/**
+ * 向玩家发送货币变动通知（toast形式）
+ * @param {object} player - 目标玩家
+ * @param {number} amount - 变动金额（正数为收入，负数为支出）
+ * @param {string} source - 变动来源描述
+ */
 function notifyEconomyChange(player, amount, source) {
     try {
         const sign = amount >= 0 ? "+" : "";
@@ -53,6 +61,11 @@ function notifyEconomyChange(player, amount, source) {
     } catch (e) { /* player可能已离线 */ }
 }
 
+/**
+ * 获取玩家余额，包含完整的类型校验和异常处理
+ * @param {object} player - 玩家对象（需包含xuid）
+ * @returns {number} 玩家余额，异常时返回0
+ */
 function getPlayerMoney(player) {
     try {
         if (typeof money === 'undefined' || money === null) {
@@ -87,6 +100,13 @@ function getPlayerMoney(player) {
     }
 }
 
+/**
+ * 扣除玩家货币
+ * @param {object} player - 玩家对象
+ * @param {number} value - 扣除金额（自动取整）
+ * @param {string} source - 扣费来源描述
+ * @returns {boolean} 是否扣费成功
+ */
 function reducePlayerMoney(player, value, source) {
     try {
         if (typeof money === 'undefined' || money === null) {
@@ -136,6 +156,13 @@ function reducePlayerMoney(player, value, source) {
     }
 }
 
+/**
+ * 增加玩家货币
+ * @param {object} player - 玩家对象
+ * @param {number} value - 增加金额（自动取整）
+ * @param {string} source - 收入来源描述
+ * @returns {boolean} 是否操作成功
+ */
 function addPlayerMoney(player, value, source) {
     try {
         if (typeof money === 'undefined' || money === null) {
@@ -176,6 +203,11 @@ function addPlayerMoney(player, value, source) {
     }
 }
 
+/**
+ * 通过XUID获取余额（轻量版，不含日志和玩家对象，适用于离线查询）
+ * @param {string} xuid - 玩家XUID
+ * @returns {number} 余额，异常时返回0
+ */
 function getPlayerMoneyByXuid(xuid) {
     try {
         if (typeof money === 'undefined' || money === null) return 0;
@@ -189,6 +221,13 @@ function getPlayerMoneyByXuid(xuid) {
     }
 }
 
+/**
+ * 通过XUID增加货币（玩家在线时自动发送通知）
+ * @param {string} xuid - 玩家XUID
+ * @param {number} value - 增加金额
+ * @param {string} source - 收入来源描述
+ * @returns {boolean} 是否成功
+ */
 function addPlayerMoneyByXuid(xuid, value, source) {
     try {
         if (typeof money === 'undefined' || money === null) return false;
@@ -210,6 +249,7 @@ function addPlayerMoneyByXuid(xuid, value, source) {
 
 // ============ 转账系统 (原 core/pay.js) ============
 
+/** 从磁盘加载待领取转账记录 */
 function _loadPendingTransfers() {
     try {
         if (fs.existsSync(pendingTransfersPath)) {
@@ -222,6 +262,7 @@ function _loadPendingTransfers() {
     }
 }
 
+/** 将待领取转账记录持久化到磁盘 */
 function _savePendingTransfers() {
     try {
         fs.writeFileSync(pendingTransfersPath, JSON.stringify(pendingTransfers, null, '\t'), 'utf-8');
@@ -230,6 +271,14 @@ function _savePendingTransfers() {
     }
 }
 
+/**
+ * 写入转账日志到文件
+ * @param {string} senderName - 发送者名称
+ * @param {string} targetName - 接收者名称
+ * @param {number} amount - 转账金额
+ * @param {number} senderBalance - 发送者转账后余额
+ * @param {number} targetBalance - 接收者转账后余额
+ */
 function _writeTransferLog(senderName, targetName, amount, senderBalance, targetBalance) {
     try {
         const logDir = "plugins/NLCE/logs";
@@ -247,6 +296,7 @@ function _writeTransferLog(senderName, targetName, amount, senderBalance, target
     }
 }
 
+/** 显示经济系统主界面（余额 + 转账入口） */
 function showMoneyMainForm(player) {
     let fm = mc.newSimpleForm();
     fm.setTitle("经济系统");
@@ -260,6 +310,7 @@ function showMoneyMainForm(player) {
     });
 }
 
+/** 显示转账对象类型选择（在线/离线） */
 function showTransferTypeForm(player) {
     let fm = mc.newSimpleForm();
     fm.setTitle("转账");
@@ -274,6 +325,7 @@ function showTransferTypeForm(player) {
     });
 }
 
+/** 显示在线玩家转账表单（下拉选择目标玩家 + 输入金额） */
 function showTransferOnlineForm(player) {
     const onlineList = mc.getOnlinePlayers();
     const names = [];
@@ -323,6 +375,7 @@ function showTransferOnlineForm(player) {
     });
 }
 
+/** 显示离线玩家转账表单（通过名称或UID搜索） */
 function showTransferOfflineForm(player) {
     let fm = mc.newCustomForm();
     fm.setTitle("转账给离线玩家");
@@ -336,6 +389,7 @@ function showTransferOfflineForm(player) {
             return;
         }
         const results = [];
+        // 从玩家数据中模糊搜索名称和UID
         const players = _deps.getPlayerData ? (_deps.getPlayerData().players || {}) : {};
         Object.keys(players).forEach(function(xuid) {
             const info = players[xuid];
@@ -350,6 +404,7 @@ function showTransferOfflineForm(player) {
     });
 }
 
+/** 显示离线玩家搜索结果列表 */
 function _showTransferOfflineResultsForm(player, results, keyword) {
     let fm = mc.newSimpleForm();
     fm.setTitle("搜索结果");
@@ -374,6 +429,7 @@ function _showTransferOfflineResultsForm(player, results, keyword) {
     });
 }
 
+/** 显示离线玩家转账金额输入表单 */
 function _showTransferOfflineAmountForm(player, target) {
     const fm = mc.newCustomForm();
     fm.setTitle("转账给 " + target.name);
@@ -402,12 +458,17 @@ function _showTransferOfflineAmountForm(player, target) {
     });
 }
 
+/**
+ * 执行转账核心逻辑：扣除发送者余额，增加接收者余额
+ * 接收者在线则直接到账，离线则存入待领取队列
+ */
 function _executeTransfer(sender, targetName, targetXuid, amount) {
     reducePlayerMoney(sender, amount, "转账给" + targetName);
     const targetPlayer = mc.getPlayer(targetXuid);
     if (targetPlayer) {
         addPlayerMoney(targetPlayer, amount, "来自" + sender.realName + "的转账");
     } else {
+        // 接收者离线，暂存到待领取队列
         if (!pendingTransfers[targetXuid]) {
             pendingTransfers[targetXuid] = [];
         }
@@ -429,6 +490,7 @@ function _executeTransfer(sender, targetName, targetXuid, amount) {
     });
 }
 
+/** 玩家上线时检查并通知待领取的离线转账 */
 function checkPendingTransfers(player) {
     const xuid = player.xuid;
     if (!pendingTransfers[xuid] || pendingTransfers[xuid].length === 0) return;

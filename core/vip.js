@@ -16,13 +16,15 @@
  */
 
 /**
- * NLCE VIP会员系统
- * VIP购买、续费、到期管理及VIP专属权益功能
+ * NLCE VIP会员系统（"月光祝福"）
+ * VIP购买、续费、到期管理及VIP专属权益（商城85折优惠）
  */
 
-
-//vip模块
-
+/**
+ * 创建VIP模块（工厂模式）
+ * @param {object} deps - 依赖注入对象
+ * @returns {object} VIP模块公开API
+ */
 function createVipModule(deps) {
     const playerData = deps.playerData;
     const savePlayerDataNow = deps.savePlayerDataNow;
@@ -32,11 +34,17 @@ function createVipModule(deps) {
     const getCurrencyName = deps.getCurrencyName;
     const openMainMenu = deps.openMainMenu;
 
+    /** 检查玩家是否拥有月光祝福（永久VIP或未过期VIP） */
     function checkPlayerHasMoonlightBlessing(xuid) {
         let p = playerData.players[xuid];
         return !!(p && p.vipdata && (p.vipdata.permanent || (p.vipdata.expireTime && p.vipdata.expireTime > Date.now())));
     }
 
+    /**
+     * 获取玩家VIP状态信息。过期VIP会自动清除数据并保存
+     * @param {object} player - 玩家对象
+     * @returns {{ hasVip: boolean, expireTime: number|null, permanent: boolean, totalSaved: number }}
+     */
     function getVipInfo(player) {
         let xuid = player.xuid;
         const p = playerData.players[xuid];
@@ -81,6 +89,7 @@ function createVipModule(deps) {
         };
     }
 
+    /** 显示月光祝福主界面（VIP状态、到期时间、累计节省金额） */
     function showVipMenu(player) {
         let vipInfo = getVipInfo(player);
         let fm = mc.newSimpleForm();
@@ -141,6 +150,7 @@ function createVipModule(deps) {
         });
     }
 
+    /** 显示VIP购买/续费表单（天卡/周卡/月卡/季卡），已有VIP则叠加时长 */
     function showVipPurchaseForm(player) {
         const vipInfo = getVipInfo(player);
         const fm = mc.newCustomForm();

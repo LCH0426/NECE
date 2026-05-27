@@ -26,18 +26,19 @@ const C = require('./constants');
 const U = require('./utils');
 const D = require('./debug');
 
-let wishDM = null;
-let enchantBookShopDM = null;
-let spawnEggShopDM = null;
-let wishData = { players: {} };
-let wishConfig = {};
-let enchantBookShopConfig = { enchantments: {} };
+let wishDM = null; // 祈愿数据DataManager
+let enchantBookShopDM = null; // 附魔书商店配置DataManager
+let spawnEggShopDM = null; // 刷怪蛋商店配置DataManager
+let wishData = { players: {} }; // 祈愿玩家数据（保底计数、货币、历史等）
+let wishConfig = {}; // 祈愿配置（概率、奖池、价格等）
+let enchantBookShopConfig = { enchantments: {} }; // 附魔书商店配置
 let spawnEggShopConfig = {
     currency: { name: "星尘" },
     items: []
 };
 let _deps = {};
 
+/** 初始化祈愿模块，加载数据和配置 */
 function init(dm, enchDm, spawnDm, cfg, deps) {
 	D.debugLogModule('wish')('init: 初始化完成');
     wishDM = dm;
@@ -51,16 +52,19 @@ function init(dm, enchDm, spawnDm, cfg, deps) {
     spawnEggShopConfig = spawnEggShopDM.load();
 }
 
+/** 热重载祈愿配置（不重新加载数据） */
 function reloadConfig(cfg) {
     wishConfig = cfg || {};
 }
 
+/** 立即保存祈愿数据到磁盘 */
 function saveWishData() {
     if (!wishData.players) wishData.players = {};
     wishDM.save(true);
     return true;
 }
 
+/** 获取玩家祈愿数据，不存在则初始化默认结构 */
 function getPlayerWishData(xuid) {
     if (!wishData.players[xuid]) {
         wishData.players[xuid] = {
@@ -75,6 +79,12 @@ function getPlayerWishData(xuid) {
     return wishData.players[xuid];
 }
 
+/**
+ * 计算五星概率（含软保底机制）
+ * 软保底后概率线性递增，硬保底必出
+ * @param {number} pityCount - 距离上次五星的抽数
+ * @returns {number} 五星概率
+ */
 function calculateFiveStarProbability(pityCount) {
     const rates = wishConfig.rates || {};
     const baseRate = rates.fiveStar || 0.006;
@@ -89,6 +99,12 @@ function calculateFiveStarProbability(pityCount) {
     return baseRate;
 }
 
+/**
+ * 执行单次祈愿：推进保底计数、判定星级、随机奖励、发放物品
+ * @param {object} player - 玩家对象
+ * @param {boolean} [shouldSave=true] - 是否立即保存数据（批量祈愿时设为false以提升性能）
+ * @returns {object} 奖励对象 { rarity, type, ... }
+ */
 function performSingleWish(player, shouldSave) {
     if (shouldSave === undefined) shouldSave = true;
     const xuid = player.xuid;
@@ -159,6 +175,7 @@ function performSingleWish(player, shouldSave) {
     const timeStr = U.getCurrentTimeString();
     const record = { date: dateStr, time: timeStr, rarity: rarity, reward: reward };
 
+    // 物品奖励：解析SNBT创建物品，背包有空位则直接给予，否则掉落在地面
     if (reward.type === "item" && reward.snbt) {
         try {
             const item = mc.newItem(NBT.parseSNBT(reward.snbt));
@@ -175,6 +192,7 @@ function performSingleWish(player, shouldSave) {
         }
     }
 
+    // 批量祈愿时 shouldSave=false，由调用方统一保存，避免频繁IO
     if (shouldSave) {
         try {
             const logPath = 'plugins/NLCE/logs/wish_' + xuid + '.json';
@@ -195,6 +213,12 @@ function performSingleWish(player, shouldSave) {
     return reward;
 }
 
+/**
+ * 执行多次祈愿（批量模式），一次性读写日志文件，避免逐次IO
+ * @param {object} player - 玩家对象
+ * @param {number} count - 祈愿次数
+ * @returns {object[]} 每次祈愿的奖励数组
+ */
 function performMultipleWishes(player, count) {
     const rewards = [];
     const xuid = player.xuid;
@@ -224,6 +248,7 @@ function performMultipleWishes(player, count) {
         logData.unshift(records[j]);
     }
 
+    // 历史记录上限1000条，超出则截断
     if (logData.length > 1000) {
         logData = logData.slice(0, 1000);
     }
@@ -239,6 +264,7 @@ function performMultipleWishes(player, count) {
     return rewards;
 }
 
+/** 检查玩家余额是否足够支付指定次数的祈愿 */
 function checkWishBalance(player, count) {
     const costConfig = wishConfig.cost || {};
     const singleCost = costConfig.single || 160;
@@ -253,10 +279,12 @@ function checkWishBalance(player, count) {
     return { success: true, cost: totalCost };
 }
 
+/** 扣除祈愿费用 */
 function deductWishCost(player, cost) {
     return _deps.reducePlayerMoney(player, cost, "祈愿");
 }
 
+/** 检查背包是否有足够空位（过滤air物品） */
 function checkInventorySpace(player, requiredSlots) {
     try {
         const inventory = player.getInventory();
@@ -274,6 +302,7 @@ function checkInventorySpace(player, requiredSlots) {
     }
 }
 
+/** 显示祈愿主界面：统计信息、祈愿/兑换/历史入口 */
 function showWishMainForm(player) {
     const xuid = player.xuid;
     const wd = getPlayerWishData(xuid);
@@ -305,6 +334,7 @@ function showWishMainForm(player) {
     });
 }
 
+/** 显示祈愿操作界面：单抽、十连、自定义抽取 */
 function showWishOperationForm(player) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§b开始祈愿");
@@ -386,6 +416,7 @@ function showWishOperationForm(player) {
     });
 }
 
+/** 显示祈愿结果（合并同类奖励显示），支持再次抽取 */
 function showWishResultForm(player, rewards, count) {
     let content = "-------------------------\n";
     let dustCount = 0;
@@ -404,7 +435,8 @@ function showWishResultForm(player, rewards, count) {
         }
     });
 
-    function mergeRewards(rws) {
+        /** 合并相同奖励的显示（同名物品合并计数） */
+        function mergeRewards(rws) {
         const merged = {};
         rws.forEach(function(reward) {
             const key = reward.rarity + '_' + (reward.type === "core" ? "core" : reward.name || "unknown");
@@ -458,6 +490,7 @@ function showWishResultForm(player, rewards, count) {
     });
 }
 
+/** 显示祈愿系统详细说明（概率、花费、奖励规则） */
 function showWishInfoForm(player) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§b祈愿系统说明");
@@ -490,6 +523,7 @@ function showWishInfoForm(player) {
     });
 }
 
+/** 显示星核兑换商店列表 */
 function showCoreShopForm(player) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§e" + (wishConfig.coreName || "星核") + "兑换商店");
@@ -515,6 +549,7 @@ function showCoreShopForm(player) {
     });
 }
 
+/** 显示星核兑换物品详情 */
 function showCoreShopDetailForm(player, item) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§e" + item.name);
@@ -539,6 +574,7 @@ function showCoreShopDetailForm(player, item) {
     });
 }
 
+/** 执行星核兑换：扣除星核、发放物品，失败时自动退还 */
 function performCoreExchange(player, item) {
     const xuid = player.xuid;
     const wd = getPlayerWishData(xuid);
@@ -574,6 +610,7 @@ function performCoreExchange(player, item) {
     }
 }
 
+/** 显示星尘商店主界面（凝炼、附魔书兑换、刷怪蛋兑换） */
 function showDustShopMainForm(player) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§b" + (wishConfig.dustName || "星尘") + "商店");
@@ -608,6 +645,7 @@ function showDustShopMainForm(player) {
     });
 }
 
+/** 获取玩家星尘商店数据（每日兑换记录、累计节省金额） */
 function getPlayerDustShopData(xuid) {
     const p = _deps.playerData && _deps.playerData.players && _deps.playerData.players[xuid];
     if (!p) return { dailyExchange: {}, savedMoney: 0 };
@@ -618,6 +656,7 @@ function getPlayerDustShopData(xuid) {
     return p.dustshop;
 }
 
+/** 显示星尘凝炼表单（用货币兑换星尘，每日上限900，VIP享95折） */
 function showDustRefineForm(player) {
     const gui = mc.newCustomForm();
     gui.setTitle("§l§b" + (wishConfig.dustName || "星尘") + "凝炼");
@@ -680,6 +719,7 @@ function showDustRefineForm(player) {
     });
 }
 
+/** 显示附魔书商店（列出所有可兑换的附魔效果） */
 function showEnchantBookShopForm(player) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§d附魔书商店");
@@ -711,6 +751,7 @@ function showEnchantBookShopForm(player) {
     }
 }
 
+/** 显示附魔书等级选择表单 */
 function showEnchantBookLevelForm(player, enchantId, enchantInfo) {
     const gui = mc.newCustomForm();
     gui.setTitle("§l§d" + enchantInfo.name + "附魔书");
@@ -739,6 +780,7 @@ function showEnchantBookLevelForm(player, enchantId, enchantInfo) {
     });
 }
 
+/** 执行附魔书兑换：创建附魔书并给予玩家，扣除星尘 */
 function processEnchantBookTrade(player, enchantId, enchantInfo, level, cost) {
     const xuid = player.xuid;
     const wd = getPlayerWishData(xuid);
@@ -773,6 +815,7 @@ function processEnchantBookTrade(player, enchantId, enchantInfo, level, cost) {
     }
 }
 
+/** 通过SNBT创建指定附魔类型和等级的附魔书物品 */
 function createEnchantedBook(enchantId, level) {
     try {
         const snbt = '{"Count":1b,"Damage":0s,"Name":"minecraft:enchanted_book","WasPickedUp":0b,"tag":{"ench":[{"id":' + enchantId + 's,"lvl":' + level + 's}]}}';
@@ -785,6 +828,7 @@ function createEnchantedBook(enchantId, level) {
     }
 }
 
+/** 显示刷怪蛋商店列表 */
 function showSpawnEggShopForm(player) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§d刷怪蛋商店");
@@ -816,6 +860,7 @@ function showSpawnEggShopForm(player) {
     }
 }
 
+/** 显示刷怪蛋兑换确认表单（滑块选择数量，上限10） */
 function showSpawnEggConfirmForm(player, item, currency, quantity) {
     quantity = quantity || 1;
     const gui = mc.newCustomForm();
@@ -849,6 +894,7 @@ function showSpawnEggConfirmForm(player, item, currency, quantity) {
     });
 }
 
+/** 执行刷怪蛋购买：扣除星尘、创建物品，失败时自动退还星尘 */
 function processSpawnEggPurchase(player, item, currency, quantity) {
     quantity = quantity || 1;
     try {
@@ -893,6 +939,7 @@ function processSpawnEggPurchase(player, item, currency, quantity) {
     }
 }
 
+/** 显示属性提升界面（用星核提升生命值上限） */
 function showAttributeUpgradeForm(player) {
     const xuid = player.xuid;
     const wd = getPlayerWishData(xuid);
@@ -909,6 +956,7 @@ function showAttributeUpgradeForm(player) {
     });
 }
 
+/** 显示生命值提升确认表单（5星核=+1HP，上限+20HP） */
 function showHealthUpgradeConfirmForm(player) {
     const xuid = player.xuid;
     const playerInfo = _deps.playerData && _deps.playerData.players && _deps.playerData.players[xuid] || {};
@@ -961,6 +1009,7 @@ function showHealthUpgradeConfirmForm(player) {
     });
 }
 
+/** 分页显示祈愿历史记录（从JSON日志文件读取，上限1000条） */
 function showWishHistoryForm(player, page) {
     const xuid = player.xuid;
     const logPath = 'plugins/NLCE/logs/wish_' + xuid + '.json';

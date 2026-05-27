@@ -15,6 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+// ============ 模块导入 ============
 const fs = require('fs');
 const database = require('./core/database');
 const debugModule = require('./core/debug');
@@ -44,12 +45,14 @@ const quickMenuModule = require('./core/quickMenu');
 const personalCenter = require('./core/personalCenter');
 
 
+// ============ 插件注册 ============
 const PLUGIN_NAME = "NLCE";
 const DESIGNATION_NAME = "Robin";
 const PLUGIN_AUTHOR = "LCH0426";
 
 ll.registerPlugin(PLUGIN_NAME, DESIGNATION_NAME, [1, 9, 9], { Author: PLUGIN_AUTHOR });
 
+// ============ 全局路径常量 ============
 const CONFIG_PATH = C.PATHS.CONFIG;
 const PLAYER_DATA_PATH = C.PATHS.PLAYER_DATA;
 const PLAYER_SETTINGS_PATH = C.PATHS.PLAYER_SETTINGS;
@@ -74,42 +77,50 @@ const WARPS_DATA_PATH = C.PATHS.WARPS_DATA;
 const CHAT_CFG_PATH = C.PATHS.CHAT_CFG;
 const BAD_WORDS_PATH = C.PATHS.BAD_WORDS;
 
-let config;
-let playerData = { nextUid: 10000, players: {} };
-let playerSettings;
-let levelUpExp = [];
-const _joinTimestamps = {};
-let onlinePlayers = {};
-let shopData;
-let recycleConfig;
-let wishConfig = {};
-let spawnEggShopConfig = {
+// ============ 全局运行时状态 ============
+let config;                                            // 主配置（JsonConfigFileAdapter）
+let playerData = { nextUid: 10000, players: {} };      // 玩家核心数据（xuid -> 玩家信息）
+let playerSettings;                                    // 玩家个人设置
+let levelUpExp = [];                                   // 等级经验表（由LEVEL_EXP_STEPS累加生成）
+const _joinTimestamps = {};                            // 玩家加入时间戳（xuid -> Date.now()），用于计算在线时长
+let onlinePlayers = {};                                // 当前在线玩家集合（xuid -> true）
+let shopData;                                          // 商店商品数据
+let recycleConfig;                                     // 回收系统配置
+let wishConfig = {};                                   // 祈愿系统配置
+let spawnEggShopConfig = {                             // 刷怪蛋商店配置
 	currency: {
 		name: (wishConfig && wishConfig.dustName) || "星尘"
 	},
 	items: []
 };
-let narConfig = {
+let narConfig = {                                      // NPC攻击响应配置
 	npc_actions: {}
 };
-let tpsData = {
+let tpsData = {                                        // TPS实时计算数据
 	tps: '20.00',
 	tps_Count: null,
 	tps_Time_start: 0,
 	tps_Time_end: 0
 };
 
-let commonDeps = null;
+let commonDeps = null;                                 // 共享依赖包，传递给需要广泛访问的模块
 
 // Debug 模式
 let _debugMode = false;
 const debugLog = debugModule.debugLog;
 const debugWarn = debugModule.debugWarn;
 
-const _saveTimers = {};
-const _saveFns = {};
-let _saveTimerSeq = 0;
+// ============ 防抖保存机制 ============
+const _saveTimers = {};   // key -> 序号，用于判断定时器是否过期
+const _saveFns = {};      // key -> 实际保存函数
+let _saveTimerSeq = 0;    // 全局递增序号，确保旧定时器被新调用覆盖后不会执行
 
+/**
+ * 防抖保存：同一key的多次调用只执行最后一次，中间的被跳过
+ * @param {string} key - 保存标识（通常用文件路径）
+ * @param {Function} saveFn - 实际写入函数
+ * @param {number} delay - 延迟毫秒数（默认5000）
+ */
 function debouncedSave(key, saveFn, delay) {
 	delay = delay || 5000;
 	_saveFns[key] = saveFn;
@@ -125,6 +136,7 @@ function debouncedSave(key, saveFn, delay) {
 	}, delay);
 }
 
+/** 立即执行指定key的待写入保存（用于关服等关键操作） */
 function flushSave(key) {
 	if (_saveTimers[key] !== undefined) {
 		_saveTimers[key] = -1;
@@ -136,11 +148,20 @@ function flushSave(key) {
 	}
 }
 
+/** 立即执行所有待写入保存（关服前调用，防止数据丢失） */
 function flushAllSaves() {
 	Object.keys(_saveTimers).forEach(flushSave);
 }
 
 // ============ 数据持久化基础设施 ============
+
+/**
+ * 数据管理器：统一的JSON/SQL双模式数据持久化层
+ * 根据 options.sqlPrefix 自动选择SQL或JSON存储
+ * @param {string} path - JSON文件路径
+ * @param {Object} defaultData - 默认数据（文件不存在或SQL为空时使用）
+ * @param {Object} options - { pretty, saveDelay, sqlPrefix }
+ */
 function DataManager(path, defaultData, options) {
 	options = options || {};
 	this.path = path;
@@ -153,8 +174,10 @@ function DataManager(path, defaultData, options) {
 	this.useSQL = false;
 	this._dirtyKeys = {};
 }
+
+/** 加载数据：优先SQL（若配置了sqlPrefix且数据库就绪），否则从JSON文件读取 */
 DataManager.prototype.load = function() {
-	// SQL 模式
+	// SQL 模式：按sqlPrefix分发到对应的专用加载函数
 	if (this.sqlPrefix && database.isPlayerDbReady()) {
 		this.useSQL = true;
 		try {
@@ -178,6 +201,7 @@ DataManager.prototype.load = function() {
 					database.sqlEnsureTable(this.sqlPrefix);
 					this.data = database.sqlGetAll(this.sqlPrefix);
 			}
+			// SQL返回空数据时回退到默认数据
 			if (!this.data || Object.keys(this.data).length === 0) {
 				this.data = JSON.parse(JSON.stringify(this.defaultData));
 			}
@@ -188,7 +212,7 @@ DataManager.prototype.load = function() {
 		debugLog('DataManager.load: SQL [' + this.sqlPrefix + '] 条目=' + Object.keys(this.data || {}).length);
 		return this.data;
 	}
-	// JSON 模式
+	// JSON 模式：文件不存在或为空时写入默认数据
 	try {
 		if (!fs.existsSync(this.path)) {
 			U.ensureDir(this.path);
@@ -209,6 +233,12 @@ DataManager.prototype.load = function() {
 	}
 	return this.data;
 };
+
+/**
+ * 保存数据：immediate=true时立即写入，否则走防抖延迟
+ * SQL模式下：先写内存变更到SQL，再触发2秒防抖写磁盘
+ * JSON模式下：直接写文件
+ */
 DataManager.prototype.save = function(immediate) {
 	const self = this;
 	// SQL 模式
@@ -240,6 +270,7 @@ DataManager.prototype.save = function(immediate) {
 						for (let xuid in frPlayers) {
 							if (!frPlayers.hasOwnProperty(xuid)) continue;
 							const fd = frPlayers[xuid];
+							database.clearFriendsSQL(xuid);
 							(fd.friends || []).forEach(function(f) {
 								database.addFriendSQL(xuid, f.xuid, f.name, f.addTime);
 							});
@@ -285,7 +316,7 @@ DataManager.prototype.save = function(immediate) {
 			doSQLSave();
 			database.savePlayerDatabase();
 		} else {
-			// 内存变更防抖后写入，随后触发2秒防抖写磁盘
+			// 防抖写入SQL，随后触发2秒防抖写磁盘（requestSavePlayerDb自带2秒防抖）
 			debouncedSave(this.saveKey, function() {
 				doSQLSave();
 				database.requestSavePlayerDb();
@@ -309,9 +340,17 @@ DataManager.prototype.save = function(immediate) {
 		debouncedSave(this.saveKey, doSave, this.saveDelay);
 	}
 };
+
+/** 获取原始数据引用 */
 DataManager.prototype.get = function() {
 	return this.data;
 };
+
+/**
+ * 获取指定玩家的数据，不存在时自动创建并触发保存
+ * @param {string} xuid - 玩家XUID
+ * @param {Object} defaultPlayerData - 新玩家的默认数据模板
+ */
 DataManager.prototype.getPlayerData = function(xuid, defaultPlayerData) {
 	if (!this.data.players) this.data.players = {};
 	if (!this.data.players[xuid]) {
@@ -321,15 +360,19 @@ DataManager.prototype.getPlayerData = function(xuid, defaultPlayerData) {
 	return this.data.players[xuid];
 };
 
+// 所有已注册的DataManager实例集合
 const _dataManagers = {};
 
+/** 注册一个DataManager实例到全局集合，便于统一管理 */
 function registerDataManager(name, path, defaultData, options) {
 	const dm = new DataManager(path, defaultData, options);
 	_dataManagers[name] = dm;
 	return dm;
 }
 
-// 初始化所有配置文件与数据
+// ============ 配置与数据初始化 ============
+
+/** 根据LEVEL_EXP_STEPS累加生成等级经验表 */
 function initLevelExpTable() {
 	levelUpExp[0] = 0;
 	let total = 0;
@@ -339,6 +382,10 @@ function initLevelExpTable() {
 	}
 }
 
+/**
+ * JSON配置文件适配器：提供init/get/set/delete等标准接口
+ * 用于config.json等需要按key存取的配置文件（不同于DataManager的全量读写）
+ */
 function JsonConfigFileAdapter(filePath, defaultContent) {
 	this._path = filePath;
 	this._data = {};
@@ -360,6 +407,8 @@ function JsonConfigFileAdapter(filePath, defaultContent) {
 		logger.error('JsonConfigFileAdapter加载失败[' + filePath + ']：' + e.message);
 	}
 }
+
+/** 初始化配置项：不存在时写入默认值并保存 */
 JsonConfigFileAdapter.prototype.init = function(name, defaultValue) {
 	if (this._data[name] === undefined) {
 		this._data[name] = defaultValue;
@@ -367,15 +416,21 @@ JsonConfigFileAdapter.prototype.init = function(name, defaultValue) {
 	}
 	return this._data[name];
 };
+
+/** 获取配置项，可指定默认值 */
 JsonConfigFileAdapter.prototype.get = function(name, defaultValue) {
 	if (this._data[name] !== undefined) return this._data[name];
 	return defaultValue !== undefined ? defaultValue : null;
 };
+
+/** 设置配置项并立即保存 */
 JsonConfigFileAdapter.prototype.set = function(name, value) {
 	this._data[name] = value;
 	this._save();
 	return true;
 };
+
+/** 删除配置项并立即保存 */
 JsonConfigFileAdapter.prototype.delete = function(name) {
 	if (this._data[name] !== undefined) {
 		delete this._data[name];
@@ -384,6 +439,8 @@ JsonConfigFileAdapter.prototype.delete = function(name) {
 	}
 	return false;
 };
+
+/** 从磁盘重新加载配置（不丢失内存中已有但磁盘上没有的key） */
 JsonConfigFileAdapter.prototype.reload = function() {
 	try {
 		if (fs.existsSync(this._path)) {
@@ -397,12 +454,18 @@ JsonConfigFileAdapter.prototype.reload = function() {
 		return false;
 	}
 };
+
+/** 获取配置文件路径 */
 JsonConfigFileAdapter.prototype.getPath = function() {
 	return this._path;
 };
+
+/** 读取全部配置为格式化JSON字符串 */
 JsonConfigFileAdapter.prototype.read = function() {
 	return JSON.stringify(this._data, null, 2);
 };
+
+/** 写入JSON字符串覆盖全部配置 */
 JsonConfigFileAdapter.prototype.write = function(content) {
 	try {
 		this._data = JSON.parse(content);
@@ -412,6 +475,8 @@ JsonConfigFileAdapter.prototype.write = function(content) {
 		return false;
 	}
 };
+
+/** 内部保存：将_data序列化写入磁盘 */
 JsonConfigFileAdapter.prototype._save = function() {
 	try {
 		U.ensureDir(this._path);
@@ -421,7 +486,7 @@ JsonConfigFileAdapter.prototype._save = function() {
 	}
 };
 
-// 初始化排行榜配置
+/** 初始化主配置文件，注册所有默认配置项（功能开关、传送参数、Web设置等） */
 function initRankConfig() {
 	try {
 		config = new JsonConfigFileAdapter(CONFIG_PATH);
@@ -480,6 +545,7 @@ function initRankConfig() {
 			"jwtRefreshExpire": "7d"
 		});
 	} catch (error) {
+		// 配置加载失败时使用全通过的降级配置，避免插件完全无法启动
 		config = {
 			get: (key) => true,
 			set: () => true,
@@ -493,6 +559,7 @@ function initRankConfig() {
 const IPV4_MESSAGE = C.IPV4_MESSAGE;
 const IPV6_MESSAGE = C.IPV6_MESSAGE;
 
+/** 初始化玩家核心数据：优先从SQL加载，否则从JSON文件加载 */
 function initPlayerData() {
 	if (database.isPlayerDbReady()) {
 		// SQL 模式：从数据库加载玩家核心数据
@@ -509,23 +576,29 @@ function initPlayerData() {
 	if (!playerData.nextUid) playerData.nextUid = 10000;
 }
 
+// 从playerDataModule获取玩家数据保存函数（防抖/立即/单玩家）
 const savePlayerData = playerDataModule.savePlayerData;
 const savePlayerDataNow = playerDataModule.savePlayerDataNow;
+const saveSinglePlayerData = playerDataModule.saveSinglePlayerData;
 
+/** 从DataManager加载玩家个人设置 */
 function initPlayerSettings() {
 	playerSettings = playerSettingsDM.load();
 }
 
 const loadItemsDataMap = playerDataModule.loadItemsDataMap;
 
+/** 加载商店商品数据 */
 function initShopData() {
 	shopData = shopDataDM.load();
 }
 
+/** 加载CDK兑换码数据 */
 function initCdkData() {
 	cdkDataDM.load();
 }
 
+/** 加载回收配置，确保回收日志目录存在 */
 function initRecycleConfig() {
 	recycleConfig = recycleConfigDM.load();
 	if (!fs.existsSync(RECYCLE_LOG_DIR)) {
@@ -534,17 +607,18 @@ function initRecycleConfig() {
 }
 
 
+// 从playerDataModule获取玩家设置的读写函数
 const getPlayerSetting = playerDataModule.getPlayerSetting;
 const setPlayerSetting = playerDataModule.setPlayerSetting;
 
 
-
+// ============ DataManager实例注册 ============
 
 const playerDataDM = registerDataManager('playerData', PLAYER_DATA_PATH, {
 	nextUid: 10000,
 	players: {}
 }, {
-	saveDelay: 10000
+	saveDelay: 10000  // 玩家数据防抖延迟较长（10秒），减少频繁写入
 });
 const wishDM = registerDataManager('wish', WISH_DATA_PATH, {
 	players: {}
@@ -602,6 +676,7 @@ const recycleConfigDM = registerDataManager('recycleConfig', RECYCLE_DATA_PATH, 
 	recycleItems: {}
 });
 
+// 祈愿系统默认配置（概率、保底、花费、奖励池等）
 const DEFAULT_WISH_CONFIG = {
 	"dustName": "星尘",
 	"coreName": "星核",
@@ -629,6 +704,7 @@ const DEFAULT_WISH_CONFIG = {
 	"coreShop": []
 };
 
+/** 加载祈愿配置，缺失字段用默认值补齐 */
 function initWishConfig() {
 	try {
 		config.init("wishConfig", Object.assign({}, DEFAULT_WISH_CONFIG, {
@@ -657,34 +733,36 @@ function initWishConfig() {
 	}
 }
 
+/** 将死亡点DataManager传递给传送模块 */
 function initDeathPointData() {
 	teleportModule.initDeathPoint(deathPointDM);
 }
 
 
-
-
-
-
-
 // ============ 模块初始化 ============
+
+/**
+ * 主初始化函数：按顺序加载所有配置、初始化数据库、创建并注入模块依赖
+ * 调用时机：onServerStarted
+ */
 async function initAllConfigs() {
 	initLevelExpTable();
 	initRankConfig();
-		economyModule.init({ config: config, getPlayerData: function() { return playerData; }, getPlayerAvatarUrl: getPlayerAvatarUrl });
-		playerDataModule.init({ database: database, config: config, constants: C, fs: fs, itemsDataPath: ITEMS_DATA_PATH,
-			getPlayerData: function() { return playerData; },
-			getPlayerSettings: function() { return playerSettings; },
-			savePlayerSettings: function() { playerSettingsDM.save(true); }
-		});
-		avatarModule.init({
-			getPlayerData: function() { return playerData; },
-			savePlayerData: savePlayerData,
-			showPersonalCenterForm: personalCenter.showPersonalCenterForm
-		});
-		database.setDebugMode(_debugMode);
-		debugLog("initAllConfigs: Debug模式已" + (_debugMode ? "开启" : "关闭"));
-		// 初始化玩家数据库(SQL)
+	// 经济模块和玩家数据模块需要最先初始化（其他模块依赖它们）
+	economyModule.init({ config: config, getPlayerData: function() { return playerData; }, getPlayerAvatarUrl: getPlayerAvatarUrl });
+	playerDataModule.init({ database: database, config: config, constants: C, fs: fs, itemsDataPath: ITEMS_DATA_PATH,
+		getPlayerData: function() { return playerData; },
+		getPlayerSettings: function() { return playerSettings; },
+		savePlayerSettings: function() { playerSettingsDM.save(true); }
+	});
+	avatarModule.init({
+		getPlayerData: function() { return playerData; },
+		savePlayerData: savePlayerData,
+		showPersonalCenterForm: personalCenter.showPersonalCenterForm
+	});
+	database.setDebugMode(_debugMode);
+	debugLog("initAllConfigs: Debug模式已" + (_debugMode ? "开启" : "关闭"));
+	// 初始化玩家数据库(SQL)
 	try {
 		await database.initPlayerDatabase();
 		logger.info('[NLCE] 玩家数据库(SQL)初始化完成');
@@ -732,7 +810,8 @@ async function initAllConfigs() {
 	initNarConfig();
 	backupModule.init(config.get("backupConfig"));
 
-// ============ 依赖注入与模块创建 ============
+	// ============ 依赖注入与模块创建 ============
+	// commonDeps：共享依赖包，聚合常用函数/数据，传递给需要广泛访问的模块
 	commonDeps = {
 		getPlayerMoney: getPlayerMoney,
 		addPlayerMoney: addPlayerMoney,
@@ -757,6 +836,7 @@ async function initAllConfigs() {
 
 	teleportModule.init(config, homesDM, warpsDM, commonDeps);
 
+	// 使用工厂模式创建的模块（vip/cdk/rank/bank），创建后挂到commonDeps上
 	let vipModule = vipModuleCreator.create({
 		playerData: playerData,
 		savePlayerDataNow: savePlayerDataNow,
@@ -808,7 +888,7 @@ async function initAllConfigs() {
 	});
 	commonDeps.bankModule = bankModule;
 
-	// 个人中心模块初始化（必须在所有模块之后）
+	// 个人中心模块初始化（必须在所有模块之后，因为它依赖其他模块的引用）
 	personalCenter.init({
 		getPlayerData: function() { return playerData; },
 		savePlayerDataNow: savePlayerDataNow,
@@ -831,16 +911,20 @@ async function initAllConfigs() {
 	personalCenter.installPrototypeExtensions();
 }
 
-// 4. 事件监听
-
 // ============ 核心事件监听 ============
+
+/**
+ * 玩家加入事件：创建新玩家数据或更新老玩家信息，记录在线状态，发送欢迎消息
+ * 同时处理：IP检测、银行定期到期检查、未读消息提醒、入服物品发放
+ */
 mc.listen("onJoin", (player) => {
-	const playerXUID = player.xuid;
+	const playerXUID = String(player.xuid);
 	const playerName = player.name;
 	const playerUUID = player.uuid;
 	debugLog('onJoin: 玩家加入 ' + playerName + ' (XUID: ' + playerXUID + '), playerData.players 条目数=' + Object.keys(playerData.players || {}).length + ', 已存在=' + (!!playerData.players[playerXUID]));
 
 	if (!playerData.players[playerXUID]) {
+		// 新玩家：分配UID并创建初始数据
 		let nextUid = playerData.nextUid || 10000;
 			// 防止UID冲突：检查nextUid是否已被其他玩家使用
 			let _uidTaken = false;
@@ -874,13 +958,15 @@ mc.listen("onJoin", (player) => {
 		player.tell(`§a注册成功！您的UID：${nextUid}`, 1);
 		logger.info(`新玩家 ${playerName}（XUID: ${playerXUID}）分配UID: ${nextUid}`);
 	} else {
+		// 老玩家：更新名字和设备信息
 		playerData.players[playerXUID].name = playerName;
 		debugLog('onJoin: 老玩家 ' + playerName + ' (XUID: ' + playerXUID + ') UID: ' + playerData.players[playerXUID].uid);
 		try {
 			const dev = player.getDevice();
 			if (dev && dev.ip) playerData.players[playerXUID].lastIp = dev.ip;
 			if (dev && dev.os) playerData.players[playerXUID].platform = dev.os;
-		} catch(e) {}
+		} catch(e) { logger.warn('[Core] 获取玩家设备信息失败: ' + e.message); }
+		// 数据兼容：补全旧数据缺失的字段
 		if (playerData.players[playerXUID].uid === undefined) {
 			playerData.players[playerXUID].uid = 9999;
 			logger.warn(`玩家 ${playerName} 数据缺失UID，已补全为9999`);
@@ -890,7 +976,7 @@ mc.listen("onJoin", (player) => {
 		}
 	}
 
-	savePlayerDataNow();
+	saveSinglePlayerData(playerXUID);
 
 	_joinTimestamps[playerXUID] = Date.now();
 	onlinePlayers[String(playerXUID)] = true;
@@ -899,6 +985,7 @@ mc.listen("onJoin", (player) => {
 	const xuid = String(playerXUID);
 	const now = Date.now();
 
+	// 欢迎消息：老玩家显示离线时长和总游戏时长，新玩家显示欢迎语
 	if (getPlayerSetting(xuid, "enableWelcome")) {
 		try {
 			let p = playerData.players[playerXUID];
@@ -916,7 +1003,7 @@ mc.listen("onJoin", (player) => {
 				);
 
 				delete p.leavetime;
-				savePlayerData();
+				saveSinglePlayerData(playerXUID);
 			} else {
 				player.sendToast(
 					'§6欢迎来到§cCitlalia服务器！',
@@ -928,8 +1015,9 @@ mc.listen("onJoin", (player) => {
 		}
 	}
 
-	// ipDetector功能：网络协议检测（根据玩家设置）
+	// 检查并通知玩家的待处理经济转账
 	economyModule.checkPendingTransfers(player);
+	// ipDetector功能：网络协议检测（根据玩家设置）
 	if (getPlayerSetting(xuid, "enableIpDetector")) {
 		try {
 			const device = player.getDevice();
@@ -974,6 +1062,9 @@ mc.listen("onJoin", (player) => {
 	}
 });
 
+/**
+ * 玩家离开事件：累计在线时长，清除在线状态和缓存，记录离开时间
+ */
 mc.listen("onLeft", (player) => {
 	const xuid = player.xuid;
 	const xuidStr = String(xuid);
@@ -986,13 +1077,15 @@ mc.listen("onLeft", (player) => {
 	delete onlinePlayers[xuidStr];
 	sidebarModule.clearPlayerCache(xuidStr);
 
+	// 记录离开时间，下次加入时用于计算"您已离开X小时"
 	let p = playerData.players[xuidStr];
 	if (p) {
 		p.leavetime = Date.now();
 	}
-	savePlayerDataNow();
+	saveSinglePlayerData(xuidStr);
 });
 
+/** 注册游戏行为统计监听（挖掘、放置、击杀、死亡）和死亡点记录 */
 function initStatTrackers() {
 	mc.listen("onDestroyBlock", function(player, block) {
 		if (!config.get("enableRank")) return;
@@ -1021,6 +1114,7 @@ function initStatTrackers() {
 		if (config.get("enableBack")) {
 			teleportModule.recordDeathPoint(player);
 
+			// 死亡传送弹窗：记录死亡点后弹窗询问是否传送回去
 			if (getPlayerSetting(player.xuid, "enableDeathTeleportPopup")) {
 				const dpData = teleportModule.getDeathPointData();
 				const deathPoints = dpData.players[player.xuid];
@@ -1054,6 +1148,7 @@ function initStatTrackers() {
 
 initStatTrackers();
 
+/** 定时（约59秒）累计在线玩家的游戏时长到统计数据，并触发玩家数据保存 */
 function tickOnlineDurations() {
 	if (!config.get("enableRank")) return;
 	let now = Date.now();
@@ -1068,6 +1163,7 @@ function tickOnlineDurations() {
 
 setInterval(tickOnlineDurations, 58848);
 
+// 定时（30秒）刷新所有在线玩家的leavetime，确保异常断连时数据不丢失
 setInterval(() => {
 	const now = Date.now();
 	let updated = false;
@@ -1084,14 +1180,9 @@ setInterval(() => {
 }, 30000);
 
 
+// ============ 经济系统代理 ============
 
-
-// ============ 功能函数 ============
-
-
-// ============ 功能函数 ============
-// 经济系统 (core/economy.js)
-
+// 从economyModule导出常用经济操作函数（通过闭包代理到模块内部实现）
 const getCurrencyName = economyModule.getCurrencyName;
 const notifyEconomyChange = economyModule.notifyEconomyChange;
 const getPlayerMoney = economyModule.getPlayerMoney;
@@ -1100,12 +1191,19 @@ const addPlayerMoney = economyModule.addPlayerMoney;
 const getPlayerMoneyByXuid = economyModule.getPlayerMoneyByXuid;
 const addPlayerMoneyByXuid = economyModule.addPlayerMoneyByXuid;
 
+/**
+ * 给玩家发放物品，自动处理可堆叠物品的分批（64个一组）
+ * @param {Player} player - 目标玩家
+ * @param {string|Object} itemData - 物品ID字符串或{id, aux}对象
+ * @param {number} count - 数量
+ */
 function giveItem(player, itemData, count) {
 	let id = typeof itemData === 'string' ? itemData : itemData.id;
 	const aux = typeof itemData === 'string' ? 0 : (itemData.aux || 0);
 	const testItem = mc.newItem(id, 1);
 	testItem.setAux(aux);
 	if (testItem.isStackable) {
+		// 可堆叠物品：每64个一组分批发放
 		let remaining = count;
 		while (remaining > 0) {
 			const stackSize = Math.min(remaining, 64);
@@ -1115,6 +1213,7 @@ function giveItem(player, itemData, count) {
 			remaining -= stackSize;
 		}
 	} else {
+		// 不可堆叠物品：逐个发放
 		for (let i = 0; i < count; i++) {
 			let item = mc.newItem(id, 1);
 			item.setAux(aux);
@@ -1124,19 +1223,19 @@ function giveItem(player, itemData, count) {
 	player.refreshItems();
 }
 
+/** 根据物品ID发放物品的简化接口 */
 function giveItemById(player, itemId, count) {
 	giveItem(player, { id: itemId, aux: 0 }, count);
 }
 
+/** 获取玩家的VIP信息 */
 function getVipInfo(player) {
 	return commonDeps.vipModule.getVipInfo(player);
 }
 
 
-
-
-
-// TPS 计算
+// ============ TPS实时计算 ============
+// 每个游戏刻（tick）计数，累计20个tick后根据实际耗时计算TPS值
 mc.listen("onTick", () => {
 	if (tpsData['tps_Count'] == null) {
 		tpsData['tps_Time_start'] = Date.now();
@@ -1148,12 +1247,13 @@ mc.listen("onTick", () => {
 	if (tpsData['tps_Count'] != null && tpsData['tps_Count'] >= 20) {
 		tpsData['tps_Time_end'] = Date.now();
 		const elapsed = tpsData['tps_Time_end'] - tpsData['tps_Time_start'];
-		const tpsValue = 20000 / elapsed;
+		const tpsValue = 20000 / elapsed;  // 20个tick理想耗时20000ms（每tick=1000ms），实际耗时越长TPS越低
 		tpsData['tps'] = tpsValue >= 20 ? '20.00' : tpsValue.toFixed(2);
 		tpsData['tps_Count'] = null;
 	}
 });
 
+// ============ 服务器启动完成事件 ============
 mc.listen("onServerStarted", async () => {
 	await initAllConfigs();
 	registerAllCommands();
@@ -1167,25 +1267,14 @@ mc.listen("onServerStarted", async () => {
 	initWebServer();
 	behaviorLog.init();
 
+	// 定时检查计划发送的邮件
 	setInterval(function() { mailModule.checkScheduledMails(); }, 30000);
-
-	// 服务器关闭时刷新所有待写入数据（防止数据丢失）
-	mc.listen("onServerStopping", function() {
-		logger.info('[NLCE] 正在保存所有待写入数据...');
-		flushAllSaves();
-		if (database.isPlayerDbReady()) {
-			database.cancelPendingSave();
-			savePlayerDataNow();
-			database.savePlayerDatabase();
-		}
-		database.cancelPendingAuthSave();
-		database.saveDatabase();
-	});
 
 	const mem = process.memoryUsage();
 	logger.info('[NLCE] 内存使用 - 堆已用: ' + (mem.heapUsed / 1024 / 1024).toFixed(2) + 'MB, 堆总量: ' + (mem.heapTotal / 1024 / 1024).toFixed(2) + 'MB, RSS: ' + (mem.rss / 1024 / 1024).toFixed(2) + 'MB');
 });
 
+/** 玩家预加入事件：检查封禁状态，被封禁的玩家在此阶段踢出 */
 mc.listen("onPreJoin", function(pl) {
 	const ip = pl.getDevice ? pl.getDevice().ip : '';
 	const banCheck = banModule.isPlayerBanned(pl.xuid, ip);
@@ -1196,9 +1285,16 @@ mc.listen("onPreJoin", function(pl) {
 });
 
 
-// 命令注册
-
 // ============ 命令注册 ============
+
+/**
+ * 注册一个简单的玩家命令（无参数，仅玩家可用）
+ * @param {string} name - 命令名
+ * @param {string} desc - 命令描述
+ * @param {Function} handler - 处理函数(player)
+ * @param {string|Function} configCheck - 配置项名或返回bool的函数，用于跳过禁用功能的命令
+ * @param {number} permission - 权限等级（默认PermType.Any）
+ */
 function registerPlayerCommand(name, desc, handler, configCheck, permission) {
 	try {
 		if (configCheck) {
@@ -1216,6 +1312,14 @@ function registerPlayerCommand(name, desc, handler, configCheck, permission) {
 				output.error("§c此命令仅玩家可在游戏内执行！");
 				return;
 			}
+			// 每次执行时动态检查功能开关，支持运行时禁用
+			if (configCheck) {
+				const enabled = (typeof configCheck === 'function') ? configCheck() : config.get(configCheck);
+				if (!enabled) {
+					player.tell("§c该功能当前已关闭！");
+					return;
+				}
+			}
 			handler(player);
 		});
 		cmd.setup();
@@ -1224,6 +1328,7 @@ function registerPlayerCommand(name, desc, handler, configCheck, permission) {
 	}
 }
 
+/** 批量注册所有游戏内命令（商店/排行榜/传送/好友等），根据配置开关决定是否注册 */
 function registerAllCommands() {
 	const tpCfg = teleportModule.tpsConfig();
 	const tpEnabled = function() { return teleportModule.tpsConfig().enabled; };
@@ -1269,16 +1374,20 @@ function registerAllCommands() {
 }
 
 
-
-
-
-// 头像系统 (core/avatar.js)
+// ============ 头像系统代理 ============
 
 const getPlayerAvatarUrl = avatarModule.getPlayerAvatarUrl;
 const showAvatarSettingsForm = avatarModule.showAvatarSettingsForm;
 
 
 // ============ 玩家搜索与工具 ============
+
+/**
+ * 按名字或UID搜索玩家
+ * @param {string} keyword - 搜索关键词
+ * @param {number} searchType - 0按名字模糊匹配，其他按UID精确匹配
+ * @returns {Array} 匹配的玩家信息数组（含xuid字段）
+ */
 function searchPlayers(keyword, searchType) {
 	const results = [];
 	const players = playerData.players;
@@ -1299,7 +1408,7 @@ function searchPlayers(keyword, searchType) {
 	return results;
 }
 
-// 检查未读消息和邮件
+/** 玩家加入时检查并提醒未读私信、邮件和好友请求 */
 function checkUnreadMessagesAndMails(player) {
 	const xuid = player.xuid;
 
@@ -1343,7 +1452,7 @@ function checkUnreadMessagesAndMails(player) {
 	}
 }
 
-// 入服给钟和指南针功能
+/** 入服发放菜单钟和快捷菜单指南针（需背包中不存在才发放，根据玩家设置控制） */
 function giveJoinItems(player) {
 	const xuid = player.xuid;
 
@@ -1397,11 +1506,13 @@ function giveJoinItems(player) {
 
 // ============================== NPC攻击响应系统 ==============================
 
+/** 加载NPC攻击响应配置（narConfig），确保npc_actions字段存在 */
 function initNarConfig() {
 	narConfig = narConfigDM.load();
 	if (!narConfig.npc_actions) narConfig.npc_actions = {};
 }
 
+/** NPC攻击响应：玩家攻击实体时匹配配置，执行对应命令并发送消息 */
 mc.listen("onAttackEntity", function(player, entity) {
 	try {
 		const entityType = entity.type;
@@ -1412,6 +1523,7 @@ mc.listen("onAttackEntity", function(player, entity) {
 			for (let i = 0; i < actions[entityType].length; i++) {
 				let action = actions[entityType][i];
 				if (U.cleanFormatting(action.name) === entityName) {
+					// @s占位符替换为玩家名字
 					const cmd = action.command.replace(/@s/g, player.name);
 
 					if (action.permission === "console") {
@@ -1434,11 +1546,11 @@ mc.listen("onAttackEntity", function(player, entity) {
 });
 
 
+// ============ Web API系统 ============
 
-
-
-// Web API 系统
-
+/**
+ * 初始化Web管理面板：读取配置，初始化认证数据库，注册重载钩子，启动Express服务器
+ */
 function initWebServer() {
 	let webConfig = config.get('web');
 	if (!webConfig || typeof webConfig === 'string') {
@@ -1450,13 +1562,15 @@ function initWebServer() {
 	}
 	database.initDatabase().then(function() {
 		logger.info('[Web] 数据库初始化完成');
-		const serverStats = require('./core/serverStats');
-		serverStats.init(tpsData, money, playerDataDM);
+		const monitoring = require('./core/monitoring');
+		monitoring.init(tpsData, money, playerData);
+		// 注册Web面板的热重载回调（修改数据后可通过Web触发重新加载）
 		webServer.onReload('recycle', function() {
 			recycleConfig = recycleConfigDM.load();
 		});
 		webServer.onReload('shop', function() {
 			shopData = shopDataDM.load();
+			if (commonDeps) commonDeps.shopData = shopData;
 		});
 		webServer.onReload('cdk', function() {
 			cdkDataDM.load();
@@ -1466,7 +1580,7 @@ function initWebServer() {
 				config.reload();
 				wishConfig = config.get("wishConfig") || wishConfig;
 				wishModule.reloadConfig(wishConfig);
-			} catch (e) {}
+			} catch (e) { logger.error('[Core] 重载祈愿配置失败: ' + e.message); }
 		});
 		webServer.onReload('config', function() {
 			try {
@@ -1474,22 +1588,25 @@ function initWebServer() {
 				wishConfig = config.get("wishConfig") || wishConfig;
 				wishModule.reloadConfig(wishConfig);
 				backupModule.reload(config.get("backupConfig"));
-			} catch (e) {}
+			} catch (e) { logger.error('[Core] 重载配置失败: ' + e.message); }
 		});
+		webServer.setPlayerDataRef(playerData);
 		webServer.startServer(webConfig);
 	}).catch(function(e) {
 		logger.error('[Web] 数据库初始化失败: ' + e.message);
 	});
 }
 
+/** 注册Web相关的游戏命令和控制台命令（passwd/admin/backup/debug） */
 function registerWebCommands() {
+	// passwd命令：游戏内无参数打开表单，控制台带参数直接设置密码
 	try {
 		const passwdCmd = mc.newCommand('passwd', '设置或修改Web登录密码', PermType.Any);
-		passwdCmd.optional('args', ParamType.RawText);
-		passwdCmd.overload();
-		passwdCmd.overload('args');
+		passwdCmd.mandatory('uid', ParamType.Int);
+		passwdCmd.optional('password', ParamType.RawText);
+		passwdCmd.overload(['uid', 'password']);
 		passwdCmd.setCallback(function(_cmd, origin, output, results) {
-			if (!results.args) {
+			if (results.uid === undefined || results.uid === null) {
 				if (origin.player) {
 					showPasswdForm(origin.player);
 				} else {
@@ -1501,18 +1618,13 @@ function registerWebCommands() {
 				output.error('带参数的passwd仅控制台可用！');
 				return;
 			}
-			const parts = String(results.args).trim().split(/\s+/);
-			if (parts.length < 2) {
-				output.error('用法: passwd <uid> <密码>');
-				return;
-			}
-			let uid = parts[0];
-			const pwd = parts[1];
-			if (pwd.length < 6) {
+			const uid = String(results.uid);
+			const pwd = results.password ? String(results.password).trim() : '';
+			if (!pwd || pwd.length < 6) {
 				output.error('密码长度不能少于6位');
 				return;
 			}
-			database.setPassword(String(uid), pwd);
+			database.setPassword(uid, pwd);
 			output.success('已为UID ' + uid + ' 设置Web登录密码');
 		});
 		passwdCmd.setup();
@@ -1520,34 +1632,67 @@ function registerWebCommands() {
 		logger.error('/passwd 命令注册出错！错误：' + error);
 	}
 
+	// admin控制台命令：添加/移除Web面板管理员（支持UID或玩家名）
 	try {
-		mc.regConsoleCmd('admin', '管理员管理 (add/del uid)', function(args) {
-			if (args.length < 2) {
-				logger.info('用法: admin <add|del> <uid>');
+		const adminCmd = mc.newCommand('admin', '管理员管理 (add/del <uid|玩家名>)', PermType.Any);
+		adminCmd.mandatory('action', ParamType.String);
+		adminCmd.mandatory('id', ParamType.RawText);
+		adminCmd.overload(['action', 'id']);
+		adminCmd.setCallback(function(_cmd, origin, output, results) {
+			if (origin.player) {
+				output.error('admin 命令仅控制台可用！');
 				return;
 			}
-			let action = args[0];
-			const uid = args[1];
+			if (!results.action || !results.id) {
+				output.error('用法: admin <add|del> <uid|玩家名>');
+				return;
+			}
+			const action = String(results.action).trim();
+			if (action !== 'add' && action !== 'del') {
+				output.error('用法: admin <add|del> <uid|玩家名>');
+				return;
+			}
+			const input = String(results.id).trim();
+			let uid = null;
+			// 纯数字视为UID，否则按玩家名查找
+			if (/^\d+$/.test(input)) {
+				uid = input;
+			} else {
+				const pd = playerData;
+				if (pd && pd.players) {
+					const xuids = Object.keys(pd.players);
+					for (let i = 0; i < xuids.length; i++) {
+						if (pd.players[xuids[i]].name === input) {
+							uid = String(pd.players[xuids[i]].uid);
+							break;
+						}
+					}
+				}
+				if (!uid) {
+					output.error('未找到玩家: ' + input);
+					return;
+				}
+			}
 			if (action === 'add') {
-				if (database.addAdmin(String(uid))) {
-					logger.info('已添加UID ' + uid + ' 为管理员');
+				if (database.addAdmin(uid)) {
+					output.success('已添加UID ' + uid + ' (' + input + ') 为管理员');
 				} else {
-					logger.info('UID ' + uid + ' 已经是管理员');
+					output.error('UID ' + uid + ' 已经是管理员');
 				}
 			} else if (action === 'del') {
-				if (database.removeAdmin(String(uid))) {
-					logger.info('已移除UID ' + uid + ' 的管理员权限');
+				if (database.removeAdmin(uid)) {
+					output.success('已移除UID ' + uid + ' (' + input + ') 的管理员权限');
 				} else {
-					logger.info('UID ' + uid + ' 不是管理员');
+					output.error('UID ' + uid + ' 不是管理员');
 				}
-			} else {
-				logger.info('用法: admin <add|del> <uid>');
 			}
 		});
+		adminCmd.setup();
 	} catch (error) {
 		logger.error('/admin 命令注册出错！错误：' + error);
 	}
 
+	// backup控制台命令：手动执行世界备份
 	try {
 		mc.regConsoleCmd('backup', '手动执行世界备份', function(args) {
 			if (backupModule.isBackupRunning()) {
@@ -1564,6 +1709,7 @@ function registerWebCommands() {
 	} catch (error) {
 		logger.error('/backup 控制台命令注册出错！错误：' + error);
 	}
+	// debug控制台命令：切换Debug模式
 	try {
 		mc.regConsoleCmd('debug', '切换Debug模式', function(args) {
 			_debugMode = !_debugMode;
@@ -1575,7 +1721,7 @@ function registerWebCommands() {
 		logger.error('/debug 控制台命令注册出错！错误：' + error);
 	}
 
-
+	// backup游戏命令：管理员在游戏内手动执行备份
 	try {
 		const backupCmd = mc.newCommand('backup', '手动执行世界备份', PermType.GameMasters);
 		backupCmd.overload([]);
@@ -1610,9 +1756,12 @@ function registerWebCommands() {
 	}
 }
 
+/** 显示Web密码管理表单（游戏内GUI入口） */
 function showPasswdForm(player) {
 	const xuid = player.xuid;
-	const hasPwd = database.hasPassword(xuid);
+	const playerInfo = playerData.players[xuid];
+	const uid = playerInfo ? String(playerInfo.uid) : xuid;
+	const hasPwd = database.hasPassword(uid);
 
 	let fm = mc.newSimpleForm();
 	fm.setTitle('§l§9Web密码管理');
@@ -1627,6 +1776,7 @@ function showPasswdForm(player) {
 	});
 }
 
+/** 显示设置密码表单：输入两次密码，校验一致性后保存到数据库 */
 function showSetPasswordForm(player) {
 	const fm = mc.newCustomForm();
 	fm.setTitle('§l§9设置Web密码');
@@ -1651,19 +1801,31 @@ function showSetPasswordForm(player) {
 			return;
 		}
 
-		database.setPassword(player.xuid, pwd1);
-		player.tell('§aWeb登录密码设置成功！你的UID为: §e' + player.xuid);
+		const playerInfo = playerData.players[player.xuid];
+		const uid = playerInfo ? String(playerInfo.uid) : player.xuid;
+		database.setPassword(uid, pwd1);
+		player.tell('§aWeb登录密码设置成功！你的UID为: §e' + uid);
 		player.tell('§7请使用UID和密码登录Web管理面板');
 	});
 }
 
+// ============ 插件卸载钩子 ============
+// LSE环境下的插件卸载事件，保存所有数据并停止Web服务器
 if (typeof ll !== 'undefined' && ll.onUnload) {
 	ll.onUnload(function() {
-		webServer.stopServer();
+		flushAllSaves();
+		if (database.isPlayerDbReady()) {
+			database.cancelPendingSave();
+			savePlayerDataNow();
+			database.savePlayerDatabase();
+		}
+		database.cancelPendingAuthSave();
 		database.saveDatabase();
+		webServer.stopServer();
 	});
 }
 
+// ============ 启动Banner ============
 colorLog("yellow",    " _   _   _         _____   ______ ");
 colorLog("yellow",    "| \\ | | | |       / ____| |  ____|");
 colorLog("yellow",    "|  \\| | | |      | |      | |__   ");

@@ -17,7 +17,7 @@
 
 /**
  * NLCE 管理员操作审计日志模块
- * 记录管理员在Web面板和游戏内的所有操作，支持按日期查询
+ * 记录管理员在Web面板和游戏内的所有操作，按日期分文件存储，支持分页查询
  */
 
 
@@ -27,6 +27,7 @@ const pathModule = require('path');
 const LOG_DIR = pathModule.join(__dirname, '..', 'logs');
 const ADMIN_LOG_DIR = pathModule.join(LOG_DIR, 'admin');
 
+/** 确保目录存在，不存在则递归创建 */
 function ensureDir(dir) {
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
@@ -35,6 +36,10 @@ function ensureDir(dir) {
 
 ensureDir(ADMIN_LOG_DIR);
 
+/**
+ * 获取当天日志文件路径，格式：logs/admin/YYYY-MM-DD.log
+ * @returns {string} 日志文件绝对路径
+ */
 function getLogFile() {
     let now = new Date();
     const y = now.getFullYear();
@@ -43,6 +48,14 @@ function getLogFile() {
     return pathModule.join(ADMIN_LOG_DIR, y + '-' + m + '-' + d + '.log');
 }
 
+/**
+ * 写入一条管理员操作日志
+ * 日志格式：[时间] 管理员[uid] 动作 目标[xxx] 详情: xxx
+ * @param {string} adminUid - 管理员XUID或标识
+ * @param {string} action - 操作类型（如"封禁玩家"、"修改商店"）
+ * @param {string} [target] - 操作目标（可选）
+ * @param {string} [detail] - 操作详情（可选）
+ */
 function log(adminUid, action, target, detail) {
     try {
         let now = new Date();
@@ -60,13 +73,20 @@ function log(adminUid, action, target, detail) {
 
         let file = getLogFile();
         fs.appendFile(file, line, 'utf-8', function(e) {
-            if (e) console.error('写入日志失败:', e.message);
+            if (e) logger.error('[AdminLog] 写入日志失败: ' + e.message);
         });
     } catch (e) {
-        console.error('写入日志失败:', e.message);
+        logger.error('[AdminLog] 写入日志失败: ' + e.message);
     }
 }
 
+/**
+ * 按日期分页查询管理员日志，结果按时间倒序排列
+ * @param {string} [date] - 查询日期，格式YYYY-MM-DD，默认今天
+ * @param {number} [page=1] - 页码
+ * @param {number} [pageSize=50] - 每页条数
+ * @returns {{entries: Array, pagination: Object, date: string}} 日志条目和分页信息
+ */
 function getLogs(date, page, pageSize) {
     try {
         if (!date) {
@@ -84,6 +104,7 @@ function getLogs(date, page, pageSize) {
         const content = fs.readFileSync(file, 'utf-8');
         const lines = content.split('\n').filter(function(l) { return l.trim().length > 0; });
 
+        // 倒序排列，最新的日志在前
         lines.reverse();
 
         const total = lines.length;
@@ -113,6 +134,11 @@ function getLogs(date, page, pageSize) {
     }
 }
 
+/**
+ * 解析单行日志文本为结构化对象
+ * @param {string} line - 原始日志行
+ * @returns {{raw: string, time: string, admin: string, action: string, target: string, detail: string}}
+ */
 function parseLine(line) {
     const result = { raw: line, time: '', admin: '', action: '', target: '', detail: '' };
 
@@ -128,10 +154,12 @@ function parseLine(line) {
     const detailMatch = line.match(/详情: (.+)$/);
     if (detailMatch) result.detail = detailMatch[1];
 
+    // 优先从"管理员xxx 动作 目标"格式中提取action
     const actionMatch = line.match(/\] ([^\[]+) 目标/);
     if (actionMatch) {
         result.action = actionMatch[1].trim();
     } else {
+        // 无目标字段时，取管理员标签之后、详情之前的内容作为action
         let afterAdmin = line.replace(/.*管理员\[[^\]]+\]\s*/, '');
         afterAdmin = afterAdmin.replace(/详情:.*$/, '').trim();
         if (afterAdmin) result.action = afterAdmin;
@@ -140,6 +168,10 @@ function parseLine(line) {
     return result;
 }
 
+/**
+ * 获取所有有日志记录的日期列表，按日期倒序排列
+ * @returns {string[]} 日期字符串数组，格式YYYY-MM-DD
+ */
 function getAvailableDates() {
     try {
         ensureDir(ADMIN_LOG_DIR);

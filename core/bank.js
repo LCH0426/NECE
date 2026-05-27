@@ -20,13 +20,18 @@
  * 提供活期存款和定期存款功能，自动计算利息收益
  */
 
-
+// 定期存款期限配置：天数 -> { 利率(单期), 名称 }
 const FIXED_DEPOSIT_CONFIG = {
     7: { rate: 0.001, name: "周" },
     30: { rate: 0.0099, name: "月" },
     90: { rate: 0.044, name: "季" }
 };
 
+/**
+ * 创建银行模块（工厂模式）
+ * @param {object} deps - 依赖注入对象，包含 playerData、经济操作函数等
+ * @returns {object} 银行模块公开API
+ */
 function createBankModule(deps) {
     const playerData = deps.playerData;
     const savePlayerDataNow = deps.savePlayerDataNow;
@@ -37,6 +42,11 @@ function createBankModule(deps) {
     const openMainMenu = deps.openMainMenu;
     const U = deps.utils;
 
+    /**
+     * 获取玩家银行账户，不存在则初始化默认结构并立即保存
+     * @param {string} xuid - 玩家XUID
+     * @returns {object|null} 银行账户数据 { current, fixed[] }
+     */
     function getPlayerBankAccount(xuid) {
         const p = playerData.players[xuid];
         if (!p) return null;
@@ -54,11 +64,16 @@ function createBankModule(deps) {
         return p.bankdata;
     }
 
+    /**
+     * 将自定义时间字符串（年.月.日.时.分.秒）转换为时间戳
+     * @param {string} timeStr - 格式 "2026.05.27.14.30.00"
+     * @returns {number} 毫秒时间戳，格式错误返回0
+     */
     function timeStringToTimestamp(timeStr) {
         const parts = timeStr.split('.');
         if (parts.length !== 6) return 0;
         const year = parseInt(parts[0]);
-        const month = parseInt(parts[1]) - 1;
+        const month = parseInt(parts[1]) - 1; // JS Date月份从0开始
         const day = parseInt(parts[2]);
         const hour = parseInt(parts[3]);
         const minute = parseInt(parts[4]);
@@ -66,14 +81,20 @@ function createBankModule(deps) {
         return new Date(year, month, day, hour, minute, second).getTime();
     }
 
+    /**
+     * 计算并发放活期利息（单利，日利率0.02%）
+     * 基于上次计息时间到当前的时间差按天折算
+     * @param {object} account - 银行账户数据
+     * @returns {number} 本次计算的利息金额
+     */
     function calculateCurrentInterest(account) {
         let now = Date.now();
         let lastTimeStr = account.current.lastInterestTime;
         const lastTime = typeof lastTimeStr === 'string' ? timeStringToTimestamp(lastTimeStr) : lastTimeStr;
         const timeDiff = now - lastTime;
-        if (timeDiff < 1000) return 0;
+        if (timeDiff < 1000) return 0; // 间隔不足1秒不计息
         let days = timeDiff / (1000 * 60 * 60 * 24);
-        const dailyRate = 0.0002;
+        const dailyRate = 0.0002; // 日利率 0.02%
         let interest = account.current.balance * dailyRate * days;
         if (interest > 0) {
             account.current.balance = Math.floor(account.current.balance + interest);
@@ -84,19 +105,34 @@ function createBankModule(deps) {
         return interest;
     }
 
+    /**
+     * 计算定期存款到期利息（单利，本金 x 利率）
+     * @param {number} principal - 本金
+     * @param {number} rate - 期利率
+     * @param {number} days - 存款天数
+     * @returns {number} 利息金额
+     */
     function calculateFixedInterest(principal, rate, days) {
         return principal * rate;
     }
 
+    /** 判断定期存款是否已到期 */
     function isFixedDepositMature(deposit) {
         const matureTimestamp = timeStringToTimestamp(deposit.matureTime);
         return Date.now() >= matureTimestamp;
     }
 
+    /** 获取定期存款状态描述文字 */
     function getFixedDepositStatus(deposit) {
         return isFixedDepositMature(deposit) ? "已到期" : "收益正在路上";
     }
 
+    /**
+     * 执行活期存取操作（正数存入，负数取出）
+     * @param {object} player - 玩家对象
+     * @param {number} amount - 操作金额（>0 存入，<0 取出）
+     * @returns {{ success: boolean, message: string }}
+     */
     function performCurrentOperation(player, amount) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
@@ -130,6 +166,13 @@ function createBankModule(deps) {
         return { success: false, message: "§c请输入有效的金额" };
     }
 
+    /**
+     * 办理定期存款，从玩家余额扣除本金并创建定期记录
+     * @param {object} player - 玩家对象
+     * @param {number} amount - 存款金额
+     * @param {number} days - 存款期限（7/30/90）
+     * @returns {{ success: boolean, message: string }}
+     */
     function depositFixed(player, amount, days) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
@@ -160,6 +203,12 @@ function createBankModule(deps) {
         return { success: true, message: "§a定期存款成功！存入 " + amount + " 点§c" + getCurrencyName() + "§r，期限 " + days + " 天，总利率百分之 " + (config.rate * 100).toFixed(config.rate < 0.01 ? 2 : 1) };
     }
 
+    /**
+     * 取出定期存款。到期返还本金+利息；提前取出扣除2%违约金，不给利息
+     * @param {object} player - 玩家对象
+     * @param {number} depositId - 定期存款ID（时间戳）
+     * @returns {{ success: boolean, message: string }}
+     */
     function withdrawFixed(player, depositId) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
@@ -184,6 +233,11 @@ function createBankModule(deps) {
         }
     }
 
+    /**
+     * 玩家上线时检查定期存款是否到期，并发送提醒（需玩家开启银行通知设置）
+     * @param {object} player - 玩家对象
+     * @param {function} getPlayerSetting - 获取玩家设置的函数
+     */
     function checkFixedDepositMaturity(player, getPlayerSetting) {
         let xuid = player.xuid;
         if (!getPlayerSetting(xuid, "enableBankNotice")) return;
@@ -196,6 +250,7 @@ function createBankModule(deps) {
         });
     }
 
+    /** 显示银行主界面：活期余额、累计利息、利率说明 */
     function showBankMainForm(player) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
@@ -225,6 +280,7 @@ function createBankModule(deps) {
         });
     }
 
+    /** 显示活期存取表单：正数存款，负数取款 */
     function showCurrentOperationForm(player) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
@@ -246,6 +302,7 @@ function createBankModule(deps) {
         });
     }
 
+    /** 显示定期存款主界面：利率信息、我的定期入口、存入定期入口 */
     function showFixedDepositMainForm(player) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
@@ -274,6 +331,7 @@ function createBankModule(deps) {
         });
     }
 
+    /** 显示玩家所有定期存款列表（带到期/未到期状态图标） */
     function showFixedDepositDetailForm(player) {
         const xuid = player.xuid;
         const account = getPlayerBankAccount(xuid);
@@ -299,6 +357,7 @@ function createBankModule(deps) {
         });
     }
 
+    /** 显示单笔定期存款详情，支持到期取出和提前取出（扣违约金） */
     function showSingleFixedDepositForm(player, deposit) {
         let gui = mc.newSimpleForm();
         gui.setTitle("§l§b定期存款详情");
@@ -354,6 +413,7 @@ function createBankModule(deps) {
         });
     }
 
+    /** 显示定期存款存入表单（输入金额 + 选择期限） */
     function showFixedDepositForm(player) {
         const gui = mc.newCustomForm();
         gui.setTitle("§l§b存入定期");
@@ -372,6 +432,7 @@ function createBankModule(deps) {
         });
     }
 
+    // 导出银行模块公开API
     return {
         getPlayerBankAccount: getPlayerBankAccount,
         calculateCurrentInterest: calculateCurrentInterest,

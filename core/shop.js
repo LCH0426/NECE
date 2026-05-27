@@ -24,8 +24,16 @@
 const fs = require('fs');
 const U = require('./utils');
 
-const RECYCLE_PAGE_SIZE = 10;
+const RECYCLE_PAGE_SIZE = 10; // 回收物品列表每页显示数量
 
+/**
+ * 写入购买日志到 logs/shop.log
+ * @param {object} player - 玩家对象
+ * @param {string} itemName - 物品名称
+ * @param {number} count - 购买数量
+ * @param {number} cost - 总花费
+ * @param {number} balance - 购买后余额
+ */
 function writeShopLog(player, itemName, count, cost, balance) {
 	try {
 		const logDir = "plugins/NLCE/logs";
@@ -43,6 +51,7 @@ function writeShopLog(player, itemName, count, cost, balance) {
 	}
 }
 
+/** 写入出售/回收日志到 logs/shop.log */
 function writeShopSellLog(player, itemName, count, income, balance) {
 	try {
 		const logDir = "plugins/NLCE/logs";
@@ -60,6 +69,12 @@ function writeShopSellLog(player, itemName, count, income, balance) {
 	}
 }
 
+/**
+ * 计算背包中可容纳指定物品的剩余空间
+ * @param {object} player - 玩家对象
+ * @param {string} itemId - 物品ID
+ * @returns {number} 可容纳数量
+ */
 function calcInventorySpace(player, itemId) {
 	let space = 0;
 	player.getInventory().getAllItems().forEach(function(slot) {
@@ -69,6 +84,7 @@ function calcInventorySpace(player, itemId) {
 	return space;
 }
 
+/** 统计玩家背包中指定物品的持有总数 */
 function countOwnedItems(player, itemId) {
 	let total = 0;
 	player.getInventory().getAllItems().forEach(function(slot) {
@@ -77,6 +93,7 @@ function countOwnedItems(player, itemId) {
 	return total;
 }
 
+/** 获取指定物品的回收价格（支持对象和数值两种配置格式） */
 function getRecyclePrice(recycleConfig, itemType) {
 	const recycleItems = recycleConfig.recycleItems || {};
 	const entry = recycleItems[itemType];
@@ -85,6 +102,7 @@ function getRecyclePrice(recycleConfig, itemType) {
 	return entry;
 }
 
+/** 获取回收物品的显示名称，配置中无名称则去掉minecraft:前缀 */
 function getRecycleName(recycleConfig, itemType) {
 	const recycleItems = recycleConfig.recycleItems || {};
 	const entry = recycleItems[itemType];
@@ -92,6 +110,7 @@ function getRecycleName(recycleConfig, itemType) {
 	return itemType.replace('minecraft:', '');
 }
 
+/** 获取回收物品的图标路径 */
 function getRecycleImage(recycleConfig, itemType) {
 	const recycleItems = recycleConfig.recycleItems || {};
 	const entry = recycleItems[itemType];
@@ -99,6 +118,10 @@ function getRecycleImage(recycleConfig, itemType) {
 	return '';
 }
 
+/**
+ * 遍历玩家背包，找出所有可回收物品并计算总价值
+ * @returns {{ recyclable: object, totalValue: number }}
+ */
 function calculateRecyclableItems(player, recycleConfig) {
 	const recycleItems = recycleConfig.recycleItems || {};
 	const inventory = player.getInventory();
@@ -125,6 +148,7 @@ function calculateRecyclableItems(player, recycleConfig) {
 	};
 }
 
+/** 写入回收日志（按玩家名分文件存储） */
 function writeRecycleLog(player, items, totalValue, before, after, RECYCLE_LOG_DIR) {
 	try {
 		const logPath = RECYCLE_LOG_DIR + "/" + player.name + ".log";
@@ -142,6 +166,7 @@ function writeRecycleLog(player, items, totalValue, before, after, RECYCLE_LOG_D
 	}
 }
 
+/** 执行一键回收：移除背包中所有可回收物品并发放货币 */
 function recycleItemsFromInventory(player, recycleConfig, deps) {
 	const result = calculateRecyclableItems(player, recycleConfig);
 	const recyclable = result.recyclable;
@@ -173,6 +198,7 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 	player.tell("§e+" + totalValue + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");
 }
 
+/** 显示回收确认界面，列出可回收物品及总价值 */
 function showRecycleForm(player, recycleConfig, deps) {
 	const result = calculateRecyclableItems(player, recycleConfig);
 	const recyclable = result.recyclable;
@@ -214,6 +240,7 @@ function showRecycleForm(player, recycleConfig, deps) {
 	});
 }
 
+/** 分页显示所有可回收物品配置列表 */
 function showAllRecyclableItems(player, recycleConfig, deps, page) {
 	const recycleItems = recycleConfig.recycleItems || {};
 	const keys = Object.keys(recycleItems);
@@ -280,6 +307,11 @@ function showAllRecyclableItems(player, recycleConfig, deps, page) {
 	});
 }
 
+/**
+ * 计算指定等级升级到下一级所需经验值（Minecraft原版公式）
+ * @param {number} level - 当前等级
+ * @returns {number} 升级所需经验值
+ */
 function calculateXPNext(level) {
 	if (level >= 0 && level <= 15) {
 		return 2 * level + 7;
@@ -291,6 +323,13 @@ function calculateXPNext(level) {
 	return 0;
 }
 
+/**
+ * 计算从当前等级升到目标等级所需的总经验值
+ * @param {number} currentL - 当前等级
+ * @param {number} currentXP - 当前等级内已有经验
+ * @param {number} upgradeN - 要升的级数
+ * @returns {number} 所需总XP
+ */
 function calculateTotalXP(currentL, currentXP, upgradeN) {
 	let totalXP = 0;
 	for (let i = 0; i < upgradeN; i++) {
@@ -305,6 +344,7 @@ function calculateTotalXP(currentL, currentXP, upgradeN) {
 	return totalXP;
 }
 
+/** 显示经验购买表单（选择升级等级数或手动输入经验量），兑换比例 1XP = 10货币 */
 function showXPBuyForm(player, deps) {
 	const currentLevel = player.getLevel();
 	const currentXPInLevel = player.getCurrentExperience();
@@ -395,6 +435,7 @@ function showXPBuyForm(player, deps) {
 	return true;
 }
 
+/** 显示经验购买确认对话框 */
 function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 	player.sendModalForm(
 		"\u00a7a\u786e\u8ba4\u8d2d\u4e70",
@@ -455,6 +496,7 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 	);
 }
 
+/** 显示商店主界面（物品购买/物品回收入口） */
 function showShopMainForm(player, deps) {
 	const fm = mc.newSimpleForm();
 	fm.setTitle("商店");
@@ -469,6 +511,7 @@ function showShopMainForm(player, deps) {
 	});
 }
 
+/** 显示购买分类菜单（搜索 + 各商品分组） */
 function showBuyMenu(player, deps) {
 	const fm = mc.newSimpleForm();
 	fm.setTitle("物品购买");
@@ -489,6 +532,7 @@ function showBuyMenu(player, deps) {
 	});
 }
 
+/** 显示购买搜索输入表单 */
 function showBuySearchForm(player, deps) {
 	const fm = mc.newCustomForm();
 	fm.setTitle("搜索物品");
@@ -504,6 +548,7 @@ function showBuySearchForm(player, deps) {
 	});
 }
 
+/** 按关键词模糊搜索所有商品分组中的物品 */
 function showBuySearchResults(player, keyword, deps) {
 	const results = [];
 	if (deps.shopData && deps.shopData.Buy) {
@@ -533,6 +578,7 @@ function showBuySearchResults(player, keyword, deps) {
 	});
 }
 
+/** 显示某个商品分组内的物品列表 */
 function showBuyGroupForm(player, group, deps) {
 	const items = group.items || [];
 	const fm = mc.newSimpleForm();
@@ -550,6 +596,10 @@ function showBuyGroupForm(player, group, deps) {
 	});
 }
 
+/**
+ * 显示购买详情表单：展示价格（VIP 85折）、余额、背包空间，输入购买数量
+ * 支持手动输入和滑块快速选择
+ */
 function showBuyItemForm(player, item, deps) {
 	const vipInfo = deps.getVipInfo(player);
 	const hasVip = vipInfo.hasVip;
@@ -617,6 +667,7 @@ function showBuyItemForm(player, item, deps) {
 	});
 }
 
+/** 执行购买逻辑：扣款、发放物品、VIP折扣累计、写日志 */
 function executePurchase(player, item, count, unitPrice, totalCost, hasVip, originalUnitPrice, deps) {
 	deps.reducePlayerMoney(player, totalCost, "商店购买");
 	deps.giveItemById(player, item.id, count);
@@ -638,6 +689,7 @@ function executePurchase(player, item, count, unitPrice, totalCost, hasVip, orig
 	});
 }
 
+/** 显示出售/回收菜单（搜索回收、一键回收、各回收分组） */
 function showSellMenu(player, deps) {
 	const fm = mc.newSimpleForm();
 	fm.setTitle("物品回收");
@@ -661,6 +713,7 @@ function showSellMenu(player, deps) {
 	});
 }
 
+/** 显示出售搜索输入表单 */
 function showSellSearchForm(player, deps) {
 	const fm = mc.newCustomForm();
 	fm.setTitle("搜索回收物品");
@@ -676,6 +729,7 @@ function showSellSearchForm(player, deps) {
 	});
 }
 
+/** 按关键词模糊搜索回收物品 */
 function showSellSearchResults(player, keyword, deps) {
 	const results = [];
 	if (deps.shopData && deps.shopData.Sell) {
@@ -705,6 +759,7 @@ function showSellSearchResults(player, keyword, deps) {
 	});
 }
 
+/** 显示某个回收分组内的物品列表 */
 function showSellGroupForm(player, group, deps) {
 	const items = group.items || [];
 	const fm = mc.newSimpleForm();
@@ -722,6 +777,7 @@ function showSellGroupForm(player, group, deps) {
 	});
 }
 
+/** 显示出售详情表单：回收价、持有数量，支持全部出售或输入数量 */
 function showSellItemForm(player, item, deps) {
 	const balance = deps.getPlayerMoney(player);
 	const owned = countOwnedItems(player, item.id);
@@ -785,6 +841,7 @@ function showSellItemForm(player, item, deps) {
 	});
 }
 
+/** 执行出售逻辑：通过clear命令移除物品、增加货币、写日志 */
 function executeSell(player, item, count, income, deps) {
 	mc.runcmd('clear "' + player.realName + '" ' + item.id + ' 0 ' + count);
 	deps.addPlayerMoney(player, income, "商店回收");

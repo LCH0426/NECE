@@ -24,6 +24,10 @@
 const fs = require('fs');
 const pathModule = require('path');
 
+/**
+ * 确保文件所在目录存在，不存在则递归创建
+ * @param {string} filePath - 目标文件路径
+ */
 function ensureDir(filePath) {
     const dir = pathModule.dirname(filePath);
     if (!fs.existsSync(dir)) {
@@ -31,6 +35,11 @@ function ensureDir(filePath) {
     }
 }
 
+/**
+ * 将秒数格式化为可读的中文时间字符串（如"1天2小时3分4秒"）
+ * @param {number} totalSeconds - 总秒数
+ * @returns {string} 格式化后的时间文本
+ */
 function formatTime(totalSeconds) {
     totalSeconds = Math.floor(totalSeconds);
     const days = Math.floor(totalSeconds / 86400);
@@ -45,6 +54,7 @@ function formatTime(totalSeconds) {
     return result;
 }
 
+/** 获取当前时间的点分隔字符串（如 "2026.05.27.14.30.00"） */
 function getCurrentTimeString() {
     const now = new Date();
     const year = now.getFullYear();
@@ -56,10 +66,16 @@ function getCurrentTimeString() {
     return year + "." + month + "." + day + "." + hour + "." + minute + "." + second;
 }
 
+/** 判断字符串是否为正整数（不含前导零） */
 function isInteger(num) {
     return /^[0-9]*[1-9][0-9]*$/.test(num);
 }
 
+/**
+ * 检测给定 IP 地址是否为 IPv6 格式
+ * @param {string} ip - IP 地址字符串
+ * @returns {boolean}
+ */
 function detectIPv6(ip) {
     if (!ip) return false;
     if (ip.includes(":") && !ip.includes(".")) return true;
@@ -69,6 +85,11 @@ function detectIPv6(ip) {
     return false;
 }
 
+/**
+ * 去除 IP 地址中的端口号，支持 IPv4 和 IPv6（方括号）格式
+ * @param {string} ip - 可能带端口的 IP 地址
+ * @returns {string} 纯 IP 地址
+ */
 function stripIpPort(ip) {
     if (!ip) return ip;
     if (ip.startsWith("[") && ip.includes("]:")) {
@@ -84,6 +105,11 @@ function stripIpPort(ip) {
     return ip;
 }
 
+/**
+ * 根据 IP 地址判断网络类型（内网/公网IPv4/公网IPv6/中续转发/未知）
+ * @param {string} ip - IP 地址
+ * @returns {string} 网络类型中文描述
+ */
 function getNetworkType(ip) {
     if (!ip) return "未知";
     ip = stripIpPort(ip);
@@ -101,10 +127,16 @@ function getNetworkType(ip) {
     return "公网IPv4";
 }
 
+/** 移除 Minecraft 格式化代码（§ 开头的颜色/样式标记） */
 function cleanFormatting(text) {
     return text.replace(/\u00A7[0-9a-fk-or]/g, "");
 }
 
+/**
+ * 递归同步复制整个目录
+ * @param {string} src - 源目录路径
+ * @param {string} dest - 目标目录路径
+ */
 function copyDirSync(src, dest) {
     if (!fs.existsSync(dest)) {
         fs.mkdirSync(dest, { recursive: true });
@@ -122,6 +154,7 @@ function copyDirSync(src, dest) {
     }
 }
 
+/** 递归删除目录及其所有内容（类似 rm -rf） */
 function rmrf(dirPath) {
     if (!fs.existsSync(dirPath)) return;
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });
