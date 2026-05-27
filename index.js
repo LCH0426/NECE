@@ -1567,6 +1567,7 @@ function initWebServer() {
 		// 注册Web面板的热重载回调（修改数据后可通过Web触发重新加载）
 		webServer.onReload('recycle', function() {
 			recycleConfig = recycleConfigDM.load();
+			if (commonDeps) commonDeps.recycleConfig = recycleConfig;
 		});
 		webServer.onReload('shop', function() {
 			shopData = shopDataDM.load();

@@ -395,6 +395,22 @@ async function initPlayerDatabase() {
     playerDb.run("PRAGMA journal_mode=WAL");
     playerDb.run("PRAGMA synchronous=NORMAL");
     playerDb.run("PRAGMA cache_size=-64000");
+
+    // 创建所有玩家数据表（IF NOT EXISTS 确保幂等）
+    playerDb.run(`CREATE TABLE IF NOT EXISTS player_data (
+        xuid TEXT PRIMARY KEY, uid INTEGER, name TEXT, uuid TEXT,
+        register_time TEXT, leave_time TEXT, health_bonus INTEGER DEFAULT 0,
+        rw TEXT, tax_data TEXT DEFAULT '{}', bank_data TEXT DEFAULT '{}',
+        quick_menu TEXT DEFAULT '{}', vip_data TEXT DEFAULT '{}',
+        avatar TEXT DEFAULT '{}', count TEXT DEFAULT '{}'
+    )`);
+    playerDb.run('CREATE TABLE IF NOT EXISTS player_settings (xuid TEXT, key TEXT, value TEXT, PRIMARY KEY (xuid, key))');
+    playerDb.run('CREATE TABLE IF NOT EXISTS death_points (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, data TEXT)');
+    playerDb.run('CREATE TABLE IF NOT EXISTS friends (xuid TEXT, friend_xuid TEXT, friend_name TEXT, add_time TEXT, PRIMARY KEY (xuid, friend_xuid))');
+    playerDb.run('CREATE TABLE IF NOT EXISTS friend_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, message TEXT, time TEXT, handled INTEGER DEFAULT 0, rejected INTEGER DEFAULT 0, is_sent INTEGER DEFAULT 0)');
+    playerDb.run('CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, to_xuid TEXT, to_name TEXT, content TEXT, time TEXT, is_read INTEGER DEFAULT 0)');
+    playerDb.run('CREATE TABLE IF NOT EXISTS homes (xuid TEXT, name TEXT, x REAL, y REAL, z REAL, dim INTEGER, last_use TEXT, PRIMARY KEY (xuid, name))');
+
     playerDbReady = true;
     dbDebugLog('initPlayerDatabase: 数据库就绪');
     savePlayerDatabase();
