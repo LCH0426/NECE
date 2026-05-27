@@ -42,6 +42,7 @@ const chatModule = require('./core/chat');
 const citlaliaModule = require('./core/citlalia');
 const sidebarModule = require('./core/sidebar');
 const quickMenuModule = require('./core/quickMenu');
+const menuModule = require('./core/menu');
 const personalCenter = require('./core/personalCenter');
 
 
@@ -104,6 +105,7 @@ let tpsData = {                                        // TPS实时计算数据
 };
 
 let commonDeps = null;                                 // 共享依赖包，传递给需要广泛访问的模块
+let _initialized = false;                              // 模块初始化完成标志，防止 onJoin 在重载时提前触发
 
 // Debug 模式
 let _debugMode = false;
@@ -228,8 +230,22 @@ DataManager.prototype.load = function() {
 			}
 		}
 	} catch (e) {
+		// JSON 解析失败：备份原文件，不要用空数据覆盖
+		try {
+			var backupPath = this.path + '.bak.' + Date.now();
+			fs.copyFileSync(this.path, backupPath);
+			logger.warn('==============================');
+			logger.warn('[NLCE] !! 数据文件格式错误 !!');
+			logger.warn('文件：' + this.path);
+			logger.warn('错误：' + e.message);
+			logger.warn('已备份到：' + backupPath);
+			logger.warn('请修复文件格式后重启服务器');
+			logger.warn('==============================');
+		} catch (backupErr) {
+			logger.error('备份失败[' + this.path + ']：' + backupErr.message);
+		}
 		this.data = JSON.parse(JSON.stringify(this.defaultData));
-		logger.error('加载失败[' + this.path + ']：' + e.message);
+		this._loadFailed = true; // 标记加载失败，阻止后续保存覆盖原文件
 	}
 	return this.data;
 };
@@ -240,6 +256,11 @@ DataManager.prototype.load = function() {
  * JSON模式下：直接写文件
  */
 DataManager.prototype.save = function(immediate) {
+	// 加载失败时禁止保存，防止空数据覆盖原文件
+	if (this._loadFailed) {
+		debugLog('DataManager.save: 跳过保存，因为加载失败 [' + this.path + ']');
+		return;
+	}
 	const self = this;
 	// SQL 模式
 	if (this.useSQL) {
@@ -491,6 +512,7 @@ function initRankConfig() {
 	try {
 		config = new JsonConfigFileAdapter(CONFIG_PATH);
 		config.init("debug", false);
+		config.init("debugmsg", "你正在参与服务器测试，如遇问题请反馈给管理员。");
 		_debugMode = config.get("debug", false);
 		debugModule.setDebugMode(_debugMode);
 		config.init("currencyName", "星茜");
@@ -561,17 +583,12 @@ const IPV6_MESSAGE = C.IPV6_MESSAGE;
 
 /** 初始化玩家核心数据：优先从SQL加载，否则从JSON文件加载 */
 function initPlayerData() {
-	if (database.isPlayerDbReady()) {
-		// SQL 模式：从数据库加载玩家核心数据
-		const sqlPlayers = database.getAllPlayerDataSQL();
-		const sqlNextUid = database.getNextUidSQL();
-		playerData = { nextUid: sqlNextUid, players: sqlPlayers };
-		logger.info('[NLCE] 玩家核心数据已从SQL加载 (' + Object.keys(sqlPlayers).length + ' 个玩家)');
-		debugLog('initPlayerData: SQL模式, nextUid=' + sqlNextUid + ', 玩家数=' + Object.keys(sqlPlayers).length);
-	} else {
-		playerData = playerDataDM.load();
-		debugLog('initPlayerData: JSON模式, 玩家数=' + Object.keys(playerData.players || {}).length);
-	}
+	// SQL 模式：从数据库加载玩家核心数据
+	const sqlPlayers = database.getAllPlayerDataSQL();
+	const sqlNextUid = database.getNextUidSQL();
+	playerData = { nextUid: sqlNextUid, players: sqlPlayers };
+	logger.info('[NLCE] 玩家核心数据已从SQL加载 (' + Object.keys(sqlPlayers).length + ' 个玩家)');
+	debugLog('initPlayerData: SQL模式, nextUid=' + sqlNextUid + ', 玩家数=' + Object.keys(sqlPlayers).length);
 	if (!playerData.players) playerData.players = {};
 	if (!playerData.nextUid) playerData.nextUid = 10000;
 }
@@ -614,12 +631,6 @@ const setPlayerSetting = playerDataModule.setPlayerSetting;
 
 // ============ DataManager实例注册 ============
 
-const playerDataDM = registerDataManager('playerData', PLAYER_DATA_PATH, {
-	nextUid: 10000,
-	players: {}
-}, {
-	saveDelay: 10000  // 玩家数据防抖延迟较长（10秒），减少频繁写入
-});
 const wishDM = registerDataManager('wish', WISH_DATA_PATH, {
 	players: {}
 });
@@ -650,7 +661,6 @@ const playerSettingsDM = registerDataManager('playerSettings', PLAYER_SETTINGS_P
 	pretty: false,
 	sqlPrefix: 'settings'
 });
-playerDataModule.setDataManagers(playerDataDM);
 const narConfigDM = registerDataManager('narConfig', NAR_CONFIG_PATH, {
 	npc_actions: {}
 });
@@ -763,12 +773,8 @@ async function initAllConfigs() {
 	database.setDebugMode(_debugMode);
 	debugLog("initAllConfigs: Debug模式已" + (_debugMode ? "开启" : "关闭"));
 	// 初始化玩家数据库(SQL)
-	try {
-		await database.initPlayerDatabase();
-		logger.info('[NLCE] 玩家数据库(SQL)初始化完成');
-	} catch (e) {
-		logger.error('[NLCE] 玩家数据库初始化失败，使用JSON模式: ' + e.message);
-	}
+	await database.initPlayerDatabase();
+	logger.info('[NLCE] 玩家数据库(SQL)初始化完成');
 	initPlayerData();
 	initPlayerSettings();
 	initShopData();
@@ -804,6 +810,8 @@ async function initAllConfigs() {
 	});
 	quickMenuModule.init({ quickMenuConfigDM: quickMenuConfigDM, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData });
 	quickMenuModule.loadConfig();
+	menuModule.init({ config: config, getCurrencyName: getCurrencyName });
+	menuModule.loadConfig();
 	chatModule.init({ fs: fs, U: U, chatCfgPath: CHAT_CFG_PATH, badWordsPath: BAD_WORDS_PATH, webServer: webServer });
 	chatModule.loadChatConfig();
 	chatModule.registerChatListener();
@@ -909,6 +917,7 @@ async function initAllConfigs() {
 	});
 	personalCenter.setLevelUpExp(levelUpExp);
 	personalCenter.installPrototypeExtensions();
+	_initialized = true;
 }
 
 // ============ 核心事件监听 ============
@@ -918,6 +927,7 @@ async function initAllConfigs() {
  * 同时处理：IP检测、银行定期到期检查、未读消息提醒、入服物品发放
  */
 mc.listen("onJoin", (player) => {
+	if (!_initialized) return; // 防止插件重载时模块未初始化完毕
 	const playerXUID = String(player.xuid);
 	const playerName = player.name;
 	const playerUUID = player.uuid;
@@ -1036,6 +1046,26 @@ mc.listen("onJoin", (player) => {
 		}
 	}
 
+	// Debug 模式弹窗（首次进服提示，使用独立JSON记录已关闭的玩家）
+	if (_debugMode) {
+		try {
+			const debugDismissedPath = C.PATHS.DEBUG_DISMISSED;
+			let dismissed = {};
+			try { dismissed = JSON.parse(fs.readFileSync(debugDismissedPath, 'utf-8')); } catch (e) {}
+			if (!dismissed[playerXUID]) {
+				const debugMsg = config.get("debugmsg", "你正在参与服务器测试，如遇问题请反馈给管理员。");
+				const form = mc.newSimpleForm();
+				form.setTitle("Debug Mod");
+				form.setContent(debugMsg);
+				form.addButton("关闭");
+				player.sendForm(form, function() {
+					dismissed[playerXUID] = true;
+					try { fs.writeFileSync(debugDismissedPath, JSON.stringify(dismissed), 'utf-8'); } catch (e) {}
+				});
+			}
+		} catch (e) { logger.warn('[Debug] 弹窗异常: ' + e.message); }
+	}
+
 	// 检查定期存款到期情况
 	try {
 		commonDeps.bankModule.checkFixedDepositMaturity(player, getPlayerSetting);
@@ -1083,6 +1113,19 @@ mc.listen("onLeft", (player) => {
 		p.leavetime = Date.now();
 	}
 	saveSinglePlayerData(xuidStr);
+	// 保存背包快照到数据库（供API查询离线玩家背包）
+	try {
+		const inv = player.getInventory();
+		const allItems = inv.getAllItems();
+		const snapshot = [];
+		for (let s = 0; s < allItems.length; s++) {
+			const it = allItems[s];
+			if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
+				snapshot.push({ slot: s, type: it.type, count: it.count, name: it.name || '' });
+			}
+		}
+		database.savePlayerInventorySQL(xuidStr, snapshot);
+	} catch (e) { logger.warn('[NLCE] 保存背包快照失败: ' + e.message); }
 });
 
 /** 注册游戏行为统计监听（挖掘、放置、击杀、死亡）和死亡点记录 */
@@ -1237,6 +1280,7 @@ function getVipInfo(player) {
 // ============ TPS实时计算 ============
 // 每个游戏刻（tick）计数，累计20个tick后根据实际耗时计算TPS值
 mc.listen("onTick", () => {
+	if (debugModule.isUnloading()) return;
 	if (tpsData['tps_Count'] == null) {
 		tpsData['tps_Time_start'] = Date.now();
 		tpsData['tps_Time_end'] = 0;
@@ -1263,6 +1307,7 @@ mc.listen("onServerStarted", async () => {
 	sidebarModule.init({ constants: C, config: config, money: money, getCurrencyName: getCurrencyName, getPlayerSetting: getPlayerSetting, tpsData: tpsData });
 	quickMenuModule.registerCommands(registerPlayerCommand);
 	quickMenuModule.registerCompassListener();
+	menuModule.registerClockListener();
 	registerWebCommands();
 	initWebServer();
 	behaviorLog.init();
@@ -1814,6 +1859,7 @@ function showSetPasswordForm(player) {
 // LSE环境下的插件卸载事件，保存所有数据并停止Web服务器
 if (typeof ll !== 'undefined' && ll.onUnload) {
 	ll.onUnload(function() {
+		debugModule.setUnloading();
 		flushAllSaves();
 		if (database.isPlayerDbReady()) {
 			database.cancelPendingSave();

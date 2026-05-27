@@ -23,7 +23,6 @@
 let _database = null;         // database.js 模块引用
 let _C = null;                // constants 模块引用
 let _fs = null;               // fs 模块引用
-let _playerDataDM = null;     // 玩家数据的 DataManager 实例（JSON 模式回退用）
 let _itemsDataPath = '';      // items.json 文件路径
 let _getPlayerData = null;    // 获取全局玩家数据的函数
 let _getPlayerSettings = null; // 获取全局玩家设置的函数
@@ -43,11 +42,6 @@ function init(deps) {
     _savePlayerSettings = deps.savePlayerSettings;
 }
 
-/** 设置 DataManager 实例，用于 SQL 不可用时回退到 JSON 存储 */
-function setDataManagers(playerDataDM) {
-    _playerDataDM = playerDataDM;
-}
-
 /** 获取物品数据映射表的引用 */
 function getItemsDataMap() {
     return itemsDataMap;
@@ -60,19 +54,15 @@ function getItemsDataMap() {
  */
 function savePlayerData() {
     let playerData = _getPlayerData();
-    if (_database.isPlayerDbReady()) {
-        let ops = [];
-        for (let xuid in playerData.players) {
-            if (!playerData.players.hasOwnProperty(xuid)) continue;
-            (function(xuid, data) {
-                ops.push(function() { _database.setPlayerDataSQL(xuid, data); });
-            })(xuid, playerData.players[xuid]);
-        }
-        _database.batchSavePlayerDb(ops);
-        _database.requestSavePlayerDb();
-    } else {
-        _playerDataDM.save();
+    let ops = [];
+    for (let xuid in playerData.players) {
+        if (!playerData.players.hasOwnProperty(xuid)) continue;
+        (function(xuid, data) {
+            ops.push(function() { _database.setPlayerDataSQL(xuid, data); });
+        })(xuid, playerData.players[xuid]);
     }
+    _database.batchSavePlayerDb(ops);
+    _database.requestSavePlayerDb();
 }
 
 /**
@@ -81,20 +71,16 @@ function savePlayerData() {
  */
 function savePlayerDataNow() {
     const playerData = _getPlayerData();
-    if (_database.isPlayerDbReady()) {
-        const ops = [];
-        for (let xuid in playerData.players) {
-            if (!playerData.players.hasOwnProperty(xuid)) continue;
-            (function(xuid, data) {
-                ops.push(function() { _database.setPlayerDataSQL(xuid, data); });
-            })(xuid, playerData.players[xuid]);
-        }
-        _database.batchSavePlayerDb(ops);
-        _database.cancelPendingSave();
-        _database.savePlayerDatabase();
-    } else {
-        _playerDataDM.save(true);
+    const ops = [];
+    for (let xuid in playerData.players) {
+        if (!playerData.players.hasOwnProperty(xuid)) continue;
+        (function(xuid, data) {
+            ops.push(function() { _database.setPlayerDataSQL(xuid, data); });
+        })(xuid, playerData.players[xuid]);
     }
+    _database.batchSavePlayerDb(ops);
+    _database.cancelPendingSave();
+    _database.savePlayerDatabase();
 }
 
 /** 只保存单个玩家的数据（防抖写盘），用于只修改了部分玩家时减少写入量 */
@@ -165,7 +151,6 @@ function setPlayerSetting(xuid, key, value) {
 
 module.exports = {
     init: init,
-    setDataManagers: setDataManagers,
     getItemsDataMap: getItemsDataMap,
     savePlayerData: savePlayerData,
     savePlayerDataNow: savePlayerDataNow,

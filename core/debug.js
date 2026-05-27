@@ -23,6 +23,19 @@
 /** 全局调试模式开关 */
 let _debugMode = false;
 
+/** 全局卸载标志 */
+let _unloading = false;
+
+/** 设置卸载标志 */
+function setUnloading() {
+    _unloading = true;
+}
+
+/** 查询是否正在卸载 */
+function isUnloading() {
+    return _unloading;
+}
+
 /**
  * 设置调试模式开关
  * @param {boolean} enabled - 是否启用调试日志
@@ -69,6 +82,8 @@ function debugLogModule(moduleName) {
 module.exports = {
     setDebugMode: setDebugMode,
     isDebug: isDebug,
+    setUnloading: setUnloading,
+    isUnloading: isUnloading,
     debugLog: debugLog,
     debugWarn: debugWarn,
     debugLogModule: debugLogModule

@@ -402,14 +402,19 @@ async function initPlayerDatabase() {
         register_time TEXT, leave_time TEXT, health_bonus INTEGER DEFAULT 0,
         rw TEXT, tax_data TEXT DEFAULT '{}', bank_data TEXT DEFAULT '{}',
         quick_menu TEXT DEFAULT '{}', vip_data TEXT DEFAULT '{}',
-        avatar TEXT DEFAULT '{}', count TEXT DEFAULT '{}'
+        avatar TEXT DEFAULT '{}', count TEXT DEFAULT '{}',
+        last_ip TEXT DEFAULT '', platform TEXT DEFAULT ''
     )`);
+    // 兼容已有数据库：添加缺失列（已存在则忽略）
+    try { playerDb.run("ALTER TABLE player_data ADD COLUMN last_ip TEXT DEFAULT ''"); } catch (e) {}
+    try { playerDb.run("ALTER TABLE player_data ADD COLUMN platform TEXT DEFAULT ''"); } catch (e) {}
     playerDb.run('CREATE TABLE IF NOT EXISTS player_settings (xuid TEXT, key TEXT, value TEXT, PRIMARY KEY (xuid, key))');
     playerDb.run('CREATE TABLE IF NOT EXISTS death_points (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, data TEXT)');
     playerDb.run('CREATE TABLE IF NOT EXISTS friends (xuid TEXT, friend_xuid TEXT, friend_name TEXT, add_time TEXT, PRIMARY KEY (xuid, friend_xuid))');
     playerDb.run('CREATE TABLE IF NOT EXISTS friend_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, message TEXT, time TEXT, handled INTEGER DEFAULT 0, rejected INTEGER DEFAULT 0, is_sent INTEGER DEFAULT 0)');
     playerDb.run('CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, to_xuid TEXT, to_name TEXT, content TEXT, time TEXT, is_read INTEGER DEFAULT 0)');
     playerDb.run('CREATE TABLE IF NOT EXISTS homes (xuid TEXT, name TEXT, x REAL, y REAL, z REAL, dim INTEGER, last_use TEXT, PRIMARY KEY (xuid, name))');
+    playerDb.run('CREATE TABLE IF NOT EXISTS player_inventory (xuid TEXT PRIMARY KEY, items TEXT DEFAULT \'[]\', save_time TEXT)');
 
     playerDbReady = true;
     dbDebugLog('initPlayerDatabase: 数据库就绪');
@@ -464,7 +469,7 @@ function cancelPendingSave() {
 function getPlayerDataSQL(xuid) {
     if (!playerDb) return null;
     let result = playerDb.exec(
-        'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count FROM player_data WHERE xuid = ?',
+        'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform FROM player_data WHERE xuid = ?',
         [xuid]
     );
     if (result.length === 0 || result[0].values.length === 0) return null;
@@ -482,7 +487,9 @@ function getPlayerDataSQL(xuid) {
         quickmenu: JSON.parse(row[9] || '{}'),
         vipdata: JSON.parse(row[10] || '{}'),
         avatar: JSON.parse(row[11] || '{}'),
-        count: JSON.parse(row[12] || '{}')
+        count: JSON.parse(row[12] || '{}'),
+        lastIp: row[13] || '',
+        platform: row[14] || ''
     };
 }
 
@@ -495,13 +502,14 @@ function setPlayerDataSQL(xuid, data) {
     if (!playerDb) return;
     playerDb.run(
         `INSERT OR REPLACE INTO player_data
-         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [xuid, data.uid, data.name, data.uuid, data.registerTime,
          String(data.leavetime || ''), data.healthBonus || 0, data.rw,
          JSON.stringify(data.taxdata || {}), JSON.stringify(data.bankdata || {}),
          JSON.stringify(data.quickmenu || {}), JSON.stringify(data.vipdata || {}),
-         JSON.stringify(data.avatar || {}), JSON.stringify(data.count || {})]
+         JSON.stringify(data.avatar || {}), JSON.stringify(data.count || {}),
+         data.lastIp || '', data.platform || '']
     );
 }
 
@@ -510,7 +518,7 @@ function getAllPlayerDataSQL() {
     if (!playerDb) return {};
     dbDebugLog('getAllPlayerDataSQL: 查询所有玩家数据');
     let result = playerDb.exec(
-        'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count FROM player_data'
+        'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform FROM player_data'
     );
     const players = {};
     if (result.length === 0) return players;
@@ -533,7 +541,9 @@ function getAllPlayerDataSQL() {
             quickmenu: JSON.parse(obj.quick_menu || '{}'),
             vipdata: JSON.parse(obj.vip_data || '{}'),
             avatar: JSON.parse(obj.avatar || '{}'),
-            count: JSON.parse(obj.count || '{}')
+            count: JSON.parse(obj.count || '{}'),
+            lastIp: obj.last_ip || '',
+            platform: obj.platform || ''
         };
     });
     return players;
@@ -812,6 +822,30 @@ function updateHomeSQL(xuid, name, home) {
         [home.x, home.y, home.z, home.dim || 0, home.lastUse || 0, xuid, name]);
 }
 
+/**
+ * 保存玩家背包快照到数据库
+ * @param {string} xuid - 玩家 XUID
+ * @param {Array} items - 物品数组 [{slot, type, count, name, isEnchanted}]
+ */
+function savePlayerInventorySQL(xuid, items) {
+    if (!playerDb) return;
+    playerDb.run('INSERT OR REPLACE INTO player_inventory (xuid, items, save_time) VALUES (?, ?, ?)',
+        [xuid, JSON.stringify(items), String(Date.now())]);
+}
+
+/**
+ * 获取玩家背包快照
+ * @param {string} xuid - 玩家 XUID
+ * @returns {{ items: Array, saveTime: string }|null}
+ */
+function getPlayerInventorySQL(xuid) {
+    if (!playerDb) return null;
+    let result = playerDb.exec('SELECT items, save_time FROM player_inventory WHERE xuid = ?', [xuid]);
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const row = result[0].values[0];
+    return { items: JSON.parse(row[0] || '[]'), saveTime: row[1] };
+}
+
 // --- 批量保存优化 ---
 
 /**
@@ -937,6 +971,8 @@ module.exports = {
     removeHomeSQL,
     updateHomeSQL,
     batchSavePlayerDb,
+    savePlayerInventorySQL,
+    getPlayerInventorySQL,
     // 通用SQL辅助
     sqlGetAll,
     sqlSet,

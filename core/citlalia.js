@@ -20,6 +20,7 @@
  * 击杀特效（雷击+火焰+抗性）、自定义血量系统、图腾消耗替换、逐月之痕手持效果
  */
 
+const D = require('./debug');
 let _deps = {};
 
 /**
@@ -112,6 +113,7 @@ function registerMoonSwEffects() {
     let tickCounter = 0;
 
     mc.listen("onTick", function() {
+        if (D.isUnloading()) return;
         tickCounter++;
         const onlinePlayers = mc.getOnlinePlayers();
         const now = Date.now();

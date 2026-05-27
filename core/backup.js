@@ -317,9 +317,9 @@ function executeBackup(callback) {
                                 }
                                 results.forEach(function(r) {
                                     if (r.success) {
-                                        logger.info('§a  ✓ ' + r.file + ' (' + r.sizeFormatted + ')');
+                                        logger.info('备份成功: ' + r.file + ' (' + r.sizeFormatted + ')');
                                     } else {
-                                        logger.info('§c  ✗ ' + (r.file || r.world) + ' - ' + (r.error || '未知错误'));
+                                        logger.info('备份失败: ' + (r.file || r.world) + ' - ' + (r.error || '未知错误'));
                                     }
                                 });
                             } catch (e) { logger.warn('[Backup] 输出备份结果失败: ' + e.message); }

@@ -284,22 +284,20 @@ function showAllRecyclableItems(player, recycleConfig, deps, page) {
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
 		const btnCount = pageKeys.length;
-		const hasPrev = page > 0;
-		const hasNext = page < totalPages - 1;
 
-		if (id < btnCount) {
-			showAllRecyclableItems(p, recycleConfig, deps, page);
-		} else if (id === btnCount && hasPrev && hasNext) {
+		// 构建导航按钮的回调映射
+		var actions = [];
+		if (page > 0) actions.push('prev');
+		if (page < totalPages - 1) actions.push('next');
+		actions.push('back');
+
+		var navIdx = id - btnCount;
+		if (navIdx < 0 || navIdx >= actions.length) return;
+		var action = actions[navIdx];
+
+		if (action === 'prev') {
 			showAllRecyclableItems(p, recycleConfig, deps, page - 1);
-		} else if (id === btnCount && hasPrev && !hasNext) {
-			showAllRecyclableItems(p, recycleConfig, deps, page - 1);
-		} else if (id === btnCount + 1 && hasPrev && hasNext) {
-			if (id === btnCount + 1) {
-				showAllRecyclableItems(p, recycleConfig, deps, page + 1);
-			} else {
-				showRecycleForm(p, recycleConfig, deps);
-			}
-		} else if (id === btnCount && !hasPrev && hasNext) {
+		} else if (action === 'next') {
 			showAllRecyclableItems(p, recycleConfig, deps, page + 1);
 		} else {
 			showRecycleForm(p, recycleConfig, deps);
@@ -374,10 +372,7 @@ function showXPBuyForm(player, deps) {
 	gui.addInput("\u624b\u52a8\u8f93\u5165\u7ecf\u9a8c\u6570\u91cf", "\u8f93\u5165\u6b63\u6574\u6570\uff08\u5982100\u3001500\uff09", "");
 
 	player.sendForm(gui, function(p, data) {
-		if (data === null || typeof data !== "object" || data.length < 3) {
-			deps.openMainMenu(p);
-			return;
-		}
+		if (data === null) return;
 
 		const levelIndex = data[1];
 		const customXP = data[2] || "";
@@ -528,6 +523,8 @@ function showBuyMenu(player, deps) {
 			showBuySearchForm(p, deps);
 		} else if (deps.shopData && deps.shopData.Buy && id <= deps.shopData.Buy.length) {
 			showBuyGroupForm(p, deps.shopData.Buy[id - 1], deps);
+		} else {
+			showShopMainForm(p, deps);
 		}
 	});
 }
@@ -709,6 +706,8 @@ function showSellMenu(player, deps) {
 			showRecycleForm(p, deps.recycleConfig, deps);
 		} else if (deps.shopData && deps.shopData.Sell && id <= deps.shopData.Sell.length + 1) {
 			showSellGroupForm(p, deps.shopData.Sell[id - 2], deps);
+		} else {
+			showShopMainForm(p, deps);
 		}
 	});
 }

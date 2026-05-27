@@ -612,6 +612,68 @@ function registerRoutes(router, d) {
             res.json({ code: 500, msg: '获取经济排行失败: ' + e.message });
         }
     });
+    // 获取单个玩家背包（在线玩家实时查询，离线玩家返回缓存数据）
+    router.get('/players/:xuid/inventory', d.adminAuth, function(req, res) {
+        try {
+            let xuid = req.params.xuid;
+
+            // 尝试实时查询在线玩家
+            let onlinePlayer = null;
+            try { onlinePlayer = d.mc.getPlayer(xuid); } catch (e) {}
+
+            if (onlinePlayer) {
+                let items = [];
+                try {
+                    const inv = onlinePlayer.getInventory();
+                    const allItems = inv.getAllItems();
+                    for (let s = 0; s < allItems.length; s++) {
+                        const it = allItems[s];
+                        if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
+                            items.push({ slot: s, type: it.type, count: it.count, name: it.name || '' });
+                        }
+                    }
+                } catch (e) {}
+                return res.json({ code: 200, data: { xuid: xuid, online: true, items: items } });
+            }
+
+            // 离线玩家：从数据库读取缓存
+            const cached = d.database.getPlayerInventorySQL(xuid);
+            if (!cached) {
+                return res.json({ code: 404, msg: '无背包缓存数据' });
+            }
+            res.json({ code: 200, data: { xuid: xuid, online: false, items: cached.items, saveTime: cached.saveTime } });
+        } catch (e) {
+            res.json({ code: 500, msg: '获取背包数据失败: ' + e.message });
+        }
+    });
+
+    // 获取所有在线玩家背包（实时查询）
+    router.get('/inventory/online', d.adminAuth, function(req, res) {
+        try {
+            let onlinePlayers = [];
+            try { onlinePlayers = d.mc.getOnlinePlayers(); } catch (e) {}
+
+            const result = [];
+            onlinePlayers.forEach(function(p) {
+                try {
+                    const items = [];
+                    const inv = p.getInventory();
+                    const allItems = inv.getAllItems();
+                    for (let s = 0; s < allItems.length; s++) {
+                        const it = allItems[s];
+                        if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
+                            items.push({ slot: s, type: it.type, count: it.count, name: it.name || '' });
+                        }
+                    }
+                    result.push({ xuid: p.xuid, name: p.name, items: items });
+                } catch (e) {}
+            });
+
+            res.json({ code: 200, data: result });
+        } catch (e) {
+            res.json({ code: 500, msg: '获取在线背包数据失败: ' + e.message });
+        }
+    });
 }
 
 module.exports = { registerRoutes };
