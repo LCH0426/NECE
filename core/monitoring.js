@@ -206,16 +206,24 @@ function getEconomyRank() {
 
 // ============ 系统资源监控（原 systemMonitor） ============
 
+// 静态系统信息，运行期间不会变化，只读取一次
+const STATIC_SYSINFO = {
+    cores: os.cpus().length,
+    model: os.cpus()[0] ? os.cpus()[0].model : 'Unknown',
+    platform: os.platform(),
+    hostname: os.hostname()
+};
+
 // 系统资源缓存，通过定时轮询更新
 const cachedStats = {
-    cpu: { usage: 0, cores: os.cpus().length, model: os.cpus()[0] ? os.cpus()[0].model : 'Unknown', perCore: [] },
+    cpu: { usage: 0, cores: STATIC_SYSINFO.cores, model: STATIC_SYSINFO.model, perCore: [] },
     memory: { total: 0, used: 0, free: 0, usagePercent: 0 },
     network: { totalDownload: 0, totalUpload: 0, downloadThroughput: 0, uploadThroughput: 0 },
     disk: { total: 0, used: 0, free: 0, usagePercent: 0 },
     worldSize: 0,
     uptime: os.uptime(),
-    platform: os.platform(),
-    hostname: os.hostname()
+    platform: STATIC_SYSINFO.platform,
+    hostname: STATIC_SYSINFO.hostname
 };
 
 let lastCpuSample = null;      // 上一次CPU时间片快照
@@ -440,13 +448,11 @@ function cpuPoll() {
     sampleCpu();
     cachedStats.cpu = {
         usage: cachedCpuUsage,
-        cores: os.cpus().length,
-        model: os.cpus()[0] ? os.cpus()[0].model : 'Unknown',
+        cores: STATIC_SYSINFO.cores,
+        model: STATIC_SYSINFO.model,
         perCore: cachedPerCoreUsage
     };
     cachedStats.uptime = os.uptime();
-    cachedStats.platform = os.platform();
-    cachedStats.hostname = os.hostname();
 }
 
 /** 内存轮询回调 */
@@ -461,7 +467,7 @@ async function diskPoll() {
 
 /**
  * 启动系统资源定时轮询
- * CPU每秒采样、内存/磁盘每10秒、世界大小每12小时
+ * CPU每3秒采样、内存/磁盘每10秒、世界大小每12小时
  */
 function startPolling(interval) {
     stopPolling();
@@ -473,7 +479,7 @@ function startPolling(interval) {
     diskPoll();
     updateWorldSize();
 
-    cpuPollTimer = setInterval(cpuPoll, 1000);
+    cpuPollTimer = setInterval(cpuPoll, 3000);
     memPollTimer = setInterval(memPoll, 10000);
     diskPollTimer = setInterval(function() {
         diskPoll().catch(function(e) {});
@@ -489,6 +495,43 @@ function stopPolling() {
     if (memPollTimer) { clearInterval(memPollTimer); memPollTimer = null; }
     if (diskPollTimer) { clearInterval(diskPollTimer); diskPollTimer = null; }
     if (worldSizePollTimer) { clearInterval(worldSizePollTimer); worldSizePollTimer = null; }
+}
+
+// ============ 按需刷新（替代持续轮询） ============
+
+let lastOnDemandRefresh = 0;
+let lastDiskNetworkPoll = 0;
+let lastWorldSizePoll = 0;
+const ON_DEMAND_CACHE_TTL = 5000;       // CPU/内存缓存5秒
+const DISK_NETWORK_POLL_INTERVAL = 30000; // 磁盘/网络最多30秒采集一次
+const WORLD_SIZE_POLL_INTERVAL = 3600000; // 世界大小每小时更新一次
+
+/**
+ * 按需刷新系统数据，调用前先检查缓存
+ * 由 /system/stats 端点调用，避免持续轮询消耗性能
+ */
+function refreshStats() {
+    const now = Date.now();
+
+    // CPU + 内存：同步采集，5秒内缓存跳过
+    if (now - lastOnDemandRefresh > ON_DEMAND_CACHE_TTL) {
+        sampleCpu();
+        cpuPoll();
+        memPoll();
+        lastOnDemandRefresh = now;
+    }
+
+    // 磁盘 + 网络：异步采集，30秒节流
+    if (now - lastDiskNetworkPoll > DISK_NETWORK_POLL_INTERVAL) {
+        lastDiskNetworkPoll = now;
+        diskPoll().catch(function(e) {});
+    }
+
+    // 世界大小：异步采集，1小时节流
+    if (now - lastWorldSizePoll > WORLD_SIZE_POLL_INTERVAL) {
+        lastWorldSizePoll = now;
+        updateWorldSize().catch(function(e) {});
+    }
 }
 
 /**
@@ -517,7 +560,9 @@ module.exports = {
     // 系统监控（原 systemMonitor）
     startPolling: startPolling,
     stopPolling: stopPolling,
+    refreshStats: refreshStats,
     getSystemStats: getSystemStats,
     getMemoryInfo: getMemoryInfo,
-    getWorldSize: getWorldSize
+    getWorldSize: getWorldSize,
+    updateWorldSize: updateWorldSize
 };

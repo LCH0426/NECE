@@ -414,7 +414,9 @@ async function initPlayerDatabase() {
     playerDb.run('CREATE TABLE IF NOT EXISTS friend_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, message TEXT, time TEXT, handled INTEGER DEFAULT 0, rejected INTEGER DEFAULT 0, is_sent INTEGER DEFAULT 0)');
     playerDb.run('CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, to_xuid TEXT, to_name TEXT, content TEXT, time TEXT, is_read INTEGER DEFAULT 0)');
     playerDb.run('CREATE TABLE IF NOT EXISTS homes (xuid TEXT, name TEXT, x REAL, y REAL, z REAL, dim INTEGER, last_use TEXT, PRIMARY KEY (xuid, name))');
-    playerDb.run('CREATE TABLE IF NOT EXISTS player_inventory (xuid TEXT PRIMARY KEY, items TEXT DEFAULT \'[]\', save_time TEXT)');
+    playerDb.run('CREATE TABLE IF NOT EXISTS player_inventory (xuid TEXT PRIMARY KEY, items TEXT DEFAULT \'[]\', armor TEXT DEFAULT \'[]\', offhand TEXT DEFAULT \'[]\', save_time TEXT)');
+    try { playerDb.run('ALTER TABLE player_inventory ADD COLUMN armor TEXT DEFAULT \'[]\''); } catch (e) {}
+    try { playerDb.run('ALTER TABLE player_inventory ADD COLUMN offhand TEXT DEFAULT \'[]\''); } catch (e) {}
 
     playerDbReady = true;
     dbDebugLog('initPlayerDatabase: 数据库就绪');
@@ -825,25 +827,32 @@ function updateHomeSQL(xuid, name, home) {
 /**
  * 保存玩家背包快照到数据库
  * @param {string} xuid - 玩家 XUID
- * @param {Array} items - 物品数组 [{slot, type, count, name, isEnchanted}]
+ * @param {Array} items - 物品数组 [{slot, type, count, name}]
+ * @param {Array} armor - 装备数组 [{slot, type, count, name}]
+ * @param {Array} offhand - 副手数组 [{slot, type, count, name}]
  */
-function savePlayerInventorySQL(xuid, items) {
+function savePlayerInventorySQL(xuid, items, armor, offhand) {
     if (!playerDb) return;
-    playerDb.run('INSERT OR REPLACE INTO player_inventory (xuid, items, save_time) VALUES (?, ?, ?)',
-        [xuid, JSON.stringify(items), String(Date.now())]);
+    playerDb.run('INSERT OR REPLACE INTO player_inventory (xuid, items, armor, offhand, save_time) VALUES (?, ?, ?, ?, ?)',
+        [xuid, JSON.stringify(items || []), JSON.stringify(armor || []), JSON.stringify(offhand || []), String(Date.now())]);
 }
 
 /**
  * 获取玩家背包快照
  * @param {string} xuid - 玩家 XUID
- * @returns {{ items: Array, saveTime: string }|null}
+ * @returns {{ items: Array, armor: Array, offhand: Array, saveTime: string }|null}
  */
 function getPlayerInventorySQL(xuid) {
     if (!playerDb) return null;
-    let result = playerDb.exec('SELECT items, save_time FROM player_inventory WHERE xuid = ?', [xuid]);
+    let result = playerDb.exec('SELECT items, armor, offhand, save_time FROM player_inventory WHERE xuid = ?', [xuid]);
     if (result.length === 0 || result[0].values.length === 0) return null;
     const row = result[0].values[0];
-    return { items: JSON.parse(row[0] || '[]'), saveTime: row[1] };
+    return {
+        items: JSON.parse(row[0] || '[]'),
+        armor: JSON.parse(row[1] || '[]'),
+        offhand: JSON.parse(row[2] || '[]'),
+        saveTime: row[3]
+    };
 }
 
 // --- 批量保存优化 ---

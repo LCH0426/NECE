@@ -420,7 +420,9 @@ function startServer(webConfig) {
         }
     });
 
-    monitoring.startPolling(1000);
+    // 按需监控：不再持续轮询，由 /system/stats 端点触发采集
+    monitoring.refreshStats();
+    monitoring.updateWorldSize();
 
     // 每 60 秒清理过期数据，防止数据库无限膨胀
     cleanupTimer = setInterval(() => {
@@ -434,6 +436,7 @@ function startServer(webConfig) {
 function stopServer() {
     monitoring.stopPolling();
     if (cleanupTimer) { clearInterval(cleanupTimer); cleanupTimer = null; }
+    if (worldSizeTimer) { clearInterval(worldSizeTimer); worldSizeTimer = null; }
     if (server) {
         server.close();
         server = null;

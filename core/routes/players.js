@@ -22,6 +22,22 @@
 
 function registerRoutes(router, d) {
 
+    // 用 items.json 中的中文名和贴图补全物品信息
+    function enrichItems(items, itemsMap) {
+        if (!items || !itemsMap) return items || [];
+        for (let i = 0; i < items.length; i++) {
+            const it = items[i];
+            const shortId = (it.type || '').replace(/^minecraft:/, '');
+            const info = itemsMap[shortId];
+            if (info) {
+                if (info.name) it.name = info.name;
+                if (info.texture) it.image = info.texture;
+            }
+            if (!it.image) it.image = '';
+        }
+        return items;
+    }
+
     // 获取当前在线玩家列表（含余额、设备信息、位置等实时数据）
     router.get('/players/online', d.adminAuth, function(req, res) {
         try {
@@ -558,9 +574,10 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取服务器系统统计信息（CPU、内存、磁盘等）
+    // 获取服务器系统统计信息（CPU、内存、磁盘等，按需采集）
     router.get('/system/stats', d.adminAuth, function(req, res) {
         try {
+            d.monitoring.refreshStats();
             let stats = d.monitoring.getSystemStats();
             res.json({ code: 200, data: stats });
         } catch (e) {
@@ -616,56 +633,126 @@ function registerRoutes(router, d) {
     router.get('/players/:xuid/inventory', d.adminAuth, function(req, res) {
         try {
             let xuid = req.params.xuid;
+            const itemsMap = d.getItemsMap();
 
             // 尝试实时查询在线玩家
             let onlinePlayer = null;
             try { onlinePlayer = d.mc.getPlayer(xuid); } catch (e) {}
 
             if (onlinePlayer) {
-                let items = [];
+                const inventory = [];
+                const armor = [];
+                const offhand = [];
+
                 try {
                     const inv = onlinePlayer.getInventory();
                     const allItems = inv.getAllItems();
                     for (let s = 0; s < allItems.length; s++) {
                         const it = allItems[s];
                         if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
-                            items.push({ slot: s, type: it.type, count: it.count, name: it.name || '' });
+                            const shortId = it.type.replace(/^minecraft:/, '');
+                            const info = itemsMap[shortId];
+                            inventory.push({
+                                slot: s, type: it.type, count: it.count,
+                                name: (info && info.name) ? info.name : (it.name || shortId),
+                                image: (info && info.texture) ? info.texture : ''
+                            });
                         }
                     }
                 } catch (e) {}
-                return res.json({ code: 200, data: { xuid: xuid, online: true, items: items } });
+
+                try {
+                    const armorContainer = onlinePlayer.getArmor();
+                    if (armorContainer) {
+                        const armorSlots = ['helmet', 'chestplate', 'leggings', 'boots'];
+                        const armorItems = armorContainer.getAllItems();
+                        for (let s = 0; s < armorItems.length; s++) {
+                            const it = armorItems[s];
+                            if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
+                                const shortId = it.type.replace(/^minecraft:/, '');
+                                const info = itemsMap[shortId];
+                                armor.push({
+                                    slot: armorSlots[s] || s, type: it.type, count: it.count,
+                                    name: (info && info.name) ? info.name : (it.name || shortId),
+                                    image: (info && info.texture) ? info.texture : ''
+                                });
+                            }
+                        }
+                    }
+                } catch (e) {}
+
+                return res.json({
+                    code: 200,
+                    data: { xuid: xuid, online: true, inventory: inventory, armor: armor, offhand: offhand }
+                });
             }
 
-            // 离线玩家：从数据库读取缓存
+            // 离线玩家：从数据库读取缓存并补全物品信息
             const cached = d.database.getPlayerInventorySQL(xuid);
             if (!cached) {
                 return res.json({ code: 404, msg: '无背包缓存数据' });
             }
-            res.json({ code: 200, data: { xuid: xuid, online: false, items: cached.items, saveTime: cached.saveTime } });
+            res.json({
+                code: 200,
+                data: {
+                    xuid: xuid, online: false,
+                    inventory: enrichItems(cached.items, itemsMap),
+                    armor: enrichItems(cached.armor || [], itemsMap),
+                    offhand: enrichItems(cached.offhand || [], itemsMap),
+                    saveTime: cached.saveTime
+                }
+            });
         } catch (e) {
             res.json({ code: 500, msg: '获取背包数据失败: ' + e.message });
         }
     });
 
-    // 获取所有在线玩家背包（实时查询）
+    // 获取所有在线玩家背包（实时查询，含装备栏和副手）
     router.get('/inventory/online', d.adminAuth, function(req, res) {
         try {
             let onlinePlayers = [];
             try { onlinePlayers = d.mc.getOnlinePlayers(); } catch (e) {}
+            const itemsMap = d.getItemsMap();
 
             const result = [];
             onlinePlayers.forEach(function(p) {
                 try {
-                    const items = [];
+                    const inventory = [];
+                    const armor = [];
                     const inv = p.getInventory();
                     const allItems = inv.getAllItems();
                     for (let s = 0; s < allItems.length; s++) {
                         const it = allItems[s];
                         if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
-                            items.push({ slot: s, type: it.type, count: it.count, name: it.name || '' });
+                            const shortId = it.type.replace(/^minecraft:/, '');
+                            const info = itemsMap[shortId];
+                            inventory.push({
+                                slot: s, type: it.type, count: it.count,
+                                name: (info && info.name) ? info.name : (it.name || shortId),
+                                image: (info && info.texture) ? info.texture : ''
+                            });
                         }
                     }
-                    result.push({ xuid: p.xuid, name: p.name, items: items });
+                    try {
+                        const armorContainer = p.getArmor();
+                        if (armorContainer) {
+                            const armorSlots = ['helmet', 'chestplate', 'leggings', 'boots'];
+                            const armorItems = armorContainer.getAllItems();
+                            for (let s = 0; s < armorItems.length; s++) {
+                                const it = armorItems[s];
+                                if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
+                                    const shortId = it.type.replace(/^minecraft:/, '');
+                                    const info = itemsMap[shortId];
+                                    armor.push({
+                                        slot: armorSlots[s] || s, type: it.type, count: it.count,
+                                        name: (info && info.name) ? info.name : (it.name || shortId),
+                                        image: (info && info.texture) ? info.texture : ''
+                                    });
+                                }
+                            }
+                        }
+                    } catch (e) {}
+                    result.push({ xuid: p.xuid, name: p.name, inventory: inventory, armor: armor });
                 } catch (e) {}
             });
 

@@ -32,6 +32,15 @@ let _sidebarCacheTime = 0;  // 上次全局缓存刷新时间戳
 let _sidebarMoneyCache = {};
 let _sidebarMoneyCacheTime = 0;  // 上次余额缓存刷新时间戳
 
+// 玩家设备/群系缓存，减少昂贵的LLSE API调用；xuid -> { device, deviceTime, biome, biomeTime }
+let _playerDeviceCache = {};
+let _playerBiomeCache = {};
+const DEVICE_CACHE_TTL = 5000;   // 设备信息缓存5秒
+const BIOME_CACHE_TTL = 5000;    // 生物群系缓存5秒
+
+// 上次渲染的侧边栏内容，内容不变时跳过重复渲染；xuid -> string
+let _lastRenderedSidebar = {};
+
 /**
  * 初始化侧边栏模块并启动渲染循环
  * @param {object} deps - 依赖对象（constants, getPlayerSetting, money, config, tpsData 等）
@@ -123,8 +132,14 @@ function startRenderLoop() {
 					}
 
 					// 延迟行，根据ping值着色（>200ms红色, >95ms黄色, 否则绿色）
+					// 使用5秒缓存减少 getDevice() 调用
 					if (sidebarSettings.enableActionbarPing) {
-						const device = pl.getDevice();
+						let device = _playerDeviceCache[xuid];
+						if (!device || now - (device._cacheTime || 0) > DEVICE_CACHE_TTL) {
+							device = pl.getDevice();
+							if (device) device._cacheTime = now;
+							_playerDeviceCache[xuid] = device;
+						}
 						let pingLine;
 						if (device && device.lastPing !== undefined && device.lastPing !== null) {
 							const ping = device.lastPing;
@@ -163,12 +178,18 @@ function startRenderLoop() {
 					}
 
 					// 生物群系行，将英文ID映射为中文名称
+					// 使用5秒缓存减少 getBiomeName() 调用
 					if (sidebarSettings.enableActionbarBiome) {
 						let biomeLine;
 						try {
-							const biome = pl.getBiomeName();
-							if (biome !== undefined && biome !== null) {
-								let biomeId = biome;
+							let cachedBiome = _playerBiomeCache[xuid];
+							if (!cachedBiome || now - (cachedBiome._cacheTime || 0) > BIOME_CACHE_TTL) {
+								const biome = pl.getBiomeName();
+								cachedBiome = biome ? { value: biome, _cacheTime: now } : null;
+								_playerBiomeCache[xuid] = cachedBiome;
+							}
+							if (cachedBiome && cachedBiome.value !== undefined && cachedBiome.value !== null) {
+								let biomeId = cachedBiome.value;
 								if (biomeId.startsWith("minecraft:")) biomeId = biomeId.substring(10);
 								const chineseBiomeName = BIOME_NAMES[biomeId] || biomeId;
 								biomeLine = "§d" + chineseBiomeName;
@@ -196,12 +217,25 @@ function startRenderLoop() {
 						sidebarData[compactLines.join("\n")] = 100;
 					}
 
-					pl.removeSidebar();
-					pl.setSidebar("§a侧边栏信息", sidebarData, 0);
+					// 内容不变时跳过重复渲染（只比较非时间数据，时间行每秒变化不触发重渲染）
+					let sidebarKey = "";
+					for (const k in sidebarData) {
+						if (k.indexOf("§b时间:") === -1) {
+							sidebarKey += k + "|";
+						}
+					}
+					if (_lastRenderedSidebar[xuid] !== sidebarKey) {
+						_lastRenderedSidebar[xuid] = sidebarKey;
+						pl.removeSidebar();
+						pl.setSidebar("§a侧边栏信息", sidebarData, 0);
+					}
 				} catch (error) {}
 			} else {
 				try {
-					pl.removeSidebar();
+					if (_lastRenderedSidebar[xuid] !== "") {
+						_lastRenderedSidebar[xuid] = "";
+						pl.removeSidebar();
+					}
 				} catch (error) {}
 			}
 		});
@@ -214,6 +248,9 @@ function startRenderLoop() {
  */
 function clearPlayerCache(xuid) {
 	delete _sidebarCache[xuid];
+	delete _playerDeviceCache[xuid];
+	delete _playerBiomeCache[xuid];
+	delete _lastRenderedSidebar[xuid];
 }
 
 module.exports = {

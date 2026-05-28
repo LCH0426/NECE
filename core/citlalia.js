@@ -107,51 +107,61 @@ function registerMoonSwEffects() {
     const MOON_SW_EFFECTS = [1, 8, 10, 11, 16]; // 速度、跳跃提升、伤害吸收、生命恢复、夜视
     const MOON_SW_ITEM = 'citlalia:moon_sw';
     const EFFECT_DURATION = 400; // 效果持续时间（tick），20秒
-    let EFFECT_INTERVAL = 200;   // 效果刷新间隔（tick），10秒
+    const EFFECT_INTERVAL = 200; // 效果刷新间隔（tick），10秒
+    const SCAN_INTERVAL = 50;    // 扫描新玩家间隔（tick），2.5秒
 
-    const moonSwPlayers = new Map(); // 跟踪手持该物品的在线玩家
+    const moonSwPlayers = new Map(); // 跟踪手持该物品的在线玩家 xuid -> { player, lastRefresh }
     let tickCounter = 0;
 
     mc.listen("onTick", function() {
         if (D.isUnloading()) return;
         tickCounter++;
-        const onlinePlayers = mc.getOnlinePlayers();
-        const now = Date.now();
 
-        onlinePlayers.forEach(function(player) {
+        // 每tick仅检查已跟踪的玩家（通常0-5人），不遍历全部在线玩家
+        moonSwPlayers.forEach(function(swData, xuid) {
             try {
-                const xuid = player.xuid;
-                const handItem = player.getHand();
-                const isHoldingMoonSw = handItem && handItem.type === MOON_SW_ITEM;
-                const swData = moonSwPlayers.get(xuid);
-
-                if (isHoldingMoonSw) {
-                    if (!swData) {
-                        // 刚拿起物品，立即施加所有效果
-                        moonSwPlayers.set(xuid, { lastRefresh: now });
-                        MOON_SW_EFFECTS.forEach(function(effectId) {
-                            player.addEffect(effectId, EFFECT_DURATION, 0, false);
-                        });
-                    } else if (tickCounter % EFFECT_INTERVAL === 0) {
-                        // 定期刷新效果，防止效果过期
-                        swData.lastRefresh = now;
-                        MOON_SW_EFFECTS.forEach(function(effectId) {
-                            player.addEffect(effectId, EFFECT_DURATION, 0, false);
-                        });
-                    }
-                } else {
-                    if (swData) {
-                        // 放下物品，移除所有效果
-                        moonSwPlayers.delete(xuid);
-                        MOON_SW_EFFECTS.forEach(function(effectId) {
-                            player.removeEffect(effectId);
-                        });
-                    }
+                const player = swData.player;
+                if (!player || !player.isOnline()) {
+                    moonSwPlayers.delete(xuid);
+                    return;
                 }
-            } catch (e) { logger.warn('[Citlalia] 逐月之痕tick处理异常: ' + e.message); }
+                const handItem = player.getHand();
+                if (!handItem || handItem.type !== MOON_SW_ITEM) {
+                    // 放下物品，移除效果
+                    moonSwPlayers.delete(xuid);
+                    MOON_SW_EFFECTS.forEach(function(effectId) {
+                        player.removeEffect(effectId);
+                    });
+                    return;
+                }
+                // 定期刷新效果
+                if (tickCounter % EFFECT_INTERVAL === 0) {
+                    MOON_SW_EFFECTS.forEach(function(effectId) {
+                        player.addEffect(effectId, EFFECT_DURATION, 0, false);
+                    });
+                }
+            } catch (e) { moonSwPlayers.delete(xuid); }
         });
 
-        // 防止tick计数器溢出
+        // 每 SCAN_INTERVAL tick 扫描未跟踪的玩家是否有新手持该物品
+        if (tickCounter % SCAN_INTERVAL === 0) {
+            const onlinePlayers = mc.getOnlinePlayers();
+            for (let i = 0; i < onlinePlayers.length; i++) {
+                const player = onlinePlayers[i];
+                const xuid = player.xuid;
+                if (moonSwPlayers.has(xuid)) continue;
+                try {
+                    const handItem = player.getHand();
+                    if (handItem && handItem.type === MOON_SW_ITEM) {
+                        moonSwPlayers.set(xuid, { player: player });
+                        MOON_SW_EFFECTS.forEach(function(effectId) {
+                            player.addEffect(effectId, EFFECT_DURATION, 0, false);
+                        });
+                    }
+                } catch (e) {}
+            }
+        }
+
         if (tickCounter >= 1000000) tickCounter = 0;
     });
 
