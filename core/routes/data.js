@@ -24,6 +24,17 @@ function registerRoutes(router, d) {
 
     const CDK_DATA_PATH = d.pathModule.join(__dirname, '..', '..', 'data', 'cdkdata.json');
 
+    // 防止原型污染：从对象中移除危险键
+    const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
+    function sanitize(obj) {
+        if (!obj || typeof obj !== 'object') return;
+        for (let i = 0; i < DANGEROUS_KEYS.length; i++) {
+            if (DANGEROUS_KEYS[i] in obj) {
+                delete obj[DANGEROUS_KEYS[i]];
+            }
+        }
+    }
+
     // 加载CDK兑换码数据，文件不存在时返回空结构
     function loadCdkData() {
         try {
@@ -69,6 +80,10 @@ function registerRoutes(router, d) {
     router.post('/cdk/add', d.adminAuth, function(req, res) {
         try {
             let body = req.body;
+            sanitize(body);
+            if (body.rewards && Array.isArray(body.rewards)) {
+                for (let i = 0; i < body.rewards.length; i++) sanitize(body.rewards[i]);
+            }
             if (!body.code) {
                 return res.json({ code: 400, msg: '缺少必要参数 code' });
             }
@@ -126,6 +141,7 @@ function registerRoutes(router, d) {
     router.post('/cdk/delete', d.adminAuth, function(req, res) {
         try {
             let body = req.body;
+            sanitize(body);
             if (!body.code) return res.json({ code: 400, msg: '缺少兑换码' });
             let data = loadCdkData();
             if (!data.codes[body.code]) return res.json({ code: 404, msg: '兑换码不存在' });
@@ -143,6 +159,10 @@ function registerRoutes(router, d) {
     router.post('/cdk/modify', d.adminAuth, function(req, res) {
         try {
             let body = req.body;
+            sanitize(body);
+            if (body.rewards && Array.isArray(body.rewards)) {
+                for (let i = 0; i < body.rewards.length; i++) sanitize(body.rewards[i]);
+            }
             if (!body.code) return res.json({ code: 400, msg: '缺少兑换码' });
             let data = loadCdkData();
             if (!data.codes[body.code]) return res.json({ code: 404, msg: '兑换码不存在' });

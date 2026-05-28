@@ -24,7 +24,7 @@
 function registerRoutes(router, d) {
 
     // 用户登录：验证验证码、密码，签发Access/Refresh Token对
-    router.post('/auth/login', function(req, res) {
+    router.post('/auth/login', d.loginLimiter, function(req, res) {
         let uid = req.body.uid;
         const password = req.body.password;
         let captchaId = req.body.captchaId;
@@ -64,7 +64,7 @@ function registerRoutes(router, d) {
     });
 
     // Token续签：使用Refresh Token获取新的Token对，实现旋转刷新（旧Token立即失效）
-    router.post('/auth/refresh', function(req, res) {
+    router.post('/auth/refresh', d.refreshLimiter, function(req, res) {
         let cookies = d.parseCookies(req);
         let refreshToken = cookies.refresh_token;
 
@@ -169,7 +169,7 @@ function registerRoutes(router, d) {
     });
 
     // 生成SVG验证码图片，验证码文本存储在数据库中供后续校验
-    router.get('/captcha', function(req, res) {
+    router.get('/captcha', d.captchaLimiter, function(req, res) {
         const captcha = d.svgCaptcha.create({
             size: 4,
             ignoreChars: 'o0OlI1i', // 排除易混淆字符

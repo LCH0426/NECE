@@ -305,7 +305,7 @@ async function collectNetworkInfo() {
 async function collectDiskInfo() {
     try {
         const serverDir = process.cwd();
-        const driveLetter = pathModule.parse(serverDir).root.replace('\\', '').replace(':', '');
+        const driveLetter = pathModule.parse(serverDir).root.replace(/\\/g, '').replace(/:/g, '');
 
         const disks = await si.fsSize();
         if (!disks || disks.length === 0) return;

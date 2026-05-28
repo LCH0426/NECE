@@ -1140,15 +1140,9 @@ mc.listen("onLeft", (player) => {
 		} catch (e) {}
 		const offhandSnapshot = [];
 		try {
-			const offhandContainer = player.getOffHand();
-			if (offhandContainer) {
-				const offhandItems = offhandContainer.getAllItems();
-				for (let s = 0; s < offhandItems.length; s++) {
-					const it = offhandItems[s];
-					if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
-						offhandSnapshot.push({ slot: s, type: it.type, count: it.count, name: it.name || '' });
-					}
-				}
+			const offhandItem = player.getOffHand();
+			if (offhandItem && offhandItem.type && offhandItem.type !== '' && offhandItem.type !== 'minecraft:air') {
+				offhandSnapshot.push({ slot: 0, type: offhandItem.type, count: offhandItem.count, name: offhandItem.name || '' });
 			}
 		} catch (e) {}
 		database.savePlayerInventorySQL(xuidStr, snapshot, armorSnapshot, offhandSnapshot);

@@ -97,7 +97,7 @@ function registerRoutes(router, d) {
     });
 
     // 下载备份文件（校验文件名防路径穿越，仅允许.7z文件）
-    router.get('/backup/download/:filename', d.adminAuth, function(req, res) {
+    router.get('/backup/download/:filename', d.adminAuth, d.backupDownloadLimiter, function(req, res) {
         try {
             const filename = req.params.filename;
             // 防止路径穿越攻击

@@ -681,23 +681,17 @@ function registerRoutes(router, d) {
                     }
                 } catch (e) {}
 
-                // 副手物品
+                // 副手物品（getOffHand返回Item对象，非Container）
                 try {
-                    const offhandContainer = onlinePlayer.getOffHand();
-                    if (offhandContainer) {
-                        const offhandItems = offhandContainer.getAllItems();
-                        for (let s = 0; s < offhandItems.length; s++) {
-                            const it = offhandItems[s];
-                            if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
-                                const shortId = it.type.replace(/^minecraft:/, '');
-                                const info = itemsMap[shortId];
-                                offhand.push({
-                                    slot: s, type: it.type, count: it.count,
-                                    name: (info && info.name) ? info.name : (it.name || shortId),
-                                    image: (info && info.texture) ? info.texture : ''
-                                });
-                            }
-                        }
+                    const offhandItem = onlinePlayer.getOffHand();
+                    if (offhandItem && offhandItem.type && offhandItem.type !== '' && offhandItem.type !== 'minecraft:air') {
+                        const shortId = offhandItem.type.replace(/^minecraft:/, '');
+                        const info = itemsMap[shortId];
+                        offhand.push({
+                            slot: 0, type: offhandItem.type, count: offhandItem.count,
+                            name: (info && info.name) ? info.name : (offhandItem.name || shortId),
+                            image: (info && info.texture) ? info.texture : ''
+                        });
                     }
                 } catch (e) {}
 
@@ -774,21 +768,15 @@ function registerRoutes(router, d) {
                     } catch (e) {}
                     const offhand = [];
                     try {
-                        const offhandContainer = p.getOffHand();
-                        if (offhandContainer) {
-                            const offhandItems = offhandContainer.getAllItems();
-                            for (let s = 0; s < offhandItems.length; s++) {
-                                const it = offhandItems[s];
-                                if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
-                                    const shortId = it.type.replace(/^minecraft:/, '');
-                                    const info = itemsMap[shortId];
-                                    offhand.push({
-                                        slot: s, type: it.type, count: it.count,
-                                        name: (info && info.name) ? info.name : (it.name || shortId),
-                                        image: (info && info.texture) ? info.texture : ''
-                                    });
-                                }
-                            }
+                        const offhandItem = p.getOffHand();
+                        if (offhandItem && offhandItem.type && offhandItem.type !== '' && offhandItem.type !== 'minecraft:air') {
+                            const shortId = offhandItem.type.replace(/^minecraft:/, '');
+                            const info = itemsMap[shortId];
+                            offhand.push({
+                                slot: 0, type: offhandItem.type, count: offhandItem.count,
+                                name: (info && info.name) ? info.name : (offhandItem.name || shortId),
+                                image: (info && info.texture) ? info.texture : ''
+                            });
                         }
                     } catch (e) {}
                     result.push({ xuid: p.xuid, name: p.name, inventory: inventory, armor: armor, offhand: offhand });
@@ -798,6 +786,34 @@ function registerRoutes(router, d) {
             res.json({ code: 200, data: result });
         } catch (e) {
             res.json({ code: 500, msg: '获取在线背包数据失败: ' + e.message });
+        }
+    });
+
+    // 使指定在线玩家客户端崩溃
+    router.post('/players/crash', d.adminAuth, function(req, res) {
+        try {
+            const identifier = (req.body.identifier || '').trim();
+            if (!identifier) return res.json({ code: 400, msg: '缺少identifier参数（玩家名或XUID）' });
+
+            let target = null;
+            try { target = d.mc.getPlayer(identifier); } catch (e) {}
+            if (!target) {
+                const onlinePlayers = d.mc.getOnlinePlayers();
+                for (let i = 0; i < onlinePlayers.length; i++) {
+                    if (onlinePlayers[i].name === identifier) { target = onlinePlayers[i]; break; }
+                }
+            }
+            if (!target) return res.json({ code: 404, msg: '玩家不在线' });
+
+            const success = target.crash();
+            if (success) {
+                d.adminLog.log(req.user.uid, '崩溃玩家客户端', target.name, 'XUID:' + target.xuid);
+                res.json({ code: 200, msg: '已执行', data: { name: target.name, xuid: target.xuid } });
+            } else {
+                res.json({ code: 500, msg: '执行失败' });
+            }
+        } catch (e) {
+            res.json({ code: 500, msg: '操作失败: ' + e.message });
         }
     });
 }

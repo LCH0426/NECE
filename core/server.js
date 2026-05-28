@@ -44,6 +44,56 @@ const WEB_DIR = pathModule.join(__dirname, '..', 'WEB');
 const ACCESS_TOKEN_EXPIRE = '15m';
 const REFRESH_TOKEN_EXPIRE = '7d';
 
+// ============ 简易内存限流器 ============
+const _rateLimitStore = {};          // key -> { count, resetAt }
+let _rateLimitCleanupTimer = null;
+
+/**
+ * 创建限流中间件
+ * @param {number} windowMs 时间窗口（毫秒）
+ * @param {number} maxRequests 窗口内最大请求数
+ */
+function createRateLimiter(windowMs, maxRequests) {
+    return function(req, res, next) {
+        const key = req.ip || req.connection.remoteAddress || 'unknown';
+        const now = Date.now();
+        let entry = _rateLimitStore[key];
+        if (!entry || now > entry.resetAt) {
+            entry = { count: 1, resetAt: now + windowMs };
+            _rateLimitStore[key] = entry;
+        } else {
+            entry.count++;
+        }
+        if (entry.count > maxRequests) {
+            return res.status(429).json({ code: 429, msg: '请求过于频繁，请稍后再试' });
+        }
+        next();
+    };
+}
+
+// 登录限流：每IP每分钟最多10次
+const loginLimiter = createRateLimiter(60000, 10);
+// Token续签限流：每IP每分钟最多20次
+const refreshLimiter = createRateLimiter(60000, 20);
+// 验证码限流：每IP每分钟最多15次
+const captchaLimiter = createRateLimiter(60000, 15);
+// 备份下载限流：每IP每分钟最多5次
+const backupDownloadLimiter = createRateLimiter(60000, 5);
+
+/** 定期清理过期的限流记录，防止内存泄漏 */
+function startRateLimitCleanup() {
+    if (_rateLimitCleanupTimer) clearInterval(_rateLimitCleanupTimer);
+    _rateLimitCleanupTimer = setInterval(function() {
+        const now = Date.now();
+        const keys = Object.keys(_rateLimitStore);
+        for (let i = 0; i < keys.length; i++) {
+            if (now > _rateLimitStore[keys[i]].resetAt) {
+                delete _rateLimitStore[keys[i]];
+            }
+        }
+    }, 120000); // 每2分钟清理一次
+}
+
 let app = null;
 let server = null;
 let cleanupTimer = null;
@@ -385,7 +435,8 @@ function createV1Routes(webConfig) {
         issueTokenPair, setRefreshTokenCookie, clearRefreshTokenCookie,
         parseCookies, getRefreshSecret, triggerReload,
         fs, pathModule,
-        mc: mc, money: money
+        mc: mc, money: money,
+        loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter
     };
 
     require('./routes/auth').registerRoutes(router, routeDeps);
@@ -424,6 +475,9 @@ function startServer(webConfig) {
     monitoring.refreshStats().catch(function(e) {});
     monitoring.updateWorldSize().catch(function(e) {});
 
+    // 启动限流记录定期清理
+    startRateLimitCleanup();
+
     // 每 60 秒清理过期数据，防止数据库无限膨胀
     cleanupTimer = setInterval(() => {
         database.cleanExpiredCaptchas();
@@ -436,6 +490,7 @@ function startServer(webConfig) {
 function stopServer() {
     monitoring.stopPolling();
     if (cleanupTimer) { clearInterval(cleanupTimer); cleanupTimer = null; }
+    if (_rateLimitCleanupTimer) { clearInterval(_rateLimitCleanupTimer); _rateLimitCleanupTimer = null; }
     if (worldSizeTimer) { clearInterval(worldSizeTimer); worldSizeTimer = null; }
     if (server) {
         server.close();
