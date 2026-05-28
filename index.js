@@ -1138,7 +1138,20 @@ mc.listen("onLeft", (player) => {
 				}
 			}
 		} catch (e) {}
-		database.savePlayerInventorySQL(xuidStr, snapshot, armorSnapshot, []);
+		const offhandSnapshot = [];
+		try {
+			const offhandContainer = player.getOffHand();
+			if (offhandContainer) {
+				const offhandItems = offhandContainer.getAllItems();
+				for (let s = 0; s < offhandItems.length; s++) {
+					const it = offhandItems[s];
+					if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
+						offhandSnapshot.push({ slot: s, type: it.type, count: it.count, name: it.name || '' });
+					}
+				}
+			}
+		} catch (e) {}
+		database.savePlayerInventorySQL(xuidStr, snapshot, armorSnapshot, offhandSnapshot);
 	} catch (e) { logger.warn('[NLCE] 保存背包快照失败: ' + e.message); }
 });
 

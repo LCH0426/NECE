@@ -681,6 +681,26 @@ function registerRoutes(router, d) {
                     }
                 } catch (e) {}
 
+                // 副手物品
+                try {
+                    const offhandContainer = onlinePlayer.getOffHand();
+                    if (offhandContainer) {
+                        const offhandItems = offhandContainer.getAllItems();
+                        for (let s = 0; s < offhandItems.length; s++) {
+                            const it = offhandItems[s];
+                            if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
+                                const shortId = it.type.replace(/^minecraft:/, '');
+                                const info = itemsMap[shortId];
+                                offhand.push({
+                                    slot: s, type: it.type, count: it.count,
+                                    name: (info && info.name) ? info.name : (it.name || shortId),
+                                    image: (info && info.texture) ? info.texture : ''
+                                });
+                            }
+                        }
+                    }
+                } catch (e) {}
+
                 return res.json({
                     code: 200,
                     data: { xuid: xuid, online: true, inventory: inventory, armor: armor, offhand: offhand }
@@ -752,7 +772,26 @@ function registerRoutes(router, d) {
                             }
                         }
                     } catch (e) {}
-                    result.push({ xuid: p.xuid, name: p.name, inventory: inventory, armor: armor });
+                    const offhand = [];
+                    try {
+                        const offhandContainer = p.getOffHand();
+                        if (offhandContainer) {
+                            const offhandItems = offhandContainer.getAllItems();
+                            for (let s = 0; s < offhandItems.length; s++) {
+                                const it = offhandItems[s];
+                                if (it.type && it.type !== '' && it.type !== 'minecraft:air') {
+                                    const shortId = it.type.replace(/^minecraft:/, '');
+                                    const info = itemsMap[shortId];
+                                    offhand.push({
+                                        slot: s, type: it.type, count: it.count,
+                                        name: (info && info.name) ? info.name : (it.name || shortId),
+                                        image: (info && info.texture) ? info.texture : ''
+                                    });
+                                }
+                            }
+                        }
+                    } catch (e) {}
+                    result.push({ xuid: p.xuid, name: p.name, inventory: inventory, armor: armor, offhand: offhand });
                 } catch (e) {}
             });
 
