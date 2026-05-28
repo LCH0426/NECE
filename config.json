@@ -1,214 +1,361 @@
 {
-    "debug": false,
-    "currencyName": "星茜",
-    "enableRank": true,
-    "enableShop": true,
-    "enableRecycle": true,
-    "enableDustShop": true,
-    "enableWish": true,
-    "enableBank": true,
-    "enableVip": true,
-    "enableFriend": true,
-    "enableMessageBoard": true,
-    "enableMail": true,
-    "enableLevel": true,
-    "enableBack": true,
-    "enableMenu": true,
-    "teleport": {
-        "enabled": true,
-        "enableHome": true,
-        "enableWarp": true,
-        "enableTpa": true,
-        "enableRtp": true,
-        "homeLimit": 10,
-        "homeCooldown": 10,
-        "tpaCooldown": 30,
-        "tpaTimeout": 30,
-        "tpaCost": 0,
-        "warpCost": 0,
-        "rtpCost": 0,
-        "rtpCooldown": 60,
-        "rtpRange": 5000,
-        "rtpMinRange": 500,
-        "rtpProtectionRadius": 500,
-        "rtpMaxAttempts": 100,
-        "rtpProtectionSeconds": 5
+  "debug": false,
+  "currencyName": "星茜",
+  "enableRank": true,
+  "enableShop": true,
+  "enableRecycle": true,
+  "enableDustShop": true,
+  "enableWish": true,
+  "enableBank": true,
+  "enableVip": true,
+  "enableFriend": true,
+  "enableMessageBoard": true,
+  "enableMail": true,
+  "enableLevel": true,
+  "enableBack": true,
+  "enableMenu": true,
+  "teleport": {
+    "enabled": true,
+    "enableHome": true,
+    "enableWarp": true,
+    "enableTpa": true,
+    "enableRtp": true,
+    "homeLimit": 10,
+    "homeCooldown": 10,
+    "tpaCooldown": 30,
+    "tpaTimeout": 30,
+    "tpaCost": 0,
+    "warpCost": 0,
+    "rtpCost": 0,
+    "rtpCooldown": 60,
+    "rtpRange": 5000,
+    "rtpMinRange": 500,
+    "rtpProtectionRadius": 500,
+    "rtpMaxAttempts": 100,
+    "rtpProtectionSeconds": 5
+  },
+  "wishConfig": {
+    "dustName": "三星副产物",
+    "coreName": "五星副产物",
+    "description": "这里是卡池详情",
+    "banner": "这里是卡池信息",
+    "rates": {
+      "fiveStar": 0.006,
+      "fourStar": 0.051,
+      "fiveStarSoftPity": 73,
+      "fiveStarHardPity": 90,
+      "fourStarGuarantee": 10
     },
-    "wishConfig": {
-        "dustName": "三星副产物",
-        "coreName": "五星副产物",   
-        "description": "这里是卡池详情",
-        "banner": "这里是卡池信息",
-        "rates": {
-            "fiveStar": 0.006,
-            "fourStar": 0.051,
-            "fiveStarSoftPity": 73,
-            "fiveStarHardPity": 90,
-            "fourStarGuarantee": 10
-        },
-        "cost": {
-            "single": 160,
-            "ten": 1600
-        },
-        "rewards": {
-            "threeStar": {
-                "minDust": 10,
-                "maxDust": 40
-            },
-            "fourStar": [
-                {
-                    "name": "铜锭",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:copper_ingot\",\"WasPickedUp\":0b}"
-                },
-                {
-                    "name": "金锭",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:gold_ingot\",\"WasPickedUp\":0b}"
-                },
-                {
-                    "name": "铁锭",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:iron_ingot\",\"WasPickedUp\":0b}"
-                },
-                {
-                    "name": "下界合金锭",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:netherite_ingot\",\"WasPickedUp\":0b}"
-                },
-                {
-                    "name": "紫水晶碎片",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:amethyst_shard\",\"WasPickedUp\":0b}"
-                },
-                {
-                    "name": "钻石",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:diamond\",\"WasPickedUp\":0b}"
-                },
-                {
-                    "name": "绿宝石",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:emerald\",\"WasPickedUp\":0b}"
-                },
-                {
-                    "name": "青金石",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:lapis_lazuli\",\"WasPickedUp\":0b}"
-                },
-                {
-                    "name": "下界石英",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:quartz\",\"WasPickedUp\":0b}"
-                },
-                {
-                    "name": "红石粉",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:redstone\",\"WasPickedUp\":0b}"
-                }
-            ],
-            "fiveStar": [
-                {
-                    "name": "§b逐月之痕",
-                    "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:diamond\",\"WasPickedUp\":0b,\"tag\":{\"Damage\":0,\"display\":{\"Lore\":[\"§b高级钻石:\",\"§b很特别\"]}}}"
-                }
-            ]
-        },
-  "coreShop": [
-    {
-      "name": "下界合金锭",
-      "description": "描述",
-      "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:netherite_ingot\",\"WasPickedUp\":0b}",
-      "cost": 5,
-      "icon": "textures/items/netherite_ingot"
+    "cost": {
+      "single": 160,
+      "ten": 1600
     },
-    {
-      "name": "附魔金苹果",
-      "description": "描述",
-      "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:enchanted_golden_apple\",\"WasPickedUp\":0b}",
-      "cost": 3,
-      "icon": "textures/items/enchanted_golden_apple"
-    },
-    {
-      "name": "信标",
-      "description": "描述",
-      "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:beacon\",\"WasPickedUp\":0b}",
-      "cost": 10,
-      "icon": "textures/blocks/beacon"
-    }
-        ]
-    },
-    "backupConfig": {
-        "compressionLevel": 5,
-        "interval": 0,
-        "maxAgeDays": 0,
-        "maxCount": 0
-    },
-    "web": {
-        "enabled": true,
-        "enableFrontend": true,
-        "port": 8080,
-        "host": "0.0.0.0",
-        "jwtSecret": "NLCE_Default_Secret_Change_Me",
-        "jwtExpire": "10m"
-    },
-    "menuConfig": {
-        "main": {
-            "title": "服务器菜单",
-            "content": "欢迎来到服务器！请选择功能",
-            "items": [
-                { "name": "商店系统", "img": "textures/ui/icon_recipe_equipment", "from": "shop" },
-                { "name": "社交系统", "img": "textures/ui/FriendsDiversity", "from": "social" },
-                { "name": "传送系统", "img": "textures/items/compass_item", "from": "teleport" },
-                { "name": "福利系统", "img": "textures/ui/free_coin", "from": "welfare" },
-                { "name": "个人中心", "img": "textures/ui/icon_setting", "comm": "settings" },
-                { "name": "管理面板", "img": "textures/ui/op", "opfrom": "admin", "comm": "你没有管理员权限" },
-                { "name": "关闭", "type": "close" }
-            ]
+    "rewards": {
+      "threeStar": {
+        "minDust": 10,
+        "maxDust": 40
+      },
+      "fourStar": [
+        {
+          "name": "铜锭",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:copper_ingot\",\"WasPickedUp\":0b}"
         },
-        "shop": {
-            "title": "商店系统",
-            "items": [
-                { "name": "购买物品", "img": "textures/ui/icon_recipe_equipment", "comm": "shop" },
-                { "name": "回收物品", "img": "textures/ui/trash_default", "comm": "rc" },
-                { "name": "星茜商店", "img": "textures/items/beetroot_soup", "comm": "level" },
-                { "name": "经验商店", "img": "textures/items/experience_bottle", "comm": "xpshop" },
-                { "name": "粉尘商店", "img": "textures/items/gunpowder", "comm": "dustshop" },
-                { "name": "附魔商店", "img": "textures/items/book_enchanted", "comm": "enchantshop" },
-                { "name": "CDK兑换", "img": "textures/ui/gift_square", "comm": "cdk" },
-                { "name": "返回主菜单", "type": "back", "from": "main" }
-            ]
+        {
+          "name": "金锭",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:gold_ingot\",\"WasPickedUp\":0b}"
         },
-        "social": {
-            "title": "社交系统",
-            "items": [
-                { "name": "好友列表", "img": "textures/ui/FriendsIcon", "comm": "friend" },
-                { "name": "邮件系统", "img": "textures/ui/mail_icon", "comm": "mail" },
-                { "name": "留言板", "img": "textures/ui/book_edit_default", "comm": "mb" },
-                { "name": "返回主菜单", "type": "back", "from": "main" }
-            ]
+        {
+          "name": "铁锭",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:iron_ingot\",\"WasPickedUp\":0b}"
         },
-        "teleport": {
-            "title": "传送系统",
-            "items": [
-                { "name": "回家", "img": "textures/items/bed_red", "comm": "home" },
-                { "name": "设置家", "img": "textures/ui/color_plus", "comm": "sethome" },
-                { "name": "传送请求", "img": "textures/ui/absorption_heart", "comm": "tpa" },
-                { "name": "随机传送", "img": "textures/items/ender_pearl", "comm": "rtp" },
-                { "name": "地标传送", "img": "textures/items/map_filled", "comm": "warp" },
-                { "name": "返回主菜单", "type": "back", "from": "main" }
-            ]
+        {
+          "name": "下界合金锭",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:netherite_ingot\",\"WasPickedUp\":0b}"
         },
-        "welfare": {
-            "title": "福利系统",
-            "items": [
-                { "name": "银行系统", "img": "textures/ui/icon_book_writable", "comm": "bank" },
-                { "name": "VIP会员", "img": "textures/ui/icon_fall", "comm": "vip" },
-                { "name": "祈愿抽卡", "img": "textures/ui/gift_square", "comm": "wish" },
-                { "name": "查看星茜", "img": "textures/items/emerald", "comm": "money" },
-                { "name": "排行榜", "img": "textures/ui/icon_best3", "comm": "rank" },
-                { "name": "返回主菜单", "type": "back", "from": "main" }
-            ]
+        {
+          "name": "紫水晶碎片",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:amethyst_shard\",\"WasPickedUp\":0b}"
         },
-        "admin": {
-            "title": "管理面板",
-            "items": [
-                { "name": "封禁玩家", "img": "textures/ui/hammer_l", "opcomm": "ban" },
-                { "name": "解封玩家", "img": "textures/ui/hammer_r", "opcomm": "unban" },
-                { "name": "封禁列表", "img": "textures/ui/icon_book_writable", "opcomm": "banlist" },
-                { "name": "备份服务器", "img": "textures/ui/backup_icon", "opcomm": "backup" },
-                { "name": "返回主菜单", "type": "back", "from": "main" }
-            ]
+        {
+          "name": "钻石",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:diamond\",\"WasPickedUp\":0b}"
+        },
+        {
+          "name": "绿宝石",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:emerald\",\"WasPickedUp\":0b}"
+        },
+        {
+          "name": "青金石",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:lapis_lazuli\",\"WasPickedUp\":0b}"
+        },
+        {
+          "name": "下界石英",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:quartz\",\"WasPickedUp\":0b}"
+        },
+        {
+          "name": "红石粉",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:redstone\",\"WasPickedUp\":0b}"
         }
+      ],
+      "fiveStar": [
+        {
+          "name": "§b逐月之痕",
+          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:diamond\",\"WasPickedUp\":0b,\"tag\":{\"Damage\":0,\"display\":{\"Lore\":[\"§b高级钻石:\",\"§b很特别\"]}}}"
+        }
+      ]
+    },
+    "coreShop": [
+      {
+        "name": "下界合金锭",
+        "description": "描述",
+        "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:netherite_ingot\",\"WasPickedUp\":0b}",
+        "cost": 5,
+        "icon": "textures/items/netherite_ingot"
+      },
+      {
+        "name": "附魔金苹果",
+        "description": "描述",
+        "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:enchanted_golden_apple\",\"WasPickedUp\":0b}",
+        "cost": 3,
+        "icon": "textures/items/enchanted_golden_apple"
+      },
+      {
+        "name": "信标",
+        "description": "描述",
+        "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:beacon\",\"WasPickedUp\":0b}",
+        "cost": 10,
+        "icon": "textures/blocks/beacon"
+      }
+    ]
+  },
+  "backupConfig": {
+    "compressionLevel": 5,
+    "interval": 0,
+    "maxAgeDays": 0,
+    "maxCount": 0
+  },
+  "web": {
+    "enabled": true,
+    "enableFrontend": true,
+    "port": 8080,
+    "host": "0.0.0.0",
+    "jwtSecret": "NLCE_Default_Secret_Change_Me",
+    "jwtExpire": "10m"
+  },
+  "menuConfig": {
+    "main": {
+      "title": "服务器菜单",
+      "content": "欢迎来到服务器！请选择功能",
+      "items": [
+        {
+          "name": "商店系统",
+          "img": "textures/ui/icon_recipe_equipment",
+          "from": "shop"
+        },
+        {
+          "name": "社交系统",
+          "img": "textures/ui/FriendsDiversity",
+          "from": "social"
+        },
+        {
+          "name": "传送系统",
+          "img": "textures/items/compass_item",
+          "from": "teleport"
+        },
+        {
+          "name": "福利系统",
+          "img": "textures/ui/free_coin",
+          "from": "welfare"
+        },
+        {
+          "name": "个人中心",
+          "img": "textures/ui/icon_setting",
+          "comm": "settings"
+        },
+        {
+          "name": "管理面板",
+          "img": "textures/ui/op",
+          "opfrom": "admin",
+          "comm": "你没有管理员权限"
+        },
+        {
+          "name": "关闭",
+          "type": "close"
+        }
+      ]
+    },
+    "shop": {
+      "title": "商店系统",
+      "items": [
+        {
+          "name": "购买物品",
+          "img": "textures/ui/icon_recipe_equipment",
+          "comm": "shop"
+        },
+        {
+          "name": "回收物品",
+          "img": "textures/ui/trash_default",
+          "comm": "rc"
+        },
+        {
+          "name": "星茜商店",
+          "img": "textures/items/beetroot_soup",
+          "comm": "level"
+        },
+        {
+          "name": "经验商店",
+          "img": "textures/items/experience_bottle",
+          "comm": "xpshop"
+        },
+        {
+          "name": "粉尘商店",
+          "img": "textures/items/gunpowder",
+          "comm": "dustshop"
+        },
+        {
+          "name": "附魔商店",
+          "img": "textures/items/book_enchanted",
+          "comm": "enchantshop"
+        },
+        {
+          "name": "CDK兑换",
+          "img": "textures/ui/gift_square",
+          "comm": "cdk"
+        },
+        {
+          "name": "返回主菜单",
+          "type": "back",
+          "from": "main"
+        }
+      ]
+    },
+    "social": {
+      "title": "社交系统",
+      "items": [
+        {
+          "name": "好友列表",
+          "img": "textures/ui/FriendsIcon",
+          "comm": "friend"
+        },
+        {
+          "name": "邮件系统",
+          "img": "textures/ui/mail_icon",
+          "comm": "mail"
+        },
+        {
+          "name": "留言板",
+          "img": "textures/ui/book_edit_default",
+          "comm": "mb"
+        },
+        {
+          "name": "返回主菜单",
+          "type": "back",
+          "from": "main"
+        }
+      ]
+    },
+    "teleport": {
+      "title": "传送系统",
+      "items": [
+        {
+          "name": "回家",
+          "img": "textures/items/bed_red",
+          "comm": "home"
+        },
+        {
+          "name": "设置家",
+          "img": "textures/ui/color_plus",
+          "comm": "sethome"
+        },
+        {
+          "name": "传送请求",
+          "img": "textures/ui/absorption_heart",
+          "comm": "tpa"
+        },
+        {
+          "name": "随机传送",
+          "img": "textures/items/ender_pearl",
+          "comm": "rtp"
+        },
+        {
+          "name": "地标传送",
+          "img": "textures/items/map_filled",
+          "comm": "warp"
+        },
+        {
+          "name": "返回主菜单",
+          "type": "back",
+          "from": "main"
+        }
+      ]
+    },
+    "welfare": {
+      "title": "福利系统",
+      "items": [
+        {
+          "name": "银行系统",
+          "img": "textures/ui/icon_book_writable",
+          "comm": "bank"
+        },
+        {
+          "name": "VIP会员",
+          "img": "textures/ui/icon_fall",
+          "comm": "vip"
+        },
+        {
+          "name": "祈愿抽卡",
+          "img": "textures/ui/gift_square",
+          "comm": "wish"
+        },
+        {
+          "name": "查看星茜",
+          "img": "textures/items/emerald",
+          "comm": "money"
+        },
+        {
+          "name": "排行榜",
+          "img": "textures/ui/icon_best3",
+          "comm": "rank"
+        },
+        {
+          "name": "返回主菜单",
+          "type": "back",
+          "from": "main"
+        }
+      ]
+    },
+    "admin": {
+      "title": "管理面板",
+      "items": [
+        {
+          "name": "封禁玩家",
+          "img": "textures/ui/hammer_l",
+          "opcomm": "ban"
+        },
+        {
+          "name": "解封玩家",
+          "img": "textures/ui/hammer_r",
+          "opcomm": "unban"
+        },
+        {
+          "name": "封禁列表",
+          "img": "textures/ui/icon_book_writable",
+          "opcomm": "banlist"
+        },
+        {
+          "name": "备份服务器",
+          "img": "textures/ui/backup_icon",
+          "opcomm": "backup"
+        },
+        {
+          "name": "返回主菜单",
+          "type": "back",
+          "from": "main"
+        }
+      ]
     }
+  },
+  "debugmsg": "你正在参与服务器测试，如遇问题请反馈给管理员。",
+  "enableCdk": true,
+  "sidebarCompact": false
 }

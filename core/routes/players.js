@@ -575,9 +575,9 @@ function registerRoutes(router, d) {
     });
 
     // 获取服务器系统统计信息（CPU、内存、磁盘等，按需采集）
-    router.get('/system/stats', d.adminAuth, function(req, res) {
+    router.get('/system/stats', d.adminAuth, async function(req, res) {
         try {
-            d.monitoring.refreshStats();
+            await d.monitoring.refreshStats();
             let stats = d.monitoring.getSystemStats();
             res.json({ code: 200, data: stats });
         } catch (e) {

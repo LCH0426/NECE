@@ -226,8 +226,6 @@ const cachedStats = {
     hostname: STATIC_SYSINFO.hostname
 };
 
-let lastCpuSample = null;      // 上一次CPU时间片快照
-let lastCpuSampleTime = null;   // 上一次采样时间戳
 let cachedCpuUsage = 0;         // 缓存的总体CPU使用率
 let cachedPerCoreUsage = [];    // 缓存的每核CPU使用率
 let cpuPollTimer = null;
@@ -236,71 +234,19 @@ let diskPollTimer = null;
 let worldSizePollTimer = null;
 
 /**
- * 采样CPU时间片，通过差值计算使用率
- * 基于两次采样的idle/tick差值来推算CPU占用百分比
+ * 使用 systeminformation 获取CPU使用率（含每核数据）
+ * si.currentLoad() 内部自行处理差值采样，无需手动计算
  */
-function sampleCpu() {
-    const cpus = os.cpus();
-    let totalIdle = 0;
-    let totalTick = 0;
-
-    for (let i = 0; i < cpus.length; i++) {
-        const cpu = cpus[i].times;
-        for (const type in cpu) {
-            totalTick += cpu[type];
+async function sampleCpu() {
+    try {
+        const load = await si.currentLoad();
+        cachedCpuUsage = Math.round((load.currentLoad || 0) * 10) / 10;
+        if (load.cpus && load.cpus.length > 0) {
+            cachedPerCoreUsage = load.cpus.map(function(c) {
+                return Math.round((c.load || 0) * 10) / 10;
+            });
         }
-        totalIdle += cpu.idle;
-    }
-
-    const now = Date.now();
-
-    // 有历史采样数据时才计算差值
-    if (lastCpuSample !== null && lastCpuSampleTime !== null) {
-        const idleDiff = totalIdle - lastCpuSample.idle;
-        const tickDiff = totalTick - lastCpuSample.tick;
-        if (tickDiff > 0) {
-            cachedCpuUsage = (1 - idleDiff / tickDiff) * 100;
-            cachedCpuUsage = Math.min(100, Math.max(0, cachedCpuUsage));
-        }
-
-        // 逐核计算使用率
-        if (lastCpuSample.perCore) {
-            cachedPerCoreUsage = [];
-            for (let i = 0; i < cpus.length; i++) {
-                const cpuTimes = cpus[i].times;
-                let coreTick = 0;
-                for (const type in cpuTimes) {
-                    coreTick += cpuTimes[type];
-                }
-                const coreIdle = cpuTimes.idle;
-                const prevCore = lastCpuSample.perCore[i];
-                if (prevCore) {
-                    const coreTickDiff = coreTick - prevCore.tick;
-                    const coreIdleDiff = coreIdle - prevCore.idle;
-                    const coreUsage = coreTickDiff > 0 ? (1 - coreIdleDiff / coreTickDiff) * 100 : 0;
-                    cachedPerCoreUsage.push({
-                        core: i,
-                        speed: cpus[i].speed,
-                        usage: Math.min(100, Math.max(0, coreUsage))
-                    });
-                }
-            }
-        }
-    }
-
-    // 保存当前采样快供下次差值计算
-    const perCore = [];
-    for (let i = 0; i < cpus.length; i++) {
-        const cpuTimes = cpus[i].times;
-        let coreTick = 0;
-        for (const type in cpuTimes) {
-            coreTick += cpuTimes[type];
-        }
-        perCore.push({ idle: cpuTimes.idle, tick: coreTick });
-    }
-
-    lastCpuSample = { idle: totalIdle, tick: totalTick, perCore: perCore };
-    lastCpuSampleTime = now;
+    } catch (e) { logger.warn('[Monitor] CPU采样失败: ' + e.message); }
 }
 
 /**
@@ -444,13 +390,13 @@ async function updateWorldSize() {
 }
 
 /** CPU轮询回调：采样CPU并更新缓存中的系统基本信息 */
-function cpuPoll() {
-    sampleCpu();
+async function cpuPoll() {
+    await sampleCpu();
     cachedStats.cpu = {
         usage: cachedCpuUsage,
         cores: STATIC_SYSINFO.cores,
         model: STATIC_SYSINFO.model,
-        perCore: cachedPerCoreUsage
+        perCore: { cores: STATIC_SYSINFO.cores, usage: cachedPerCoreUsage }
     };
     cachedStats.uptime = os.uptime();
 }
@@ -473,13 +419,14 @@ function startPolling(interval) {
     stopPolling();
 
     // 首次立即采集一次
-    sampleCpu();
-    cpuPoll();
+    cpuPoll().catch(function(e) {});
     memPoll();
-    diskPoll();
-    updateWorldSize();
+    diskPoll().catch(function(e) {});
+    updateWorldSize().catch(function(e) {});
 
-    cpuPollTimer = setInterval(cpuPoll, 3000);
+    cpuPollTimer = setInterval(function() {
+        cpuPoll().catch(function(e) {});
+    }, 3000);
     memPollTimer = setInterval(memPoll, 10000);
     diskPollTimer = setInterval(function() {
         diskPoll().catch(function(e) {});
@@ -502,7 +449,7 @@ function stopPolling() {
 let lastOnDemandRefresh = 0;
 let lastDiskNetworkPoll = 0;
 let lastWorldSizePoll = 0;
-const ON_DEMAND_CACHE_TTL = 5000;       // CPU/内存缓存5秒
+const ON_DEMAND_CACHE_TTL = 1000;       // CPU/内存缓存1秒
 const DISK_NETWORK_POLL_INTERVAL = 30000; // 磁盘/网络最多30秒采集一次
 const WORLD_SIZE_POLL_INTERVAL = 3600000; // 世界大小每小时更新一次
 
@@ -510,13 +457,12 @@ const WORLD_SIZE_POLL_INTERVAL = 3600000; // 世界大小每小时更新一次
  * 按需刷新系统数据，调用前先检查缓存
  * 由 /system/stats 端点调用，避免持续轮询消耗性能
  */
-function refreshStats() {
+async function refreshStats() {
     const now = Date.now();
 
-    // CPU + 内存：同步采集，5秒内缓存跳过
+    // CPU + 内存：采集，1秒缓存跳过
     if (now - lastOnDemandRefresh > ON_DEMAND_CACHE_TTL) {
-        sampleCpu();
-        cpuPoll();
+        await cpuPoll();
         memPoll();
         lastOnDemandRefresh = now;
     }

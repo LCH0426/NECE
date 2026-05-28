@@ -2,7 +2,10 @@
     "entry": "index.js",
     "name": "NLCE",
     "type": "lse-nodejs",
+    "version": "1.9.9",
     "author": "LCH0426",
+    "description": "Robin",
+    "extraInfo": {},
     "dependencies": [
         {
             "name": "legacy-script-engine-nodejs"

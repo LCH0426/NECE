@@ -1,6 +1,6 @@
 {
-  "name": "nlce",
-  "description": "NLCE",
+  "name": "lessential",
+  "description": "LEssential",
   "main": "index.js",
   "dependencies": {
     "7zip-min": "^3.0.1",

@@ -421,8 +421,8 @@ function startServer(webConfig) {
     });
 
     // 按需监控：不再持续轮询，由 /system/stats 端点触发采集
-    monitoring.refreshStats();
-    monitoring.updateWorldSize();
+    monitoring.refreshStats().catch(function(e) {});
+    monitoring.updateWorldSize().catch(function(e) {});
 
     // 每 60 秒清理过期数据，防止数据库无限膨胀
     cleanupTimer = setInterval(() => {

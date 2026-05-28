@@ -58,6 +58,7 @@ function registerRoutes(router, d) {
             if (d.backupModule.isBackupRunning()) {
                 return res.json({ code: 400, msg: '备份正在进行中，请稍后再试' });
             }
+            d.adminLog.log(req.user.uid, '执行备份', '手动触发');
             d.backupModule.executeBackup(function(err, result) {
                 if (err) {
                     res.json({ code: 500, msg: err.error || '备份失败' });
@@ -85,6 +86,7 @@ function registerRoutes(router, d) {
             let filename = req.params.filename;
             let result = d.backupModule.deleteBackup(filename);
             if (result.success) {
+                d.adminLog.log(req.user.uid, '删除备份', '文件:' + filename);
                 res.json({ code: 200, msg: '备份已删除' });
             } else {
                 res.json({ code: 400, msg: result.error });
@@ -154,6 +156,7 @@ function registerRoutes(router, d) {
             }
 
             d.backupModule.reload(cfg);
+            d.adminLog.log(req.user.uid, '修改备份配置', JSON.stringify(cfg));
             res.json({ code: 200, msg: '备份配置已更新', data: cfg });
         } catch (e) {
             res.json({ code: 500, msg: '更新备份配置失败: ' + e.message });
@@ -180,6 +183,9 @@ function registerRoutes(router, d) {
             if (!identifier) return res.json({ code: 400, msg: '缺少identifier参数' });
 
             let result = d.banModule.apiBan(identifier, reason, operator);
+            if (result.success) {
+                d.adminLog.log(req.user.uid, '封禁玩家', identifier, '原因: ' + reason);
+            }
             res.json({ code: result.success ? 200 : 400, msg: result.message, data: result.success ? { xuid: result.xuid } : null });
         } catch (e) {
             res.json({ code: 500, msg: '封禁操作失败: ' + e.message });
@@ -193,6 +199,9 @@ function registerRoutes(router, d) {
             if (!identifier) return res.json({ code: 400, msg: '缺少identifier参数' });
 
             let result = d.banModule.apiUnban(identifier);
+            if (result.success) {
+                d.adminLog.log(req.user.uid, '解封玩家', identifier);
+            }
             res.json({ code: result.success ? 200 : 400, msg: result.message });
         } catch (e) {
             res.json({ code: 500, msg: '解封操作失败: ' + e.message });

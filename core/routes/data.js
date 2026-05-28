@@ -115,6 +115,7 @@ function registerRoutes(router, d) {
             data.codes[body.code] = cdk;
             saveCdkData(data);
             d.triggerReload('cdk');
+            d.adminLog.log(req.user.uid, '添加CDK', '兑换码:' + body.code);
             res.json({ code: 200, msg: '添加成功' });
         } catch (e) {
             res.json({ code: 500, msg: '添加CDK失败: ' + e.message });
@@ -131,6 +132,7 @@ function registerRoutes(router, d) {
             delete data.codes[body.code];
             saveCdkData(data);
             d.triggerReload('cdk');
+            d.adminLog.log(req.user.uid, '删除CDK', '兑换码:' + body.code);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
             res.json({ code: 500, msg: '删除CDK失败: ' + e.message });
@@ -170,6 +172,7 @@ function registerRoutes(router, d) {
             }
             saveCdkData(data);
             d.triggerReload('cdk');
+            d.adminLog.log(req.user.uid, '修改CDK', '兑换码:' + body.code);
             res.json({ code: 200, msg: '修改成功' });
         } catch (e) {
             res.json({ code: 500, msg: '修改CDK失败: ' + e.message });
