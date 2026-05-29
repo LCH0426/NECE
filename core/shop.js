@@ -173,7 +173,7 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 	const totalValue = result.totalValue;
 
 	if (totalValue <= 0) {
-		player.tell("§c没有可回收的物品！");
+		player.tell("§e[商店] §c没有可回收的物品！");
 		return;
 	}
 
@@ -194,8 +194,8 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 
 	writeRecycleLog(player, recyclable, totalValue, currentBalance, newBalance, deps.RECYCLE_LOG_DIR);
 
-	player.tell("§a回收成功！");
-	player.tell("§e+" + totalValue + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");
+	player.tell("§e[商店] §a回收成功！");
+	player.tell("§e[商店] §e+" + totalValue + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");
 }
 
 /** 显示回收确认界面，列出可回收物品及总价值 */
@@ -264,7 +264,7 @@ function showAllRecyclableItems(player, recycleConfig, deps, page) {
 	const pageKeys = keys.slice(start, end);
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§a所有可回收项 §7(" + (page + 1) + "/" + totalPages + ")");
+	fm.setTitle("§a所有可回收项 (" + (page + 1) + "/" + totalPages + ")");
 
 	pageKeys.forEach(function(itemType) {
 		const name = getRecycleName(recycleConfig, itemType);
@@ -629,12 +629,12 @@ function showBuyItemForm(player, item, deps) {
 		} else if (inputStr && U.isInteger(inputStr) && Number(inputStr) > 0) {
 			count = Number(inputStr);
 		} else {
-			p.tell("请输入有效的购买数量");
+			p.tell("§e[商店] 请输入有效的购买数量");
 			showBuyItemForm(p, item, deps);
 			return;
 		}
 		if (count <= 0) {
-			p.tell("购买数量必须大于0");
+			p.tell("§e[商店] 购买数量必须大于0");
 			showBuyItemForm(p, item, deps);
 			return;
 		}
@@ -680,7 +680,7 @@ function executePurchase(player, item, count, unitPrice, totalCost, hasVip, orig
 
 	const newBalance = deps.getPlayerMoney(player);
 	writeShopLog(player, item.name, count, totalCost, newBalance);
-	player.tell("购买成功 " + item.name + " x" + count + " 花费" + totalCost + deps.getCurrencyName() + " 余额" + newBalance + deps.getCurrencyName());
+	player.tell("§e[商店] 购买成功 " + item.name + " x" + count + " 花费" + totalCost + deps.getCurrencyName() + " 余额" + newBalance + deps.getCurrencyName());
 	player.sendModalForm("购买成功", item.name + " x" + count + "\n花费 " + totalCost + " " + deps.getCurrencyName() + "\n余额 " + newBalance + " " + deps.getCurrencyName(), "返回购物", "关闭", function(pl, ok) {
 		if (ok === true) showBuyMenu(pl, deps);
 	});
@@ -808,12 +808,12 @@ function showSellItemForm(player, item, deps) {
 		} else if (inputStr && U.isInteger(inputStr) && Number(inputStr) > 0) {
 			count = Number(inputStr);
 		} else {
-			p.tell("请输入有效的出售数量");
+			p.tell("§e[商店] 请输入有效的出售数量");
 			showSellItemForm(p, item, deps);
 			return;
 		}
 		if (count <= 0) {
-			p.tell("出售数量必须大于0");
+			p.tell("§e[商店] 出售数量必须大于0");
 			showSellItemForm(p, item, deps);
 			return;
 		}
@@ -846,7 +846,7 @@ function executeSell(player, item, count, income, deps) {
 	deps.addPlayerMoney(player, income, "商店回收");
 	const newBalance = deps.getPlayerMoney(player);
 	writeShopSellLog(player, item.name, count, income, newBalance);
-	player.tell("回收成功 " + item.name + " x" + count + " 获得" + income + deps.getCurrencyName() + " 余额" + newBalance + deps.getCurrencyName());
+	player.tell("§e[商店] 回收成功 " + item.name + " x" + count + " 获得" + income + deps.getCurrencyName() + " 余额" + newBalance + deps.getCurrencyName());
 	player.sendModalForm("回收成功", item.name + " x" + count + "\n获得 " + income + " " + deps.getCurrencyName() + "\n余额 " + newBalance + " " + deps.getCurrencyName(), "返回回收", "关闭", function(pl, ok) {
 		if (ok === true) showSellMenu(pl, deps);
 	});

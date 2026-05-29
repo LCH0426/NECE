@@ -49,7 +49,8 @@ const PATHS = {
     CHAT_CFG: "./plugins/NLCE/data/ChatConfig.json",
     BAD_WORDS: "./plugins/NLCE/data/fuckbad.json",
     BAN_DATA: "plugins/NLCE/data/BanData.json",
-    DEBUG_DISMISSED: "plugins/NLCE/data/debug_dismissed.json"
+    DEBUG_DISMISSED: "plugins/NLCE/data/debug_dismissed.json",
+    GUILD_DATA: "plugins/NLCE/data/guild.json"
 };
 
 /** IPv4 用户进服时的 IPv6 提示消息 */

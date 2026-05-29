@@ -418,6 +418,9 @@ async function initPlayerDatabase() {
     try { playerDb.run('ALTER TABLE player_inventory ADD COLUMN armor TEXT DEFAULT \'[]\''); } catch (e) {}
     try { playerDb.run('ALTER TABLE player_inventory ADD COLUMN offhand TEXT DEFAULT \'[]\''); } catch (e) {}
 
+    // 公会系统表
+    createGuildTables();
+
     playerDbReady = true;
     dbDebugLog('initPlayerDatabase: 数据库就绪');
     _playerDbDirty = true;
@@ -886,6 +889,268 @@ function getPlayerInventorySQL(xuid) {
     };
 }
 
+// ===================== 公会系统 SQL 方法 =====================
+
+/** 创建公会相关三张表（guilds / guild_members / guild_teleports） */
+function createGuildTables() {
+    if (!playerDb) return;
+    playerDb.run(`CREATE TABLE IF NOT EXISTS guilds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        description TEXT DEFAULT '',
+        owner TEXT NOT NULL,
+        level INTEGER DEFAULT 1,
+        fund REAL DEFAULT 0,
+        max_members INTEGER DEFAULT 20,
+        hq_x REAL, hq_y REAL, hq_z REAL, hq_dim TEXT,
+        created_at INTEGER NOT NULL
+    )`);
+    playerDb.run(`CREATE TABLE IF NOT EXISTS guild_members (
+        xuid TEXT NOT NULL,
+        guild_id INTEGER NOT NULL,
+        role TEXT DEFAULT 'member',
+        joined_at INTEGER NOT NULL,
+        PRIMARY KEY (xuid),
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`);
+    playerDb.run(`CREATE TABLE IF NOT EXISTS guild_teleports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        x REAL NOT NULL, y REAL NOT NULL, z REAL NOT NULL,
+        dim TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    )`);
+    dbDebugLog('createGuildTables: 公会表创建完成');
+}
+
+/** 创建公会，返回新公会的 ID */
+function createGuild(name, description, owner, maxMembers) {
+    if (!playerDb) return null;
+    markPlayerDbDirty();
+    const now = Date.now();
+    playerDb.run(
+        'INSERT INTO guilds (name, description, owner, max_members, created_at) VALUES (?, ?, ?, ?, ?)',
+        [name, description || '', owner, maxMembers || 20, now]
+    );
+    const result = playerDb.exec('SELECT last_insert_rowid()');
+    const guildId = result[0].values[0][0];
+    // 自动把会长加入成员表
+    playerDb.run(
+        'INSERT INTO guild_members (xuid, guild_id, role, joined_at) VALUES (?, ?, ?, ?)',
+        [owner, guildId, 'owner', now]
+    );
+    return guildId;
+}
+
+/** 根据 ID 获取公会信息 */
+function getGuild(guildId) {
+    if (!playerDb) return null;
+    const result = playerDb.exec(
+        'SELECT id, name, description, owner, level, fund, max_members, hq_x, hq_y, hq_z, hq_dim, created_at FROM guilds WHERE id = ?',
+        [guildId]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const r = result[0].values[0];
+    return {
+        id: r[0], name: r[1], description: r[2], owner: r[3],
+        level: r[4], fund: r[5], maxMembers: r[6],
+        hqX: r[7], hqY: r[8], hqZ: r[9], hqDim: r[10],
+        createdAt: r[11]
+    };
+}
+
+/** 根据公会名获取公会信息 */
+function getGuildByName(name) {
+    if (!playerDb) return null;
+    const result = playerDb.exec(
+        'SELECT id, name, description, owner, level, fund, max_members, hq_x, hq_y, hq_z, hq_dim, created_at FROM guilds WHERE name = ?',
+        [name]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const r = result[0].values[0];
+    return {
+        id: r[0], name: r[1], description: r[2], owner: r[3],
+        level: r[4], fund: r[5], maxMembers: r[6],
+        hqX: r[7], hqY: r[8], hqZ: r[9], hqDim: r[10],
+        createdAt: r[11]
+    };
+}
+
+/** 根据玩家 XUID 获取其所在公会信息（单公会制） */
+function getGuildByPlayer(xuid) {
+    if (!playerDb) return null;
+    const result = playerDb.exec(
+        `SELECT g.id, g.name, g.description, g.owner, g.level, g.fund, g.max_members,
+                g.hq_x, g.hq_y, g.hq_z, g.hq_dim, g.created_at
+         FROM guilds g INNER JOIN guild_members gm ON g.id = gm.guild_id WHERE gm.xuid = ?`,
+        [xuid]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const r = result[0].values[0];
+    return {
+        id: r[0], name: r[1], description: r[2], owner: r[3],
+        level: r[4], fund: r[5], maxMembers: r[6],
+        hqX: r[7], hqY: r[8], hqZ: r[9], hqDim: r[10],
+        createdAt: r[11]
+    };
+}
+
+/** 获取所有公会列表 */
+function getAllGuilds() {
+    if (!playerDb) return [];
+    const result = playerDb.exec(
+        'SELECT id, name, description, owner, level, fund, max_members, hq_x, hq_y, hq_z, hq_dim, created_at FROM guilds ORDER BY id'
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return {
+            id: r[0], name: r[1], description: r[2], owner: r[3],
+            level: r[4], fund: r[5], maxMembers: r[6],
+            hqX: r[7], hqY: r[8], hqZ: r[9], hqDim: r[10],
+            createdAt: r[11]
+        };
+    });
+}
+
+/** 删除公会（CASCADE 自动清理成员和传送点） */
+function deleteGuild(guildId) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM guild_teleports WHERE guild_id = ?', [guildId]);
+    playerDb.run('DELETE FROM guild_members WHERE guild_id = ?', [guildId]);
+    playerDb.run('DELETE FROM guilds WHERE id = ?', [guildId]);
+}
+
+/** 更新公会字段（动态拼接 SET 子句） */
+function updateGuild(guildId, fields) {
+    if (!playerDb || !fields) return;
+    markPlayerDbDirty();
+    var sets = [];
+    var vals = [];
+    var fieldMap = {
+        name: 'name', description: 'description', owner: 'owner',
+        level: 'level', fund: 'fund', maxMembers: 'max_members',
+        hqX: 'hq_x', hqY: 'hq_y', hqZ: 'hq_z', hqDim: 'hq_dim'
+    };
+    for (var key in fields) {
+        if (fields.hasOwnProperty(key) && fieldMap[key]) {
+            sets.push(fieldMap[key] + ' = ?');
+            vals.push(fields[key]);
+        }
+    }
+    if (sets.length === 0) return;
+    vals.push(guildId);
+    playerDb.run('UPDATE guilds SET ' + sets.join(', ') + ' WHERE id = ?', vals);
+}
+
+/** 添加公会成员（INSERT OR REPLACE，单公会制下 xuid 是主键） */
+function addGuildMember(xuid, guildId, role) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run(
+        'INSERT OR REPLACE INTO guild_members (xuid, guild_id, role, joined_at) VALUES (?, ?, ?, ?)',
+        [xuid, guildId, role || 'member', Date.now()]
+    );
+}
+
+/** 移除公会成员 */
+function removeGuildMember(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM guild_members WHERE xuid = ?', [xuid]);
+}
+
+/** 获取公会所有成员信息（含玩家名，从 player_data 关联） */
+function getGuildMembers(guildId) {
+    if (!playerDb) return [];
+    const result = playerDb.exec(
+        `SELECT gm.xuid, gm.role, gm.joined_at, pd.name
+         FROM guild_members gm LEFT JOIN player_data pd ON gm.xuid = pd.xuid
+         WHERE gm.guild_id = ? ORDER BY gm.joined_at`,
+        [guildId]
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return { xuid: r[0], role: r[1], joinedAt: r[2], name: r[3] || r[0] };
+    });
+}
+
+/** 获取公会成员数量 */
+function getMemberCount(guildId) {
+    if (!playerDb) return 0;
+    const result = playerDb.exec('SELECT COUNT(*) FROM guild_members WHERE guild_id = ?', [guildId]);
+    if (result.length === 0) return 0;
+    return result[0].values[0][0];
+}
+
+/** 获取玩家在公会中的角色 */
+function getMemberRole(xuid) {
+    if (!playerDb) return null;
+    const result = playerDb.exec('SELECT role FROM guild_members WHERE xuid = ?', [xuid]);
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    return result[0].values[0][0];
+}
+
+/** 更新成员角色 */
+function updateMemberRole(xuid, role) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('UPDATE guild_members SET role = ? WHERE xuid = ?', [role, xuid]);
+}
+
+/** 添加公会传送点 */
+function addGuildTeleport(guildId, name, x, y, z, dim, createdBy) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run(
+        'INSERT INTO guild_teleports (guild_id, name, x, y, z, dim, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [guildId, name, x, y, z, dim, createdBy, Date.now()]
+    );
+}
+
+/** 删除公会传送点 */
+function removeGuildTeleport(tpId, guildId) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM guild_teleports WHERE id = ? AND guild_id = ?', [tpId, guildId]);
+}
+
+/** 获取公会所有传送点 */
+function getGuildTeleports(guildId) {
+    if (!playerDb) return [];
+    const result = playerDb.exec(
+        'SELECT id, name, x, y, z, dim, created_by, created_at FROM guild_teleports WHERE guild_id = ? ORDER BY id',
+        [guildId]
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return { id: r[0], name: r[1], x: r[2], y: r[3], z: r[4], dim: r[5], createdBy: r[6], createdAt: r[7] };
+    });
+}
+
+/** 获取公会传送点数量 */
+function getGuildTeleportCount(guildId) {
+    if (!playerDb) return 0;
+    const result = playerDb.exec('SELECT COUNT(*) FROM guild_teleports WHERE guild_id = ?', [guildId]);
+    if (result.length === 0) return 0;
+    return result[0].values[0][0];
+}
+
+/** 根据名称查找公会传送点 */
+function getGuildTeleportByName(guildId, name) {
+    if (!playerDb) return null;
+    const result = playerDb.exec(
+        'SELECT id, name, x, y, z, dim, created_by, created_at FROM guild_teleports WHERE guild_id = ? AND name = ?',
+        [guildId, name]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const r = result[0].values[0];
+    return { id: r[0], name: r[1], x: r[2], y: r[3], z: r[4], dim: r[5], createdBy: r[6], createdAt: r[7] };
+}
+
 // --- 批量保存优化 ---
 
 /**
@@ -1017,6 +1282,26 @@ module.exports = {
     batchSavePlayerDb,
     savePlayerInventorySQL,
     getPlayerInventorySQL,
+    // 公会系统SQL
+    createGuildTables,
+    createGuild,
+    getGuild,
+    getGuildByName,
+    getGuildByPlayer,
+    getAllGuilds,
+    deleteGuild,
+    updateGuild,
+    addGuildMember,
+    removeGuildMember,
+    getGuildMembers,
+    getMemberCount,
+    getMemberRole,
+    updateMemberRole,
+    addGuildTeleport,
+    removeGuildTeleport,
+    getGuildTeleports,
+    getGuildTeleportCount,
+    getGuildTeleportByName,
     // 通用SQL辅助
     sqlGetAll,
     sqlSet,

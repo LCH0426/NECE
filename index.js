@@ -44,6 +44,8 @@ const sidebarModule = require('./core/sidebar');
 const quickMenuModule = require('./core/quickMenu');
 const menuModule = require('./core/menu');
 const personalCenter = require('./core/personalCenter');
+const guildModule = require('./core/guild');
+const motdModule = require('./core/motd');
 
 
 // ============ 插件注册 ============
@@ -77,6 +79,7 @@ const HOMES_DATA_PATH = C.PATHS.HOMES_DATA;
 const WARPS_DATA_PATH = C.PATHS.WARPS_DATA;
 const CHAT_CFG_PATH = C.PATHS.CHAT_CFG;
 const BAD_WORDS_PATH = C.PATHS.BAD_WORDS;
+const GUILD_DATA_PATH = C.PATHS.GUILD_DATA;
 
 // ============ 全局运行时状态 ============
 let config;                                            // 主配置（JsonConfigFileAdapter）
@@ -90,7 +93,7 @@ let recycleConfig;                                     // 回收系统配置
 let wishConfig = {};                                   // 祈愿系统配置
 let spawnEggShopConfig = {                             // 刷怪蛋商店配置
 	currency: {
-		name: (wishConfig && wishConfig.dustName) || "星尘"
+		name: (wishConfig && wishConfig.dustName) || "三星副产物"
 	},
 	items: []
 };
@@ -529,6 +532,16 @@ function initRankConfig() {
 		config.init("enableMail", true);
 		config.init("enableLevel", true);
 		config.init("enableBack", true);
+		config.init("enableGuild", true);
+		config.init("guildConfig", {
+			"createCost": 1000,
+			"maxMembers": 20,
+			"maxTeleports": 5,
+			"maxAdmins": 3,
+			"depositCost": 0,
+			"withdrawAdminOnly": false,
+			"teleportCooldown": 10
+		});
 		config.init("sidebarCompact", false);
 		config.init("teleport", {
 			"enabled": true,
@@ -688,8 +701,8 @@ const recycleConfigDM = registerDataManager('recycleConfig', RECYCLE_DATA_PATH, 
 
 // 祈愿系统默认配置（概率、保底、花费、奖励池等）
 const DEFAULT_WISH_CONFIG = {
-	"dustName": "星尘",
-	"coreName": "星核",
+	"dustName": "三星副产物",
+	"coreName": "五星副产物",
 	"description": "",
 	"banner": "",
 	"rates": {
@@ -791,7 +804,8 @@ async function initAllConfigs() {
 		getPlayerInfoByXuid: function(xuid) { return playerData.players[xuid] || null; },
 		getPlayerAvatarUrl: getPlayerAvatarUrl,
 		getPlayerSetting: getPlayerSetting,
-		showPersonalCenterForm: personalCenter.showPersonalCenterForm
+		showPersonalCenterForm: personalCenter.showPersonalCenterForm,
+		mailApi: mailModule
 	});
 	debugLog('banModule.init: 封禁模块初始化完成');
 	banModule.init(banDM, {
@@ -817,6 +831,22 @@ async function initAllConfigs() {
 	chatModule.registerChatListener();
 	initNarConfig();
 	backupModule.init(config.get("backupConfig"));
+
+	guildModule.init({
+		logger: logger,
+		getPlayerMoney: getPlayerMoney,
+		addPlayerMoney: addPlayerMoney,
+		reducePlayerMoney: reducePlayerMoney,
+		getConfig: function() { return config.get('guildConfig'); },
+		getCurrencyName: getCurrencyName,
+		getPlayerName: function(xuid) {
+			var p = playerData.players[xuid];
+			return p ? p.name : xuid;
+		},
+		getPlayerData: function() { return playerData; },
+		mailApi: mailModule,
+		notifyEconomyChange: notifyEconomyChange
+	});
 
 	// ============ 依赖注入与模块创建 ============
 	// commonDeps：共享依赖包，聚合常用函数/数据，传递给需要广泛访问的模块
@@ -913,10 +943,16 @@ async function initAllConfigs() {
 		wishModule: wishModule,
 		messageBoardModule: messageBoardModule,
 		teleportModule: teleportModule,
+		menuModule: menuModule,
 		commonDeps: commonDeps
 	});
 	personalCenter.setLevelUpExp(levelUpExp);
 	personalCenter.installPrototypeExtensions();
+
+	// MOTD 动态轮换模块
+	motdModule.init(config);
+	motdModule.start();
+
 	_initialized = true;
 }
 
@@ -1318,6 +1354,27 @@ mc.listen("onTick", () => {
 mc.listen("onServerStarted", async () => {
 	await initAllConfigs();
 	registerAllCommands();
+	// /org 命令：支持无参数打开GUI和带参数文本操作
+	if (config.get("enableGuild")) {
+		try {
+			var orgCmd = mc.newCommand('org', '公会系统', PermType.Any);
+			orgCmd.optional('action', ParamType.RawText);
+			orgCmd.optional('param', ParamType.RawText);
+			orgCmd.overload(['action', 'param']);
+			orgCmd.overload(['action']);
+			orgCmd.overload([]);
+			orgCmd.setCallback(function(_cmd, origin, output, results) {
+				var player = origin.player;
+				if (!player) { output.error('§c此命令仅玩家可在游戏内执行！'); return; }
+				if (!config.get("enableGuild")) { player.tell('§c公会系统当前已关闭！'); return; }
+				var args = [];
+				if (results.action) args.push(String(results.action));
+				if (results.param) args.push(String(results.param));
+				guildModule.handleCommand(player, args);
+			});
+			orgCmd.setup();
+		} catch (e) { logger.error('/org 命令注册出错！错误：' + e); }
+	}
 	banModule.registerConsoleCommands();
 	banModule.registerGameCommands();
 	citlaliaModule.init({ constants: C, getPlayerData: function() { return playerData; }, getPlayerSetting: getPlayerSetting });

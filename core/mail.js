@@ -216,7 +216,7 @@ function showScheduledMailManagerForm(player) {
     if (scheduledMails.length === 0) {
         gui.setContent("§c暂无定时邮件");
     } else {
-        gui.setContent("§7-------------------------\n§a定时邮件数量：§f" + scheduledMails.length + "\n§7-------------------------\n");
+        gui.setContent("-------------------------\n§a定时邮件数量：§f" + scheduledMails.length + "\n-------------------------\n");
 
         scheduledMails.forEach(function(mail, index) {
             const hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
@@ -247,14 +247,14 @@ function showScheduledMailDetailForm(player, mail) {
     gui.setTitle("§l§6定时邮件详情");
 
     const hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
-    let content = "§7------------------------\n";
+    let content = "------------------------\n";
     content += "§a发送者：§f" + mail.fromName + "\n";
     content += "§a定时时间：§f" + mail.scheduledTime + "\n";
     content += "§a邮件内容：\n§f" + mail.content + "\n";
     content += "§a" + getCurrencyName() + "奖励：§f" + mail.starQian + " 点\n";
     content += "§a附件物品：§f" + (mail.items ? mail.items.length : 0) + " 个\n";
     content += "§a创建时间：§f" + mail.time + "\n";
-    content += "§7------------------------\n";
+    content += "------------------------\n";
 
     gui.setContent(content);
     gui.addButton("§b修改定时时间", "textures/ui/icon_recipe_equipment");
@@ -269,7 +269,7 @@ function showScheduledMailDetailForm(player, mail) {
         } else if (id === 1) {
             mailData.mails = mailData.mails.filter(function(m) { return m.id !== mail.id; });
             save();
-            p.tell("§a定时邮件删除成功！");
+            p.tell("§e[邮件] §a定时邮件删除成功！");
             showScheduledMailManagerForm(p);
         } else {
             showScheduledMailManagerForm(p);
@@ -301,7 +301,7 @@ function showModifyScheduledTimeForm(player, mail) {
         const newScheduledTime = (data && data[1]) ? data[1].trim() : '';
         // 校验时间格式：YYYY.MM.DD.HH 或 YYYY.MM.DD.HH.mm
         if (!newScheduledTime || !/^\d{4}\.\d{2}\.\d{2}\.\d{2}(\.\d{2})?$/.test(newScheduledTime)) {
-            p.tell("§c定时时间格式错误！");
+            p.tell("§e[邮件] §c定时时间格式错误！");
             showModifyScheduledTimeForm(p, mail);
             return;
         }
@@ -312,14 +312,14 @@ function showModifyScheduledTimeForm(player, mail) {
         const now = new Date();
 
         if (scheduledDate <= now) {
-            p.tell("§c定时时间必须晚于当前时间！");
+            p.tell("§e[邮件] §c定时时间必须晚于当前时间！");
             showModifyScheduledTimeForm(p, mail);
             return;
         }
 
         mail.scheduledTime = newScheduledTime;
         save();
-        p.tell("§a定时时间修改成功！");
+        p.tell("§e[邮件] §a定时时间修改成功！");
         showScheduledMailDetailForm(p, mail);
     });
 }
@@ -546,7 +546,7 @@ function showMailDetailForm(player, mail) {
         if (id === btnIndex) {
             mailData.mails = mailData.mails.filter(function(m) { return m !== mail; });
             save();
-            p.tell("§c邮件已删除");
+            p.tell("§e[邮件] §c邮件已删除");
             showMailListForm(p);
         } else if (id === btnIndex + 1) {
             showMailListForm(p);
@@ -572,7 +572,7 @@ function claimMailAttachments(player, mail) {
     }
 
     if (isClaimed) {
-        player.tell("§c您已经领取过该邮件的附件了！");
+        player.tell("§e[邮件] §c您已经领取过该邮件的附件了！");
         showMailDetailForm(player, mail);
         return;
     }
@@ -582,9 +582,9 @@ function claimMailAttachments(player, mail) {
         if (_deps.money) {
             _deps.money.add(xuid, mail.starQian);
             if (_deps.notifyEconomyChange) _deps.notifyEconomyChange(player, mail.starQian, "邮件领取");
-            player.tell("§a成功领取 " + mail.starQian + " " + getCurrencyName() + "！");
+            player.tell("§e[邮件] §a成功领取 " + mail.starQian + " " + getCurrencyName() + "！");
         } else {
-            player.tell("§c经济系统未启用，无法发放" + getCurrencyName() + "！");
+            player.tell("§e[邮件] §c经济系统未启用，无法发放" + getCurrencyName() + "！");
         }
     }
 
@@ -596,7 +596,7 @@ function claimMailAttachments(player, mail) {
                 const rawSnbt = typeof itemData === 'object' ? itemData.snbt : itemData;
                 if (!rawSnbt || typeof rawSnbt !== 'string' || !rawSnbt.trim()) {
                     _deps.logger.error("[邮件] 物品" + (index + 1) + "缺少有效的snbt数据，itemData类型: " + typeof itemData);
-                    player.tell("§c物品 " + (index + 1) + " 数据无效！");
+                    player.tell("§e[邮件] §c物品 " + (index + 1) + " 数据无效！");
                     allItemsSuccess = false;
                     return;
                 }
@@ -630,13 +630,13 @@ function claimMailAttachments(player, mail) {
                                 player.giveItem(fallbackItem);
                             } else {
                                 mc.spawnItem(fallbackItem, player.pos);
-                                player.tell("§e背包已满，物品已掉落在脚下！");
+                                player.tell("§e[邮件] §e背包已满，物品已掉落在脚下！");
                             }
-                            player.tell("§a成功领取 " + fallbackItem.name + "！");
+                            player.tell("§e[邮件] §a成功领取 " + fallbackItem.name + "！");
                             return;
                         }
                     }
-                    player.tell("§c物品 " + (index + 1) + " SNBT解析失败！");
+                    player.tell("§e[邮件] §c物品 " + (index + 1) + " SNBT解析失败！");
                     allItemsSuccess = false;
                     return;
                 }
@@ -646,16 +646,16 @@ function claimMailAttachments(player, mail) {
                         player.giveItem(item);
                     } else {
                         mc.spawnItem(item, player.pos);
-                        player.tell("§e背包已满，物品已掉落在脚下！");
+                        player.tell("§e[邮件] §e背包已满，物品已掉落在脚下！");
                     }
-                    player.tell("§a成功领取 " + item.name + "！");
+                    player.tell("§e[邮件] §a成功领取 " + item.name + "！");
                 } else {
-                    player.tell("§c物品 " + (index + 1) + " 创建失败！");
+                    player.tell("§e[邮件] §c物品 " + (index + 1) + " 创建失败！");
                     allItemsSuccess = false;
                 }
             } catch (error) {
                 _deps.logger.error("发放邮件物品失败：" + error.message);
-                player.tell("§c物品 " + (index + 1) + " 发放失败！");
+                player.tell("§e[邮件] §c物品 " + (index + 1) + " 发放失败！");
                 allItemsSuccess = false;
             }
         });
@@ -663,7 +663,7 @@ function claimMailAttachments(player, mail) {
 
     // 部分物品发放失败时不标记已领取，允许稍后重试
     if (!allItemsSuccess) {
-        player.tell("§c部分物品发放失败，请稍后重试！");
+        player.tell("§e[邮件] §c部分物品发放失败，请稍后重试！");
         showMailDetailForm(player, mail);
         return;
     }
@@ -677,7 +677,7 @@ function claimMailAttachments(player, mail) {
     }
     save();
 
-    player.tell("§a附件领取成功！");
+    player.tell("§e[邮件] §a附件领取成功！");
     showMailDetailForm(player, mail);
 }
 
@@ -734,7 +734,7 @@ function showSendGlobalMailForm(player) {
 
         const content = data[3] ? data[3].trim() : '';
         if (!content) {
-            p.tell("§c邮件内容不能为空！");
+            p.tell("§e[邮件] §c邮件内容不能为空！");
             showSendGlobalMailForm(p);
             return;
         }
@@ -764,7 +764,7 @@ function showSendGlobalMailForm(player) {
         }
 
         if (selectedItems.length > 0) {
-            p.tell("§a已选择 " + selectedItems.length + " 个物品！");
+            p.tell("§e[邮件] §a已选择 " + selectedItems.length + " 个物品！");
         }
 
         sendGlobalMail(p, content, starQian, selectedItems, scheduledTime, useCustomSender, customSender);
@@ -829,12 +829,12 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
                     claimed: {}
                 });
                 save();
-                player.tell("§a定时邮件设置成功！将在 " + scheduledTime + " 发送" + (hasAttachment ? "（含附件）" : ""));
+                player.tell("§e[邮件] §a定时邮件设置成功！将在 " + scheduledTime + " 发送" + (hasAttachment ? "（含附件）" : ""));
 
                 // 显示发送成功确认表单
                 const successForm = mc.newSimpleForm();
                 successForm.setTitle("§l§a邮件发送成功");
-                successForm.setContent("§7-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n§7-------------------------\n§e邮件内容：\n" + content + "\n§7-------------------------\n§a发件人：§e" + fromName + "\n§a" + getCurrencyName() + "奖励：§e" + starQian + " 点\n§a附件物品：§e" + items.length + " 个\n§a定时发送：§e" + scheduledTime + "\n§7-------------------------\n");
+                successForm.setContent("-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n-------------------------\n§e邮件内容：\n" + content + "\n-------------------------\n§a发件人：§e" + fromName + "\n§a" + getCurrencyName() + "奖励：§e" + starQian + " 点\n§a附件物品：§e" + items.length + " 个\n§a定时发送：§e" + scheduledTime + "\n-------------------------\n");
                 successForm.addButton("§b返回邮件系统", "textures/ui/recap_glyph_desaturated");
                 successForm.addButton("§c关闭", "textures/ui/crossout");
 
@@ -845,12 +845,12 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
                 });
                 return;
             } else {
-                player.tell("§c定时时间必须晚于当前时间！");
+                player.tell("§e[邮件] §c定时时间必须晚于当前时间！");
                 showSendGlobalMailForm(player);
                 return;
             }
         } else {
-            player.tell("§c定时时间格式不正确！正确格式：2026.02.12.00");
+            player.tell("§e[邮件] §c定时时间格式不正确！正确格式：2026.02.12.00");
             showSendGlobalMailForm(player);
             return;
         }
@@ -890,7 +890,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
         // 立即发送时显示成功确认表单
         const successForm = mc.newSimpleForm();
         successForm.setTitle("§l§a邮件发送成功");
-        successForm.setContent("§7-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n§7-------------------------\n§e邮件内容：\n" + content + "\n§7-------------------------\n§a发件人：§e" + fromName + "\n§a" + getCurrencyName() + "奖励：§e" + starQian + " 点\n§a附件物品：§e" + items.length + " 个\n§a发送时间：§e" + (_deps.U ? _deps.U.getCurrentTimeString() : formatMailTime()) + "\n§7-------------------------\n");
+        successForm.setContent("-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n-------------------------\n§e邮件内容：\n" + content + "\n-------------------------\n§a发件人：§e" + fromName + "\n§a" + getCurrencyName() + "奖励：§e" + starQian + " 点\n§a附件物品：§e" + items.length + " 个\n§a发送时间：§e" + (_deps.U ? _deps.U.getCurrentTimeString() : formatMailTime()) + "\n-------------------------\n");
         successForm.addButton("§b返回邮件系统", "textures/ui/recap_glyph_desaturated");
         successForm.addButton("§c关闭", "textures/ui/crossout");
 
@@ -924,7 +924,7 @@ function showSearchPlayerForMailForm(player) {
         const keyword = data[1] ? data[1].trim() : '';
 
         if (!keyword) {
-            p.tell("§c请输入搜索关键词！");
+            p.tell("§e[邮件] §c请输入搜索关键词！");
             showSearchPlayerForMailForm(p);
             return;
         }
@@ -932,7 +932,7 @@ function showSearchPlayerForMailForm(player) {
         // 搜索类型与 searchPlayers 参数相反：0=UID -> searchType=1, 1=名称 -> searchType=0
         const results = _deps.searchPlayers ? _deps.searchPlayers(keyword, searchType === 1 ? 0 : 1) : [];
         if (results.length === 0) {
-            p.tell("§c未找到匹配的玩家！");
+            p.tell("§e[邮件] §c未找到匹配的玩家！");
             showSearchPlayerForMailForm(p);
             return;
         }
@@ -1037,7 +1037,7 @@ function showSendSingleMailForm(player, target) {
 
         const content = data[1] ? data[1].trim() : '';
         if (!content) {
-            p.tell("§c邮件内容不能为空！");
+            p.tell("§e[邮件] §c邮件内容不能为空！");
             showSendSingleMailForm(p, target);
             return;
         }
@@ -1062,7 +1062,7 @@ function showSendSingleMailForm(player, target) {
         }
 
         if (selectedItems.length > 0) {
-            p.tell("§a已选择 " + selectedItems.length + " 个物品！");
+            p.tell("§e[邮件] §a已选择 " + selectedItems.length + " 个物品！");
         }
 
         sendSingleMail(p, target, content, starQian, selectedItems);
@@ -1116,7 +1116,7 @@ function sendSingleMail(player, target, content, starQian, selectedItems) {
         }
     }
 
-    player.tell("§a邮件已发送给 " + target.name + "！" + (hasAttachment ? "（含附件）" : ""));
+    player.tell("§e[邮件] §a邮件已发送给 " + target.name + "！" + (hasAttachment ? "（含附件）" : ""));
     showMailSystemForm(player);
 }
 
@@ -1141,7 +1141,7 @@ function showPlayerSendMailForm(player) {
     });
 
     if (playerList.length === 0) {
-        player.tell("§c当前没有其他在线玩家！");
+        player.tell("§e[邮件] §c当前没有其他在线玩家！");
         showMailSystemForm(player);
         return;
     }
@@ -1207,14 +1207,14 @@ function showPlayerSendMailForm(player) {
         const targetIndex = data[4];
         const target = playerList[targetIndex];
         if (!target) {
-            p.tell("§c收件人选择错误！");
+            p.tell("§e[邮件] §c收件人选择错误！");
             showPlayerSendMailForm(p);
             return;
         }
 
         const content = data[6] ? data[6].trim() : '';
         if (!content) {
-            p.tell("§c邮件内容不能为空！");
+            p.tell("§e[邮件] §c邮件内容不能为空！");
             showPlayerSendMailForm(p);
             return;
         }
@@ -1227,7 +1227,7 @@ function showPlayerSendMailForm(player) {
             const selectedIndex = data[i];
             if (selectedIndex > 0) {
                 if (selectedIndices.has(selectedIndex)) {
-                    p.tell("§c不能重复选择同一物品作为附件！");
+                    p.tell("§e[邮件] §c不能重复选择同一物品作为附件！");
                     showPlayerSendMailForm(p);
                     return;
                 }
@@ -1252,7 +1252,7 @@ function showPlayerSendMailForm(player) {
 
         const currentStarQian = _deps.money ? _deps.money.get(p.xuid) || 0 : 0;
         if (currentStarQian < totalCost) {
-            p.tell("§c" + getCurrencyName() + "不足！发送邮件需要 " + totalCost + " " + getCurrencyName() + "，您当前只有 " + currentStarQian + " " + getCurrencyName());
+            p.tell("§e[邮件] §c" + getCurrencyName() + "不足！发送邮件需要 " + totalCost + " " + getCurrencyName() + "，您当前只有 " + currentStarQian + " " + getCurrencyName());
             showPlayerSendMailForm(p);
             return;
         }
@@ -1260,7 +1260,7 @@ function showPlayerSendMailForm(player) {
         // 扣除货币
         if (_deps.money) {
             if (!_deps.money.reduce(p.xuid, totalCost)) {
-                p.tell("§c扣除" + getCurrencyName() + "失败！");
+                p.tell("§e[邮件] §c扣除" + getCurrencyName() + "失败！");
                 showPlayerSendMailForm(p);
                 return;
             }
@@ -1347,7 +1347,7 @@ function showPlayerSendMailForm(player) {
         const hasAttachment = selectedItems.length > 0;
         const successForm = mc.newSimpleForm();
         successForm.setTitle("§l§a邮件发送成功");
-        successForm.setContent("§7-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n§7-------------------------\n§e邮件内容：\n" + content + "\n§7-------------------------\n§a发件人：§e" + p.name + "\n§a收件人：§e" + target.name + "\n§a附件物品：§e" + selectedItems.length + " 个\n§a发送时间：§e" + (_deps.U ? _deps.U.getCurrentTimeString() : formatMailTime()) + "\n§7-------------------------\n§c扣除" + getCurrencyName() + "：§e" + totalCost + " 点\n§7-------------------------\n");
+        successForm.setContent("-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n-------------------------\n§e邮件内容：\n" + content + "\n-------------------------\n§a发件人：§e" + p.name + "\n§a收件人：§e" + target.name + "\n§a附件物品：§e" + selectedItems.length + " 个\n§a发送时间：§e" + (_deps.U ? _deps.U.getCurrentTimeString() : formatMailTime()) + "\n-------------------------\n§c扣除" + getCurrencyName() + "：§e" + totalCost + " 点\n-------------------------\n");
         successForm.addButton("§b返回邮件系统", "textures/ui/recap_glyph_desaturated");
         successForm.addButton("§c关闭", "textures/ui/crossout");
 

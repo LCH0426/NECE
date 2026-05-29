@@ -145,6 +145,13 @@ function registerRoutes(router, d) {
             if (typeof body.maxCount === 'number') {
                 cfg.maxCount = Math.max(0, Math.floor(body.maxCount));
             }
+            if (typeof body.compressionAlgorithm === 'string') {
+                const allowed = ['LZ4', 'LZMA2', 'ZSTD', 'BZip2', 'PPMd'];
+                const algo = body.compressionAlgorithm.toUpperCase();
+                if (allowed.indexOf(algo) !== -1) {
+                    cfg.compressionAlgorithm = algo;
+                }
+            }
 
             const MAIN_CONFIG_PATH = d.pathModule.join(__dirname, '..', '..', 'config.json');
             try {

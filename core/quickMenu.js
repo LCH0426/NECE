@@ -159,7 +159,7 @@ function showEditQuickMenu(player) {
 		}
 
 		setPlayerQuickMenu(p.xuid, newSlots);
-		p.tell("§a快捷菜单已更新！共设置 " + newSlots.length + " 个快捷入口");
+		p.tell("§e[菜单] §a快捷菜单已更新！共设置 " + newSlots.length + " 个快捷入口");
 		showQuickMenu(p);
 	});
 }

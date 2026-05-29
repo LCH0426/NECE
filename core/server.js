@@ -45,22 +45,24 @@ const ACCESS_TOKEN_EXPIRE = '15m';
 const REFRESH_TOKEN_EXPIRE = '7d';
 
 // ============ 简易内存限流器 ============
-const _rateLimitStore = {};          // key -> { count, resetAt }
+const _allRateLimitStores = [];      // 所有限流器的 store 引用，用于定期清理
 let _rateLimitCleanupTimer = null;
 
 /**
- * 创建限流中间件
+ * 创建限流中间件（每个实例独立计数，互不干扰）
  * @param {number} windowMs 时间窗口（毫秒）
  * @param {number} maxRequests 窗口内最大请求数
  */
 function createRateLimiter(windowMs, maxRequests) {
+    const store = {};  // 每个限流器独立存储，避免不同类型限流共享计数
+    _allRateLimitStores.push(store);
     return function(req, res, next) {
         const key = req.ip || req.connection.remoteAddress || 'unknown';
         const now = Date.now();
-        let entry = _rateLimitStore[key];
+        let entry = store[key];
         if (!entry || now > entry.resetAt) {
             entry = { count: 1, resetAt: now + windowMs };
-            _rateLimitStore[key] = entry;
+            store[key] = entry;
         } else {
             entry.count++;
         }
@@ -79,8 +81,8 @@ const refreshLimiter = createRateLimiter(60000, 20);
 const captchaLimiter = createRateLimiter(60000, 15);
 // 备份下载限流：每IP每分钟最多5次
 const backupDownloadLimiter = createRateLimiter(60000, 5);
-// 全局API限流：每IP每分钟最多120次（防御暴力扫描和DoS）
-const globalApiLimiter = createRateLimiter(60000, 120);
+// 全局API限流：每IP每分钟最多300次（防御暴力扫描和DoS，正常面板使用不会触发）
+const globalApiLimiter = createRateLimiter(60000, 300);
 // 配置修改限流：每IP每分钟最多10次（防御配置刷写）
 const configLimiter = createRateLimiter(60000, 10);
 
@@ -89,10 +91,13 @@ function startRateLimitCleanup() {
     if (_rateLimitCleanupTimer) clearInterval(_rateLimitCleanupTimer);
     _rateLimitCleanupTimer = setInterval(function() {
         const now = Date.now();
-        const keys = Object.keys(_rateLimitStore);
-        for (let i = 0; i < keys.length; i++) {
-            if (now > _rateLimitStore[keys[i]].resetAt) {
-                delete _rateLimitStore[keys[i]];
+        for (let s = 0; s < _allRateLimitStores.length; s++) {
+            const store = _allRateLimitStores[s];
+            const keys = Object.keys(store);
+            for (let i = 0; i < keys.length; i++) {
+                if (now > store[keys[i]].resetAt) {
+                    delete store[keys[i]];
+                }
             }
         }
     }, 120000); // 每2分钟清理一次
@@ -461,6 +466,7 @@ function createV1Routes(webConfig) {
     require('./routes/config').registerRoutes(router, routeDeps);
     require('./routes/shop').registerRoutes(router, routeDeps);
     require('./routes/teleport').registerRoutes(router, routeDeps);
+    require('./routes/guild').registerRoutes(router, routeDeps);
     require('./routes/admin').registerRoutes(router, routeDeps);
 
     return router;
@@ -505,7 +511,6 @@ function stopServer() {
     monitoring.stopPolling();
     if (cleanupTimer) { clearInterval(cleanupTimer); cleanupTimer = null; }
     if (_rateLimitCleanupTimer) { clearInterval(_rateLimitCleanupTimer); _rateLimitCleanupTimer = null; }
-    if (worldSizeTimer) { clearInterval(worldSizeTimer); worldSizeTimer = null; }
     if (server) {
         server.close();
         server = null;
