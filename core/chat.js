@@ -30,7 +30,6 @@ let _pathModule = null;
 let chatCfg = { enabled: true, format: "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§a<§r{name}§a> §r{msg}", wordFilter: true };
 let badWordList = [];
 let badWordRegex = null;  // 预编译的敏感词正则，避免每次检测时重建
-let orgNameResolver = null;  // 延迟加载公会名称查询函数（orgEX插件导出）
 
 // 聊天日志文件句柄与日期追踪
 let _chatLogDir = null;
@@ -105,20 +104,19 @@ function rebuildBadWordRegex() {
 }
 
 /**
- * 查询玩家所属公会名称，通过 orgEX 插件导出函数实现
- * 首次调用时检测导出可用性，后续使用缓存结果
+ * 查询玩家所属公会名称（NLCE 公会系统）
  * @param {string} xuid - 玩家 XUID
  * @returns {string} 公会名称，无公会返回"§c无§r"
  */
 function resolveOrgName(xuid) {
-    if (orgNameResolver === null) {
-        orgNameResolver = ll.hasExported('orgEX', 'orgEX_getPlayerOrgName') ? ll.import('orgEX', 'orgEX_getPlayerOrgName') : false;
-    }
-    if (!orgNameResolver) return '§c无§r';
     try {
-        const n = orgNameResolver(xuid);
-        return (n && n.trim()) ? n : '§c无§r';
-    } catch (e) { return '§c无§r'; }
+        const database = require('./database');
+        if (database.isPlayerDbReady()) {
+            const guild = database.getGuildByPlayer(String(xuid));
+            if (guild && guild.name) return guild.name;
+        }
+    } catch (e) {}
+    return '§c无§r';
 }
 
 /**

@@ -26,7 +26,6 @@ const D = require('./debug');
 const fs = require('fs');
 const pathModule = require('path');
 const _7z = require('7zip-min');
-const U = require('./utils');
 
 let backupConfig = null;    // 备份配置（interval、compressionLevel、maxAgeDays、maxCount）
 let backupDir = '';         // 备份文件存储目录
@@ -203,8 +202,7 @@ function executeBackup(callback) {
                 return;
             }
 
-            // 等待3秒确保文件系统同步
-            setTimeout(function() {
+            // save query已确认文件就绪
             try {
                 const worldNames = getWorldNames();
                 if (worldNames.length === 0) {
@@ -220,115 +218,118 @@ function executeBackup(callback) {
                 if (compressionLevel > 9) compressionLevel = 9;
 
                 const timestamp = formatBackupTime();
-                const tempDir = pathModule.join(backupDir, '_temp_' + timestamp);
-                try {
-                    fs.mkdirSync(tempDir, { recursive: true });
-                } catch (e) {
-                    try { mc.runcmdEx('save resume'); } catch (ex) { logger.error('[Backup] save resume 失败: ' + ex.message); }
-                    isBackingUp = false;
-                    callback({ error: '创建临时目录失败: ' + e.message });
-                    return;
+
+                // 先尝试直接压缩世界目录，失败则回退到复制临时目录再压缩
+                const firstWorld = worldNames[0];
+                const firstWorldPath = pathModule.resolve(process.cwd(), 'worlds', firstWorld);
+                const firstArchiveName = firstWorld + '_' + timestamp + '.7z';
+                const firstArchivePath = pathModule.join(backupDir, firstArchiveName);
+
+                // 确保备份目录存在
+                if (!fs.existsSync(backupDir)) {
+                    try { fs.mkdirSync(backupDir, { recursive: true }); } catch (e) { /* ignore */ }
                 }
 
-                logger.info('开始复制世界文件到临时目录...');
-                const copyErrors = [];
-                worldNames.forEach(function(worldName) {
-                    const worldPath = pathModule.resolve(process.cwd(), 'worlds', worldName);
-                    let tempWorldPath = pathModule.join(tempDir, worldName);
-                    try {
-                        U.copyDirSync(worldPath, tempWorldPath);
-                    } catch (e) {
-                        copyErrors.push({ world: worldName, error: e.message });
-                    }
-                });
+                logger.info('尝试直接压缩世界文件 (LZMA2, 级别: ' + compressionLevel + ')...');
 
-                // 复制完成后立即resume，减少存档锁定时间
-                try {
-                    const resumeResult = mc.runcmdEx('save resume');
-                    logger.info('save resume 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
-                } catch (e) {
-                    logger.error('save resume 执行失败: ' + e.message);
-                }
+                compressTo7z(firstWorldPath, firstArchivePath, compressionLevel, function(firstErr) {
+                    if (!firstErr) {
+                        // 直接压缩成功，继续处理剩余世界
+                        logger.info('直接压缩成功，继续处理其余世界...');
+                        var results = [];
+                        var fileSize = 0;
+                        try { fileSize = fs.statSync(firstArchivePath).size; } catch (e) { /* ignore */ }
+                        results.push({ world: firstWorld, file: firstArchiveName, success: true, size: fileSize, sizeFormatted: formatFileSize(fileSize) });
 
-                if (copyErrors.length > 0) {
-                    logger.error('复制世界文件时出错: ' + JSON.stringify(copyErrors));
-                }
-
-                onlinePlayers.forEach(function(p) {
-                    try { p.sendToast('地图快照已完成，正在后台压缩', '§6压缩中'); } catch (e) { logger.warn('[Backup] 发送压缩通知失败: ' + e.message); }
-                });
-
-                logger.info('世界文件复制完成，save resume 已执行，开始后台压缩...');
-
-                // 逐个世界进行7z压缩
-                const results = [];
-                let completed = 0;
-                const total = worldNames.length;
-
-                worldNames.forEach(function(worldName) {
-                    const tempWorldPath = pathModule.join(tempDir, worldName);
-                    const archiveName = worldName + '_' + timestamp + '.7z';
-                    const archivePath = pathModule.join(backupDir, archiveName);
-
-                    compressTo7z(tempWorldPath, archivePath, compressionLevel, function(err) {
-                        completed++;
-                        if (!err) {
-                            let fileSize = 0;
-                            try {
-                                let stat = fs.statSync(archivePath);
-                                fileSize = stat.size;
-                            } catch (e) { logger.warn('[Backup] 获取备份文件大小失败: ' + e.message); }
-                            results.push({ world: worldName, file: archiveName, success: true, size: fileSize, sizeFormatted: formatFileSize(fileSize) });
+                        if (worldNames.length === 1) {
+                            finishBackup(results, startTime, onlinePlayers, callback);
                         } else {
-                            results.push({ world: worldName, file: archiveName, success: false, error: err.message || String(err) });
-                        }
-
-                        // 所有世界压缩完成后清理和汇报
-                        if (completed >= total) {
-                            try {
-                                U.rmrf(tempDir);
-                            } catch (e) {
-                                logger.error('清理临时目录失败: ' + e.message);
+                            var completed = 1;
+                            var total = worldNames.length;
+                            for (var i = 1; i < worldNames.length; i++) {
+                                (function(worldName) {
+                                    var worldPath = pathModule.resolve(process.cwd(), 'worlds', worldName);
+                                    var archiveName = worldName + '_' + timestamp + '.7z';
+                                    var archivePath = pathModule.join(backupDir, archiveName);
+                                    compressTo7z(worldPath, archivePath, compressionLevel, function(err) {
+                                        if (!err) {
+                                            var sz = 0;
+                                            try { sz = fs.statSync(archivePath).size; } catch (e) { /* ignore */ }
+                                            results.push({ world: worldName, file: archiveName, success: true, size: sz, sizeFormatted: formatFileSize(sz) });
+                                        } else {
+                                            results.push({ world: worldName, file: archiveName, success: false, error: err.message || String(err) });
+                                        }
+                                        if (++completed >= total) finishBackup(results, startTime, onlinePlayers, callback);
+                                    });
+                                })(worldNames[i]);
                             }
-
-                            const elapsed = Date.now() - startTime;
-                            const elapsedSec = (elapsed / 1000).toFixed(1);
-                            let totalBackupSize = 0;
-                            let successCount = 0;
-                            let failCount = 0;
-                            results.forEach(function(r) {
-                                if (r.success) {
-                                    successCount++;
-                                    totalBackupSize += r.size;
-                                } else {
-                                    failCount++;
-                                }
-                            });
-
-                            onlinePlayers.forEach(function(p) {
-                                try { p.sendToast('地图备份已完成', '备份完成'); } catch (e) { logger.warn('[Backup] 发送备份完成通知失败: ' + e.message); }
-                            });
-
-                            try {
-                                if (failCount === 0) {
-                                    logger.info('备份完成！耗时 ' + elapsedSec + ' 秒，总大小 ' + formatFileSize(totalBackupSize) + '，成功 ' + successCount + '/' + total);
-                                } else {
-                                    logger.info('备份完成！耗时 ' + elapsedSec + ' 秒，成功 ' + successCount + '/' + total + '，失败 ' + failCount + '/' + total);
-                                }
-                                results.forEach(function(r) {
-                                    if (r.success) {
-                                        logger.info('备份成功: ' + r.file + ' (' + r.sizeFormatted + ')');
-                                    } else {
-                                        logger.info('备份失败: ' + (r.file || r.world) + ' - ' + (r.error || '未知错误'));
-                                    }
-                                });
-                            } catch (e) { logger.warn('[Backup] 输出备份结果失败: ' + e.message); }
-
-                            cleanupOldBackups();
-                            isBackingUp = false;
-                            callback(null, { results: results, timestamp: timestamp, elapsed: elapsedSec, totalSize: totalBackupSize, totalSizeFormatted: formatFileSize(totalBackupSize), successCount: successCount, failCount: failCount });
                         }
-                    });
+                    } else {
+                        // 直接压缩失败，回退到复制临时目录再压缩
+                        logger.warn('[Backup] 直接压缩失败，回退到临时目录模式: ' + firstErr.message);
+                        // 删除可能残留的失败归档
+                        try { if (fs.existsSync(firstArchivePath)) fs.unlinkSync(firstArchivePath); } catch (e) { /* ignore */ }
+
+                        var tempDir = pathModule.join(backupDir, '_temp_' + timestamp);
+                        try { fs.mkdirSync(tempDir, { recursive: true }); } catch (e) {
+                            try { mc.runcmdEx('save resume'); } catch (ex) { logger.error('[Backup] save resume 失败: ' + ex.message); }
+                            isBackingUp = false;
+                            callback({ error: '创建临时目录失败: ' + e.message });
+                            return;
+                        }
+
+                        logger.info('正在复制世界文件到临时目录...');
+                        var copyErrors = [];
+                        for (var ci = 0; ci < worldNames.length; ci++) {
+                            var wn = worldNames[ci];
+                            var wp = pathModule.resolve(process.cwd(), 'worlds', wn);
+                            var twp = pathModule.join(tempDir, wn);
+                            try { copyDirSync(wp, twp); } catch (e) { copyErrors.push({ world: wn, error: e.message }); }
+                        }
+
+                        // 复制完成，先恢复世界写入，再从临时目录压缩
+                        try {
+                            var resumeResult = mc.runcmdEx('save resume');
+                            logger.info('save resume 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
+                        } catch (e) { logger.error('save resume 执行失败: ' + e.message); }
+
+                        if (copyErrors.length > 0) {
+                            logger.error('复制世界文件时出错: ' + JSON.stringify(copyErrors));
+                        }
+
+                        onlinePlayers.forEach(function(p) {
+                            try { p.sendToast('快照已完成，正在后台压缩', '§6压缩中'); } catch (e) { /* ignore */ }
+                        });
+
+                        logger.info('从临时目录压缩 (LZMA2, 级别: ' + compressionLevel + ')...');
+
+                        var results = [];
+                        var completed = 0;
+                        var total = worldNames.length;
+
+                        worldNames.forEach(function(worldName) {
+                            var tempWorldPath = pathModule.join(tempDir, worldName);
+                            var archiveName = worldName + '_' + timestamp + '.7z';
+                            var archivePath = pathModule.join(backupDir, archiveName);
+
+                            compressTo7z(tempWorldPath, archivePath, compressionLevel, function(err) {
+                                completed++;
+                                if (!err) {
+                                    var sz = 0;
+                                    try { sz = fs.statSync(archivePath).size; } catch (e) { /* ignore */ }
+                                    results.push({ world: worldName, file: archiveName, success: true, size: sz, sizeFormatted: formatFileSize(sz) });
+                                } else {
+                                    results.push({ world: worldName, file: archiveName, success: false, error: err.message || String(err) });
+                                }
+
+                                if (completed >= total) {
+                                    // 清理临时目录
+                                    try { rmrfSync(tempDir); } catch (e) { logger.error('清理临时目录失败: ' + e.message); }
+                                    finishBackup(results, startTime, onlinePlayers, callback);
+                                }
+                            });
+                        });
+                    }
                 });
             } catch (e) {
                 try {
@@ -338,9 +339,101 @@ function executeBackup(callback) {
                 isBackingUp = false;
                 callback({ error: '备份失败: ' + e.message });
             }
-            }, 3000);
         });
     }, 1000);
+}
+
+/**
+ * 递归同步复制目录
+ * @param {string} src - 源目录
+ * @param {string} dest - 目标目录
+ */
+function copyDirSync(src, dest) {
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+    var entries = fs.readdirSync(src, { withFileTypes: true });
+    for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        var srcPath = pathModule.join(src, entry.name);
+        var destPath = pathModule.join(dest, entry.name);
+        if (entry.isDirectory()) {
+            copyDirSync(srcPath, destPath);
+        } else {
+            fs.copyFileSync(srcPath, destPath);
+        }
+    }
+}
+
+/**
+ * 递归同步删除目录
+ * @param {string} dirPath - 要删除的目录
+ */
+function rmrfSync(dirPath) {
+    if (!fs.existsSync(dirPath)) return;
+    var entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        var fullPath = pathModule.join(dirPath, entry.name);
+        if (entry.isDirectory()) {
+            rmrfSync(fullPath);
+        } else {
+            fs.unlinkSync(fullPath);
+        }
+    }
+    fs.rmdirSync(dirPath);
+}
+
+/**
+ * 备份完成的统一收尾：恢复存档写入、统计结果、通知玩家、清理旧备份
+ * @param {Array} results - 各世界的压缩结果
+ * @param {number} startTime - 备份开始时间戳
+ * @param {Array} onlinePlayers - 在线玩家列表
+ * @param {Function} callback - executeBackup 的回调
+ */
+function finishBackup(results, startTime, onlinePlayers, callback) {
+    // 恢复世界写入（如果尚未恢复，比如直接压缩模式）
+    try {
+        var resumeResult = mc.runcmdEx('save resume');
+        if (resumeResult && resumeResult.output && resumeResult.output.indexOf('are resumed') === -1) {
+            logger.info('save resume 输出: ' + resumeResult.output.trim());
+        }
+    } catch (e) { /* 已经 resume 过，忽略 */ }
+
+    var elapsed = Date.now() - startTime;
+    var elapsedSec = (elapsed / 1000).toFixed(1);
+    var totalBackupSize = 0;
+    var successCount = 0;
+    var failCount = 0;
+    results.forEach(function(r) {
+        if (r.success) {
+            successCount++;
+            totalBackupSize += r.size;
+        } else {
+            failCount++;
+        }
+    });
+
+    onlinePlayers.forEach(function(p) {
+        try { p.sendToast('地图备份已完成', '备份完成'); } catch (e) { /* ignore */ }
+    });
+
+    try {
+        if (failCount === 0) {
+            logger.info('备份完成！耗时 ' + elapsedSec + ' 秒，总大小 ' + formatFileSize(totalBackupSize) + '，成功 ' + successCount + '/' + results.length);
+        } else {
+            logger.info('备份完成！耗时 ' + elapsedSec + ' 秒，成功 ' + successCount + '/' + results.length + '，失败 ' + failCount + '/' + results.length);
+        }
+        results.forEach(function(r) {
+            if (r.success) {
+                logger.info('备份成功: ' + r.file + ' (' + r.sizeFormatted + ')');
+            } else {
+                logger.info('备份失败: ' + (r.file || r.world) + ' - ' + (r.error || '未知错误'));
+            }
+        });
+    } catch (e) { logger.warn('[Backup] 输出备份结果失败: ' + e.message); }
+
+    cleanupOldBackups();
+    isBackingUp = false;
+    callback(null, { results: results, elapsed: elapsedSec, totalSize: totalBackupSize, totalSizeFormatted: formatFileSize(totalBackupSize), successCount: successCount, failCount: failCount });
 }
 
 /**
@@ -351,7 +444,7 @@ function executeBackup(callback) {
  * @param {Function} callback - callback(err)
  */
 function compressTo7z(sourcePath, archivePath, compressionLevel, callback) {
-    const args = [
+    var args = [
         'a',                    // 添加文件到归档
         '-t7z',                 // 7z格式
         '-mx=' + compressionLevel, // 压缩级别
@@ -364,9 +457,10 @@ function compressTo7z(sourcePath, archivePath, compressionLevel, callback) {
 
     _7z.cmd(args, function(err) {
         if (err) {
-            let detail = err.message || 'Unknown error';
+            var detail = err.message || 'Unknown error';
             if (err.stderr) detail += ' | stderr: ' + err.stderr.trim();
-            const enhancedErr = new Error(detail);
+            logger.warn('[Backup] 7z 压缩失败: ' + detail);
+            var enhancedErr = new Error(detail);
             enhancedErr.code = err.code;
             callback(enhancedErr);
         } else {

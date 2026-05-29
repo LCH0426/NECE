@@ -19,7 +19,7 @@
  * NLCE 个人中心模块
  * 核心功能：个人中心UI面板、冒险等级系统（经验值/升级/奖励）、数据统计、UID搜索
  * 扩展功能：在 LLSE_Player 原型上注入 uid 和 adventureLevelInfo 访问器
- * 入口：时钟右键打开主菜单，或通过命令进入各子面板
+ * 入口：通过命令进入各子面板，或由 menu.js 钟表右键打开
  */
 
 const U = require('./utils');
@@ -30,9 +30,6 @@ let _deps = {};
 // 冒险等级升级经验表，由 index.js 通过 setLevelUpExp 注入
 // _levelUpExp[i] 表示达到第 i+1 级所需的累计经验
 let _levelUpExp = [];
-
-// 时钟右键节流记录，xuid -> 上次触发时间戳，800ms内重复使用忽略
-const _clockThrottle = {};
 
 /**
  * 初始化个人中心模块
@@ -458,7 +455,7 @@ function showUidSearchInputForm(player) {
 		const inputUidStr = inputData[0];
 		const targetUid = parseInt(inputUidStr);
 		if (isNaN(targetUid) || inputUidStr.trim() === '') {
-			p.tell('§c请输入有效的数字UID！', 1);
+			p.tell('§e[个人] §c请输入有效的数字UID！', 1);
 			return;
 		}
 		showUidSearchResultForm(p, targetUid);
@@ -550,32 +547,14 @@ function showUidListForm(player, currentPage) {
 // ============ 个人中心 UI ============
 
 /**
- * 显示游戏内主菜单（时钟右键触发），包含个人中心、留言板、传送系统入口
- * 按钮顺序和可见性根据配置动态调整
+ * 打开游戏内主菜单（委托给 menu.js 模块）
+ * 保持此函数以兼容外部模块引用
  * @param {Player} player - 玩家
  */
 function openMainMenu(player) {
-	let xuid = player.xuid;
-	const bal = _deps.money ? _deps.money.get(xuid) || 0 : 0;
-	const fm = mc.newSimpleForm();
-	fm.setTitle('§e Citlalia ');
-	fm.setContent('§f' + player.name + ' §7| §e' + bal + ' ' + _deps.getCurrencyName());
-	let avatarUrl = _deps.getPlayerAvatarUrl(xuid);
-	fm.addButton('§9个人中心', avatarUrl);
-	const hasMessageBoard = _deps.config.get('enableMessageBoard');
-	if (hasMessageBoard) {
-		fm.addButton('§b留言板', 'textures/ui/comment');
+	if (_deps.menuModule && _deps.menuModule.showMainMenu) {
+		_deps.menuModule.showMainMenu(player);
 	}
-	if (_deps.teleportModule.tpsConfig().enabled) {
-		fm.addButton('§a传送系统', 'textures/ui/icon_multiplayer');
-	}
-	player.sendForm(fm, function(p, idx) {
-		if (idx === null) return;
-		// 根据留言板配置动态映射按钮索引
-		if (idx === 0) showPersonalCenterForm(p);
-		else if (idx === 1 && hasMessageBoard) _deps.messageBoardModule.showMainForm(p);
-		else if ((idx === 2 && hasMessageBoard) || (idx === 1 && !hasMessageBoard)) _deps.teleportModule.showTpgMainMenu(p, _deps.commonDeps);
-	});
 }
 
 /**
@@ -757,7 +736,7 @@ function showNetworkInfoForm(player) {
 				const pIp = (pDevice && pDevice.ip) ? U.stripIpPort(pDevice.ip) : '未知';
 				const pType = U.getNetworkType(pIp);
 				const pPing = (pDevice && pDevice.avgPing !== undefined) ? pDevice.avgPing + 'ms' : 'N/A';
-				content += '§b' + p.name + ' §f- §7' + pIp + ' §f(' + pType + ' §a' + pPing + '§f)\n';
+				content += '§b' + p.name + ' §f- ' + pIp + ' §f(' + pType + ' §a' + pPing + '§f)\n';
 			});
 			content += '-------------------------\n';
 		}
@@ -816,7 +795,7 @@ function showPlayerSettingsForm(player) {
 			if (newVal !== oldVal) {
 				_deps.setPlayerSetting(xuid, si.key, newVal);
 				// 去掉Minecraft颜色代码后通知玩家
-				p.tell('§a' + si.label.replace(/§./g, '') + '已' + (newVal ? '开启' : '关闭') + '！');
+				p.tell('§e[个人] §a' + si.label.replace(/§./g, '') + '已' + (newVal ? '开启' : '关闭') + '！');
 				changed = true;
 			}
 		}
@@ -830,30 +809,10 @@ function showPlayerSettingsForm(player) {
 	});
 }
 
-// ============ 时钟菜单事件 ============
-
-/**
- * 注册时钟右键监听，右键方块时打开主菜单
- * 内置800ms节流防止连续触发
- */
-function registerClockListener() {
-	mc.listen('onUseItemOn', function(pl, it) {
-		if (!pl || !pl.xuid) return;
-		if (it.type !== 'minecraft:clock') return;
-		const now = Date.now();
-		const xuid = pl.xuid;
-		// 节流：800ms内重复右键忽略
-		if (_clockThrottle[xuid] && now - _clockThrottle[xuid] < 800) return;
-		_clockThrottle[xuid] = now;
-		openMainMenu(pl);
-	});
-}
-
 module.exports = {
 	init: init,
 	setLevelUpExp: setLevelUpExp,
 	installPrototypeExtensions: installPrototypeExtensions,
-	registerClockListener: registerClockListener,
 
 	// 工具函数 — 供 index.js 事件监听器使用
 	obtainStatBlock: obtainStatBlock,

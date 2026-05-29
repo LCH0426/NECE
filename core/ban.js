@@ -310,7 +310,7 @@ function showBanDetailForm(player, entry) {
             p.sendModalForm("§a确认解封", "§a确定要解封玩家 §f" + entry.name + " §a吗？", "§a确认", "§c取消", function(pl, res) {
                 if (res) {
                     let result = unbanPlayer(entry.xuid);
-                    pl.tell(result.message);
+                    pl.tell("" + result.message);
                     showBanListForm(pl);
                 } else {
                     showBanDetailForm(pl, entry);
@@ -348,7 +348,7 @@ function showBanPlayerForm(player) {
         }
 
         let result = banPlayer(identifier, reason, p.name);
-        p.tell(result.success ? "§a" + result.message : "§c" + result.message);
+        p.tell("" + (result.success ? "§a" + result.message : "§c" + result.message));
         showBanListForm(p);
     });
 }
@@ -419,7 +419,7 @@ function registerGameCommands() {
             }
             const operator = player ? player.name : '控制台';
             let result = banPlayer(identifier, reason, operator);
-            if (player) player.tell(result.success ? '§a' + result.message : '§c' + result.message);
+            if (player) player.tell('' + (result.success ? '§a' + result.message : '§c' + result.message));
             else logger.info(result.message);
         });
         banCmd.setup();
@@ -440,7 +440,7 @@ function registerGameCommands() {
                 return;
             }
             const result = unbanPlayer(identifier);
-            if (player) player.tell(result.success ? '§a' + result.message : '§c' + result.message);
+            if (player) player.tell('' + (result.success ? '§a' + result.message : '§c' + result.message));
             else logger.info(result.message);
         });
         unbanCmd.setup();

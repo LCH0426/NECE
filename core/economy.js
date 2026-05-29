@@ -349,7 +349,7 @@ function showTransferOnlineForm(player) {
         const targetName = names[data[0]];
         let amountStr = (data[1] || "").trim();
         if (!amountStr || !U.isInteger(amountStr) || Number(amountStr) <= 0) {
-            p.tell("请输入有效的转账金额");
+            p.tell("§e[经济] 请输入有效的转账金额");
             showTransferOnlineForm(p);
             return;
         }
@@ -384,7 +384,7 @@ function showTransferOfflineForm(player) {
         if (data === null || !Array.isArray(data)) return;
         const keyword = (data[0] || "").trim();
         if (!keyword) {
-            p.tell("请输入搜索内容");
+            p.tell("§e[经济] 请输入搜索内容");
             showTransferOfflineForm(p);
             return;
         }
@@ -439,7 +439,7 @@ function _showTransferOfflineAmountForm(player, target) {
         if (data === null || !Array.isArray(data)) return;
         const amountStr = (data[1] || "").trim();
         if (!amountStr || !U.isInteger(amountStr) || Number(amountStr) <= 0) {
-            p.tell("请输入有效的转账金额");
+            p.tell("§e[经济] 请输入有效的转账金额");
             _showTransferOfflineAmountForm(p, target);
             return;
         }
@@ -484,7 +484,7 @@ function _executeTransfer(sender, targetName, targetXuid, amount) {
     const senderBalance = getPlayerMoney(sender);
     const targetBalance = getPlayerMoneyByXuid(targetXuid);
     _writeTransferLog(sender.realName, targetName, amount, senderBalance, targetBalance);
-    sender.tell("转账成功 向" + targetName + "转账" + amount + getCurrencyName() + " 余额" + senderBalance + getCurrencyName());
+    sender.tell("§e[经济] 转账成功 向" + targetName + "转账" + amount + getCurrencyName() + " 余额" + senderBalance + getCurrencyName());
     sender.sendModalForm("转账成功", "向" + targetName + "转账 " + amount + " " + getCurrencyName() + "\n余额 " + senderBalance + " " + getCurrencyName(), "继续转账", "关闭", function(pl, ok) {
         if (ok === true) showTransferTypeForm(pl);
     });
@@ -496,7 +496,7 @@ function checkPendingTransfers(player) {
     if (!pendingTransfers[xuid] || pendingTransfers[xuid].length === 0) return;
     const transfers = pendingTransfers[xuid];
     transfers.forEach(function(t) {
-        player.tell("您在离线期间收到了一笔来自" + t.from + "的转账 数额为" + t.amount + getCurrencyName());
+        player.tell("§e[经济] 您在离线期间收到了一笔来自" + t.from + "的转账 数额为" + t.amount + getCurrencyName());
         notifyEconomyChange(player, t.amount, "来自" + t.from + "的转账");
     });
     delete pendingTransfers[xuid];

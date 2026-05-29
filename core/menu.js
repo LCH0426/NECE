@@ -85,7 +85,7 @@ function isOp(player) {
 function showMenu(player, menuId, history) {
     var menu = menuConfig[menuId];
     if (!menu) {
-        player.tell("§c菜单不存在: " + menuId);
+        player.tell("§e[菜单] §c菜单不存在: " + menuId);
         return;
     }
 

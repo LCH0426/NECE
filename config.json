@@ -355,7 +355,28 @@
       ]
     }
   },
+  "enableGuild": true,
+  "guildConfig": {
+    "createCost": 1000,
+    "maxMembers": 20,
+    "maxTeleports": 5,
+    "maxAdmins": 3,
+    "depositCost": 0,
+    "withdrawAdminOnly": false,
+    "teleportCooldown": 10
+  },
   "debugmsg": "你正在参与服务器测试，如遇问题请反馈给管理员。",
   "enableCdk": true,
-  "sidebarCompact": false
+  "sidebarCompact": false,
+  "enableMotd": true,
+  "motdConfig": {
+    "enabled": true,
+    "interval": 1,
+    "lines": [
+      "§eN§rECE",
+      "N§eE§rCE",
+      "NE§eC§eE",
+      "NEC§eE"
+    ]
+  }
 }

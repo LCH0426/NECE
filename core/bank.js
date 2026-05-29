@@ -297,7 +297,7 @@ function createBankModule(deps) {
             let amount = parseFloat(amountStr);
             if (isNaN(amount)) { p.tell("§c请输入有效的金额"); showCurrentOperationForm(p); return; }
             let result = performCurrentOperation(p, amount);
-            p.tell(result.message);
+            p.tell("" + result.message);
             p.sendModalForm(result.success ? "§a操作成功" : "§c操作失败", result.message, "§a返回", "§c关闭", function(player) { showBankMainForm(player); });
         });
     }
@@ -385,7 +385,7 @@ function createBankModule(deps) {
             if (id === 0) {
                 if (isMature) {
                     let result = withdrawFixed(p, deposit.id);
-                    p.tell(result.message);
+                    p.tell("" + result.message);
                     p.sendModalForm("§a取出成功", result.message, "§a返回", "§c关闭", function(player) { showFixedDepositMainForm(player); });
                 } else {
                     p.sendModalForm("§c警告",
@@ -401,7 +401,7 @@ function createBankModule(deps) {
                         function(player, res) {
                             if (res) {
                                 let result = withdrawFixed(player, deposit.id);
-                                player.tell(result.message);
+                                player.tell("" + result.message);
                                 player.sendModalForm("§a取出成功", result.message, "§a返回", "§c关闭", function(player) { showFixedDepositMainForm(player); });
                             } else {
                                 showSingleFixedDepositForm(player, deposit);
@@ -427,7 +427,7 @@ function createBankModule(deps) {
             if (isNaN(amount) || amount <= 0) { p.tell("§c请输入有效的存款金额"); showFixedDepositForm(p); return; }
             const days = [7, 30, 90][durationIndex];
             const result = depositFixed(p, amount, days);
-            p.tell(result.message);
+            p.tell("" + result.message);
             p.sendModalForm(result.success ? "§a操作成功" : "§c操作失败", result.message, "§a返回", "§c关闭", function(player) { showFixedDepositMainForm(player); });
         });
     }

@@ -76,6 +76,40 @@ function init(fdm, mdm, deps) {
     if (!messageData.players) messageData.players = {};
 }
 
+/**
+ * 发送系统邮件给指定玩家
+ * @param {string} xuid - 收件人XUID
+ * @param {string} content - 邮件内容
+ */
+function sendSystemMail(xuid, content) {
+    var mailApi = _deps.mailApi;
+    if (!mailApi || !mailApi.addMail) return;
+    try {
+        var mailId = mailApi.getNextId ? mailApi.getNextId() : Date.now();
+        if (mailApi.incrementNextId) mailApi.incrementNextId();
+        var timeStr = mailApi.formatMailTime ? mailApi.formatMailTime() : new Date().toLocaleString();
+        mailApi.addMail({
+            id: mailId,
+            fromXuid: 'system',
+            fromName: '系统',
+            toXuid: String(xuid),
+            content: content,
+            time: timeStr,
+            read: false,
+            starQian: 0,
+            items: [],
+            claimed: false
+        });
+        try {
+            var tp = mc.getPlayer(String(xuid));
+            if (tp) {
+                tp.sendToast('§e新邮件提醒', '§a您收到了一封系统邮件');
+                tp.tell('§e[邮件] §a您收到了一封系统邮件，请在邮件系统中查看');
+            }
+        } catch (e) {}
+    } catch (e) {}
+}
+
 /** 立即持久化好友数据到磁盘 */
 function saveData() {
     if (!friendData.players) friendData.players = {};
@@ -173,7 +207,7 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
     if (!isFriend && _deps.getPlayerSetting && !_deps.getPlayerSetting(toXuid, "acceptStrangerMessages")) {
         const fromPlayer = mc.getPlayer(fromXuid);
         if (fromPlayer) {
-            fromPlayer.tell("§c对方拒绝接受陌生人私信！");
+            fromPlayer.tell("§e[好友] §c对方拒绝接受陌生人私信！");
         }
         return false;
     }
@@ -311,14 +345,14 @@ function showSendMessageForm(player, toXuid, toName, page) {
         }
 
         if (!content) {
-            p.tell("§c消息内容不能为空！");
+            p.tell("§e[好友] §c消息内容不能为空！");
             showSendMessageForm(p, toXuid, toName, currentPage);
             return;
         }
 
         const success = sendMessage(p.xuid, p.name, toXuid, content);
         if (success) {
-            p.tell("§a消息已发送给 " + toName + "！");
+            p.tell("§e[好友] §a消息已发送给 " + toName + "！");
             showSendMessageForm(p, toXuid, toName, currentPage);
         } else {
             showSendMessageForm(p, toXuid, toName, currentPage);
@@ -525,7 +559,7 @@ function showMessageDetailForm(player, message) {
             const msgData = getPlayerMessageData(p.xuid);
             msgData.messages = msgData.messages.filter(function(m) { return m !== message; });
             saveMessageData();
-            p.tell("§c消息已删除");
+            p.tell("§e[好友] §c消息已删除");
             showMyMessagesForm(p);
         } else if (id === 2) {
             showMyMessagesForm(p);
@@ -555,7 +589,7 @@ function showMyFriendsForm(player) {
 
     gui.addButton("§e添加好友", "textures/ui/color_plus");
     gui.addButton("§d好友请求" + (pendingCount > 0 ? " §c(" + pendingCount + ")" : ""), "textures/ui/icon_bell");
-    gui.addButton("§b我的消息", "textures/ui/icon_chat");
+    gui.addButton("§b我的消息", "textures/ui/Feedback");
 
     if (myFriends.length > 0) {
         myFriends.forEach(function(friend) {
@@ -605,7 +639,7 @@ function showSearchFriendForm(player) {
         const keyword = (data[1] || "").trim();
 
         if (!keyword) {
-            p.tell("§c请输入搜索关键词！");
+            p.tell("§e[好友] §c请输入搜索关键词！");
             showSearchFriendForm(p);
             return;
         }
@@ -734,7 +768,7 @@ function showSendFriendRequestForm(player, targetInfo) {
 
         // 检查对方是否允许接收好友请求
         if (_deps.getPlayerSetting && !_deps.getPlayerSetting(targetInfo.xuid, "allowFriendRequests")) {
-            p.tell("§c对方拒绝接受好友请求！");
+            p.tell("§e[好友] §c对方拒绝接受好友请求！");
             showPlayerDetailForm(p, targetInfo);
             return;
         }
@@ -768,7 +802,7 @@ function showSendFriendRequestForm(player, targetInfo) {
             targetPlayer.tell("§e[好友] §a玩家 §b" + p.name + " §a请求添加您为好友，请在好友系统中查看");
         }
 
-        p.tell("§a已向 " + targetInfo.name + " 发送好友请求！");
+        p.tell("§e[好友] §a已向 " + targetInfo.name + " 发送好友请求！");
         showMyFriendsForm(p);
     });
 }
@@ -859,7 +893,7 @@ function showHandleRequestForm(player, request) {
                 }
 
                 saveData();
-                p.tell("§a已接受 " + request.name + " 的好友请求！");
+                p.tell("§e[好友] §a已接受 " + request.name + " 的好友请求！");
             }
         } else if (id === 1) {
             // 拒绝：彻底移除请求记录
@@ -873,7 +907,8 @@ function showHandleRequestForm(player, request) {
                 }
 
                 saveData();
-                p.tell("§c已拒绝 " + request.name + " 的好友请求");
+                sendSystemMail(request.xuid, '§c玩家§e' + p.name + '§c拒绝了你的好友申请');
+                p.tell("§e[好友] §c已拒绝 " + request.name + " 的好友请求");
             }
         }
 
@@ -949,7 +984,7 @@ function showDeleteFriendConfirmForm(player, friend) {
                 targetFriends.sentRequests = targetFriends.sentRequests.filter(function(r) { return r.xuid !== p.xuid; });
 
                 saveData();
-                p.tell("§c已删除好友 " + friendName);
+                p.tell("§e[好友] §c已删除好友 " + friendName);
             }
             showMyFriendsForm(p);
         }

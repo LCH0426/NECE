@@ -55,7 +55,7 @@ function createCdkModule(deps) {
         player.sendForm(fm, function(p, data) {
             if (data === null || !data || !data[0]) return;
             const code = data[0].trim();
-            if (!code) { p.tell("兑换码不能为空"); return; }
+            if (!code) { p.tell("§e[兑换] 兑换码不能为空"); return; }
             redeemCdk(p, code);
         });
     }

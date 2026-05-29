@@ -123,7 +123,7 @@ function showAvatarSettingsForm(player) {
 		const value = (data[2] || "").trim();
 
 		if (!value) {
-			p.tell("§c请输入头像值！");
+			p.tell("§e[头像] §c请输入头像值！");
 			showAvatarSettingsForm(p);
 			return;
 		}
@@ -132,21 +132,21 @@ function showAvatarSettingsForm(player) {
 		if (typeIndex === 0) {
 			// QQ头像：校验输入必须为纯数字
 			if (!/^\d+$/.test(value)) {
-				p.tell("§c请输入有效的QQ号码（纯数字）！");
+				p.tell("§e[头像] §c请输入有效的QQ号码（纯数字）！");
 				showAvatarSettingsForm(p);
 				return;
 			}
 			type = "qq";
-			successMsg = "§aQQ头像设置成功！";
+			successMsg = "§e[头像] §aQQ头像设置成功！";
 		} else if (typeIndex === 1) {
 			// 自定义链接：校验必须以http开头
 			if (!value.startsWith("http")) {
-				p.tell("§c请输入有效的图片链接（以http开头）！");
+				p.tell("§e[头像] §c请输入有效的图片链接（以http开头）！");
 				showAvatarSettingsForm(p);
 				return;
 			}
 			type = "link";
-			successMsg = "§a自定义链接头像设置成功！";
+			successMsg = "§e[头像] §a自定义链接头像设置成功！";
 		} else {
 			type = "citlalia";
 			successMsg = "§aCitlalia头像码设置成功！";
