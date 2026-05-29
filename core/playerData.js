@@ -136,6 +136,7 @@ function getPlayerSetting(xuid, key) {
 
 /**
  * 设置玩家单项设置并持久化，玩家无设置记录时自动初始化
+ * 直接写入单条 SQL 记录 + 防抖写盘，避免触发全量保存
  * @param {string} xuid - 玩家 XUID
  * @param {string} key - 设置项 key
  * @param {*} value - 设置值
@@ -146,7 +147,10 @@ function setPlayerSetting(xuid, key, value) {
         playerSettings[xuid] = Object.assign({}, _C.DEFAULT_PLAYER_SETTINGS);
     }
     playerSettings[xuid][key] = value;
-    _savePlayerSettings();
+    if (_database.isPlayerDbReady()) {
+        _database.setPlayerSettingSQL(xuid, key, value);
+        _database.requestSavePlayerDb();
+    }
 }
 
 module.exports = {

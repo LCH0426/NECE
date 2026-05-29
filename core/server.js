@@ -79,6 +79,10 @@ const refreshLimiter = createRateLimiter(60000, 20);
 const captchaLimiter = createRateLimiter(60000, 15);
 // 备份下载限流：每IP每分钟最多5次
 const backupDownloadLimiter = createRateLimiter(60000, 5);
+// 全局API限流：每IP每分钟最多120次（防御暴力扫描和DoS）
+const globalApiLimiter = createRateLimiter(60000, 120);
+// 配置修改限流：每IP每分钟最多10次（防御配置刷写）
+const configLimiter = createRateLimiter(60000, 10);
 
 /** 定期清理过期的限流记录，防止内存泄漏 */
 function startRateLimitCleanup() {
@@ -98,10 +102,16 @@ let app = null;
 let server = null;
 let cleanupTimer = null;
 let _playerDataRef = null;  // 内存中的 playerData 对象引用，由 index.js 注入
+let _configRef = null;      // 内存中的 config 对象引用，由 index.js 注入
 
 /** 注入内存中的 playerData 对象引用，使 getPlayerData() 直接返回最新数据 */
 function setPlayerDataRef(ref) {
     _playerDataRef = ref;
+}
+
+/** 注入内存中的 config 对象引用，避免从磁盘读取配置 */
+function setConfigRef(ref) {
+    _configRef = ref;
 }
 
 let chatHistory = [];              // 服务端聊天记录缓冲，供 Web 面板实时查看
@@ -115,15 +125,19 @@ let _currencyNameCache = null;     // 货币名称缓存
 let _currencyNameCacheTime = 0;
 const CURRENCY_CACHE_TTL = 30000;  // 货币缓存有效期 30 秒
 
-/** 读取 config.json 中的货币名称，带 30s 缓存；读取失败时回退为 '星茜' */
+/** 获取货币名称，优先使用内存中的 config 引用，回退为读文件；带 30s 缓存 */
 function getCurrencyName() {
     const now = Date.now();
     if (_currencyNameCache && now - _currencyNameCacheTime < CURRENCY_CACHE_TTL) return _currencyNameCache;
     try {
-        const configPath = pathModule.join(__dirname, '..', 'config.json');
-        const content = fs.readFileSync(configPath, 'utf-8');
-        const config = JSON.parse(content);
-        _currencyNameCache = config.currencyName || '星茜';
+        if (_configRef) {
+            _currencyNameCache = _configRef.get('currencyName') || '星茜';
+        } else {
+            const configPath = pathModule.join(__dirname, '..', 'config.json');
+            const content = fs.readFileSync(configPath, 'utf-8');
+            const cfg = JSON.parse(content);
+            _currencyNameCache = cfg.currencyName || '星茜';
+        }
         _currencyNameCacheTime = now;
     } catch (e) {
         _currencyNameCache = '星茜';
@@ -276,7 +290,7 @@ function createApp(webConfig) {
     app.use(express.json());
 
     const v1Router = createV1Routes(webConfig);
-    app.use('/api/v1', v1Router);
+    app.use('/api/v1', globalApiLimiter, v1Router);
 
     app.use('/api/auth/login', function(req, res) {
         res.status(410).json({ code: 410, msg: 'API已迁移，请使用 /api/v1/auth/login' });
@@ -436,7 +450,7 @@ function createV1Routes(webConfig) {
         parseCookies, getRefreshSecret, triggerReload,
         fs, pathModule,
         mc: mc, money: money,
-        loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter
+        loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter
     };
 
     require('./routes/auth').registerRoutes(router, routeDeps);
@@ -533,5 +547,6 @@ module.exports = {
     createApp,
     addChatMessage,
     onReload,
-    setPlayerDataRef
+    setPlayerDataRef,
+    setConfigRef
 };

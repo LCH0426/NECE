@@ -385,7 +385,7 @@ function registerRoutes(router, d) {
     });
 
     // 获取所有功能开关状态（未设置的功能默认为开启）
-    router.get('/features', d.adminAuth, function(req, res) {
+    router.get('/features', d.adminAuth, d.configLimiter, function(req, res) {
         try {
             let content = d.fs.readFileSync(WISH_CONFIG_PATH, 'utf-8');
             let cfg = JSON.parse(content);
@@ -403,7 +403,7 @@ function registerRoutes(router, d) {
     });
 
     // 批量修改功能开关（只更新请求中包含的字段），触发配置热重载
-    router.put('/features', d.adminAuth, function(req, res) {
+    router.put('/features', d.adminAuth, d.configLimiter, function(req, res) {
         try {
             let content = d.fs.readFileSync(WISH_CONFIG_PATH, 'utf-8');
             let cfg = JSON.parse(content);
