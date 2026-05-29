@@ -384,17 +384,34 @@ function registerRoutes(router, d) {
         }
     });
 
+    // 功能开关映射：旧键名 → [新对象路径, 新字段名]
+    var featureMap = [
+        ['enableRank', 'rank', 'enabled'],
+        ['enableShop', 'shop', 'enabled'],
+        ['enableCdk', 'cdk', 'enabled'],
+        ['enableRecycle', 'shop', 'enableRecycle'],
+        ['enableDustShop', 'shop', 'enableDustShop'],
+        ['enableWish', 'wish', 'enabled'],
+        ['enableBank', 'bank', 'enabled'],
+        ['enableVip', 'vip', 'enabled'],
+        ['enableFriend', 'friend', 'enabled'],
+        ['enableMessageBoard', 'messageBoard', 'enabled'],
+        ['enableMail', 'mail', 'enabled'],
+        ['enableLevel', 'level', 'enabled'],
+        ['enableBack', 'back', 'enabled'],
+        ['enableGuild', 'guild', 'enabled']
+    ];
+
     // 获取所有功能开关状态（未设置的功能默认为开启）
     router.get('/features', d.adminAuth, d.configLimiter, function(req, res) {
         try {
             let content = d.fs.readFileSync(WISH_CONFIG_PATH, 'utf-8');
             let cfg = JSON.parse(content);
             const features = {};
-            let featureKeys = ['enableRank', 'enableShop', 'enableCdk', 'enableRecycle',
-                'enableDustShop', 'enableWish', 'enableBank', 'enableVip',
-                'enableFriend', 'enableMessageBoard', 'enableMail', 'enableLevel', 'enableBack'];
-            featureKeys.forEach(function(key) {
-                features[key] = cfg[key] !== undefined ? cfg[key] : true;
+            featureMap.forEach(function(item) {
+                var oldKey = item[0], objKey = item[1], field = item[2];
+                var val = (cfg[objKey] && cfg[objKey][field] !== undefined) ? cfg[objKey][field] : true;
+                features[oldKey] = val;
             });
             res.json({ code: 200, data: features });
         } catch (e) {
@@ -407,14 +424,13 @@ function registerRoutes(router, d) {
         try {
             let content = d.fs.readFileSync(WISH_CONFIG_PATH, 'utf-8');
             let cfg = JSON.parse(content);
-            const featureKeys = ['enableRank', 'enableShop', 'enableCdk', 'enableRecycle',
-                'enableDustShop', 'enableWish', 'enableBank', 'enableVip',
-                'enableFriend', 'enableMessageBoard', 'enableMail', 'enableLevel', 'enableBack'];
             const updated = {};
-            featureKeys.forEach(function(key) {
-                if (req.body[key] !== undefined) {
-                    cfg[key] = !!req.body[key];
-                    updated[key] = cfg[key];
+            featureMap.forEach(function(item) {
+                var oldKey = item[0], objKey = item[1], field = item[2];
+                if (req.body[oldKey] !== undefined) {
+                    if (!cfg[objKey] || typeof cfg[objKey] !== 'object') cfg[objKey] = {};
+                    cfg[objKey][field] = !!req.body[oldKey];
+                    updated[oldKey] = cfg[objKey][field];
                 }
             });
             d.fs.writeFileSync(WISH_CONFIG_PATH, JSON.stringify(cfg, null, 4), 'utf-8');

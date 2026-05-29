@@ -105,6 +105,7 @@ function registerRoutes(router, d) {
             if (!guild) { res.json({ code: 404, msg: '公会不存在' }); return; }
 
             database.deleteGuild(guildId);
+            d.adminLog.log(req.user.uid, '删除公会', '公会ID:' + guildId + ' 名称:' + guild.name);
             res.json({ code: 200, msg: '公会"' + guild.name + '"已删除' });
         } catch (e) {
             res.json({ code: 500, msg: '删除公会失败: ' + e.message });
@@ -140,6 +141,7 @@ function registerRoutes(router, d) {
             }
 
             database.updateGuild(guildId, fields);
+            d.adminLog.log(req.user.uid, '修改公会信息', '公会ID:' + guildId + ' 修改:' + JSON.stringify(fields));
             res.json({ code: 200, msg: '公会信息已更新' });
         } catch (e) {
             res.json({ code: 500, msg: '更新公会失败: ' + e.message });
@@ -175,6 +177,7 @@ function registerRoutes(router, d) {
             }
 
             database.addGuildTeleport(guildId, name, body.x, body.y, body.z, String(body.dim || '0'), 'web-admin');
+            d.adminLog.log(req.user.uid, '添加公会传送点', '公会ID:' + guildId + ' 名称:' + name);
             res.json({ code: 200, msg: '传送点已添加' });
         } catch (e) {
             res.json({ code: 500, msg: '添加传送点失败: ' + e.message });
@@ -188,6 +191,7 @@ function registerRoutes(router, d) {
             var tpId = parseInt(req.params.tpId);
             if (isNaN(guildId) || isNaN(tpId)) { res.json({ code: 400, msg: '参数无效' }); return; }
             database.removeGuildTeleport(tpId, guildId);
+            d.adminLog.log(req.user.uid, '删除公会传送点', '公会ID:' + guildId + ' 传送点ID:' + tpId);
             res.json({ code: 200, msg: '传送点已删除' });
         } catch (e) {
             res.json({ code: 500, msg: '删除传送点失败: ' + e.message });
@@ -209,6 +213,7 @@ function registerRoutes(router, d) {
             }
 
             database.updateGuild(guildId, { fund: body.fund });
+            d.adminLog.log(req.user.uid, '修改公会资金', '公会ID:' + guildId + ' 新资金:' + body.fund);
             res.json({ code: 200, msg: '公会资金已更新' });
         } catch (e) {
             res.json({ code: 500, msg: '更新资金失败: ' + e.message });

@@ -55,7 +55,7 @@ function init(deps) {
 
 /** 从配置加载菜单数据，替换货币名占位符 */
 function loadConfig() {
-    menuConfig = _deps.config.get("menuConfig", {});
+    menuConfig = _deps.config.get("menu", {});
     const cn = _deps.getCurrencyName();
     var menus = menuConfig;
     for (var key in menus) {
@@ -162,7 +162,7 @@ function showMainMenu(player) {
 function registerClockListener() {
     mc.listen("onUseItem", function(player, item) {
         if (!item || item.type !== "minecraft:clock") return;
-        if (!_deps.config.get("enableMenu", false)) return;
+        if (!_deps.config.get("menu.enabled", false)) return;
 
         var xuid = player.xuid;
         var now = Date.now();

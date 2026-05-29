@@ -33,6 +33,7 @@ const si = require('systeminformation');
 let tpsDataRef = null;   // TPS数据引用，由index.js传入
 let moneyRef = null;     // 经济模块引用，提供get(xuid)接口
 let playerDataRef = null; // 玩家数据引用（内存中的 playerData 对象）
+let databaseRef = null;  // 数据库模块引用，用于人数统计持久化
 
 // 全服总资金缓存，避免频繁遍历所有玩家
 const allMoneyCache = {
@@ -58,12 +59,14 @@ const ECONOMY_RANK_CACHE_TTL = 300000; // 缓存有效期5分钟
  * @param {Object} tpsData - TPS数据对象，包含tps属性
  * @param {Object} money - 经济模块，需提供get(xuid)方法
  * @param {Object} pd - 玩家数据对象（内存中的 playerData）
+ * @param {Object} db - 数据库模块，需提供insertPlayerCount/getPlayerCountHistory/getPlayerCountLatest方法
  */
-function init(tpsData, money, pd) {
+function init(tpsData, money, pd, db) {
     D.debugLogModule('monitoring')('init: 初始化完成');
     tpsDataRef = tpsData;
     moneyRef = money;
     playerDataRef = pd;
+    databaseRef = db;
 }
 
 /**
@@ -202,6 +205,109 @@ function getEconomyRank() {
     economyRankCache.timestamp = now;
 
     return Object.assign({}, economyRankCache, { cached: false });
+}
+
+// ============ 玩家人数统计 ============
+
+let playerCountTimer = null;
+
+/**
+ * 启动玩家人数定时采样
+ * @param {number} interval - 采样间隔（毫秒），默认600000（10分钟）
+ */
+function startPlayerCountSampling(interval) {
+    stopPlayerCountSampling();
+    interval = interval || 600000;
+    if (interval < 60000) interval = 60000; // 最小1分钟
+
+    // 首次立即采样
+    samplePlayerCount();
+
+    playerCountTimer = setInterval(function() {
+        samplePlayerCount();
+    }, interval);
+
+    D.debugLogModule('monitoring')('startPlayerCountSampling: 启动，间隔=' + interval + 'ms');
+}
+
+/** 停止玩家人数采样 */
+function stopPlayerCountSampling() {
+    if (playerCountTimer) {
+        clearInterval(playerCountTimer);
+        playerCountTimer = null;
+    }
+}
+
+/** 采样当前在线玩家人数并写入数据库 */
+function samplePlayerCount() {
+    try {
+        var count = 0;
+        if (typeof mc !== 'undefined' && mc.getOnlinePlayers) {
+            var players = mc.getOnlinePlayers();
+            count = players ? players.length : 0;
+        }
+        var timestamp = Math.floor(Date.now() / 1000);
+        if (databaseRef && typeof databaseRef.insertPlayerCount === 'function') {
+            databaseRef.insertPlayerCount(timestamp, count);
+        }
+    } catch (e) {
+        logger.warn('[Monitor] 玩家人数采样失败: ' + e.message);
+    }
+}
+
+/**
+ * 查询玩家人数趋势数据
+ * @param {number} startTime - 起始时间戳（秒）
+ * @param {number} endTime - 结束时间戳（秒）
+ * @returns {Array} 记录数组 [{timestamp, count}]
+ */
+function getPlayerCountTrend(startTime, endTime) {
+    if (!databaseRef || typeof databaseRef.getPlayerCountHistory !== 'function') return [];
+    return databaseRef.getPlayerCountHistory(startTime, endTime);
+}
+
+/**
+ * 获取玩家人数统计摘要
+ * @returns {{current: number, todayMax: number, todayAvg: number, todayRecords: number}}
+ */
+function getPlayerCountStats() {
+    var result = { current: 0, todayMax: 0, todayAvg: 0, todayRecords: 0 };
+
+    // 当前在线人数
+    try {
+        if (typeof mc !== 'undefined' && mc.getOnlinePlayers) {
+            var players = mc.getOnlinePlayers();
+            result.current = players ? players.length : 0;
+        }
+    } catch (e) {}
+
+    // 今日数据
+    try {
+        if (databaseRef && typeof databaseRef.getPlayerCountHistory === 'function') {
+            var now = Math.floor(Date.now() / 1000);
+            var todayStart = now - (now % 86400); // 今日0点UTC时间戳
+            // 如果UTC 0点在8小时前，使用本地时间0点
+            var localNow = new Date();
+            localNow.setHours(0, 0, 0, 0);
+            todayStart = Math.floor(localNow.getTime() / 1000);
+
+            var records = databaseRef.getPlayerCountHistory(todayStart, now);
+            if (records && records.length > 0) {
+                var max = 0;
+                var sum = 0;
+                for (var i = 0; i < records.length; i++) {
+                    var c = records[i].count;
+                    if (c > max) max = c;
+                    sum += c;
+                }
+                result.todayMax = max;
+                result.todayAvg = Math.round((sum / records.length) * 10) / 10;
+                result.todayRecords = records.length;
+            }
+        }
+    } catch (e) {}
+
+    return result;
 }
 
 // ============ 系统资源监控（原 systemMonitor） ============
@@ -503,6 +609,11 @@ module.exports = {
     getTps: getTps,
     getAllMoney: getAllMoney,
     getEconomyRank: getEconomyRank,
+    // 玩家人数统计
+    startPlayerCountSampling: startPlayerCountSampling,
+    stopPlayerCountSampling: stopPlayerCountSampling,
+    getPlayerCountTrend: getPlayerCountTrend,
+    getPlayerCountStats: getPlayerCountStats,
     // 系统监控（原 systemMonitor）
     startPolling: startPolling,
     stopPolling: stopPolling,

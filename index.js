@@ -46,6 +46,7 @@ const menuModule = require('./core/menu');
 const personalCenter = require('./core/personalCenter');
 const guildModule = require('./core/guild');
 const motdModule = require('./core/motd');
+const clearLagModule = require('./core/clearLag');
 
 
 // ============ 插件注册 ============
@@ -432,32 +433,101 @@ function JsonConfigFileAdapter(filePath, defaultContent) {
 	}
 }
 
-/** 初始化配置项：不存在时写入默认值并保存 */
-JsonConfigFileAdapter.prototype.init = function(name, defaultValue) {
-	if (this._data[name] === undefined) {
-		this._data[name] = defaultValue;
-		this._save();
+/** 内部辅助：按点号路径解析嵌套对象，返回 { obj, key } 或 null */
+JsonConfigFileAdapter.prototype._resolve = function(path) {
+	if (path.indexOf('.') === -1) return { obj: this._data, key: path };
+	var parts = path.split('.');
+	var current = this._data;
+	for (var i = 0; i < parts.length - 1; i++) {
+		if (current === null || current === undefined || typeof current !== 'object') return null;
+		current = current[parts[i]];
 	}
-	return this._data[name];
+	if (current === null || current === undefined || typeof current !== 'object') return null;
+	return { obj: current, key: parts[parts.length - 1] };
 };
 
-/** 获取配置项，可指定默认值 */
+/** 初始化配置项：不存在时写入默认值并保存（支持点号路径） */
+JsonConfigFileAdapter.prototype.init = function(name, defaultValue) {
+	var resolved = this._resolve(name);
+	if (!resolved) {
+		// 父路径不存在，需要逐层创建
+		if (name.indexOf('.') !== -1) {
+			var parts = name.split('.');
+			var current = this._data;
+			for (var i = 0; i < parts.length - 1; i++) {
+				if (current[parts[i]] === undefined || current[parts[i]] === null || typeof current[parts[i]] !== 'object') {
+					current[parts[i]] = {};
+				}
+				current = current[parts[i]];
+			}
+			if (current[parts[parts.length - 1]] === undefined) {
+				current[parts[parts.length - 1]] = defaultValue;
+				this._save();
+			}
+			return current[parts[parts.length - 1]];
+		}
+		this._data[name] = defaultValue;
+		this._save();
+		return this._data[name];
+	}
+	if (resolved.obj[resolved.key] === undefined) {
+		resolved.obj[resolved.key] = defaultValue;
+		this._save();
+	}
+	return resolved.obj[resolved.key];
+};
+
+/** 获取配置项，可指定默认值（支持点号路径如 'shop.enabled'） */
 JsonConfigFileAdapter.prototype.get = function(name, defaultValue) {
-	if (this._data[name] !== undefined) return this._data[name];
+	if (name.indexOf('.') === -1) {
+		if (this._data[name] !== undefined) return this._data[name];
+		return defaultValue !== undefined ? defaultValue : null;
+	}
+	var resolved = this._resolve(name);
+	if (resolved && resolved.obj[resolved.key] !== undefined) return resolved.obj[resolved.key];
 	return defaultValue !== undefined ? defaultValue : null;
 };
 
-/** 设置配置项并立即保存 */
+/** 设置配置项并立即保存（支持点号路径） */
 JsonConfigFileAdapter.prototype.set = function(name, value) {
-	this._data[name] = value;
+	if (name.indexOf('.') === -1) {
+		this._data[name] = value;
+		this._save();
+		return true;
+	}
+	var resolved = this._resolve(name);
+	if (!resolved) {
+		// 父路径不存在，逐层创建
+		var parts = name.split('.');
+		var current = this._data;
+		for (var i = 0; i < parts.length - 1; i++) {
+			if (current[parts[i]] === undefined || current[parts[i]] === null || typeof current[parts[i]] !== 'object') {
+				current[parts[i]] = {};
+			}
+			current = current[parts[i]];
+		}
+		current[parts[parts.length - 1]] = value;
+		this._save();
+		return true;
+	}
+	resolved.obj[resolved.key] = value;
 	this._save();
 	return true;
 };
 
-/** 删除配置项并立即保存 */
+/** 删除配置项并立即保存（支持点号路径） */
 JsonConfigFileAdapter.prototype.delete = function(name) {
-	if (this._data[name] !== undefined) {
-		delete this._data[name];
+	if (name.indexOf('.') === -1) {
+		if (this._data[name] !== undefined) {
+			delete this._data[name];
+			this._save();
+			return true;
+		}
+		return false;
+	}
+	var resolved = this._resolve(name);
+	if (resolved && resolved.obj[resolved.key] !== undefined) {
+		delete resolved.obj[resolved.key];
 		this._save();
 		return true;
 	}
@@ -519,21 +589,20 @@ function initRankConfig() {
 		_debugMode = config.get("debug", false);
 		debugModule.setDebugMode(_debugMode);
 		config.init("currencyName", "星茜");
-		config.init("enableRank", true);
-		config.init("enableShop", true);
-		config.init("enableCdk", true);
-		config.init("enableRecycle", true);
-		config.init("enableDustShop", true);
-		config.init("enableWish", true);
-		config.init("enableBank", true);
-		config.init("enableVip", true);
-		config.init("enableFriend", true);
-		config.init("enableMessageBoard", true);
-		config.init("enableMail", true);
-		config.init("enableLevel", true);
-		config.init("enableBack", true);
-		config.init("enableGuild", true);
-		config.init("guildConfig", {
+		config.init("sidebarCompact", false);
+		// 功能开关：统一嵌套到各自模块的 enabled 字段
+		config.init("shop", { "enabled": true, "enableRecycle": true, "enableDustShop": true });
+		config.init("rank", { "enabled": true });
+		config.init("cdk", { "enabled": true });
+		config.init("bank", { "enabled": true });
+		config.init("vip", { "enabled": true });
+		config.init("friend", { "enabled": true });
+		config.init("messageBoard", { "enabled": true });
+		config.init("mail", { "enabled": true });
+		config.init("level", { "enabled": true });
+		config.init("back", { "enabled": true });
+		config.init("guild", {
+			"enabled": true,
 			"createCost": 1000,
 			"maxMembers": 20,
 			"maxTeleports": 5,
@@ -542,7 +611,6 @@ function initRankConfig() {
 			"withdrawAdminOnly": false,
 			"teleportCooldown": 10
 		});
-		config.init("sidebarCompact", false);
 		config.init("teleport", {
 			"enabled": true,
 			"enableHome": true,
@@ -563,7 +631,7 @@ function initRankConfig() {
 			"rtpMaxAttempts": 100,
 			"rtpProtectionSeconds": 5
 		});
-		config.init("backupConfig", {
+		config.init("backup", {
 			"compressionLevel": 5,
 			"interval": 0,
 			"maxAgeDays": 0,
@@ -579,6 +647,8 @@ function initRankConfig() {
 			"jwtRefreshSecret": "NLCE_Default_Refresh_Secret_Change_Me",
 			"jwtRefreshExpire": "7d"
 		});
+		// 旧键迁移：将旧格式的 enable* 标志和 *Config 键迁移到新的嵌套结构
+		_migrateOldConfigKeys();
 	} catch (error) {
 		// 配置加载失败时使用全通过的降级配置，避免插件完全无法启动
 		config = {
@@ -588,6 +658,78 @@ function initRankConfig() {
 			reload: () => {}
 		};
 		logger.error(`排行榜配置初始化失败！错误：${error.message}`);
+	}
+}
+
+/** 一次性迁移旧格式配置键到新的嵌套结构 */
+function _migrateOldConfigKeys() {
+	var _data = config._data;
+	var _changed = false;
+
+	// enable* 标志迁移到各模块子对象
+	var _enableMap = {
+		'enableShop': ['shop', 'enabled'],
+		'enableRecycle': ['shop', 'enableRecycle'],
+		'enableDustShop': ['shop', 'enableDustShop'],
+		'enableRank': ['rank', 'enabled'],
+		'enableCdk': ['cdk', 'enabled'],
+		'enableWish': ['wish', 'enabled'],
+		'enableBank': ['bank', 'enabled'],
+		'enableVip': ['vip', 'enabled'],
+		'enableFriend': ['friend', 'enabled'],
+		'enableMessageBoard': ['messageBoard', 'enabled'],
+		'enableMail': ['mail', 'enabled'],
+		'enableLevel': ['level', 'enabled'],
+		'enableBack': ['back', 'enabled'],
+		'enableGuild': ['guild', 'enabled']
+	};
+	for (var oldKey in _enableMap) {
+		if (_data[oldKey] !== undefined) {
+			var target = _enableMap[oldKey];
+			if (!_data[target[0]] || typeof _data[target[0]] !== 'object') _data[target[0]] = {};
+			_data[target[0]][target[1]] = _data[oldKey];
+			delete _data[oldKey];
+			_changed = true;
+		}
+	}
+
+	// *Config 键重命名（去掉 Config 后缀）
+	var _renameMap = {
+		'wishConfig': 'wish',
+		'guildConfig': 'guild',
+		'backupConfig': 'backup',
+		'menuConfig': 'menu',
+		'motdConfig': 'motd'
+	};
+	for (var oldName in _renameMap) {
+		if (_data[oldName] !== undefined) {
+			var newName = _renameMap[oldName];
+			if (_data[newName] === undefined || typeof _data[newName] !== 'object') {
+				_data[newName] = {};
+			}
+			// 合并旧值到新键（保留新键中已有的字段）
+			var oldVal = _data[oldName];
+			if (typeof oldVal === 'object' && oldVal !== null) {
+				for (var k in oldVal) {
+					if (oldVal.hasOwnProperty(k)) {
+						_data[newName][k] = oldVal[k];
+					}
+				}
+			}
+			delete _data[oldName];
+			_changed = true;
+		}
+	}
+
+	// 删除冗余的 enableMotd（已有 motd.enabled）
+	if (_data['enableMotd'] !== undefined) {
+		delete _data['enableMotd'];
+		_changed = true;
+	}
+
+	if (_changed) {
+		config._save();
+		logger.info('[NLCE] 配置文件已从旧格式迁移到新嵌套结构');
 	}
 }
 
@@ -730,12 +872,12 @@ const DEFAULT_WISH_CONFIG = {
 /** 加载祈愿配置，缺失字段用默认值补齐 */
 function initWishConfig() {
 	try {
-		config.init("wishConfig", Object.assign({}, DEFAULT_WISH_CONFIG, {
+		config.init("wish", Object.assign({}, DEFAULT_WISH_CONFIG, {
 			"dustName": "三星副产物",
 			"coreName": "五星副产物",
 			"description": "进行祈愿时，遵循以下概率与保底规则"
 		}));
-		wishConfig = config.get("wishConfig");
+		wishConfig = config.get("wish");
 		if (!wishConfig || typeof wishConfig !== 'object') {
 			wishConfig = {};
 		}
@@ -830,14 +972,14 @@ async function initAllConfigs() {
 	chatModule.loadChatConfig();
 	chatModule.registerChatListener();
 	initNarConfig();
-	backupModule.init(config.get("backupConfig"));
+	backupModule.init(config.get("backup"));
 
 	guildModule.init({
 		logger: logger,
 		getPlayerMoney: getPlayerMoney,
 		addPlayerMoney: addPlayerMoney,
 		reducePlayerMoney: reducePlayerMoney,
-		getConfig: function() { return config.get('guildConfig'); },
+		getConfig: function() { return config.get('guild'); },
 		getCurrencyName: getCurrencyName,
 		getPlayerName: function(xuid) {
 			var p = playerData.players[xuid];
@@ -952,6 +1094,10 @@ async function initAllConfigs() {
 	// MOTD 动态轮换模块
 	motdModule.init(config);
 	motdModule.start();
+
+	// 定时实体清理模块
+	clearLagModule.init(config);
+	clearLagModule.start();
 
 	_initialized = true;
 }
@@ -1188,17 +1334,17 @@ mc.listen("onLeft", (player) => {
 /** 注册游戏行为统计监听（挖掘、放置、击杀、死亡）和死亡点记录 */
 function initStatTrackers() {
 	mc.listen("onDestroyBlock", function(player, block) {
-		if (!config.get("enableRank")) return;
+		if (!config.get("rank.enabled")) return;
 		personalCenter.bumpStat(player.xuid, "mining", 1);
 	});
 
 	mc.listen("afterPlaceBlock", function(player, block) {
-		if (!config.get("enableRank")) return;
+		if (!config.get("rank.enabled")) return;
 		personalCenter.bumpStat(player.xuid, "placing", 1);
 	});
 
 	mc.listen("onMobDie", function(mob, source, cause) {
-		if (!config.get("enableRank")) return;
+		if (!config.get("rank.enabled")) return;
 		if (!source || !source.isPlayer()) return;
 		const killer = source.toPlayer();
 		if (killer && !killer.isSimulatedPlayer() && killer.realName !== undefined) {
@@ -1208,10 +1354,10 @@ function initStatTrackers() {
 	});
 
 	mc.listen("onPlayerDie", function(player, source) {
-		if (!config.get("enableRank")) return;
+		if (!config.get("rank.enabled")) return;
 		personalCenter.bumpStat(player.xuid, "deaths", 1);
 
-		if (config.get("enableBack")) {
+		if (config.get("back.enabled")) {
 			teleportModule.recordDeathPoint(player);
 
 			// 死亡传送弹窗：记录死亡点后弹窗询问是否传送回去
@@ -1250,7 +1396,7 @@ initStatTrackers();
 
 /** 定时（约59秒）累计在线玩家的游戏时长到统计数据，只保存有变化的玩家 */
 function tickOnlineDurations() {
-	if (!config.get("enableRank")) return;
+	if (!config.get("rank.enabled")) return;
 	let now = Date.now();
 	Object.keys(_joinTimestamps).forEach(function(xuid) {
 		const blk = personalCenter.obtainStatBlock(xuid);
@@ -1355,7 +1501,7 @@ mc.listen("onServerStarted", async () => {
 	await initAllConfigs();
 	registerAllCommands();
 	// /org 命令：支持无参数打开GUI和带参数文本操作
-	if (config.get("enableGuild")) {
+	if (config.get("guild.enabled")) {
 		try {
 			var orgCmd = mc.newCommand('org', '公会系统', PermType.Any);
 			orgCmd.optional('action', ParamType.RawText);
@@ -1366,7 +1512,7 @@ mc.listen("onServerStarted", async () => {
 			orgCmd.setCallback(function(_cmd, origin, output, results) {
 				var player = origin.player;
 				if (!player) { output.error('§c此命令仅玩家可在游戏内执行！'); return; }
-				if (!config.get("enableGuild")) { player.tell('§c公会系统当前已关闭！'); return; }
+				if (!config.get("guild.enabled")) { player.tell('§c公会系统当前已关闭！'); return; }
 				var args = [];
 				if (results.action) args.push(String(results.action));
 				if (results.param) args.push(String(results.param));
@@ -1456,24 +1602,24 @@ function registerAllCommands() {
 	const tpTpaEnabled = function() { let c = teleportModule.tpsConfig(); return c.enabled && c.enableTpa; };
 	const tpRtpEnabled = function() { const c = teleportModule.tpsConfig(); return c.enabled && c.enableRtp; };
 	const commands = [
-		["shop", "商店系统", function(p) { shopModule.showShopMainForm(p, commonDeps); }, "enableShop"],
-		["rank", "排行榜", function(p) { commonDeps.rankModule.showRankMainForm(p); }, "enableRank"],
-		["cdk", "CDK兑换", function(p) { commonDeps.cdkModule.showCdkRedeemForm(p); }, "enableCdk"],
+		["shop", "商店系统", function(p) { shopModule.showShopMainForm(p, commonDeps); }, "shop.enabled"],
+		["rank", "排行榜", function(p) { commonDeps.rankModule.showRankMainForm(p); }, "rank.enabled"],
+		["cdk", "CDK兑换", function(p) { commonDeps.cdkModule.showCdkRedeemForm(p); }, "cdk.enabled"],
 		["pay", "经济系统", function(p) { economyModule.showMoneyMainForm(p); }],
-		["mb", "打开留言板", function(p) { messageBoardModule.showMainForm(p); }, "enableMessageBoard"],
-		["vip", "VIP系统", function(p) { commonDeps.vipModule.showVipMenu(p); }, "enableVip"],
-		["bank", "银行系统", function(p) { commonDeps.bankModule.showBankMainForm(p); }, "enableBank"],
-		["wish", "祈愿系统", function(p) { wishModule.showWishMainForm(p); }, "enableWish"],
-		["recycle", "回收系统", function(p) { shopModule.showRecycleForm(p, recycleConfig, commonDeps); }, "enableRecycle"],
-		["level", "等级奖励", function(p) { personalCenter.showLevelRewardForm(p); }, "enableLevel"],
-		["xpshop", "经验商店", function(p) { shopModule.showXPBuyForm(p, commonDeps); }, "enableDustShop"],
-		["dustshop", "星尘商店", function(p) { wishModule.showDustShopMainForm(p); }, "enableDustShop"],
-		["enchantshop", "附魔书商店", function(p) { wishModule.showEnchantBookShopForm(p); }, "enableDustShop"],
+		["mb", "打开留言板", function(p) { messageBoardModule.showMainForm(p); }, "messageBoard.enabled"],
+		["vip", "VIP系统", function(p) { commonDeps.vipModule.showVipMenu(p); }, "vip.enabled"],
+		["bank", "银行系统", function(p) { commonDeps.bankModule.showBankMainForm(p); }, "bank.enabled"],
+		["wish", "祈愿系统", function(p) { wishModule.showWishMainForm(p); }, "wish.enabled"],
+		["recycle", "回收系统", function(p) { shopModule.showRecycleForm(p, recycleConfig, commonDeps); }, "shop.enableRecycle"],
+		["level", "等级奖励", function(p) { personalCenter.showLevelRewardForm(p); }, "level.enabled"],
+		["xpshop", "经验商店", function(p) { shopModule.showXPBuyForm(p, commonDeps); }, "shop.enableDustShop"],
+		["dustshop", "星尘商店", function(p) { wishModule.showDustShopMainForm(p); }, "shop.enableDustShop"],
+		["enchantshop", "附魔书商店", function(p) { wishModule.showEnchantBookShopForm(p); }, "shop.enableDustShop"],
 		["settings", "个人设置", personalCenter.showPlayerSettingsForm],
-		["back", "返回死亡点", function(p) { teleportModule.showDeathPointMenu(p); }, "enableBack"],
-		["mail", "打开邮件系统", function(p) { mailModule.showMailSystemForm(p); }, "enableMail"],
-		["rc", "打开批量回收界面", function(p) { shopModule.showRecycleForm(p, recycleConfig, commonDeps); }, "enableRecycle"],
-		["friend", "打开好友系统", function(p) { friendModule.showMyFriendsForm(p); }, "enableFriend"],
+		["back", "返回死亡点", function(p) { teleportModule.showDeathPointMenu(p); }, "back.enabled"],
+		["mail", "打开邮件系统", function(p) { mailModule.showMailSystemForm(p); }, "mail.enabled"],
+		["rc", "打开批量回收界面", function(p) { shopModule.showRecycleForm(p, recycleConfig, commonDeps); }, "shop.enableRecycle"],
+		["friend", "打开好友系统", function(p) { friendModule.showMyFriendsForm(p); }, "friend.enabled"],
 		["network", "网络信息", personalCenter.showNetworkInfoForm],
 		["tpg", "传送系统主菜单", function(p) { teleportModule.showTpgMainMenu(p, commonDeps); }, tpEnabled],
 		["home", "家园系统", function(p) { teleportModule.showHomeMainForm(p, commonDeps); }, tpHomeEnabled],
@@ -1682,7 +1828,8 @@ function initWebServer() {
 	database.initDatabase().then(function() {
 		logger.info('[Web] 数据库初始化完成');
 		const monitoring = require('./core/monitoring');
-		monitoring.init(tpsData, money, playerData);
+		monitoring.init(tpsData, money, playerData, database);
+		monitoring.startPlayerCountSampling(600000); // 10分钟记录一次玩家人数
 		// 注册Web面板的热重载回调（修改数据后可通过Web触发重新加载）
 		webServer.onReload('recycle', function() {
 			recycleConfig = recycleConfigDM.load();
@@ -1698,16 +1845,17 @@ function initWebServer() {
 		webServer.onReload('wish', function() {
 			try {
 				config.reload();
-				wishConfig = config.get("wishConfig") || wishConfig;
+				wishConfig = config.get("wish") || wishConfig;
 				wishModule.reloadConfig(wishConfig);
 			} catch (e) { logger.error('[Core] 重载祈愿配置失败: ' + e.message); }
 		});
 		webServer.onReload('config', function() {
 			try {
 				config.reload();
-				wishConfig = config.get("wishConfig") || wishConfig;
+				wishConfig = config.get("wish") || wishConfig;
 				wishModule.reloadConfig(wishConfig);
-				backupModule.reload(config.get("backupConfig"));
+				backupModule.reload(config.get("backup"));
+				clearLagModule.reload();
 			} catch (e) { logger.error('[Core] 重载配置失败: ' + e.message); }
 		});
 		webServer.setPlayerDataRef(playerData);

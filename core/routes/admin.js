@@ -228,6 +228,157 @@ function registerRoutes(router, d) {
             res.json({ code: 500, msg: '查询封禁状态失败: ' + e.message });
         }
     });
+
+    // ==================== 玩家人数统计接口 ====================
+
+    // 获取当前在线人数和今日统计
+    router.get('/server/playerCount', d.adminAuth, function(req, res) {
+        try {
+            const stats = d.monitoring.getPlayerCountStats();
+            res.json({ code: 200, data: stats });
+        } catch (e) {
+            res.json({ code: 500, msg: '获取人数统计失败: ' + e.message });
+        }
+    });
+
+    // 查询玩家人数趋势（预设时间范围）
+    router.get('/server/playerCount/trend', d.adminAuth, function(req, res) {
+        try {
+            const range = (req.query.range || '24h').toLowerCase();
+            const now = Math.floor(Date.now() / 1000);
+            var startTime;
+
+            switch (range) {
+                case '1h': startTime = now - 3600; break;
+                case '6h': startTime = now - 21600; break;
+                case '7d': startTime = now - 604800; break;
+                case '24h':
+                default:   startTime = now - 86400; break;
+            }
+
+            const records = d.monitoring.getPlayerCountTrend(startTime, now);
+            res.json({
+                code: 200,
+                data: {
+                    range: range,
+                    startTime: startTime,
+                    endTime: now,
+                    records: records
+                }
+            });
+        } catch (e) {
+            res.json({ code: 500, msg: '获取人数趋势失败: ' + e.message });
+        }
+    });
+
+    // ==================== ClearLag 实体清理接口 ====================
+
+    // 获取清理配置
+    router.get('/clearlag/config', d.adminAuth, function(req, res) {
+        try {
+            let content = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
+            let cfg = JSON.parse(content);
+            let clearLagCfg = cfg.clearLag || {};
+            res.json({ code: 200, data: clearLagCfg });
+        } catch (e) {
+            res.json({ code: 500, msg: '获取清理配置失败: ' + e.message });
+        }
+    });
+
+    // 修改清理配置（部分更新）
+    router.put('/clearlag/config', d.adminAuth, d.configLimiter, function(req, res) {
+        try {
+            let CONFIG_PATH = d.pathModule.join(__dirname, '..', '..', 'config.json');
+            let content = d.fs.readFileSync(CONFIG_PATH, 'utf-8');
+            let cfg = JSON.parse(content);
+            if (!cfg.clearLag) cfg.clearLag = {};
+            var clCfg = cfg.clearLag;
+            if (req.body.enabled !== undefined) clCfg.enabled = !!req.body.enabled;
+            if (req.body.interval !== undefined) {
+                let v = parseInt(req.body.interval);
+                if (isNaN(v) || v < 60) return res.json({ code: 400, msg: 'interval必须>=60秒' });
+                clCfg.interval = v;
+            }
+            if (req.body.reminderSeconds !== undefined) {
+                let v = parseInt(req.body.reminderSeconds);
+                if (isNaN(v) || v < 0) return res.json({ code: 400, msg: 'reminderSeconds必须为非负整数' });
+                clCfg.reminderSeconds = v;
+            }
+            if (req.body.message !== undefined) clCfg.message = req.body.message;
+            if (req.body.cleanMessage !== undefined) clCfg.cleanMessage = req.body.cleanMessage;
+            if (req.body.cleanTypes !== undefined) {
+                if (!Array.isArray(req.body.cleanTypes)) return res.json({ code: 400, msg: 'cleanTypes必须为数组' });
+                clCfg.cleanTypes = req.body.cleanTypes;
+            }
+            if (req.body.maxEntitiesPerType !== undefined) {
+                let v = parseInt(req.body.maxEntitiesPerType);
+                if (isNaN(v) || v < 1) return res.json({ code: 400, msg: 'maxEntitiesPerType必须为正整数' });
+                clCfg.maxEntitiesPerType = v;
+            }
+            cfg.clearLag = clCfg;
+            d.fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 4), 'utf-8');
+            d.triggerReload('config');
+            d.adminLog.log(req.user.uid, '修改清理配置', JSON.stringify(clCfg));
+            res.json({ code: 200, msg: '清理配置已更新', data: clCfg });
+        } catch (e) {
+            res.json({ code: 500, msg: '更新清理配置失败: ' + e.message });
+        }
+    });
+
+    // 获取当前实体统计
+    router.get('/clearlag/stats', d.adminAuth, function(req, res) {
+        try {
+            let stats = d.clearLagModule.getStats();
+            res.json({ code: 200, data: stats });
+        } catch (e) {
+            res.json({ code: 500, msg: '获取实体统计失败: ' + e.message });
+        }
+    });
+
+    // 手动触发清理
+    router.post('/clearlag/execute', d.adminAuth, function(req, res) {
+        try {
+            let result = d.clearLagModule.executeCleanup();
+            d.adminLog.log(req.user.uid, '手动触发清理', '清理了' + result.killed + '个实体');
+            res.json({ code: 200, msg: '清理完成', data: result });
+        } catch (e) {
+            res.json({ code: 500, msg: '执行清理失败: ' + e.message });
+        }
+    });
+
+    // 查询玩家人数历史（自定义时间段）
+    router.get('/server/playerCount/history', d.adminAuth, function(req, res) {
+        try {
+            var startTime = parseInt(req.query.start);
+            var endTime = parseInt(req.query.end);
+
+            if (isNaN(startTime) || isNaN(endTime)) {
+                res.json({ code: 400, msg: '缺少start或end参数（Unix时间戳秒）' });
+                return;
+            }
+            if (startTime >= endTime) {
+                res.json({ code: 400, msg: 'start必须小于end' });
+                return;
+            }
+            // 限制查询范围不超过30天
+            if (endTime - startTime > 30 * 86400) {
+                res.json({ code: 400, msg: '查询范围不能超过30天' });
+                return;
+            }
+
+            const records = d.monitoring.getPlayerCountTrend(startTime, endTime);
+            res.json({
+                code: 200,
+                data: {
+                    startTime: startTime,
+                    endTime: endTime,
+                    records: records
+                }
+            });
+        } catch (e) {
+            res.json({ code: 500, msg: '获取人数历史失败: ' + e.message });
+        }
+    });
 }
 
 module.exports = { registerRoutes };
