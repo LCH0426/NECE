@@ -986,8 +986,6 @@ mc.listen("onJoin", (player) => {
 		}
 	}
 
-	saveSinglePlayerData(playerXUID);
-
 	_joinTimestamps[playerXUID] = Date.now();
 	onlinePlayers[String(playerXUID)] = true;
 	personalCenter.obtainStatBlock(playerXUID);
@@ -1013,7 +1011,6 @@ mc.listen("onJoin", (player) => {
 				);
 
 				delete p.leavetime;
-				saveSinglePlayerData(playerXUID);
 			} else {
 				player.sendToast(
 					'§6欢迎来到§cCitlalia服务器！',
@@ -1024,6 +1021,9 @@ mc.listen("onJoin", (player) => {
 			logger.error(`处理玩家欢迎消息时出错：${error.message}`);
 		}
 	}
+
+	// 统一保存一次（合并了之前分散的两次 saveSinglePlayerData 调用）
+	saveSinglePlayerData(playerXUID);
 
 	// 检查并通知玩家的待处理经济转账
 	economyModule.checkPendingTransfers(player);
@@ -1212,7 +1212,7 @@ function initStatTrackers() {
 
 initStatTrackers();
 
-/** 定时（约59秒）累计在线玩家的游戏时长到统计数据，并触发玩家数据保存 */
+/** 定时（约59秒）累计在线玩家的游戏时长到统计数据，只保存有变化的玩家 */
 function tickOnlineDurations() {
 	if (!config.get("enableRank")) return;
 	let now = Date.now();
@@ -1221,26 +1221,22 @@ function tickOnlineDurations() {
 		if (!blk) return;
 		blk.playTime += Math.floor((now - _joinTimestamps[xuid]) / 1000);
 		_joinTimestamps[xuid] = now;
+		saveSinglePlayerData(xuid);
 	});
-	savePlayerData();
 }
 
 setInterval(tickOnlineDurations, 58848);
 
-// 定时（30秒）刷新所有在线玩家的leavetime，确保异常断连时数据不丢失
+// 定时（30秒）刷新在线玩家的leavetime，只保存有变化的玩家
 setInterval(() => {
 	const now = Date.now();
-	let updated = false;
 	Object.keys(onlinePlayers).forEach(xuid => {
 		const p = playerData.players[xuid];
 		if (p) {
 			p.leavetime = now;
-			updated = true;
+			saveSinglePlayerData(xuid);
 		}
 	});
-	if (updated) {
-		savePlayerData();
-	}
 }, 30000);
 
 
@@ -1658,6 +1654,7 @@ function initWebServer() {
 			} catch (e) { logger.error('[Core] 重载配置失败: ' + e.message); }
 		});
 		webServer.setPlayerDataRef(playerData);
+		webServer.setConfigRef(config);
 		webServer.startServer(webConfig);
 	}).catch(function(e) {
 		logger.error('[Web] 数据库初始化失败: ' + e.message);

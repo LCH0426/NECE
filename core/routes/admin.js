@@ -129,7 +129,7 @@ function registerRoutes(router, d) {
     });
 
     // 更新备份配置（数值边界限制后写入config.json并重载备份模块）
-    router.put('/backup/config', d.adminAuth, function(req, res) {
+    router.put('/backup/config', d.adminAuth, d.configLimiter, function(req, res) {
         try {
             const cfg = d.backupModule.getConfig();
             const body = req.body;

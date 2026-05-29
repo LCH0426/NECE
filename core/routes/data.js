@@ -87,8 +87,11 @@ function registerRoutes(router, d) {
             if (!body.code) {
                 return res.json({ code: 400, msg: '缺少必要参数 code' });
             }
+            if (body.code === '__proto__' || body.code === 'constructor' || body.code === 'prototype') {
+                return res.json({ code: 400, msg: '兑换码名称不合法' });
+            }
             let data = loadCdkData();
-            if (data.codes[body.code]) {
+            if (Object.prototype.hasOwnProperty.call(data.codes, body.code)) {
                 return res.json({ code: 400, msg: '兑换码已存在' });
             }
             let cdk = { maxUses: body.maxUses || 0, usedBy: {}, rewards: [] };
@@ -143,8 +146,11 @@ function registerRoutes(router, d) {
             let body = req.body;
             sanitize(body);
             if (!body.code) return res.json({ code: 400, msg: '缺少兑换码' });
+            if (body.code === '__proto__' || body.code === 'constructor' || body.code === 'prototype') {
+                return res.json({ code: 400, msg: '兑换码名称不合法' });
+            }
             let data = loadCdkData();
-            if (!data.codes[body.code]) return res.json({ code: 404, msg: '兑换码不存在' });
+            if (!Object.prototype.hasOwnProperty.call(data.codes, body.code)) return res.json({ code: 404, msg: '兑换码不存在' });
             delete data.codes[body.code];
             saveCdkData(data);
             d.triggerReload('cdk');
@@ -164,8 +170,11 @@ function registerRoutes(router, d) {
                 for (let i = 0; i < body.rewards.length; i++) sanitize(body.rewards[i]);
             }
             if (!body.code) return res.json({ code: 400, msg: '缺少兑换码' });
+            if (body.code === '__proto__' || body.code === 'constructor' || body.code === 'prototype') {
+                return res.json({ code: 400, msg: '兑换码名称不合法' });
+            }
             let data = loadCdkData();
-            if (!data.codes[body.code]) return res.json({ code: 404, msg: '兑换码不存在' });
+            if (!Object.prototype.hasOwnProperty.call(data.codes, body.code)) return res.json({ code: 404, msg: '兑换码不存在' });
             const cdk = data.codes[body.code];
             if (body.maxUses !== undefined) cdk.maxUses = Number(body.maxUses);
             if (body.rewards && Array.isArray(body.rewards)) {
