@@ -109,6 +109,7 @@ let server = null;
 let cleanupTimer = null;
 let _playerDataRef = null;  // 内存中的 playerData 对象引用，由 index.js 注入
 let _configRef = null;      // 内存中的 config 对象引用，由 index.js 注入
+let _hasWish = false;       // 是否加载了祈愿模块（由 index.js 注入）
 
 /** 注入内存中的 playerData 对象引用，使 getPlayerData() 直接返回最新数据 */
 function setPlayerDataRef(ref) {
@@ -118,6 +119,11 @@ function setPlayerDataRef(ref) {
 /** 注入内存中的 config 对象引用，避免从磁盘读取配置 */
 function setConfigRef(ref) {
     _configRef = ref;
+}
+
+/** 注入祈愿模块加载状态，用于版本API返回类型标识 */
+function setHasWish(val) {
+    _hasWish = !!val;
 }
 
 let chatHistory = [];              // 服务端聊天记录缓冲，供 Web 面板实时查看
@@ -459,6 +465,25 @@ function createV1Routes(webConfig) {
         loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter
     };
 
+    // 版本信息接口（无需认证）
+    router.get('/version', function(req, res) {
+        try {
+            var serverVersion = mc.getBDSVersion();
+            var protocol = mc.getServerProtocolVersion();
+            res.json({
+                code: 200,
+                data: {
+                    version: '1.9.9',
+                    serverVersion: serverVersion,
+                    protocol: protocol,
+                    type: _hasWish ? 'NLPE' : 'NLCE'
+                }
+            });
+        } catch (e) {
+            res.json({ code: 500, msg: '获取版本信息失败: ' + e.message });
+        }
+    });
+
     require('./routes/auth').registerRoutes(router, routeDeps);
     require('./routes/players').registerRoutes(router, routeDeps);
     require('./routes/data').registerRoutes(router, routeDeps);
@@ -554,5 +579,6 @@ module.exports = {
     addChatMessage,
     onReload,
     setPlayerDataRef,
-    setConfigRef
+    setConfigRef,
+    setHasWish
 };

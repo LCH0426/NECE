@@ -32,14 +32,15 @@ const bankModuleCreator = require('./core/bank');
 const backupModule = require('./core/backup');
 const messageBoardModule = require('./core/messageBoard');
 const friendModule = require('./core/friend');
-const wishModule = require('./core/wish');
+let wishModule = null;
+let hasWish = false;
+try { wishModule = require('./core/wish'); hasWish = true; } catch (e) { /* wish模块不存在时跳过 */ }
 const banModule = require('./core/ban');
 const mailModule = require('./core/mail');
 const economyModule = require('./core/economy');
 const playerDataModule = require('./core/playerData');
 const avatarModule = require('./core/avatar');
 const chatModule = require('./core/chat');
-const citlaliaModule = require('./core/citlalia');
 const sidebarModule = require('./core/sidebar');
 const quickMenuModule = require('./core/quickMenu');
 const menuModule = require('./core/menu');
@@ -91,10 +92,9 @@ const _joinTimestamps = {};                            // 玩家加入时间戳�
 let onlinePlayers = {};                                // 当前在线玩家集合（xuid -> true）
 let shopData;                                          // 商店商品数据
 let recycleConfig;                                     // 回收系统配置
-let wishConfig = {};                                   // 祈愿系统配置
 let spawnEggShopConfig = {                             // 刷怪蛋商店配置
 	currency: {
-		name: (wishConfig && wishConfig.dustName) || "三星副产物"
+		name: "星尘"
 	},
 	items: []
 };
@@ -591,7 +591,7 @@ function initRankConfig() {
 		config.init("currencyName", "星茜");
 		config.init("sidebarCompact", false);
 		// 功能开关：统一嵌套到各自模块的 enabled 字段
-		config.init("shop", { "enabled": true, "enableRecycle": true, "enableDustShop": true });
+		config.init("shop", { "enabled": true, "enableRecycle": true, "enableXpShop": true });
 		config.init("rank", { "enabled": true });
 		config.init("cdk", { "enabled": true });
 		config.init("bank", { "enabled": true });
@@ -670,10 +670,9 @@ function _migrateOldConfigKeys() {
 	var _enableMap = {
 		'enableShop': ['shop', 'enabled'],
 		'enableRecycle': ['shop', 'enableRecycle'],
-		'enableDustShop': ['shop', 'enableDustShop'],
+		'enableDustShop': ['shop', 'enableXpShop'],
 		'enableRank': ['rank', 'enabled'],
 		'enableCdk': ['cdk', 'enabled'],
-		'enableWish': ['wish', 'enabled'],
 		'enableBank': ['bank', 'enabled'],
 		'enableVip': ['vip', 'enabled'],
 		'enableFriend': ['friend', 'enabled'],
@@ -841,63 +840,6 @@ const recycleConfigDM = registerDataManager('recycleConfig', RECYCLE_DATA_PATH, 
 	recycleItems: {}
 });
 
-// 祈愿系统默认配置（概率、保底、花费、奖励池等）
-const DEFAULT_WISH_CONFIG = {
-	"dustName": "三星副产物",
-	"coreName": "五星副产物",
-	"description": "",
-	"banner": "",
-	"rates": {
-		"fiveStar": 0.006,
-		"fourStar": 0.051,
-		"fiveStarSoftPity": 73,
-		"fiveStarHardPity": 90,
-		"fourStarGuarantee": 10
-	},
-	"cost": {
-		"single": 160,
-		"ten": 1600
-	},
-	"rewards": {
-		"threeStar": {
-			"minDust": 10,
-			"maxDust": 40
-		},
-		"fourStar": [],
-		"fiveStar": []
-	},
-	"coreShop": []
-};
-
-/** 加载祈愿配置，缺失字段用默认值补齐 */
-function initWishConfig() {
-	try {
-		config.init("wish", Object.assign({}, DEFAULT_WISH_CONFIG, {
-			"dustName": "三星副产物",
-			"coreName": "五星副产物",
-			"description": "进行祈愿时，遵循以下概率与保底规则"
-		}));
-		wishConfig = config.get("wish");
-		if (!wishConfig || typeof wishConfig !== 'object') {
-			wishConfig = {};
-		}
-		if (!wishConfig.dustName) wishConfig.dustName = DEFAULT_WISH_CONFIG.dustName;
-		if (!wishConfig.coreName) wishConfig.coreName = DEFAULT_WISH_CONFIG.coreName;
-		if (!wishConfig.description) wishConfig.description = DEFAULT_WISH_CONFIG.description;
-		if (!wishConfig.banner) wishConfig.banner = DEFAULT_WISH_CONFIG.banner;
-		if (!wishConfig.rates) wishConfig.rates = Object.assign({}, DEFAULT_WISH_CONFIG.rates);
-		if (!wishConfig.cost) wishConfig.cost = Object.assign({}, DEFAULT_WISH_CONFIG.cost);
-		if (!wishConfig.rewards) wishConfig.rewards = {};
-		if (!wishConfig.rewards.threeStar) wishConfig.rewards.threeStar = Object.assign({}, DEFAULT_WISH_CONFIG.rewards.threeStar);
-		if (!wishConfig.rewards.fourStar) wishConfig.rewards.fourStar = [];
-		if (!wishConfig.rewards.fiveStar) wishConfig.rewards.fiveStar = [];
-		if (!wishConfig.coreShop) wishConfig.coreShop = [];
-	} catch (error) {
-		wishConfig = JSON.parse(JSON.stringify(DEFAULT_WISH_CONFIG));
-		logger.error(`祈愿配置加载失败！错误：使用默认配置：${error.message}`);
-	}
-}
-
 /** 将死亡点DataManager传递给传送模块 */
 function initDeathPointData() {
 	teleportModule.initDeathPoint(deathPointDM);
@@ -937,7 +879,6 @@ async function initAllConfigs() {
 	loadItemsDataMap();
 	initRecycleConfig();
 	messageBoardModule.init(messageBoardDM);
-	initWishConfig();
 	spawnEggShopConfig = spawnEggShopDM.load();
 	initDeathPointData();
 	debugLog('friendModule.init: 好友模块初始化, playerData.players 条目=' + Object.keys(playerData.players || {}).length);
@@ -1028,18 +969,23 @@ async function initAllConfigs() {
 	});
 	commonDeps.vipModule = vipModule;
 
-	wishModule.init(wishDM, enchantBookShopDM, spawnEggShopDM, wishConfig, {
-		getPlayerMoney: getPlayerMoney,
-		reducePlayerMoney: reducePlayerMoney,
-		getCurrencyName: getCurrencyName,
-		notifyEconomyChange: notifyEconomyChange,
-		playerData: playerData.players,
-		savePlayerDataNow: savePlayerDataNow,
-		money: money,
-		openMainMenu: personalCenter.openMainMenu,
-		vipModule: vipModule,
-		showPersonalCenterForm: personalCenter.showPersonalCenterForm
-	});
+	if (hasWish) {
+		wishModule.init(wishDM, enchantBookShopDM, spawnEggShopDM, {
+			getPlayerMoney: getPlayerMoney,
+			reducePlayerMoney: reducePlayerMoney,
+			getCurrencyName: getCurrencyName,
+			notifyEconomyChange: notifyEconomyChange,
+			playerData: playerData.players,
+			savePlayerDataNow: savePlayerDataNow,
+			money: money,
+			openMainMenu: personalCenter.openMainMenu,
+			vipModule: vipModule,
+			showPersonalCenterForm: personalCenter.showPersonalCenterForm,
+			constants: C,
+			getPlayerData: function() { return playerData; },
+			getPlayerSetting: getPlayerSetting
+		});
+	}
 	commonDeps.wishModule = wishModule;
 
 	let cdkModule = cdkModuleCreator.create({
@@ -1523,7 +1469,6 @@ mc.listen("onServerStarted", async () => {
 	}
 	banModule.registerConsoleCommands();
 	banModule.registerGameCommands();
-	citlaliaModule.init({ constants: C, getPlayerData: function() { return playerData; }, getPlayerSetting: getPlayerSetting });
 	sidebarModule.init({ constants: C, config: config, money: money, getCurrencyName: getCurrencyName, getPlayerSetting: getPlayerSetting, tpsData: tpsData });
 	quickMenuModule.registerCommands(registerPlayerCommand);
 	quickMenuModule.registerCompassListener();
@@ -1609,12 +1554,9 @@ function registerAllCommands() {
 		["mb", "打开留言板", function(p) { messageBoardModule.showMainForm(p); }, "messageBoard.enabled"],
 		["vip", "VIP系统", function(p) { commonDeps.vipModule.showVipMenu(p); }, "vip.enabled"],
 		["bank", "银行系统", function(p) { commonDeps.bankModule.showBankMainForm(p); }, "bank.enabled"],
-		["wish", "祈愿系统", function(p) { wishModule.showWishMainForm(p); }, "wish.enabled"],
 		["recycle", "回收系统", function(p) { shopModule.showRecycleForm(p, recycleConfig, commonDeps); }, "shop.enableRecycle"],
 		["level", "等级奖励", function(p) { personalCenter.showLevelRewardForm(p); }, "level.enabled"],
-		["xpshop", "经验商店", function(p) { shopModule.showXPBuyForm(p, commonDeps); }, "shop.enableDustShop"],
-		["dustshop", "星尘商店", function(p) { wishModule.showDustShopMainForm(p); }, "shop.enableDustShop"],
-		["enchantshop", "附魔书商店", function(p) { wishModule.showEnchantBookShopForm(p); }, "shop.enableDustShop"],
+		["xpshop", "经验商店", function(p) { shopModule.showXPBuyForm(p, commonDeps); }, "shop.enableXpShop"],
 		["settings", "个人设置", personalCenter.showPlayerSettingsForm],
 		["back", "返回死亡点", function(p) { teleportModule.showDeathPointMenu(p); }, "back.enabled"],
 		["mail", "打开邮件系统", function(p) { mailModule.showMailSystemForm(p); }, "mail.enabled"],
@@ -1634,7 +1576,11 @@ function registerAllCommands() {
 	];
 	for (let i = 0; i < commands.length; i++) {
 		let cmd = commands[i];
+		if (!cmd) continue;
 		registerPlayerCommand(cmd[0], cmd[1], cmd[2], cmd[3]);
+	}
+	if (hasWish) {
+		wishModule.registerCommands(registerPlayerCommand);
 	}
 }
 
@@ -1842,24 +1788,24 @@ function initWebServer() {
 		webServer.onReload('cdk', function() {
 			cdkDataDM.load();
 		});
-		webServer.onReload('wish', function() {
-			try {
-				config.reload();
-				wishConfig = config.get("wish") || wishConfig;
-				wishModule.reloadConfig(wishConfig);
-			} catch (e) { logger.error('[Core] 重载祈愿配置失败: ' + e.message); }
-		});
+		if (hasWish) {
+			webServer.onReload('wish', function() {
+				try {
+					wishModule.reloadConfig();
+				} catch (e) { logger.error('[Core] 重载祈愿配置失败: ' + e.message); }
+			});
+		}
 		webServer.onReload('config', function() {
 			try {
 				config.reload();
-				wishConfig = config.get("wish") || wishConfig;
-				wishModule.reloadConfig(wishConfig);
+				if (hasWish) wishModule.reloadConfig();
 				backupModule.reload(config.get("backup"));
 				clearLagModule.reload();
 			} catch (e) { logger.error('[Core] 重载配置失败: ' + e.message); }
 		});
 		webServer.setPlayerDataRef(playerData);
 		webServer.setConfigRef(config);
+		webServer.setHasWish(hasWish);
 		webServer.startServer(webConfig);
 	}).catch(function(e) {
 		logger.error('[Web] 数据库初始化失败: ' + e.message);
@@ -2096,13 +2042,22 @@ if (typeof ll !== 'undefined' && ll.onUnload) {
 }
 
 // ============ 启动Banner ============
-colorLog("yellow",    " _   _   _         _____   ______ ");
-colorLog("yellow",    "| \\ | | | |       / ____| |  ____|");
-colorLog("yellow",    "|  \\| | | |      | |      | |__   ");
-colorLog("yellow",    "| . ` | | |      | |      |  __|  ");
-colorLog("yellow",    "| |\\  | | |____  | |____  | |____ ");
-colorLog("yellow",    "|_| \\_| |______|  \\_____| |______|");
+if (hasWish) {
+	colorLog("yellow",    "  _   _   _        _____    ______ ");
+	colorLog("yellow",    " | \ | | | |      |  __ \  |  ____|");
+	colorLog("yellow",    " |  \| | | |      | |__) | | |__   ");
+	colorLog("yellow",    " | . ` | | |      |  ___/  |  __|  ");
+	colorLog("yellow",    " | |\  | | |____  | |      | |____ ");
+	colorLog("yellow",    " |_| \_| |______| |_|      |______|");
+} else {
+	colorLog("yellow",    " _   _   _         _____   ______ ");
+	colorLog("yellow",    "| \\ | | | |       / ____| |  ____|");
+	colorLog("yellow",    "|  \\| | | |      | |      | |__   ");
+	colorLog("yellow",    "| . ` | | |      | |      |  __|  ");
+	colorLog("yellow",    "| |\\  | | |____  | |____  | |____ ");
+	colorLog("yellow",    "|_| \\_| |______|  \\_____| |______|");
+}
 
 logger.info("");
-logger.info(`       NLCE 1.9.9 (${DESIGNATION_NAME})`);
+logger.info(`       ${hasWish ? 'NLPE' : 'NLCE'} 1.9.9 (${DESIGNATION_NAME})`);
 logger.info("");

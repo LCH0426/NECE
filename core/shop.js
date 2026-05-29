@@ -353,23 +353,23 @@ function showXPBuyForm(player, deps) {
 	const balance = deps.money.get(xuid) || 0;
 
 	const gui = mc.newCustomForm();
-	gui.setTitle("\u00a7l\u00a7b\u7ecf\u9a8c\u8d2d\u4e70");
+	gui.setTitle("§l§b经验购买");
 
-	let content = "\u00a7a\u5f53\u524d\u7b49\u7ea7\uff1a\u00a7f" + currentLevel + " \u7ea7\n";
-	content += "\u00a7a\u5f53\u524d\u7b49\u7ea7\u8fdb\u5ea6\uff1a\u00a7f" + currentXPInLevel + " / " + xpToNextLevel + "\n";
-	content += "\u00a7a\u8ddd\u79bb\u4e0b\u4e00\u7ea7\uff1a\u8fd8\u9700 \u00a7f" + needXPToCurrentNext + " \u70b9\u7ecf\u9a8c\n";
-	content += "\u00a7a\u5151\u6362\u6bd4\u4f8b\uff1a\u00a7f1 \u7ecf\u9a8c = \u00a7e10 \u70b9" + deps.getCurrencyName() + "\n";
-	content += "\u00a7a\u60a8\u5f53\u524d\u62e5\u6709\uff1a\u00a7f" + balance + " \u70b9" + deps.getCurrencyName() + "\n";
+	let content = "§a当前等级：§f" + currentLevel + " 级\n";
+	content += "§a当前等级进度：§f" + currentXPInLevel + " / " + xpToNextLevel + "\n";
+	content += "§a距离下一级：还需 §f" + needXPToCurrentNext + " 点经验\n";
+	content += "§a兑换比例：§f1 经验 = §e10 点" + deps.getCurrencyName() + "\n";
+	content += "§a您当前拥有：§f" + balance + " 点" + deps.getCurrencyName() + "\n";
 
 	gui.addLabel(content);
 
-	const levelOptions = ["\u624b\u52a8\u8f93\u5165\u7ecf\u9a8c"];
+	const levelOptions = ["手动输入经验"];
 	for (let i = 1; i <= 10; i++) {
-		levelOptions.push("\u5347\u7ea7" + i + "\u7ea7");
+		levelOptions.push("升级" + i + "级");
 	}
-	gui.addStepSlider("\u9009\u62e9\u5347\u7ea7\u7b49\u7ea7", levelOptions, 0, "\u9009\u62e9\u8981\u5347\u7ea7\u7684\u7b49\u7ea7\u6570");
+	gui.addStepSlider("选择升级等级", levelOptions, 0, "选择要升级的等级数");
 
-	gui.addInput("\u624b\u52a8\u8f93\u5165\u7ecf\u9a8c\u6570\u91cf", "\u8f93\u5165\u6b63\u6574\u6570\uff08\u5982100\u3001500\uff09", "");
+	gui.addInput("手动输入经验数量", "输入正整数（如100、500）", "");
 
 	player.sendForm(gui, function(p, data) {
 		if (data === null) return;
@@ -397,10 +397,10 @@ function showXPBuyForm(player, deps) {
 
 		if (xpAmount < 1) {
 			p.sendModalForm(
-				"\u00a7c\u8f93\u5165\u9519\u8bef",
-				"\u00a7c\u8bf7\u9009\u62e9\u5347\u7ea7\u7b49\u7ea7\u6216\u8f93\u5165\u6709\u6548\u7684\u7ecf\u9a8c\u6570\u91cf\uff01",
-				"\u00a7a\u91cd\u65b0\u8f93\u5165",
-				"\u00a7c\u5173\u95ed",
+				"§c输入错误",
+				"§c请选择升级等级或输入有效的经验数量！",
+				"§a重新输入",
+				"§c关闭",
 				function(player, res) {
 					if (res === true) showXPBuyForm(player, deps);
 				}
@@ -413,10 +413,10 @@ function showXPBuyForm(player, deps) {
 
 		if (playerBalance < cost) {
 			p.sendModalForm(
-				"\u00a7c" + deps.getCurrencyName() + "\u4e0d\u8db3",
-				"\u00a7c\u8d2d\u4e70 \u00a7f" + xpAmount + " \u70b9\u7ecf\u9a8c \u00a7c\u9700\u8981 \u00a7e" + cost + " \u70b9" + deps.getCurrencyName() + "\n\u00a7c\u60a8\u5f53\u524d\u4ec5\u62e5\u6709 \u00a7e" + playerBalance + " \u70b9" + deps.getCurrencyName() + "\n\u00a7c\u8bf7\u5148\u83b7\u53d6\u8db3\u591f" + deps.getCurrencyName() + "\u540e\u518d\u5c1d\u8bd5",
-				"\u00a7a\u8fd4\u56de",
-				"\u00a7c\u5173\u95ed",
+				"§c" + deps.getCurrencyName() + "不足",
+				"§c购买 §f" + xpAmount + " 点经验 §c需要 §e" + cost + " 点" + deps.getCurrencyName() + "\n§c您当前仅拥有 §e" + playerBalance + " 点" + deps.getCurrencyName() + "\n§c请先获取足够" + deps.getCurrencyName() + "后再尝试",
+				"§a返回",
+				"§c关闭",
 				function(player, res) {
 					if (res === true) showXPBuyForm(player, deps);
 				}
@@ -433,10 +433,10 @@ function showXPBuyForm(player, deps) {
 /** 显示经验购买确认对话框 */
 function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 	player.sendModalForm(
-		"\u00a7a\u786e\u8ba4\u8d2d\u4e70",
-		"\u00a7a\u8d2d\u4e70\u7ecf\u9a8c\uff1a\u00a7f" + xpAmount + " \u70b9\n\u00a7c\u6d88\u8017" + deps.getCurrencyName() + "\uff1a\u00a7e" + cost + " \u70b9\n\u00a7c\u60a8\u5f53\u524d" + deps.getCurrencyName() + "\uff1a\u00a7e" + playerBalance + " \u70b9\n\u00a7c\u8d2d\u4e70\u540e\u5269\u4f59\uff1a\u00a7e" + (playerBalance - cost) + " \u70b9",
-		"\u00a7a\u786e\u8ba4\u8d2d\u4e70",
-		"\u00a7c\u53d6\u6d88",
+		"§a确认购买",
+		"§a购买经验：§f" + xpAmount + " 点\n§c消耗" + deps.getCurrencyName() + "：§e" + cost + " 点\n§c您当前" + deps.getCurrencyName() + "：§e" + playerBalance + " 点\n§c购买后剩余：§e" + (playerBalance - cost) + " 点",
+		"§a确认购买",
+		"§c取消",
 		function(p, isConfirm) {
 			if (!p) return;
 			if (!isConfirm) {
@@ -448,7 +448,7 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 			const reduceSuccess = deps.money.reduce(xuid, cost);
 
 			if (reduceSuccess) {
-				deps.notifyEconomyChange(p, -cost, "\u8d2d\u4e70\u7ecf\u9a8c");
+				deps.notifyEconomyChange(p, -cost, "购买经验");
 				const addXPSuccess = p.addExperience(xpAmount);
 
 				if (addXPSuccess) {
@@ -456,10 +456,10 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 					const remainingBalance = deps.money.get(xuid) || 0;
 
 					p.sendModalForm(
-						"\u00a7a\u8d2d\u4e70\u6210\u529f",
-						"\u00a7a\u6210\u529f\u8d2d\u4e70 \u00a7f" + xpAmount + " \u70b9\u7ecf\u9a8c\uff01\n\u00a7a\u5f53\u524d\u7b49\u7ea7\uff1a\u00a7f" + newLevel + " \u7ea7\n\u00a7c\u6d88\u8017" + deps.getCurrencyName() + "\uff1a\u00a7e" + cost + " \u70b9\n\u00a7c\u5269\u4f59" + deps.getCurrencyName() + "\uff1a\u00a7e" + remainingBalance + " \u70b9",
-						"\u00a7a\u7ee7\u7eed\u8d2d\u4e70",
-						"\u00a7c\u5b8c\u6210",
+						"§a购买成功",
+						"§a成功购买 §f" + xpAmount + " 点经验！\n§a当前等级：§f" + newLevel + " 级\n§c消耗" + deps.getCurrencyName() + "：§e" + cost + " 点\n§c剩余" + deps.getCurrencyName() + "：§e" + remainingBalance + " 点",
+						"§a继续购买",
+						"§c完成",
 						function(pl, isContinue) {
 							if (!pl) return;
 							if (isContinue) showXPBuyForm(pl, deps);
@@ -467,10 +467,10 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 					);
 				} else {
 					p.sendModalForm(
-						"\u00a7c\u8d2d\u4e70\u5931\u8d25",
-						"\u00a7c\u7cfb\u7edf\u9519\u8bef\uff1a\u7ecf\u9a8c\u6dfb\u52a0\u5931\u8d25\uff0c\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458",
-						"\u00a7a\u786e\u5b9a",
-						"\u00a7c\u5173\u95ed",
+						"§c购买失败",
+						"§c系统错误：经验添加失败，请联系管理员",
+						"§a确定",
+						"§c关闭",
 						function(pl, res) {
 							if (res === true) showXPBuyForm(pl, deps);
 						}
@@ -478,10 +478,10 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 				}
 			} else {
 				p.sendModalForm(
-					"\u00a7c\u8d2d\u4e70\u5931\u8d25",
-					"\u00a7c\u7cfb\u7edf\u9519\u8bef\uff1a\u6263\u9664\u5931\u8d25\uff0c\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458",
-					"\u00a7a\u786e\u5b9a",
-					"\u00a7c\u5173\u95ed",
+					"§c购买失败",
+					"§c系统错误：扣除失败，请联系管理员",
+					"§a确定",
+					"§c关闭",
 					function(pl, res) {
 						if (res === true) showXPBuyForm(pl, deps);
 					}
