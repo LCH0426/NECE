@@ -373,10 +373,10 @@
     "enabled": true,
     "interval": 1,
     "lines": [
-      "§eN§rECE",
-      "N§eE§rCE",
-      "NE§eC§eE",
-      "NEC§eE"
+      "NECE 0",
+      "NECE 1",
+      "NECE 2",
+      "NECE 3"
     ]
   }
 }
