@@ -18,31 +18,28 @@
 /**
  * NLCE 配置路由模块
  * 祈愿配置和功能开关的Web管理API路由
- * 祈愿配置存储在config.json的wishConfig字段中，修改后触发热重载
+ * 祈愿配置独立存储在wish_config.json中，修改后触发热重载
  */
 
 function registerRoutes(router, d) {
 
-    const WISH_CONFIG_PATH = d.pathModule.join(__dirname, '..', '..', 'config.json');
+    const WISH_CONFIG_PATH = d.pathModule.join(__dirname, '..', '..', 'wish_config.json');
+    const MAIN_CONFIG_PATH = d.pathModule.join(__dirname, '..', '..', 'config.json');
 
-    // 从config.json中读取wishConfig部分
+    // 从wish_config.json读取祈愿配置
     function loadWishConfig() {
         try {
             let content = d.fs.readFileSync(WISH_CONFIG_PATH, 'utf-8');
-            let cfg = JSON.parse(content);
-            return cfg.wishConfig || {};
+            return JSON.parse(content);
         } catch (e) {
             return {};
         }
     }
 
-    // 保存wishConfig回config.json（保留其他配置不变），触发祈愿模块热重载
+    // 保存祈愿配置到wish_config.json，触发祈愿模块热重载
     function saveWishConfig(wishCfg) {
         try {
-            let content = d.fs.readFileSync(WISH_CONFIG_PATH, 'utf-8');
-            let cfg = JSON.parse(content);
-            cfg.wishConfig = wishCfg;
-            d.fs.writeFileSync(WISH_CONFIG_PATH, JSON.stringify(cfg, null, 4), 'utf-8');
+            d.fs.writeFileSync(WISH_CONFIG_PATH, JSON.stringify(wishCfg, null, 4), 'utf-8');
             d.triggerReload('wish');
         } catch (e) {
             throw e;
@@ -345,30 +342,6 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 修改祈愿系统自定义货币名称（尘核和核心的显示名称）
-    router.put('/wish/names', d.adminAuth, function(req, res) {
-        try {
-            let cfg = loadWishConfig();
-            if (req.body.dustName !== undefined) {
-                if (typeof req.body.dustName !== 'string' || req.body.dustName.trim() === '') {
-                    return res.json({ code: 400, msg: 'dustName不能为空' });
-                }
-                cfg.dustName = req.body.dustName.trim();
-            }
-            if (req.body.coreName !== undefined) {
-                if (typeof req.body.coreName !== 'string' || req.body.coreName.trim() === '') {
-                    return res.json({ code: 400, msg: 'coreName不能为空' });
-                }
-                cfg.coreName = req.body.coreName.trim();
-            }
-            saveWishConfig(cfg);
-            d.adminLog.log(req.user.uid, '修改祈愿自定义名称', 'dustName:' + cfg.dustName + ' coreName:' + cfg.coreName);
-            res.json({ code: 200, msg: '修改成功', data: { dustName: cfg.dustName, coreName: cfg.coreName } });
-        } catch (e) {
-            res.json({ code: 500, msg: '修改自定义名称失败: ' + e.message });
-        }
-    });
-
     // 修改祈愿系统说明文本（展示在前端祈愿页面）
     router.put('/wish/description', d.adminAuth, function(req, res) {
         try {
@@ -390,8 +363,7 @@ function registerRoutes(router, d) {
         ['enableShop', 'shop', 'enabled'],
         ['enableCdk', 'cdk', 'enabled'],
         ['enableRecycle', 'shop', 'enableRecycle'],
-        ['enableDustShop', 'shop', 'enableDustShop'],
-        ['enableWish', 'wish', 'enabled'],
+        ['enableXpShop', 'shop', 'enableXpShop'],
         ['enableBank', 'bank', 'enabled'],
         ['enableVip', 'vip', 'enabled'],
         ['enableFriend', 'friend', 'enabled'],
@@ -405,7 +377,7 @@ function registerRoutes(router, d) {
     // 获取所有功能开关状态（未设置的功能默认为开启）
     router.get('/features', d.adminAuth, d.configLimiter, function(req, res) {
         try {
-            let content = d.fs.readFileSync(WISH_CONFIG_PATH, 'utf-8');
+            let content = d.fs.readFileSync(MAIN_CONFIG_PATH, 'utf-8');
             let cfg = JSON.parse(content);
             const features = {};
             featureMap.forEach(function(item) {
@@ -422,7 +394,7 @@ function registerRoutes(router, d) {
     // 批量修改功能开关（只更新请求中包含的字段），触发配置热重载
     router.put('/features', d.adminAuth, d.configLimiter, function(req, res) {
         try {
-            let content = d.fs.readFileSync(WISH_CONFIG_PATH, 'utf-8');
+            let content = d.fs.readFileSync(MAIN_CONFIG_PATH, 'utf-8');
             let cfg = JSON.parse(content);
             const updated = {};
             featureMap.forEach(function(item) {
@@ -433,7 +405,7 @@ function registerRoutes(router, d) {
                     updated[oldKey] = cfg[objKey][field];
                 }
             });
-            d.fs.writeFileSync(WISH_CONFIG_PATH, JSON.stringify(cfg, null, 4), 'utf-8');
+            d.fs.writeFileSync(MAIN_CONFIG_PATH, JSON.stringify(cfg, null, 4), 'utf-8');
             d.triggerReload('config');
             d.adminLog.log(req.user.uid, '修改功能开关', JSON.stringify(updated));
             res.json({ code: 200, msg: '修改成功', data: updated });

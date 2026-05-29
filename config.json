@@ -6,7 +6,7 @@
   "shop": {
     "enabled": true,
     "enableRecycle": true,
-    "enableDustShop": true
+    "enableXpShop": true
   },
   "rank": {
     "enabled": true
@@ -15,99 +15,7 @@
     "enabled": true
   },
   "wish": {
-    "enabled": true,
-    "dustName": "三星副产物",
-    "coreName": "五星副产物",
-    "description": "这里是卡池详情",
-    "banner": "这里是卡池信息",
-    "rates": {
-      "fiveStar": 0.006,
-      "fourStar": 0.051,
-      "fiveStarSoftPity": 73,
-      "fiveStarHardPity": 90,
-      "fourStarGuarantee": 10
-    },
-    "cost": {
-      "single": 160,
-      "ten": 1600
-    },
-    "rewards": {
-      "threeStar": {
-        "minDust": 10,
-        "maxDust": 40
-      },
-      "fourStar": [
-        {
-          "name": "铜锭",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:copper_ingot\",\"WasPickedUp\":0b}"
-        },
-        {
-          "name": "金锭",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:gold_ingot\",\"WasPickedUp\":0b}"
-        },
-        {
-          "name": "铁锭",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:iron_ingot\",\"WasPickedUp\":0b}"
-        },
-        {
-          "name": "下界合金锭",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:netherite_ingot\",\"WasPickedUp\":0b}"
-        },
-        {
-          "name": "紫水晶碎片",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:amethyst_shard\",\"WasPickedUp\":0b}"
-        },
-        {
-          "name": "钻石",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:diamond\",\"WasPickedUp\":0b}"
-        },
-        {
-          "name": "绿宝石",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:emerald\",\"WasPickedUp\":0b}"
-        },
-        {
-          "name": "青金石",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:lapis_lazuli\",\"WasPickedUp\":0b}"
-        },
-        {
-          "name": "下界石英",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:quartz\",\"WasPickedUp\":0b}"
-        },
-        {
-          "name": "红石粉",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:redstone\",\"WasPickedUp\":0b}"
-        }
-      ],
-      "fiveStar": [
-        {
-          "name": "§b逐月之痕",
-          "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:diamond\",\"WasPickedUp\":0b,\"tag\":{\"Damage\":0,\"display\":{\"Lore\":[\"§b高级钻石:\",\"§b很特别\"]}}}"
-        }
-      ]
-    },
-    "coreShop": [
-      {
-        "name": "下界合金锭",
-        "description": "描述",
-        "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:netherite_ingot\",\"WasPickedUp\":0b}",
-        "cost": 5,
-        "icon": "textures/items/netherite_ingot"
-      },
-      {
-        "name": "附魔金苹果",
-        "description": "描述",
-        "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:enchanted_golden_apple\",\"WasPickedUp\":0b}",
-        "cost": 3,
-        "icon": "textures/items/enchanted_golden_apple"
-      },
-      {
-        "name": "信标",
-        "description": "描述",
-        "snbt": "{\"Count\":1b,\"Damage\":0s,\"Name\":\"minecraft:beacon\",\"WasPickedUp\":0b}",
-        "cost": 10,
-        "icon": "textures/blocks/beacon"
-      }
-    ]
+    "enabled": true
   },
   "bank": {
     "enabled": true

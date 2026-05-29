@@ -22,9 +22,12 @@
 
 
 const fs = require('fs');
+const path = require('path');
 const C = require('./constants');
 const U = require('./utils');
 const D = require('./debug');
+
+const WISH_CONFIG_PATH = path.join(__dirname, '..', 'wish_config.json');
 
 let wishDM = null; // 祈愿数据DataManager
 let enchantBookShopDM = null; // 附魔书商店配置DataManager
@@ -33,33 +36,56 @@ let wishData = { players: {} }; // 祈愿玩家数据（保底计数、货币、
 let wishConfig = {}; // 祈愿配置（概率、奖池、价格等）
 let enchantBookShopConfig = { enchantments: {} }; // 附魔书商店配置
 let spawnEggShopConfig = {
-    currency: { name: "三星副产物" },
+    currency: { name: "星尘" },
     items: []
 };
 let _deps = {};
 
-/** 获取当前 dustName，始终从 wishConfig 实时读取 */
-function getDustName() { return wishConfig.dustName || '三星副产物'; }
-/** 获取当前 coreName，始终从 wishConfig 实时读取 */
-function getCoreName() { return wishConfig.coreName || '五星副产物'; }
+var DUST_NAME = '星尘';
+var CORE_NAME = '星核';
 
 /** 初始化祈愿模块，加载数据和配置 */
-function init(dm, enchDm, spawnDm, cfg, deps) {
+function init(dm, enchDm, spawnDm, deps) {
 	D.debugLogModule('wish')('init: 初始化完成');
     wishDM = dm;
     enchantBookShopDM = enchDm;
     spawnEggShopDM = spawnDm;
     _deps = deps || {};
-    wishConfig = cfg || {};
+    wishConfig = loadConfig();
     wishData = wishDM.load();
     if (!wishData.players) wishData.players = {};
     enchantBookShopConfig = enchantBookShopDM.load();
     spawnEggShopConfig = spawnEggShopDM.load();
+    initCitlaliaFeatures();
 }
 
-/** 热重载祈愿配置（不重新加载数据） */
-function reloadConfig(cfg) {
-    wishConfig = cfg || {};
+/** 从 wish_config.json 加载祈愿配置 */
+function loadConfig() {
+    try {
+        if (fs.existsSync(WISH_CONFIG_PATH)) {
+            return JSON.parse(fs.readFileSync(WISH_CONFIG_PATH, 'utf-8'));
+        }
+    } catch (e) {
+        logger.error('[Wish] 加载配置失败: ' + e.message);
+    }
+    return {};
+}
+
+/** 保存祈愿配置到 wish_config.json */
+function saveConfig(cfg) {
+    if (cfg) wishConfig = cfg;
+    try {
+        fs.writeFileSync(WISH_CONFIG_PATH, JSON.stringify(wishConfig, null, 4), 'utf-8');
+        return true;
+    } catch (e) {
+        logger.error('[Wish] 保存配置失败: ' + e.message);
+        return false;
+    }
+}
+
+/** 热重载祈愿配置（从文件重新读取） */
+function reloadConfig() {
+    wishConfig = loadConfig();
 }
 
 /** 立即保存祈愿数据到磁盘 */
@@ -193,7 +219,7 @@ function performSingleWish(player, shouldSave) {
             logger.error('发放祈愿物品失败！错误：' + error.message);
             const compDust = Math.floor(Math.random() * 50) + 30;
             wd.currency.dust += compDust;
-            player.tell('§e[祈愿] §c物品发放失败，补偿您 ' + compDust + ' 点' + getDustName());
+            player.tell('§e[祈愿] §c物品发放失败，补偿您 ' + compDust + ' 点' + DUST_NAME);
         }
     }
 
@@ -317,16 +343,17 @@ function showWishMainForm(player) {
     let content = "-------------------------\n";
     content += "§a总抽取次数：§f" + wd.totalWishes + " 次\n";
     content += "§a已垫抽数：§f" + wd.pity.fiveStar + " 抽\n";
-    content += "§a" + getDustName() + "数量：§f" + wd.currency.dust + " 点\n";
-    content += "§a" + getCoreName() + "数量：§f" + wd.currency.core + " 点\n";
+    content += "§a" + DUST_NAME + "数量：§f" + wd.currency.dust + " 点\n";
+    content += "§a" + CORE_NAME + "数量：§f" + wd.currency.core + " 点\n";
     content += "-------------------------\n";
     content += (wishConfig.banner || '') + " \n";
 
     gui.setContent(content);
     gui.addButton("§a开始祈愿", "textures/ui/pary");
-    gui.addButton("§e" + getCoreName() + "兑换", "textures/ui/core");
+    gui.addButton("§e" + CORE_NAME + "兑换", "textures/ui/core");
     gui.addButton("§b查看历史", "textures/ui/achievements_pause_menu_icon");
     gui.addButton("§6详细说明", "textures/ui/creative_icon");
+    gui.addButton("§e星尘商店", "textures/ui/xinchen");
     gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
@@ -335,7 +362,8 @@ function showWishMainForm(player) {
         else if (id === 1) showCoreShopForm(p);
         else if (id === 2) showWishHistoryForm(p, 1);
         else if (id === 3) showWishInfoForm(p);
-        else if (id === 4) { if (_deps.openMainMenu) _deps.openMainMenu(p); }
+        else if (id === 4) showDustShopMainForm(p);
+        else if (id === 5) { if (_deps.openMainMenu) _deps.openMainMenu(p); }
     });
 }
 
@@ -455,7 +483,7 @@ function showWishResultForm(player, rewards, count) {
     const mergedFourStar = mergeRewards(fourStarRewards);
 
     mergedFiveStar.forEach(function(reward) {
-        const rewardText = reward.type === "core" ? getCoreName() : (reward.name || "未知物品");
+        const rewardText = reward.type === "core" ? CORE_NAME : (reward.name || "未知物品");
         content += "§e5星 " + rewardText + (reward.count > 1 ? " x" + reward.count : "") + "\n";
     });
 
@@ -465,7 +493,7 @@ function showWishResultForm(player, rewards, count) {
     });
 
     if (dustCount > 0) {
-        content += "§b3星 " + getDustName() + " x" + dustCount + " 总计 " + dustTotal + " 点\n";
+        content += "§b3星 " + DUST_NAME + " x" + dustCount + " 总计 " + dustTotal + " 点\n";
     }
     content += "-------------------------\n";
 
@@ -500,8 +528,8 @@ function showWishInfoForm(player) {
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§b祈愿系统说明");
     let content = "-------------------------\n";
-    const _dustName = getDustName();
-    const _coreName = getCoreName();
+    const _dustName = DUST_NAME;
+    const _coreName = CORE_NAME;
     const _threeStarCfg = (wishConfig.rewards && wishConfig.rewards.threeStar) || {};
     const _minDust = _threeStarCfg.minDust || 10;
     const _maxDust = _threeStarCfg.maxDust || 40;
@@ -517,8 +545,8 @@ function showWishInfoForm(player) {
     content += "§f单抽：" + ((wishConfig.cost && wishConfig.cost.single) || 160) + "点" + _deps.getCurrencyName() + "\n";
     content += "§f十连：" + ((wishConfig.cost && wishConfig.cost.ten) || 1600) + "点" + _deps.getCurrencyName() + "\n\n";
     content += "§a奖励说明：\n";
-    content += "§f" + getDustName() + "：3星物品，可以用于兑换奖励\n";
-    content += "§f" + getCoreName() + "：5星物品，稀有奖励\n\n";
+    content += "§f" + DUST_NAME + "：3星物品，可以用于兑换奖励\n";
+    content += "§f" + CORE_NAME + "：5星物品，稀有奖励\n\n";
     content += "§a4星奖池：\n§b锭·全部系列\n§b晶体·全部系列";
     content += "-------------------------\n";
     gui.setContent(content);
@@ -531,19 +559,19 @@ function showWishInfoForm(player) {
 /** 显示星核兑换商店列表 */
 function showCoreShopForm(player) {
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§e" + getCoreName() + "兑换商店");
+    gui.setTitle("§l§e" + CORE_NAME + "兑换商店");
     const xuid = player.xuid;
     const wd = getPlayerWishData(xuid);
     const coreAmount = wd.currency.core || 0;
     let content = "-------------------------\n";
-    content += "§a您当前拥有：§f" + coreAmount + " 颗" + getCoreName() + "\n";
+    content += "§a您当前拥有：§f" + coreAmount + " 颗" + CORE_NAME + "\n";
     content += "-------------------------\n";
     content += "§e点击物品查看详情并兑换\n";
     content += "-------------------------\n";
     gui.setContent(content);
     const coreShop = wishConfig.coreShop || [];
     coreShop.forEach(function(item) {
-        gui.addButton("§b" + item.name + "\n§6需要 §e" + item.cost + " " + getCoreName(), item.icon || "textures/ui/star_glyph");
+        gui.addButton("§b" + item.name + "\n§6需要 §e" + item.cost + " " + CORE_NAME, item.icon || "textures/ui/star_glyph");
     });
     gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
     player.sendForm(gui, function(p, id) {
@@ -564,11 +592,11 @@ function showCoreShopDetailForm(player, item) {
     let content = "-------------------------\n";
     content += "§a物品名称：§f" + item.name + "\n";
     content += "§a物品描述：§f" + item.description + "\n";
-    content += "§a兑换价格：§e" + item.cost + " 颗" + getCoreName() + "\n";
-    content += "§a当前拥有：§f" + coreAmount + " 颗" + getCoreName() + "\n";
+    content += "§a兑换价格：§e" + item.cost + " 颗" + CORE_NAME + "\n";
+    content += "§a当前拥有：§f" + coreAmount + " 颗" + CORE_NAME + "\n";
     content += "-------------------------\n";
-    if (coreAmount >= item.cost) content += "§a✓ " + getCoreName() + "充足，可以兑换\n";
-    else content += "§c✗ " + getCoreName() + "不足，还需要 " + (item.cost - coreAmount) + " 颗\n";
+    if (coreAmount >= item.cost) content += "§a✓ " + CORE_NAME + "充足，可以兑换\n";
+    else content += "§c✗ " + CORE_NAME + "不足，还需要 " + (item.cost - coreAmount) + " 颗\n";
     gui.setContent(content);
     gui.addButton("§a兑换", "textures/ui/check");
     gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
@@ -585,7 +613,7 @@ function performCoreExchange(player, item) {
     const wd = getPlayerWishData(xuid);
     const coreAmount = wd.currency.core || 0;
     if (coreAmount < item.cost) {
-        player.sendModalForm("§c兑换失败", "§c" + getCoreName() + "不足！\n需要 " + item.cost + " 颗" + getCoreName() + "，当前只有 " + coreAmount + " 颗", "§a返回商店", "§c关闭", function(p, res) { if (res) showCoreShopForm(p); });
+        player.sendModalForm("§c兑换失败", "§c" + CORE_NAME + "不足！\n需要 " + item.cost + " 颗" + CORE_NAME + "，当前只有 " + coreAmount + " 颗", "§a返回商店", "§c关闭", function(p, res) { if (res) showCoreShopForm(p); });
         return;
     }
     if (!checkInventorySpace(player, 1)) {
@@ -598,19 +626,19 @@ function performCoreExchange(player, item) {
         const itemObj = mc.newItem(NBT.parseSNBT(item.snbt));
         if (itemObj) {
             player.giveItem(itemObj);
-            player.tell("§e[祈愿] §a成功兑换 " + item.name + "！消耗 " + item.cost + " 颗" + getCoreName());
-            player.sendModalForm("§a兑换成功", "§a成功兑换 " + item.name + "！\n消耗 " + item.cost + " 颗" + getCoreName() + "\n剩余 " + wd.currency.core + " 颗" + getCoreName(), "§a返回", "§c关闭", function(p, res) { if (res) showCoreShopForm(p); });
+            player.tell("§e[祈愿] §a成功兑换 " + item.name + "！消耗 " + item.cost + " 颗" + CORE_NAME);
+            player.sendModalForm("§a兑换成功", "§a成功兑换 " + item.name + "！\n消耗 " + item.cost + " 颗" + CORE_NAME + "\n剩余 " + wd.currency.core + " 颗" + CORE_NAME, "§a返回", "§c关闭", function(p, res) { if (res) showCoreShopForm(p); });
         } else {
             wd.currency.core += item.cost;
             saveWishData();
-            player.tell("§e[祈愿] §c物品创建失败，" + getCoreName() + "已返还");
+            player.tell("§e[祈愿] §c物品创建失败，" + CORE_NAME + "已返还");
             showCoreShopForm(player);
         }
     } catch (error) {
         wd.currency.core += item.cost;
         saveWishData();
-        logger.error(getCoreName() + '兑换失败：' + error.message);
-        player.tell("§e[祈愿] §c兑换失败，" + getCoreName() + "已返还");
+        logger.error(CORE_NAME + '兑换失败：' + error.message);
+        player.tell("§e[祈愿] §c兑换失败，" + CORE_NAME + "已返还");
         showCoreShopForm(player);
     }
 }
@@ -618,7 +646,7 @@ function performCoreExchange(player, item) {
 /** 显示星尘商店主界面（凝炼、附魔书兑换、刷怪蛋兑换） */
 function showDustShopMainForm(player) {
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b" + getDustName() + "商店");
+    gui.setTitle("§l§b" + DUST_NAME + "商店");
     const xuid = player.xuid;
     const wd = getPlayerWishData(xuid);
     const dustAmount = wd.currency.dust || 0;
@@ -627,17 +655,17 @@ function showDustShopMainForm(player) {
     const todayExchanged = dustShopData.dailyExchange[today] || 0;
     const remaining = Math.max(0, 900 - todayExchanged);
     let content = "-------------------------\n";
-    content += "§a您当前拥有：§f" + dustAmount + " 点" + getDustName() + "\n";
-    content += "§a今日已兑换：§f" + todayExchanged + " / 900 点" + getDustName() + "\n";
-    content += "§a今日剩余：§f" + remaining + " 点" + getDustName() + "\n";
+    content += "§a您当前拥有：§f" + dustAmount + " 点" + DUST_NAME + "\n";
+    content += "§a今日已兑换：§f" + todayExchanged + " / 900 点" + DUST_NAME + "\n";
+    content += "§a今日剩余：§f" + remaining + " 点" + DUST_NAME + "\n";
     content += "-------------------------\n";
-    content += "§a" + getDustName() + "商店功能：\n";
-    content += "§e" + getDustName() + "凝炼：§f将" + _deps.getCurrencyName() + "兑换为" + getDustName() + "\n";
-    content += "§d附魔书兑换：§f使用" + getDustName() + "兑换附魔书\n";
-    content += "§a刷怪蛋兑换：§f使用" + getDustName() + "兑换刷怪蛋\n";
+    content += "§a" + DUST_NAME + "商店功能：\n";
+    content += "§e" + DUST_NAME + "凝炼：§f将" + _deps.getCurrencyName() + "兑换为" + DUST_NAME + "\n";
+    content += "§d附魔书兑换：§f使用" + DUST_NAME + "兑换附魔书\n";
+    content += "§a刷怪蛋兑换：§f使用" + DUST_NAME + "兑换刷怪蛋\n";
     content += "-------------------------\n";
     gui.setContent(content);
-    gui.addButton("§e" + getDustName() + "凝炼", "textures/ui/xinchen");
+    gui.addButton("§e" + DUST_NAME + "凝炼", "textures/ui/xinchen");
     gui.addButton("§d附魔书兑换", "textures/ui/recipe_book_icon");
     gui.addButton("§a刷怪蛋兑换", "textures/items/spawn_eggs/spawn_egg_villager");
     gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
@@ -646,7 +674,7 @@ function showDustShopMainForm(player) {
         if (id === 0) showDustRefineForm(p);
         else if (id === 1) showEnchantBookShopForm(p);
         else if (id === 2) showSpawnEggShopForm(p);
-        else if (id === 3) { if (_deps.openMainMenu) _deps.openMainMenu(p); }
+        else if (id === 3) showWishMainForm(p);
     });
 }
 
@@ -664,7 +692,7 @@ function getPlayerDustShopData(xuid) {
 /** 显示星尘凝炼表单（用货币兑换星尘，每日上限900，VIP享95折） */
 function showDustRefineForm(player) {
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§b" + getDustName() + "凝炼");
+    gui.setTitle("§l§b" + DUST_NAME + "凝炼");
     const xuid = player.xuid;
     const wd = getPlayerWishData(xuid);
     const dustAmount = wd.currency.dust || 0;
@@ -674,9 +702,9 @@ function showDustRefineForm(player) {
     const remaining = Math.max(0, 900 - todayExchanged);
     const hasMoonlightBlessing = _deps.vipModule && _deps.vipModule.checkPlayerHasMoonlightBlessing ? _deps.vipModule.checkPlayerHasMoonlightBlessing(xuid) : false;
     const balance = _deps.money ? _deps.money.get(xuid) || 0 : 0;
-    gui.addLabel("§a您当前拥有：§f" + dustAmount + " 点" + getDustName() + "\n§a今日已兑换：§f" + todayExchanged + " / 900 点" + getDustName() + "\n§a今日剩余：§f" + remaining + " 点" + getDustName() + "\n§a您的" + _deps.getCurrencyName() + "余额：§f" + balance + " 点\n" + (hasMoonlightBlessing ? "§a月光祝福：§f95折优惠" : ""));
-    gui.addStepSlider("选择兑换数量", ["0点", "300点", "600点", "900点"], 0, "最多可兑换900点" + getDustName());
-    gui.addInput("自定义兑换数量", "输入您要兑换的" + getDustName() + "数量", "");
+    gui.addLabel("§a您当前拥有：§f" + dustAmount + " 点" + DUST_NAME + "\n§a今日已兑换：§f" + todayExchanged + " / 900 点" + DUST_NAME + "\n§a今日剩余：§f" + remaining + " 点" + DUST_NAME + "\n§a您的" + _deps.getCurrencyName() + "余额：§f" + balance + " 点\n" + (hasMoonlightBlessing ? "§a月光祝福：§f95折优惠" : ""));
+    gui.addStepSlider("选择兑换数量", ["0点", "300点", "600点", "900点"], 0, "最多可兑换900点" + DUST_NAME);
+    gui.addInput("自定义兑换数量", "输入您要兑换的" + DUST_NAME + "数量", "");
     player.sendForm(gui, function(p, data) {
         if (data === null || typeof data !== "object" || data.length < 3) { showDustShopMainForm(p); return; }
         const sliderIndex = data[1];
@@ -691,7 +719,7 @@ function showDustRefineForm(player) {
             if (!isNaN(customAmount) && customAmount >= 0) amount = customAmount;
         }
         if (amount <= 0) { p.tell("§e[祈愿] §c请输入有效的兑换数量"); showDustRefineForm(p); return; }
-        if (amount > remaining) { p.tell("§e[祈愿] §c今日剩余兑换额度不足，最多可兑换 " + remaining + " 点" + getDustName()); showDustRefineForm(p); return; }
+        if (amount > remaining) { p.tell("§e[祈愿] §c今日剩余兑换额度不足，最多可兑换 " + remaining + " 点" + DUST_NAME); showDustRefineForm(p); return; }
         const exchangeRate = 7;
         let requiredMoney = amount * exchangeRate;
         let savedMoney = 0;
@@ -702,7 +730,7 @@ function showDustRefineForm(player) {
         }
         if (balance < requiredMoney) { p.tell("§e[祈愿] §c" + _deps.getCurrencyName() + "余额不足，需要 " + requiredMoney + " 点" + _deps.getCurrencyName()); showDustRefineForm(p); return; }
         if (_deps.money && _deps.money.reduce(p.xuid, requiredMoney)) {
-            _deps.notifyEconomyChange(p, -requiredMoney, getDustName() + "兑换");
+            _deps.notifyEconomyChange(p, -requiredMoney, DUST_NAME + "兑换");
             wd.currency.dust = (wd.currency.dust || 0) + amount;
             dustShopData.dailyExchange[today] = (dustShopData.dailyExchange[today] || 0) + amount;
             if (savedMoney > 0) dustShopData.savedMoney = (dustShopData.savedMoney || 0) + savedMoney;
@@ -710,10 +738,10 @@ function showDustRefineForm(player) {
             if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
             let receipt = "-------------------------\n";
             receipt += "§a兑换成功！\n\n";
-            receipt += "§e兑换数量：§f" + amount + " 点" + getDustName() + "\n";
+            receipt += "§e兑换数量：§f" + amount + " 点" + DUST_NAME + "\n";
             receipt += "§e消耗" + _deps.getCurrencyName() + "：§f" + requiredMoney + " 点\n";
             if (savedMoney > 0) receipt += "§e节约" + _deps.getCurrencyName() + "：§f" + savedMoney + " 点 (月光祝福95折)\n";
-            receipt += "§e当前" + getDustName() + "：§f" + wd.currency.dust + " 点\n";
+            receipt += "§e当前" + DUST_NAME + "：§f" + wd.currency.dust + " 点\n";
             receipt += "§e剩余" + _deps.getCurrencyName() + "：§f" + (_deps.money.get(p.xuid) || 0) + " 点\n";
             receipt += "-------------------------\n";
             p.sendModalForm("§a兑换成功", receipt, "§a确定", "§c关闭", function(pl) { showDustShopMainForm(pl); });
@@ -732,7 +760,7 @@ function showEnchantBookShopForm(player) {
     const wd = getPlayerWishData(xuid);
     const dustAmount = wd.currency.dust || 0;
     let content = "-------------------------\n";
-    content += "§a您当前拥有：§f" + dustAmount + " 点" + getDustName() + "\n";
+    content += "§a您当前拥有：§f" + dustAmount + " 点" + DUST_NAME + "\n";
     content += "-------------------------\n";
     content += "§a请选择您想要的附魔效果：\n";
     content += "-------------------------\n";
@@ -742,7 +770,7 @@ function showEnchantBookShopForm(player) {
         const enchantIds = Object.keys(enchantments);
         enchantIds.forEach(function(id) {
             const ench = enchantments[id];
-            gui.addButton("§l§5" + ench.name + " §r§8[最高等级: §a" + ench.max_lv + "§8]\n§c每级消耗: §e" + ench.cost_per_level + "点" + getDustName());
+            gui.addButton("§l§5" + ench.name + " §r§8[最高等级: §a" + ench.max_lv + "§8]\n§c每级消耗: §e" + ench.cost_per_level + "点" + DUST_NAME);
         });
         gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
         player.sendForm(gui, function(p, id) {
@@ -763,7 +791,7 @@ function showEnchantBookLevelForm(player, enchantId, enchantInfo) {
     const xuid = player.xuid;
     const wd = getPlayerWishData(xuid);
     const dustAmount = wd.currency.dust || 0;
-    gui.addLabel("附魔效果: §b" + enchantInfo.name + "\n最大等级: §a" + enchantInfo.max_lv + "\n每级消耗: §e" + enchantInfo.cost_per_level + "点" + getDustName() + "\n您当前拥有: §f" + dustAmount + "点" + getDustName());
+    gui.addLabel("附魔效果: §b" + enchantInfo.name + "\n最大等级: §a" + enchantInfo.max_lv + "\n每级消耗: §e" + enchantInfo.cost_per_level + "点" + DUST_NAME + "\n您当前拥有: §f" + dustAmount + "点" + DUST_NAME);
     const maxLevel = enchantInfo.max_lv;
     const levelOptions = [];
     for (let i = 1; i <= maxLevel; i++) levelOptions.push(i + "级");
@@ -774,7 +802,7 @@ function showEnchantBookLevelForm(player, enchantId, enchantInfo) {
         const level = levelIndex + 1;
         let cost = enchantInfo.cost_per_level * level;
         if (dustAmount < cost) {
-            p.sendModalForm("§c" + getDustName() + "不足", "§c兑换 §6" + enchantInfo.name + " " + level + "级 §c附魔书需要 §e" + cost + " 点" + getDustName() + "\n§c您当前仅拥有 §e" + dustAmount + " 点" + getDustName() + "\n§c请先获取足够" + getDustName() + "后再尝试", "§a返回", "§c关闭", function(player) { showEnchantBookLevelForm(player, enchantId, enchantInfo); });
+            p.sendModalForm("§c" + DUST_NAME + "不足", "§c兑换 §6" + enchantInfo.name + " " + level + "级 §c附魔书需要 §e" + cost + " 点" + DUST_NAME + "\n§c您当前仅拥有 §e" + dustAmount + " 点" + DUST_NAME + "\n§c请先获取足够" + DUST_NAME + "后再尝试", "§a返回", "§c关闭", function(player) { showEnchantBookLevelForm(player, enchantId, enchantInfo); });
             return;
         }
         if (!checkInventorySpace(p, 1)) {
@@ -797,13 +825,13 @@ function processEnchantBookTrade(player, enchantId, enchantInfo, level, cost) {
             wd.currency.dust = (wd.currency.dust || 0) - cost;
             saveWishData();
             player.tell("§e[祈愿] §a成功兑换 §6" + enchantInfo.name + " " + level + "级 §a附魔书！", 1);
-            player.tell("§e[祈愿] 已扣除 §e" + cost + "点" + getDustName(), 1);
+            player.tell("§e[祈愿] 已扣除 §e" + cost + "点" + DUST_NAME, 1);
             let receipt = "-------------------------\n";
             receipt += "§a兑换成功！\n\n";
             receipt += "§e附魔效果：§f" + enchantInfo.name + "\n";
             receipt += "§e附魔等级：§f" + level + "级\n";
-            receipt += "§e消耗" + getDustName() + "：§f" + cost + "点\n";
-            receipt += "§e剩余" + getDustName() + "：§f" + wd.currency.dust + "点\n";
+            receipt += "§e消耗" + DUST_NAME + "：§f" + cost + "点\n";
+            receipt += "§e剩余" + DUST_NAME + "：§f" + wd.currency.dust + "点\n";
             receipt += "-------------------------\n";
             player.sendModalForm("§a兑换成功", receipt, "§a继续兑换", "§c返回", function(pl, res) {
                 if (res === true) showEnchantBookShopForm(pl);
@@ -880,7 +908,7 @@ function showSpawnEggConfirmForm(player, item, currency, quantity) {
     content += "§a单价: §f" + item.cost + " 点/个\n";
     content += "§a您拥有: §f" + dustAmount + " 点" + currency.name + "\n";
     content += "-------------------------\n";
-    if (dustAmount < item.cost) content += "§c您的" + getDustName() + "不足！\n";
+    if (dustAmount < item.cost) content += "§c您的" + DUST_NAME + "不足！\n";
     else content += "§a调整数量后点击提交\n";
     content += "-------------------------\n";
     gui.addLabel(content);
@@ -908,7 +936,7 @@ function processSpawnEggPurchase(player, item, currency, quantity) {
         const dustAmount = wd.currency.dust || 0;
         const totalCost = item.cost * quantity;
         const totalAmount = item.amountGive * quantity;
-        if (dustAmount < totalCost) { player.tell("§e[祈愿] §c" + getDustName() + "不足！"); showSpawnEggShopForm(player); return; }
+        if (dustAmount < totalCost) { player.tell("§e[祈愿] §c" + DUST_NAME + "不足！"); showSpawnEggShopForm(player); return; }
         wd.currency.dust = dustAmount - totalCost;
         saveWishData();
         const newItem = mc.newItem(item.id, totalAmount);
@@ -921,10 +949,10 @@ function processSpawnEggPurchase(player, item, currency, quantity) {
         }
         const result = player.giveItem(newItem);
         if (result) {
-            player.tell("§e[祈愿] §a兑换成功！获得 " + item.name + " x" + totalAmount + "，消耗 " + totalCost + " 点" + getDustName());
+            player.tell("§e[祈愿] §a兑换成功！获得 " + item.name + " x" + totalAmount + "，消耗 " + totalCost + " 点" + DUST_NAME);
             const successForm = mc.newSimpleForm();
             successForm.setTitle("§l§a兑换成功");
-            successForm.setContent("§a您已成功兑换！\n\n§a获得: " + item.name + " x" + totalAmount + "\n§c消耗: " + totalCost + " 点" + getDustName() + "\n\n§a剩余" + getDustName() + ": " + (dustAmount - totalCost) + " 点");
+            successForm.setContent("§a您已成功兑换！\n\n§a获得: " + item.name + " x" + totalAmount + "\n§c消耗: " + totalCost + " 点" + DUST_NAME + "\n\n§a剩余" + DUST_NAME + ": " + (dustAmount - totalCost) + " 点");
             successForm.addButton("§a继续兑换", item.icon);
             successForm.addButton("§c关闭", "textures/ui/crossout");
             player.sendForm(successForm, function(p, id) {
@@ -951,7 +979,7 @@ function showAttributeUpgradeForm(player) {
     const coreCount = wd.currency.core || 0;
     const attrForm = mc.newSimpleForm();
     attrForm.setTitle("§c§l属性提升");
-    attrForm.setContent("§6拥有" + getCoreName() + "：§e" + coreCount + " §f个");
+    attrForm.setContent("§6拥有" + CORE_NAME + "：§e" + coreCount + " §f个");
     attrForm.addButton("§c§l生命值上限提升", "textures/ui/heart_new");
     attrForm.addButton("§c返回个人中心", "textures/ui/recap_glyph_desaturated");
     player.sendForm(attrForm, function(p, buttonIndex) {
@@ -976,18 +1004,18 @@ function showHealthUpgradeConfirmForm(player) {
     const maxCanUpgrade = Math.min(MAX_BONUS - healthBonus, maxCanUpgradePoints);
 
     if (maxCanUpgrade <= 0) {
-        player.sendModalForm("§c无法提升", "§c您没有足够的" + getCoreName() + "或已达到提升上限！", "§a返回", "§c关闭", function(pl, result) { if (result) showAttributeUpgradeForm(pl); });
+        player.sendModalForm("§c无法提升", "§c您没有足够的" + CORE_NAME + "或已达到提升上限！", "§a返回", "§c关闭", function(pl, result) { if (result) showAttributeUpgradeForm(pl); });
         return;
     }
 
     const confirmForm = mc.newCustomForm();
     confirmForm.setTitle("§c§l提升生命值上限");
     confirmForm.addLabel("当前生命值上限：§c" + currentMaxHealth + " §f点");
-    confirmForm.addLabel("拥有" + getCoreName() + "：§e" + coreCount + " §f个");
-    confirmForm.addLabel("兑换比例：§65" + getCoreName() + " = §c+1点§f生命值");
+    confirmForm.addLabel("拥有" + CORE_NAME + "：§e" + coreCount + " §f个");
+    confirmForm.addLabel("兑换比例：§65" + CORE_NAME + " = §c+1点§f生命值");
     confirmForm.addLabel("最多可提升：§e" + maxCanUpgrade + " §f点\n");
     confirmForm.addSlider("§a选择提升点数", 1, maxCanUpgrade, 1, 1);
-    confirmForm.addLabel("\n§e消耗：§f选择点数 × " + COST_PER_POINT + " = §e选择点数×5 §f颗" + getCoreName());
+    confirmForm.addLabel("\n§e消耗：§f选择点数 × " + COST_PER_POINT + " = §e选择点数×5 §f颗" + CORE_NAME);
     confirmForm.addLabel("提升后生命值上限：§c" + currentMaxHealth + " + 选择点数\n");
 
     player.sendForm(confirmForm, function(p, data) {
@@ -1002,13 +1030,13 @@ function showHealthUpgradeConfirmForm(player) {
             const newMaxHealth = BASE_HEALTH + playerInfo.healthBonus;
             p.setMaxHealth(newMaxHealth);
             p.setHealth(newMaxHealth);
-            p.sendModalForm("§a提升成功", "§a生命值上限提升成功！\n\n§a提升了：§e+" + upgradeAmount + " §f点\n§a当前上限：§c" + newMaxHealth + " §f点\n§a消耗" + getCoreName() + "：§e" + cost + " §f个\n§a剩余" + getCoreName() + "：§e" + wd.currency.core + " §f个", "§a继续提升", "§c返回", function(pl2, result2) {
+            p.sendModalForm("§a提升成功", "§a生命值上限提升成功！\n\n§a提升了：§e+" + upgradeAmount + " §f点\n§a当前上限：§c" + newMaxHealth + " §f点\n§a消耗" + CORE_NAME + "：§e" + cost + " §f个\n§a剩余" + CORE_NAME + "：§e" + wd.currency.core + " §f个", "§a继续提升", "§c返回", function(pl2, result2) {
                 if (result2) showHealthUpgradeConfirmForm(pl2);
                 else showAttributeUpgradeForm(pl2);
             });
-            logger.info('玩家 ' + p.name + ' 消耗 ' + cost + ' ' + getCoreName() + '提升生命值上限 +' + upgradeAmount + '点，当前：' + newMaxHealth);
+            logger.info('玩家 ' + p.name + ' 消耗 ' + cost + ' ' + CORE_NAME + '提升生命值上限 +' + upgradeAmount + '点，当前：' + newMaxHealth);
         } else {
-            p.tell("§e[祈愿] §c提升失败：参数错误或" + getCoreName() + "不足！");
+            p.tell("§e[祈愿] §c提升失败：参数错误或" + CORE_NAME + "不足！");
             showAttributeUpgradeForm(p);
         }
     });
@@ -1045,13 +1073,13 @@ function showWishHistoryForm(player, page) {
             let rewardText = "";
             if (record.rarity === "fiveStar") {
                 rarityColor = "§e"; rarityText = "5星";
-                rewardText = record.reward.type === "core" ? getCoreName() : (record.reward.name || "未知物品");
+                rewardText = record.reward.type === "core" ? CORE_NAME : (record.reward.name || "未知物品");
             } else if (record.rarity === "fourStar") {
                 rarityColor = "§u"; rarityText = "4星";
-                rewardText = record.reward.type === "core" ? getCoreName() : (record.reward.name || "未知物品");
+                rewardText = record.reward.type === "core" ? CORE_NAME : (record.reward.name || "未知物品");
             } else {
                 rarityColor = "§b"; rarityText = "3星";
-                rewardText = getDustName() + " " + record.reward.amount + " 点";
+                rewardText = DUST_NAME + " " + record.reward.amount + " 点";
             }
             content += "§a" + record.date + " " + rarityColor + rarityText + " " + rewardText + "\n";
         }
@@ -1084,9 +1112,148 @@ function showWishHistoryForm(player, page) {
     });
 }
 
+// ==================== Citlalia 功能（击杀特效、血量、图腾、逐月之痕） ====================
+
+/** 初始化所有Citlalia子系统（击杀特效、自定义血量、图腾替换、逐月之痕） */
+function initCitlaliaFeatures() {
+    _registerKillEffects();
+    _registerHealthSystem();
+    _registerTotemReplace();
+    _registerMoonSwEffects();
+}
+
+/** 击杀特效：玩家被其他玩家击杀时，在死亡位置召唤闪电并给予击杀者效果 */
+function _registerKillEffects() {
+    var K = _deps.constants;
+    if (!K || !K.KillEffectConfig) return;
+    var kec = K.KillEffectConfig;
+    mc.listen('onPlayerDie', function(player, source) {
+        try {
+            if (source && source.isPlayer()) {
+                var pos = {
+                    x: Math.floor(player.pos.x) + 0.5,
+                    y: Math.floor(player.pos.y),
+                    z: Math.floor(player.pos.z) + 0.5
+                };
+                mc.runcmdEx("summon lightning_bolt " + pos.x + " " + pos.y + " " + pos.z);
+                source.setFire(0, true);
+                source.addEffect(Number(kec.RESISTANCE.id), Number(kec.RESISTANCE.baseDuration), Number(4), false);
+                source.addEffect(Number(kec.FIRE_RESISTANCE.id), Number(kec.FIRE_RESISTANCE.duration), Number(0), true);
+            }
+        } catch (e) {
+            logger.error("[Wish/Citlalia] 击杀特效错误 => " + e.stack);
+        }
+    });
+}
+
+/** 自定义血量系统：玩家加入时根据healthBonus设置最大生命值 */
+function _registerHealthSystem() {
+    var DEFAULT_MAX_HEALTH = 40;
+    mc.listen("onJoin", function(player) {
+        try {
+            var xuid = player.xuid;
+            var pd = _deps.getPlayerData ? _deps.getPlayerData() : {};
+            var playerInfo = (pd && pd.players) ? (pd.players[xuid] || {}) : {};
+            var healthBonus = playerInfo.healthBonus || 0;
+            var maxHealth = DEFAULT_MAX_HEALTH + healthBonus;
+            player.setMaxHealth(maxHealth);
+            player.setHealth(maxHealth);
+        } catch (e) {
+            logger.error("[Wish/Citlalia] 血量系统错误 => " + e.message);
+        }
+    });
+}
+
+/** 图腾消耗替换：开启后使用图腾时消耗背包中额外的图腾而非手持的 */
+function _registerTotemReplace() {
+    mc.listen('onConsumeTotem', function(pl) {
+        try {
+            if (!_deps.getPlayerSetting || !_deps.getPlayerSetting(pl.xuid, "enableTotemReplace")) {
+                return;
+            }
+            var bag = pl.getInventory().getAllItems();
+            for (var i = 0; i < bag.length; i++) {
+                var it = bag[i];
+                if (it.type === 'minecraft:totem_of_undying') {
+                    it.setNull();
+                    pl.refreshItems();
+                    return false;
+                }
+            }
+        } catch (e) {
+            logger.error("[Wish/Citlalia] 图腾替换错误 => " + e.message);
+        }
+    });
+}
+
+/** 逐月之痕手持效果：手持citlalia:moon_sw时持续获得多种增益效果 */
+function _registerMoonSwEffects() {
+    var MOON_SW_EFFECTS = [1, 8, 10, 11, 16];
+    var MOON_SW_ITEM = 'citlalia:moon_sw';
+    var EFFECT_DURATION = 400;
+    var EFFECT_INTERVAL = 200;
+    var SCAN_INTERVAL = 50;
+
+    var moonSwPlayers = new Map();
+    var tickCounter = 0;
+
+    mc.listen("onTick", function() {
+        if (D.isUnloading()) return;
+        tickCounter++;
+
+        moonSwPlayers.forEach(function(swData, xuid) {
+            try {
+                var player = swData.player;
+                if (!player || !player.isOnline()) {
+                    moonSwPlayers.delete(xuid);
+                    return;
+                }
+                var handItem = player.getHand();
+                if (!handItem || handItem.type !== MOON_SW_ITEM) {
+                    moonSwPlayers.delete(xuid);
+                    MOON_SW_EFFECTS.forEach(function(eid) { player.removeEffect(eid); });
+                    return;
+                }
+                if (tickCounter % EFFECT_INTERVAL === 0) {
+                    MOON_SW_EFFECTS.forEach(function(eid) { player.addEffect(eid, EFFECT_DURATION, 0, false); });
+                }
+            } catch (e) { moonSwPlayers.delete(xuid); }
+        });
+
+        if (tickCounter % SCAN_INTERVAL === 0) {
+            var onlinePlayers = mc.getOnlinePlayers();
+            for (var i = 0; i < onlinePlayers.length; i++) {
+                var player = onlinePlayers[i];
+                var xuid = player.xuid;
+                if (moonSwPlayers.has(xuid)) continue;
+                try {
+                    var handItem = player.getHand();
+                    if (handItem && handItem.type === MOON_SW_ITEM) {
+                        moonSwPlayers.set(xuid, { player: player });
+                        MOON_SW_EFFECTS.forEach(function(eid) { player.addEffect(eid, EFFECT_DURATION, 0, false); });
+                    }
+                } catch (e) {}
+            }
+        }
+
+        if (tickCounter >= 1000000) tickCounter = 0;
+    });
+
+    mc.listen("onLeft", function(player) {
+        moonSwPlayers.delete(player.xuid);
+    });
+}
+
+/** 注册祈愿相关游戏命令（由 index.js 在启动时调用） */
+function registerCommands(registerPlayerCommand) {
+    registerPlayerCommand('wish', '祈愿系统', function(p) { showWishMainForm(p); });
+}
+
 module.exports = {
     init: init,
+    registerCommands: registerCommands,
     reloadConfig: reloadConfig,
+    saveConfig: saveConfig,
     saveWishData: saveWishData,
     getPlayerWishData: getPlayerWishData,
     showWishMainForm: showWishMainForm,

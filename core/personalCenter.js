@@ -599,7 +599,7 @@ function showPersonalCenterForm(player) {
 		if (buttonIndex === 3) _deps.mailModule.showMailSystemForm(p);
 		if (buttonIndex === 4) showAdventureLevelPanel(p);
 		if (buttonIndex === 5) showDataStatisticsForm(p);
-		if (buttonIndex === 6) _deps.wishModule.showAttributeUpgradeForm(p);
+		if (buttonIndex === 6 && _deps.wishModule) _deps.wishModule.showAttributeUpgradeForm(p);
 		if (buttonIndex === 7) showPlayerSettingsForm(p);
 		if (buttonIndex === 8) _deps.showAvatarSettingsForm(p);
 		if (buttonIndex === 9) openMainMenu(p);
