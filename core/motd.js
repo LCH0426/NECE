@@ -43,7 +43,7 @@ function init(config) {
 function start() {
     if (!_config) return;
 
-    var motdCfg = _config.get('motdConfig', {});
+    var motdCfg = _config.get('motd', {});
     if (!motdCfg.enabled) return;
 
     var lines = motdCfg.lines;

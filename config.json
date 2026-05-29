@@ -1,40 +1,21 @@
 {
   "debug": false,
   "currencyName": "星茜",
-  "enableRank": true,
-  "enableShop": true,
-  "enableRecycle": true,
-  "enableDustShop": true,
-  "enableWish": true,
-  "enableBank": true,
-  "enableVip": true,
-  "enableFriend": true,
-  "enableMessageBoard": true,
-  "enableMail": true,
-  "enableLevel": true,
-  "enableBack": true,
-  "enableMenu": true,
-  "teleport": {
+  "sidebarCompact": false,
+  "debugmsg": "你正在参与服务器测试，如遇问题请反馈给管理员。",
+  "shop": {
     "enabled": true,
-    "enableHome": true,
-    "enableWarp": true,
-    "enableTpa": true,
-    "enableRtp": true,
-    "homeLimit": 10,
-    "homeCooldown": 10,
-    "tpaCooldown": 30,
-    "tpaTimeout": 30,
-    "tpaCost": 0,
-    "warpCost": 0,
-    "rtpCost": 0,
-    "rtpCooldown": 60,
-    "rtpRange": 5000,
-    "rtpMinRange": 500,
-    "rtpProtectionRadius": 500,
-    "rtpMaxAttempts": 100,
-    "rtpProtectionSeconds": 5
+    "enableRecycle": true,
+    "enableDustShop": true
   },
-  "wishConfig": {
+  "rank": {
+    "enabled": true
+  },
+  "cdk": {
+    "enabled": true
+  },
+  "wish": {
+    "enabled": true,
     "dustName": "三星副产物",
     "coreName": "五星副产物",
     "description": "这里是卡池详情",
@@ -128,21 +109,39 @@
       }
     ]
   },
-  "backupConfig": {
-    "compressionLevel": 5,
-    "interval": 0,
-    "maxAgeDays": 0,
-    "maxCount": 0
+  "bank": {
+    "enabled": true
   },
-  "web": {
+  "vip": {
+    "enabled": true
+  },
+  "friend": {
+    "enabled": true
+  },
+  "messageBoard": {
+    "enabled": true
+  },
+  "mail": {
+    "enabled": true
+  },
+  "level": {
+    "enabled": true
+  },
+  "back": {
+    "enabled": true
+  },
+  "guild": {
     "enabled": true,
-    "enableFrontend": true,
-    "port": 8080,
-    "host": "0.0.0.0",
-    "jwtSecret": "NLCE_Default_Secret_Change_Me",
-    "jwtExpire": "10m"
+    "createCost": 1000,
+    "maxMembers": 20,
+    "maxTeleports": 5,
+    "maxAdmins": 3,
+    "depositCost": 0,
+    "withdrawAdminOnly": false,
+    "teleportCooldown": 10
   },
-  "menuConfig": {
+  "menu": {
+    "enabled": true,
     "main": {
       "title": "服务器菜单",
       "content": "欢迎来到服务器！请选择功能",
@@ -355,28 +354,93 @@
       ]
     }
   },
-  "enableGuild": true,
-  "guildConfig": {
-    "createCost": 1000,
-    "maxMembers": 20,
-    "maxTeleports": 5,
-    "maxAdmins": 3,
-    "depositCost": 0,
-    "withdrawAdminOnly": false,
-    "teleportCooldown": 10
-  },
-  "debugmsg": "你正在参与服务器测试，如遇问题请反馈给管理员。",
-  "enableCdk": true,
-  "sidebarCompact": false,
-  "enableMotd": true,
-  "motdConfig": {
+  "motd": {
     "enabled": true,
-    "interval": 1,
+    "interval": 10,
     "lines": [
-      "NECE 0",
-      "NECE 1",
-      "NECE 2",
-      "NECE 3"
+      "§b欢迎来到服务器！ §e在线: {online}/{max}",
+      "§a商店系统已上线！ §c输入 /shop 打开"
     ]
+  },
+  "teleport": {
+    "enabled": true,
+    "enableHome": true,
+    "enableWarp": true,
+    "enableTpa": true,
+    "enableRtp": true,
+    "homeLimit": 10,
+    "homeCooldown": 10,
+    "tpaCooldown": 30,
+    "tpaTimeout": 30,
+    "tpaCost": 0,
+    "warpCost": 0,
+    "rtpCost": 0,
+    "rtpCooldown": 60,
+    "rtpRange": 5000,
+    "rtpMinRange": 500,
+    "rtpProtectionRadius": 500,
+    "rtpMaxAttempts": 100,
+    "rtpProtectionSeconds": 5
+  },
+  "clearLag": {
+    "enabled": true,
+    "interval": 600,
+    "reminderSeconds": 60,
+    "message": "§e[清理] §6即将清理服务器多余怪物，请注意！",
+    "cleanMessage": "§e[清理] §a已清理 {count} 个多余怪物！",
+    "cleanTypes": [
+      "minecraft:zombie",
+      "minecraft:zombie_villager",
+      "minecraft:husk",
+      "minecraft:drowned",
+      "minecraft:skeleton",
+      "minecraft:stray",
+      "minecraft:wither_skeleton",
+      "minecraft:creeper",
+      "minecraft:spider",
+      "minecraft:cave_spider",
+      "minecraft:enderman",
+      "minecraft:witch",
+      "minecraft:slime",
+      "minecraft:magma_cube",
+      "minecraft:blaze",
+      "minecraft:ghast",
+      "minecraft:piglin",
+      "minecraft:piglin_brute",
+      "minecraft:zombified_piglin",
+      "minecraft:hoglin",
+      "minecraft:zoglin",
+      "minecraft:warden",
+      "minecraft:elder_guardian",
+      "minecraft:guardian",
+      "minecraft:phantom",
+      "minecraft:vex",
+      "minecraft:evoker",
+      "minecraft:vindicator",
+      "minecraft:ravager",
+      "minecraft:pillager",
+      "minecraft:shulker",
+      "minecraft:silverfish",
+      "minecraft:endermite",
+      "minecraft:wolf",
+      "minecraft:bee"
+    ],
+    "maxEntitiesPerType": 50
+  },
+  "backup": {
+    "compressionLevel": 5,
+    "interval": 0,
+    "maxAgeDays": 0,
+    "maxCount": 0
+  },
+  "web": {
+    "enabled": true,
+    "enableFrontend": true,
+    "port": 8080,
+    "host": "0.0.0.0",
+    "jwtSecret": "NLCE_Default_Secret_Change_Me",
+    "jwtExpire": "15m",
+    "jwtRefreshSecret": "NLCE_Default_Refresh_Secret_Change_Me",
+    "jwtRefreshExpire": "7d"
   }
 }

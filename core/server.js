@@ -38,6 +38,7 @@ const chatModule = require('./chat');
 const mailApi = require('./mail');
 const messageBoard = require('./messageBoard');
 const backupModule = require('./backup');
+const clearLagModule = require('./clearLag');
 const banModule = require('./ban');
 
 const WEB_DIR = pathModule.join(__dirname, '..', 'WEB');
@@ -447,7 +448,7 @@ function createV1Routes(webConfig) {
         auth, adminAuth, webConfig, jwt, svgCaptcha,
         database, monitoring, adminLog, behaviorLog,
         chatModule, mailApi, messageBoard,
-        backupModule, banModule,
+        backupModule, banModule, clearLagModule,
         getPlayerData, getPlayerName, getXuidByUid, getPlayerNameByUid,
         getCurrencyName, getItemsMap, getItemName, getItemTexture, invalidateItemsCache,
         chatHistory, addChatMessage, MAX_CHAT_HISTORY,

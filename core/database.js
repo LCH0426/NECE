@@ -420,6 +420,8 @@ async function initPlayerDatabase() {
 
     // 公会系统表
     createGuildTables();
+    // 玩家人数统计表
+    createPlayerCountTable();
 
     playerDbReady = true;
     dbDebugLog('initPlayerDatabase: 数据库就绪');
@@ -926,6 +928,56 @@ function createGuildTables() {
     dbDebugLog('createGuildTables: 公会表创建完成');
 }
 
+// ===================== 玩家人数统计 SQL 方法 =====================
+
+/** 创建玩家人数历史记录表 */
+function createPlayerCountTable() {
+    if (!playerDb) return;
+    playerDb.run(`CREATE TABLE IF NOT EXISTS player_count_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp INTEGER NOT NULL,
+        count INTEGER NOT NULL
+    )`);
+    playerDb.run('CREATE INDEX IF NOT EXISTS idx_player_count_ts ON player_count_history(timestamp)');
+    dbDebugLog('createPlayerCountTable: 玩家人数统计表创建完成');
+}
+
+/** 插入一条玩家人数记录，同时清理超过7天的旧数据 */
+function insertPlayerCount(timestamp, count) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run(
+        'INSERT INTO player_count_history (timestamp, count) VALUES (?, ?)',
+        [timestamp, count]
+    );
+    // 清理7天前的数据
+    var cutoff = timestamp - 7 * 24 * 60 * 60;
+    playerDb.run('DELETE FROM player_count_history WHERE timestamp < ?', [cutoff]);
+}
+
+/** 查询指定时间段内的玩家人数记录 */
+function getPlayerCountHistory(startTime, endTime) {
+    if (!playerDb) return [];
+    var result = playerDb.exec(
+        'SELECT timestamp, count FROM player_count_history WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC',
+        [startTime, endTime]
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return { timestamp: r[0], count: r[1] };
+    });
+}
+
+/** 查询最新一条玩家人数记录 */
+function getPlayerCountLatest() {
+    if (!playerDb) return null;
+    var result = playerDb.exec(
+        'SELECT timestamp, count FROM player_count_history ORDER BY timestamp DESC LIMIT 1'
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    return { timestamp: result[0].values[0][0], count: result[0].values[0][1] };
+}
+
 /** 创建公会，返回新公会的 ID */
 function createGuild(name, description, owner, maxMembers) {
     if (!playerDb) return null;
@@ -1302,6 +1354,10 @@ module.exports = {
     getGuildTeleports,
     getGuildTeleportCount,
     getGuildTeleportByName,
+    // 玩家人数统计SQL
+    insertPlayerCount,
+    getPlayerCountHistory,
+    getPlayerCountLatest,
     // 通用SQL辅助
     sqlGetAll,
     sqlSet,
