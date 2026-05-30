@@ -115,16 +115,6 @@
           "comm": "xpshop"
         },
         {
-          "name": "粉尘商店",
-          "img": "textures/items/gunpowder",
-          "comm": "dustshop"
-        },
-        {
-          "name": "附魔商店",
-          "img": "textures/items/book_enchanted",
-          "comm": "enchantshop"
-        },
-        {
           "name": "CDK兑换",
           "img": "textures/ui/gift_square",
           "comm": "cdk"

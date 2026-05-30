@@ -40,6 +40,8 @@ const BIOME_CACHE_TTL = 5000;    // 生物群系缓存5秒
 
 // 上次渲染的侧边栏内容，内容不变时跳过重复渲染；xuid -> string
 let _lastRenderedSidebar = {};
+// 上次渲染的时间行（非紧凑模式下检测时间变化）；xuid -> string
+let _lastRenderedTime = {};
 
 // 分层渲染计数器：每秒+1，满5时执行全量重建
 let _renderTick = 0;
@@ -238,27 +240,40 @@ function startRenderLoop() {
 						sidebarData[compactLines.join("\n")] = 100;
 					}
 
-					// 内容不变时跳过重复渲染（只比较非时间数据）
+					// 内容不变时跳过重复渲染
 					let sidebarKey = "";
-					for (const k in sidebarData) {
-						if (k.indexOf("§b时间:") === -1) {
-							sidebarKey += k + "|";
+					if (isCompact) {
+						// 紧凑模式：只比较非时间的 compactLines 内容（时间每秒变化但不影响数据）
+						sidebarKey = compactLines.join("|");
+					} else {
+						for (const k in sidebarData) {
+							if (k.indexOf("§b时间:") === -1) {
+								sidebarKey += k + "|";
+							}
 						}
 					}
 					if (_lastRenderedSidebar[xuid] !== sidebarKey) {
 						_lastRenderedSidebar[xuid] = sidebarKey;
 						pl.removeSidebar();
 						pl.setSidebar("§a侧边栏信息", sidebarData, 0);
-					} else if (isCompact) {
-						// 紧凑模式下时间变化也需要重渲染（因为时间嵌在拼接字符串中）
-						pl.removeSidebar();
-						pl.setSidebar("§a侧边栏信息", sidebarData, 0);
+					} else if (!isCompact) {
+						// 非紧凑模式：时间行在 sidebarData 中，需要检测时间变化
+						let timeKey = "";
+						for (const k in sidebarData) {
+							if (k.indexOf("§b时间:") !== -1) { timeKey = k; break; }
+						}
+						if (timeKey && _lastRenderedTime[xuid] !== timeKey) {
+							_lastRenderedTime[xuid] = timeKey;
+							pl.removeSidebar();
+							pl.setSidebar("§a侧边栏信息", sidebarData, 0);
+						}
 					}
 				} catch (error) {}
 			} else {
 				try {
 					if (_lastRenderedSidebar[xuid] !== "") {
 						_lastRenderedSidebar[xuid] = "";
+						_lastRenderedTime[xuid] = "";
 						_sidebarDataCache[xuid] = null;
 						pl.removeSidebar();
 					}
@@ -277,6 +292,7 @@ function clearPlayerCache(xuid) {
 	delete _playerDeviceCache[xuid];
 	delete _playerBiomeCache[xuid];
 	delete _lastRenderedSidebar[xuid];
+	delete _lastRenderedTime[xuid];
 	delete _sidebarDataCache[xuid];
 }
 

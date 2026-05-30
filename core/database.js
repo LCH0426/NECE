@@ -534,6 +534,32 @@ function setPlayerDataSQL(xuid, data) {
     );
 }
 
+/**
+ * 部分更新：仅更新 leave_time 字段，避免全行序列化
+ * @param {string} xuid - 玩家XUID
+ * @param {string} timestamp - 时间戳字符串
+ */
+function updateLeaveTimeSQL(xuid, timestamp) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('UPDATE player_data SET leave_time = ? WHERE xuid = ?', [String(timestamp), xuid]);
+}
+
+/**
+ * 部分更新：仅更新 count JSON 中的 playTime 字段，避免全行序列化
+ * @param {string} xuid - 玩家XUID
+ * @param {number} playTime - 累计在线秒数
+ */
+function updatePlayTimeSQL(xuid, playTime) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    // SQLite json_set 更新 count 字段中的 playTime
+    playerDb.run(
+        "UPDATE player_data SET count = json_set(COALESCE(count, '{}'), '$.playTime', ?) WHERE xuid = ?",
+        [playTime, xuid]
+    );
+}
+
 /** 获取所有玩家核心数据，返回 { xuid: data } 映射 */
 function getAllPlayerDataSQL() {
     if (!playerDb) return {};
@@ -681,15 +707,33 @@ function getFriendsSQL(xuid) {
     return { friends: friends, requests: requests, sentRequests: sentRequests };
 }
 
-/** 获取所有有好友或好友请求的玩家数据 */
+/** 获取所有有好友或好友请求的玩家数据（批量查询，避免N+1） */
 function getAllFriendsSQL() {
     if (!playerDb) return {};
-    let result = playerDb.exec('SELECT DISTINCT xuid FROM friends UNION SELECT DISTINCT xuid FROM friend_requests');
     let all = {};
-    if (result.length === 0) return all;
-    result[0].values.forEach(function(row) {
-        all[row[0]] = getFriendsSQL(row[0]);
-    });
+
+    // 批量查询所有好友关系，按 xuid 分组
+    const frResult = playerDb.exec('SELECT xuid, friend_xuid, friend_name, add_time FROM friends');
+    if (frResult.length > 0) {
+        frResult[0].values.forEach(function(r) {
+            if (!all[r[0]]) all[r[0]] = { friends: [], requests: [], sentRequests: [] };
+            all[r[0]].friends.push({ xuid: r[1], name: r[2], addTime: r[3] });
+        });
+    }
+
+    // 批量查询所有好友请求，按 xuid 和 is_sent 分组
+    const reqResult = playerDb.exec('SELECT xuid, from_xuid, from_name, message, time, handled, rejected, is_sent FROM friend_requests');
+    if (reqResult.length > 0) {
+        reqResult[0].values.forEach(function(r) {
+            if (!all[r[0]]) all[r[0]] = { friends: [], requests: [], sentRequests: [] };
+            var entry = { xuid: r[1], name: r[2], message: r[3], time: r[4], handled: r[5] === 1, rejected: r[6] === 1 };
+            if (r[7] === 1) {
+                all[r[0]].sentRequests.push(entry);
+            } else {
+                all[r[0]].requests.push(entry);
+            }
+        });
+    }
     return all;
 }
 
@@ -755,14 +799,15 @@ function getMessagesSQL(xuid) {
     });
 }
 
-/** 获取所有有私信记录的玩家数据 */
+/** 获取所有有私信记录的玩家数据（批量查询，避免N+1） */
 function getAllMessagesSQL() {
     if (!playerDb) return {};
-    let result = playerDb.exec('SELECT DISTINCT xuid FROM messages');
+    let result = playerDb.exec('SELECT xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages ORDER BY xuid, id');
     let all = {};
     if (result.length === 0) return all;
-    result[0].values.forEach(function(row) {
-        all[row[0]] = { messages: getMessagesSQL(row[0]) };
+    result[0].values.forEach(function(r) {
+        if (!all[r[0]]) all[r[0]] = { messages: [] };
+        all[r[0]].messages.push({ fromXuid: r[1], fromName: r[2], toXuid: r[3], toName: r[4], content: r[5], time: r[6], read: r[7] === 1 });
     });
     return all;
 }
@@ -810,14 +855,15 @@ function getHomesSQL(xuid) {
     });
 }
 
-/** 获取所有有家园传送点的玩家数据 */
+/** 获取所有有家园传送点的玩家数据（批量查询，避免N+1） */
 function getAllHomesSQL() {
     if (!playerDb) return {};
-    let result = playerDb.exec('SELECT DISTINCT xuid FROM homes');
+    let result = playerDb.exec('SELECT xuid, name, x, y, z, dim, last_use FROM homes');
     let all = {};
     if (result.length === 0) return all;
-    result[0].values.forEach(function(row) {
-        all[row[0]] = getHomesSQL(row[0]);
+    result[0].values.forEach(function(r) {
+        if (!all[r[0]]) all[r[0]] = [];
+        all[r[0]].push({ name: r[1], x: r[2], y: r[3], z: r[4], dim: r[5], lastUse: r[6] });
     });
     return all;
 }
@@ -1303,6 +1349,8 @@ module.exports = {
     cancelPendingSave,
     getPlayerDataSQL,
     setPlayerDataSQL,
+    updateLeaveTimeSQL,
+    updatePlayTimeSQL,
     getAllPlayerDataSQL,
     getNextUidSQL,
     getPlayerSettingsSQL,
