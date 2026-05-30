@@ -285,9 +285,6 @@
     "rtpCost": 0,
     "rtpCooldown": 60,
     "rtpRange": 5000,
-    "rtpMinRange": 500,
-    "rtpProtectionRadius": 500,
-    "rtpMaxAttempts": 100,
     "rtpProtectionSeconds": 5
   },
   "clearLag": {

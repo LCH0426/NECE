@@ -46,6 +46,9 @@ function registerRoutes(router, d) {
         }
     }
 
+    // ===== 以下祈愿相关接口仅在 wish 模块存在时注册 =====
+    if (d.hasWish) {
+
     // 获取祈愿配置（管理员接口）
     router.get('/wish', d.adminAuth, function(req, res) {
         try {
@@ -356,6 +359,8 @@ function registerRoutes(router, d) {
             res.json({ code: 500, msg: '修改祈愿系统说明失败: ' + e.message });
         }
     });
+
+    } // end hasWish
 
     // 功能开关映射：旧键名 → [新对象路径, 新字段名]
     var featureMap = [
