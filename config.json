@@ -180,11 +180,6 @@
           "comm": "tpa"
         },
         {
-          "name": "随机传送",
-          "img": "textures/items/ender_pearl",
-          "comm": "rtp"
-        },
-        {
           "name": "地标传送",
           "img": "textures/items/map_filled",
           "comm": "warp"
@@ -275,17 +270,12 @@
     "enableHome": true,
     "enableWarp": true,
     "enableTpa": true,
-    "enableRtp": true,
     "homeLimit": 10,
     "homeCooldown": 10,
     "tpaCooldown": 30,
     "tpaTimeout": 30,
     "tpaCost": 0,
-    "warpCost": 0,
-    "rtpCost": 0,
-    "rtpCooldown": 60,
-    "rtpRange": 5000,
-    "rtpProtectionSeconds": 5
+    "warpCost": 0
   },
   "clearLag": {
     "enabled": true,

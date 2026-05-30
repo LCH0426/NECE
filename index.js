@@ -1793,7 +1793,7 @@ function initWebServer() {
 		});
 		webServer.setPlayerDataRef(playerData);
 		webServer.setConfigRef(config);
-		webServer.setHasWish(hasWish);
+		webServer.setHasWish(hasWish, hasWish ? wishModule : null);
 		webServer.startServer(webConfig);
 	}).catch(function(e) {
 		logger.error('[Web] 数据库初始化失败: ' + e.message);
