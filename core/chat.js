@@ -105,15 +105,22 @@ function rebuildBadWordRegex() {
 
 /**
  * 查询玩家所属公会名称（NLCE 公会系统）
- * @param {string} xuid - 玩家 XUID
- * @returns {string} 公会名称，无公会返回"§c无§r"
+ * 带 per-xuid 缓存，TTL 5分钟，避免每条消息都查数据库
  */
+var _orgNameCache = {};  // { xuid: { name, expire } }
+var ORG_CACHE_TTL = 5 * 60 * 1000; // 5分钟
+
 function resolveOrgName(xuid) {
+    var now = Date.now();
+    var cached = _orgNameCache[xuid];
+    if (cached && cached.expire > now) return cached.name;
     try {
-        const database = require('./database');
+        var database = require('./database');
         if (database.isPlayerDbReady()) {
-            const guild = database.getGuildByPlayer(String(xuid));
-            if (guild && guild.name) return guild.name;
+            var guild = database.getGuildByPlayer(String(xuid));
+            var name = (guild && guild.name) ? guild.name : '§c无§r';
+            _orgNameCache[xuid] = { name: name, expire: now + ORG_CACHE_TTL };
+            return name;
         }
     } catch (e) {}
     return '§c无§r';

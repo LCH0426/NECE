@@ -570,8 +570,27 @@ JsonConfigFileAdapter.prototype.write = function(content) {
 	}
 };
 
-/** 内部保存：将_data序列化写入磁盘 */
+/** 内部保存：将_data序列化写入磁盘（防抖模式，50ms内多次调用只写一次） */
 JsonConfigFileAdapter.prototype._save = function() {
+	var self = this;
+	if (self._saveTimer) clearTimeout(self._saveTimer);
+	self._saveTimer = setTimeout(function() {
+		self._saveTimer = null;
+		try {
+			U.ensureDir(self._path);
+			fs.writeFileSync(self._path, JSON.stringify(self._data, null, 2), 'utf-8');
+		} catch (e) {
+			logger.error('JsonConfigFileAdapter保存失败[' + self._path + ']：' + e.message);
+		}
+	}, 50);
+};
+
+/** 立即写入磁盘（用于关服等关键操作，取消防抖直接写） */
+JsonConfigFileAdapter.prototype.flush = function() {
+	if (this._saveTimer) {
+		clearTimeout(this._saveTimer);
+		this._saveTimer = null;
+	}
 	try {
 		U.ensureDir(this._path);
 		fs.writeFileSync(this._path, JSON.stringify(this._data, null, 2), 'utf-8');
@@ -1087,6 +1106,7 @@ mc.listen("onJoin", (player) => {
 		debugLog('onJoin: 新玩家 ' + playerName + ' (XUID: ' + playerXUID + ') 分配UID: ' + nextUid);
 		player.tell(`§a注册成功！您的UID：${nextUid}`, 1);
 		logger.info(`新玩家 ${playerName}（XUID: ${playerXUID}）分配UID: ${nextUid}`);
+		playerDataModule.markPlayerDirty(playerXUID);
 	} else {
 		// 老玩家：更新名字和设备信息
 		playerData.players[playerXUID].name = playerName;
@@ -1104,6 +1124,7 @@ mc.listen("onJoin", (player) => {
 		if (playerData.players[playerXUID].healthBonus === undefined) {
 			playerData.players[playerXUID].healthBonus = 0;
 		}
+		playerDataModule.markPlayerDirty(playerXUID);
 	}
 
 	_joinTimestamps[playerXUID] = Date.now();
@@ -1231,6 +1252,7 @@ mc.listen("onLeft", (player) => {
 	let p = playerData.players[xuidStr];
 	if (p) {
 		p.leavetime = Date.now();
+		playerDataModule.markPlayerDirty(xuidStr);
 	}
 	saveSinglePlayerData(xuidStr);
 	// 保存背包快照到数据库（供API查询离线玩家背包）
@@ -1341,20 +1363,21 @@ function tickOnlineDurations() {
 		if (!blk) return;
 		blk.playTime += Math.floor((now - _joinTimestamps[xuid]) / 1000);
 		_joinTimestamps[xuid] = now;
-		saveSinglePlayerData(xuid);
+		// 仅更新 count JSON 中的 playTime，避免全行写入
+		database.updatePlayTimeSQL(xuid, blk.playTime);
 	});
 }
 
 setInterval(tickOnlineDurations, 58848);
 
-// 定时（30秒）刷新在线玩家的leavetime，只保存有变化的玩家
+// 定时（30秒）刷新在线玩家的leavetime，仅更新 leave_time 字段
 setInterval(() => {
 	const now = Date.now();
 	Object.keys(onlinePlayers).forEach(xuid => {
 		const p = playerData.players[xuid];
 		if (p) {
 			p.leavetime = now;
-			saveSinglePlayerData(xuid);
+			database.updateLeaveTimeSQL(xuid, String(now));
 		}
 	});
 }, 30000);
@@ -2018,6 +2041,7 @@ if (typeof ll !== 'undefined' && ll.onUnload) {
 	ll.onUnload(function() {
 		debugModule.setUnloading();
 		flushAllSaves();
+		if (config && config.flush) config.flush();
 		if (database.isPlayerDbReady()) {
 			database.cancelPendingSave();
 			savePlayerDataNow();

@@ -31,6 +31,9 @@ let _savePlayerSettings = null; // 保存玩家设置的函数
 /** 物品 ID -> { name, texture } 映射，启动时从 items.json 加载 */
 let itemsDataMap = {};
 
+/** 脏标记集合：记录数据发生变化的玩家 xuid，savePlayerData 只处理这些玩家 */
+let _dirtyPlayers = new Set();
+
 /** 注入依赖，由 index.js 的 initAllConfigs 调用 */
 function init(deps) {
     _database = deps.database;
@@ -48,46 +51,62 @@ function getItemsDataMap() {
 }
 
 /**
+ * 标记玩家数据为脏（数据已变化，需要保存）
+ * @param {string} xuid - 玩家XUID
+ */
+function markPlayerDirty(xuid) {
+    _dirtyPlayers.add(xuid);
+}
+
+/**
  * 保存玩家数据（防抖模式）
- * SQL 模式：批量写入 + 2秒防抖写盘
+ * SQL 模式：仅保存脏标记的玩家 + 2秒防抖写盘
  * JSON 模式：通过 DataManager 防抖保存
  */
 function savePlayerData() {
+    if (_dirtyPlayers.size === 0) return;
     let playerData = _getPlayerData();
     let ops = [];
-    for (let xuid in playerData.players) {
-        if (!playerData.players.hasOwnProperty(xuid)) continue;
-        (function(xuid, data) {
+    _dirtyPlayers.forEach(function(xuid) {
+        if (playerData.players && playerData.players[xuid]) {
+            const data = playerData.players[xuid];
             ops.push(function() { _database.setPlayerDataSQL(xuid, data); });
-        })(xuid, playerData.players[xuid]);
-    }
+        }
+    });
+    _dirtyPlayers.clear();
     _database.batchSavePlayerDb(ops);
     _database.requestSavePlayerDb();
 }
 
 /**
- * 立即保存玩家数据（用于关服等关键操作）
+ * 立即保存所有脏玩家数据（用于关服等关键操作）
  * 取消待执行的防抖定时器，直接写盘
  */
 function savePlayerDataNow() {
     const playerData = _getPlayerData();
     const ops = [];
+    // 关服时保存所有玩家（含脏标记的 + 尚未标记但在线的）
     for (let xuid in playerData.players) {
         if (!playerData.players.hasOwnProperty(xuid)) continue;
         (function(xuid, data) {
             ops.push(function() { _database.setPlayerDataSQL(xuid, data); });
         })(xuid, playerData.players[xuid]);
     }
+    _dirtyPlayers.clear();
     _database.batchSavePlayerDb(ops);
     _database.cancelPendingSave();
     _database.savePlayerDatabase();
 }
 
-/** 只保存单个玩家的数据（防抖写盘），用于只修改了部分玩家时减少写入量 */
+/**
+ * 只保存单个玩家的数据（防抖写盘），用于只修改了部分玩家时减少写入量
+ * 同时标记该玩家为已保存（清除脏标记），避免 savePlayerData 重复写入
+ */
 function saveSinglePlayerData(xuid) {
     const playerData = _getPlayerData();
     if (_database.isPlayerDbReady() && playerData.players && playerData.players[xuid]) {
         _database.setPlayerDataSQL(xuid, playerData.players[xuid]);
+        _dirtyPlayers.delete(xuid);
         _database.requestSavePlayerDb();
     }
 }
@@ -159,6 +178,7 @@ module.exports = {
     savePlayerData: savePlayerData,
     savePlayerDataNow: savePlayerDataNow,
     saveSinglePlayerData: saveSinglePlayerData,
+    markPlayerDirty: markPlayerDirty,
     loadItemsDataMap: loadItemsDataMap,
     getItemInfoById: getItemInfoById,
     getPlayerSetting: getPlayerSetting,

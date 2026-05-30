@@ -242,7 +242,7 @@ function registerRoutes(router, d) {
             let playerList = [];
             let players = playerData.players;
 
-            // 按名称、UID或XUID模糊匹配搜索
+            // 按名称、UID或XUID模糊匹配搜索（先不加载余额，分页后再批量获取）
             Object.keys(players).forEach(function(xuid) {
                 let p = players[xuid];
                 const matchSearch = !search ||
@@ -251,19 +251,11 @@ function registerRoutes(router, d) {
                     xuid.toLowerCase().indexOf(search) !== -1;
 
                 if (matchSearch) {
-                    let balance = 0;
-                    try { balance = d.money.get(xuid) || 0; } catch (e) { balance = 0; }
-
-                    let isOnline = false;
-                    try { isOnline = !!d.mc.getPlayer(xuid); } catch (e) {}
-
                     playerList.push({
                         uid: p.uid,
                         name: p.name || '',
                         xuid: xuid,
                         registerTime: p.registerTime || '',
-                        balance: balance,
-                        isOnline: isOnline,
                         playTime: (p.count && p.count.playTime) || 0,
                         vipExpire: (p.vipdata && p.vipdata.expireTime) || 0,
                         lastIp: p.lastIp || '',
@@ -279,6 +271,12 @@ function registerRoutes(router, d) {
             let start = (page - 1) * pageSize;
             const end = start + pageSize;
             let pagedPlayers = playerList.slice(start, end);
+
+            // 只对当前页的玩家获取余额和在线状态
+            pagedPlayers.forEach(function(p) {
+                try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
+                try { p.isOnline = !!d.mc.getPlayer(p.xuid); } catch (e) { p.isOnline = false; }
+            });
 
             res.json({
                 code: 200,
@@ -309,15 +307,11 @@ function registerRoutes(router, d) {
 
             Object.keys(players).forEach(function(xuid) {
                 let p = players[xuid];
-                let balance = 0;
-                try { balance = d.money.get(xuid) || 0; } catch (e) { balance = 0; }
-
                 playerList.push({
                     uid: p.uid,
                     name: p.name || '',
                     xuid: xuid,
                     registerTime: p.registerTime || '',
-                    balance: balance,
                     playTime: (p.count && p.count.playTime) || 0
                 });
             });
@@ -332,6 +326,11 @@ function registerRoutes(router, d) {
             let totalPages = Math.ceil(total / pageSize);
             let start = (page - 1) * pageSize;
             let pagedPlayers = playerList.slice(start, start + pageSize);
+
+            // 只对当前页的玩家获取余额
+            pagedPlayers.forEach(function(p) {
+                try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
+            });
 
             res.json({
                 code: 200,
@@ -363,16 +362,12 @@ function registerRoutes(router, d) {
 
             Object.keys(players).forEach(function(xuid) {
                 let p = players[xuid];
-                let balance = 0;
-                try { balance = d.money.get(xuid) || 0; } catch (e) { balance = 0; }
-
                 playerList.push({
                     uid: p.uid,
                     name: p.name || '',
                     xuid: xuid,
                     playTime: (p.count && p.count.playTime) || 0,
-                    registerTime: p.registerTime || '',
-                    balance: balance
+                    registerTime: p.registerTime || ''
                 });
             });
 
@@ -386,6 +381,11 @@ function registerRoutes(router, d) {
             let totalPages = Math.ceil(total / pageSize);
             let start = (page - 1) * pageSize;
             let pagedPlayers = playerList.slice(start, start + pageSize);
+
+            // 只对当前页的玩家获取余额
+            pagedPlayers.forEach(function(p) {
+                try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
+            });
 
             res.json({
                 code: 200,
