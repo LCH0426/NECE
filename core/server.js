@@ -462,7 +462,8 @@ function createV1Routes(webConfig) {
         parseCookies, getRefreshSecret, triggerReload,
         fs, pathModule,
         mc: mc, money: money,
-        loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter
+        loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter,
+        hasWish: _hasWish
     };
 
     // 版本信息接口（无需认证）

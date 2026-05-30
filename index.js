@@ -616,20 +616,12 @@ function initRankConfig() {
 			"enableHome": true,
 			"enableWarp": true,
 			"enableTpa": true,
-			"enableRtp": true,
 			"homeLimit": 10,
 			"homeCooldown": 10,
 			"tpaCooldown": 30,
 			"tpaTimeout": 30,
 			"tpaCost": 0,
-			"warpCost": 0,
-			"rtpCost": 0,
-			"rtpCooldown": 60,
-			"rtpRange": 5000,
-			"rtpMinRange": 500,
-			"rtpProtectionRadius": 500,
-			"rtpMaxAttempts": 100,
-			"rtpProtectionSeconds": 5
+			"warpCost": 0
 		});
 		config.init("backup", {
 			"compressionLevel": 5,
@@ -1545,7 +1537,6 @@ function registerAllCommands() {
 	const tpHomeEnabled = function() { let c = teleportModule.tpsConfig(); return c.enabled && c.enableHome; };
 	const tpWarpEnabled = function() { let c = teleportModule.tpsConfig(); return c.enabled && c.enableWarp; };
 	const tpTpaEnabled = function() { let c = teleportModule.tpsConfig(); return c.enabled && c.enableTpa; };
-	const tpRtpEnabled = function() { const c = teleportModule.tpsConfig(); return c.enabled && c.enableRtp; };
 	const commands = [
 		["shop", "商店系统", function(p) { shopModule.showShopMainForm(p, commonDeps); }, "shop.enabled"],
 		["rank", "排行榜", function(p) { commonDeps.rankModule.showRankMainForm(p); }, "rank.enabled"],
@@ -1566,13 +1557,10 @@ function registerAllCommands() {
 		["tpg", "传送系统主菜单", function(p) { teleportModule.showTpgMainMenu(p, commonDeps); }, tpEnabled],
 		["home", "家园系统", function(p) { teleportModule.showHomeMainForm(p, commonDeps); }, tpHomeEnabled],
 		["warp", "公共传送点", function(p) { teleportModule.showWarpMainForm(p, commonDeps); }, tpWarpEnabled],
-		["tpa", "互传系统-传送到玩家", function(p) { teleportModule.showTpaMainForm(p, commonDeps); }, tpTpaEnabled],
-		["tpn", "互传系统-请玩家传送过来", function(p) { teleportModule.showTpaMainForm(p, commonDeps); }, tpTpaEnabled],
-		["tpy", "互传系统-双方互传", function(p) { teleportModule.showTpaMainForm(p, commonDeps); }, tpTpaEnabled],
+		["tpa", "互传系统", function(p) { teleportModule.showTpaMainForm(p, commonDeps); }, tpTpaEnabled],
 		["tpcancel", "取消传送请求", function(p) { teleportModule.cancelTpaRequest(p); }, tpTpaEnabled],
 		["tpaccept", "接受传送请求", function(p) { teleportModule.acceptTpaRequestByPlayer(p, commonDeps); }, tpTpaEnabled],
-		["tpdeny", "拒绝传送请求", function(p) { teleportModule.denyTpaRequestByPlayer(p); }, tpTpaEnabled],
-		["rtp", "随机传送", function(p) { teleportModule.executeRtp(p, commonDeps); }, tpRtpEnabled]
+		["tpdeny", "拒绝传送请求", function(p) { teleportModule.denyTpaRequestByPlayer(p); }, tpTpaEnabled]
 	];
 	for (let i = 0; i < commands.length; i++) {
 		let cmd = commands[i];
