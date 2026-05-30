@@ -110,6 +110,7 @@ let cleanupTimer = null;
 let _playerDataRef = null;  // 内存中的 playerData 对象引用，由 index.js 注入
 let _configRef = null;      // 内存中的 config 对象引用，由 index.js 注入
 let _hasWish = false;       // 是否加载了祈愿模块（由 index.js 注入）
+let _wishModuleRef = null;  // 祈愿模块引用（由 index.js 注入）
 
 /** 注入内存中的 playerData 对象引用，使 getPlayerData() 直接返回最新数据 */
 function setPlayerDataRef(ref) {
@@ -121,9 +122,10 @@ function setConfigRef(ref) {
     _configRef = ref;
 }
 
-/** 注入祈愿模块加载状态，用于版本API返回类型标识 */
-function setHasWish(val) {
+/** 注入祈愿模块加载状态和模块引用，用于版本API标识和赞助路由注册 */
+function setHasWish(val, wishModule) {
     _hasWish = !!val;
+    _wishModuleRef = wishModule || null;
 }
 
 let chatHistory = [];              // 服务端聊天记录缓冲，供 Web 面板实时查看
@@ -495,6 +497,11 @@ function createV1Routes(webConfig) {
     require('./routes/teleport').registerRoutes(router, routeDeps);
     require('./routes/guild').registerRoutes(router, routeDeps);
     require('./routes/admin').registerRoutes(router, routeDeps);
+
+    // 赞助管理API由 wish 模块提供，仅在模块存在时注册
+    if (_wishModuleRef && _wishModuleRef.registerApiRoutes) {
+        _wishModuleRef.registerApiRoutes(router, routeDeps);
+    }
 
     return router;
 }

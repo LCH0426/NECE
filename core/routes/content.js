@@ -16,32 +16,12 @@
  */
 
 /**
- * NLCE 留言板与赞助路由模块
- * 提供留言板的CRUD操作和赞助记录管理API
- * 留言板支持心情标签、删除权限控制；赞助记录为JSON文件存储
+ * NLCE 留言板路由模块
+ * 提供留言板的CRUD操作，支持心情标签、删除权限控制
+ * 赞助管理已集成至 wish 模块（core/wish.js）
  */
 
 function registerRoutes(router, d) {
-
-    const SPONSORSHIP_PATH = d.pathModule.join(__dirname, '..', '..', 'data', 'sponsorship.json');
-
-    // 加载赞助记录，文件不存在时自动创建空数组
-    function loadSponsorship() {
-        try {
-            if (!d.fs.existsSync(SPONSORSHIP_PATH)) {
-                d.fs.writeFileSync(SPONSORSHIP_PATH, '[]', 'utf-8');
-                return [];
-            }
-            let content = d.fs.readFileSync(SPONSORSHIP_PATH, 'utf-8');
-            return JSON.parse(content);
-        } catch (e) {
-            return [];
-        }
-    }
-
-    function saveSponsorship(data) {
-        d.fs.writeFileSync(SPONSORSHIP_PATH, JSON.stringify(data, null, 2), 'utf-8');
-    }
 
     // 获取留言板列表（普通用户仅看自己的，管理员可看全部含已删除）
     router.get('/messages', d.auth, function(req, res) {
@@ -198,88 +178,6 @@ function registerRoutes(router, d) {
             res.json({ code: 200, msg: '留言已删除' });
         } catch (e) {
             res.json({ code: 500, msg: '删除留言失败: ' + e.message });
-        }
-    });
-
-    // 获取赞助列表（公开接口，无需认证，供前端展示赞助墙）
-    router.get('/sponsorship', function(req, res) {
-        try {
-            let list = loadSponsorship();
-            res.json({ code: 200, data: list });
-        } catch (e) {
-            res.json({ code: 500, msg: '获取赞助列表失败: ' + e.message });
-        }
-    });
-
-    // 添加赞助记录（管理员操作）
-    router.post('/sponsorship', d.adminAuth, function(req, res) {
-        try {
-            let id = req.body.id;
-            let amount = req.body.amount;
-            let message = req.body.message || '';
-            let avatar = req.body.avatar || '';
-
-            if (!id || typeof id !== 'string' || !id.trim()) {
-                return res.json({ code: 400, msg: '缺少赞助者ID' });
-            }
-            if (!amount || typeof amount !== 'string' || !amount.trim()) {
-                return res.json({ code: 400, msg: '缺少赞助金额' });
-            }
-
-            let list = loadSponsorship();
-            const newEntry = { id: id.trim(), amount: amount.trim(), message: message.trim(), avatar: avatar.trim() };
-            list.push(newEntry);
-            saveSponsorship(list);
-
-            d.adminLog.log(req.user.uid, '添加赞助', 'ID:' + newEntry.id + ' 金额:' + newEntry.amount);
-            res.json({ code: 200, msg: '添加成功', data: newEntry });
-        } catch (e) {
-            res.json({ code: 500, msg: '添加赞助失败: ' + e.message });
-        }
-    });
-
-    // 修改赞助记录（按数组索引定位）
-    router.put('/sponsorship/:index', d.adminAuth, function(req, res) {
-        try {
-            let idx = parseInt(req.params.index);
-            let list = loadSponsorship();
-
-            if (isNaN(idx) || idx < 0 || idx >= list.length) {
-                return res.json({ code: 404, msg: '赞助记录不存在' });
-            }
-
-            let entry = list[idx];
-            if (req.body.id !== undefined) entry.id = String(req.body.id).trim();
-            if (req.body.amount !== undefined) entry.amount = String(req.body.amount).trim();
-            if (req.body.message !== undefined) entry.message = String(req.body.message).trim();
-            if (req.body.avatar !== undefined) entry.avatar = String(req.body.avatar).trim();
-
-            saveSponsorship(list);
-
-            d.adminLog.log(req.user.uid, '修改赞助', '索引:' + idx + ' ID:' + entry.id);
-            res.json({ code: 200, msg: '修改成功', data: entry });
-        } catch (e) {
-            res.json({ code: 500, msg: '修改赞助失败: ' + e.message });
-        }
-    });
-
-    // 删除赞助记录（按数组索引定位）
-    router.delete('/sponsorship/:index', d.adminAuth, function(req, res) {
-        try {
-            let idx = parseInt(req.params.index);
-            let list = loadSponsorship();
-
-            if (isNaN(idx) || idx < 0 || idx >= list.length) {
-                return res.json({ code: 404, msg: '赞助记录不存在' });
-            }
-
-            let removed = list.splice(idx, 1)[0];
-            saveSponsorship(list);
-
-            d.adminLog.log(req.user.uid, '删除赞助', 'ID:' + removed.id + ' 金额:' + removed.amount);
-            res.json({ code: 200, msg: '删除成功' });
-        } catch (e) {
-            res.json({ code: 500, msg: '删除赞助失败: ' + e.message });
         }
     });
 }
