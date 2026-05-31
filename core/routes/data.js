@@ -72,7 +72,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: list });
         } catch (e) {
-            res.json({ code: 500, msg: '获取CDK列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取CDK列表失败: ' + e.message });
         }
     });
 
@@ -85,50 +85,50 @@ function registerRoutes(router, d) {
                 for (let i = 0; i < body.rewards.length; i++) sanitize(body.rewards[i]);
             }
             if (!body.code) {
-                return res.json({ code: 400, msg: '缺少必要参数 code' });
+                return res.status(400).json({ code: 400, msg: '缺少必要参数 code' });
             }
             if (body.code === '__proto__' || body.code === 'constructor' || body.code === 'prototype') {
-                return res.json({ code: 400, msg: '兑换码名称不合法' });
+                return res.status(400).json({ code: 400, msg: '兑换码名称不合法' });
             }
             let data = loadCdkData();
             if (Object.prototype.hasOwnProperty.call(data.codes, body.code)) {
-                return res.json({ code: 400, msg: '兑换码已存在' });
+                return res.status(400).json({ code: 400, msg: '兑换码已存在' });
             }
             let cdk = { maxUses: body.maxUses || 0, usedBy: {}, rewards: [] };
             // 优先使用rewards数组格式
             if (body.rewards && Array.isArray(body.rewards)) {
                 for (let i = 0; i < body.rewards.length; i++) {
                     let r = body.rewards[i];
-                    if (!r.type) return res.json({ code: 400, msg: '第' + (i + 1) + '个附件缺少 type' });
+                    if (!r.type) return res.status(400).json({ code: 400, msg: '第' + (i + 1) + '个附件缺少 type' });
                     if (r.type === 'item') {
-                        if (!r.itemId) return res.json({ code: 400, msg: '第' + (i + 1) + '个附件缺少 itemId' });
+                        if (!r.itemId) return res.status(400).json({ code: 400, msg: '第' + (i + 1) + '个附件缺少 itemId' });
                         cdk.rewards.push({ type: 'item', itemId: r.itemId, itemName: r.itemName || r.itemId, count: r.count || 1 });
                     } else if (r.type === 'snbt') {
-                        if (!r.snbt) return res.json({ code: 400, msg: '第' + (i + 1) + '个附件缺少 snbt' });
+                        if (!r.snbt) return res.status(400).json({ code: 400, msg: '第' + (i + 1) + '个附件缺少 snbt' });
                         cdk.rewards.push({ type: 'snbt', snbt: r.snbt, itemName: r.itemName || 'SNBT物品' });
                     } else if (r.type === 'money') {
-                        if (!r.amount) return res.json({ code: 400, msg: '第' + (i + 1) + '个附件缺少 amount' });
+                        if (!r.amount) return res.status(400).json({ code: 400, msg: '第' + (i + 1) + '个附件缺少 amount' });
                         cdk.rewards.push({ type: 'money', amount: Number(r.amount) });
                     } else {
-                        return res.json({ code: 400, msg: '第' + (i + 1) + '个附件类型无效，支持 item/snbt/money' });
+                        return res.status(400).json({ code: 400, msg: '第' + (i + 1) + '个附件类型无效，支持 item/snbt/money' });
                     }
                 }
             // 兼容旧版单type字段格式
             } else if (body.type) {
                 if (body.type === 'item') {
-                    if (!body.itemId) return res.json({ code: 400, msg: '物品类型需要 itemId' });
+                    if (!body.itemId) return res.status(400).json({ code: 400, msg: '物品类型需要 itemId' });
                     cdk.rewards.push({ type: 'item', itemId: body.itemId, itemName: body.itemName || body.itemId, count: body.count || 1 });
                 } else if (body.type === 'snbt') {
-                    if (!body.snbt) return res.json({ code: 400, msg: 'SNBT类型需要 snbt' });
+                    if (!body.snbt) return res.status(400).json({ code: 400, msg: 'SNBT类型需要 snbt' });
                     cdk.rewards.push({ type: 'snbt', snbt: body.snbt, itemName: body.itemName || 'SNBT物品' });
                 } else if (body.type === 'money') {
-                    if (!body.amount) return res.json({ code: 400, msg: '经济类型需要 amount' });
+                    if (!body.amount) return res.status(400).json({ code: 400, msg: '经济类型需要 amount' });
                     cdk.rewards.push({ type: 'money', amount: Number(body.amount) });
                 } else {
-                    return res.json({ code: 400, msg: '无效的CDK类型，支持 item/snbt/money' });
+                    return res.status(400).json({ code: 400, msg: '无效的CDK类型，支持 item/snbt/money' });
                 }
             } else {
-                return res.json({ code: 400, msg: '缺少 rewards 数组或 type 字段' });
+                return res.status(400).json({ code: 400, msg: '缺少 rewards 数组或 type 字段' });
             }
             data.codes[body.code] = cdk;
             saveCdkData(data);
@@ -136,7 +136,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加CDK', '兑换码:' + body.code);
             res.json({ code: 200, msg: '添加成功' });
         } catch (e) {
-            res.json({ code: 500, msg: '添加CDK失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加CDK失败: ' + e.message });
         }
     });
 
@@ -145,19 +145,19 @@ function registerRoutes(router, d) {
         try {
             let body = req.body;
             sanitize(body);
-            if (!body.code) return res.json({ code: 400, msg: '缺少兑换码' });
+            if (!body.code) return res.status(400).json({ code: 400, msg: '缺少兑换码' });
             if (body.code === '__proto__' || body.code === 'constructor' || body.code === 'prototype') {
-                return res.json({ code: 400, msg: '兑换码名称不合法' });
+                return res.status(400).json({ code: 400, msg: '兑换码名称不合法' });
             }
             let data = loadCdkData();
-            if (!Object.prototype.hasOwnProperty.call(data.codes, body.code)) return res.json({ code: 404, msg: '兑换码不存在' });
+            if (!Object.prototype.hasOwnProperty.call(data.codes, body.code)) return res.status(404).json({ code: 404, msg: '兑换码不存在' });
             delete data.codes[body.code];
             saveCdkData(data);
             d.triggerReload('cdk');
             d.adminLog.log(req.user.uid, '删除CDK', '兑换码:' + body.code);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除CDK失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除CDK失败: ' + e.message });
         }
     });
 
@@ -169,12 +169,12 @@ function registerRoutes(router, d) {
             if (body.rewards && Array.isArray(body.rewards)) {
                 for (let i = 0; i < body.rewards.length; i++) sanitize(body.rewards[i]);
             }
-            if (!body.code) return res.json({ code: 400, msg: '缺少兑换码' });
+            if (!body.code) return res.status(400).json({ code: 400, msg: '缺少兑换码' });
             if (body.code === '__proto__' || body.code === 'constructor' || body.code === 'prototype') {
-                return res.json({ code: 400, msg: '兑换码名称不合法' });
+                return res.status(400).json({ code: 400, msg: '兑换码名称不合法' });
             }
             let data = loadCdkData();
-            if (!Object.prototype.hasOwnProperty.call(data.codes, body.code)) return res.json({ code: 404, msg: '兑换码不存在' });
+            if (!Object.prototype.hasOwnProperty.call(data.codes, body.code)) return res.status(404).json({ code: 404, msg: '兑换码不存在' });
             const cdk = data.codes[body.code];
             if (body.maxUses !== undefined) cdk.maxUses = Number(body.maxUses);
             if (body.rewards && Array.isArray(body.rewards)) {
@@ -204,7 +204,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改CDK', '兑换码:' + body.code);
             res.json({ code: 200, msg: '修改成功' });
         } catch (e) {
-            res.json({ code: 500, msg: '修改CDK失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改CDK失败: ' + e.message });
         }
     });
 
@@ -267,7 +267,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取白名单失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取白名单失败: ' + e.message });
         }
     });
 
@@ -276,7 +276,7 @@ function registerRoutes(router, d) {
         try {
             let name = (req.body.name || '').trim();
             if (!name) {
-                return res.json({ code: 400, msg: '玩家名字不能为空' });
+                return res.status(400).json({ code: 400, msg: '玩家名字不能为空' });
             }
 
             let list = readAllowlist();
@@ -290,14 +290,14 @@ function registerRoutes(router, d) {
 
             let cmdResult = d.mc.runcmd('allowlist add "' + name + '"');
             if (!cmdResult) {
-                return res.json({ code: 500, msg: '执行 allowlist add 命令失败' });
+                return res.status(500).json({ code: 500, msg: '执行 allowlist add 命令失败' });
             }
 
             d.adminLog.log(req.user.uid, '添加白名单', name, '');
 
             res.json({ code: 200, msg: '已添加 ' + name + ' 到白名单' });
         } catch (e) {
-            res.json({ code: 500, msg: '添加白名单失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加白名单失败: ' + e.message });
         }
     });
 
@@ -306,7 +306,7 @@ function registerRoutes(router, d) {
         try {
             let name = (req.body.name || '').trim();
             if (!name) {
-                return res.json({ code: 400, msg: '玩家名字不能为空' });
+                return res.status(400).json({ code: 400, msg: '玩家名字不能为空' });
             }
 
             let list = readAllowlist();
@@ -315,19 +315,19 @@ function registerRoutes(router, d) {
             });
 
             if (!found) {
-                return res.json({ code: 404, msg: '玩家 ' + name + ' 不在白名单中' });
+                return res.status(404).json({ code: 404, msg: '玩家 ' + name + ' 不在白名单中' });
             }
 
             const cmdResult = d.mc.runcmd('allowlist remove "' + name + '"');
             if (!cmdResult) {
-                return res.json({ code: 500, msg: '执行 allowlist remove 命令失败' });
+                return res.status(500).json({ code: 500, msg: '执行 allowlist remove 命令失败' });
             }
 
             d.adminLog.log(req.user.uid, '删除白名单', name, '');
 
             res.json({ code: 200, msg: '已从白名单移除 ' + name });
         } catch (e) {
-            res.json({ code: 500, msg: '删除白名单失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除白名单失败: ' + e.message });
         }
     });
 
@@ -361,7 +361,7 @@ function registerRoutes(router, d) {
             let result = messages.slice(-limit);
             res.json({ code: 200, data: { messages: result, total: d.chatHistory.length } });
         } catch (e) {
-            res.json({ code: 500, msg: '获取聊天记录失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取聊天记录失败: ' + e.message });
         }
     });
 
@@ -378,7 +378,7 @@ function registerRoutes(router, d) {
         d.chatModule.queryHistory(options).then(function(result) {
             res.json({ code: 200, data: result });
         }).catch(function(e) {
-            res.json({ code: 500, msg: '查询聊天记录失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '查询聊天记录失败: ' + e.message });
         });
     });
 
@@ -388,7 +388,7 @@ function registerRoutes(router, d) {
             let dates = d.chatModule.getAvailableDates();
             res.json({ code: 200, data: { dates: dates } });
         } catch (e) {
-            res.json({ code: 500, msg: '获取聊天日期列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取聊天日期列表失败: ' + e.message });
         }
     });
 
@@ -397,11 +397,11 @@ function registerRoutes(router, d) {
         let message = req.body.message;
 
         if (!message || !message.trim()) {
-            return res.json({ code: 400, msg: '消息不能为空' });
+            return res.status(400).json({ code: 400, msg: '消息不能为空' });
         }
 
         if (message.length > 500) {
-            return res.json({ code: 400, msg: '消息长度不能超过500字符' });
+            return res.status(400).json({ code: 400, msg: '消息长度不能超过500字符' });
         }
 
         try {
@@ -422,7 +422,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '消息已发送' });
         } catch (e) {
-            res.json({ code: 500, msg: '发送消息失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '发送消息失败: ' + e.message });
         }
     });
 
@@ -436,7 +436,7 @@ function registerRoutes(router, d) {
             let result = d.adminLog.getLogs(date, page, pageSize);
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.json({ code: 500, msg: '获取日志失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取日志失败: ' + e.message });
         }
     });
 
@@ -446,7 +446,7 @@ function registerRoutes(router, d) {
             let dates = d.adminLog.getAvailableDates();
             res.json({ code: 200, data: { dates: dates } });
         } catch (e) {
-            res.json({ code: 500, msg: '获取日期列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取日期列表失败: ' + e.message });
         }
     });
 
@@ -456,7 +456,7 @@ function registerRoutes(router, d) {
             const dates = d.behaviorLog.availableDates();
             res.json({ code: 200, data: { dates: dates } });
         } catch (e) {
-            res.json({ code: 500, msg: '获取行为日志日期列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取行为日志日期列表失败: ' + e.message });
         }
     });
 
@@ -466,7 +466,7 @@ function registerRoutes(router, d) {
             const events = d.behaviorLog.actionTypes();
             res.json({ code: 200, data: { events: events } });
         } catch (e) {
-            res.json({ code: 500, msg: '获取事件类型列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取事件类型列表失败: ' + e.message });
         }
     });
 
@@ -483,7 +483,7 @@ function registerRoutes(router, d) {
         d.behaviorLog.queryLogs(options).then(function(result) {
             res.json({ code: 200, data: result });
         }).catch(function(e) {
-            res.json({ code: 500, msg: '查询行为日志失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '查询行为日志失败: ' + e.message });
         });
     });
 
@@ -491,7 +491,7 @@ function registerRoutes(router, d) {
     router.get('/items/search', d.adminAuth, function(req, res) {
         try {
             const keyword = (req.query.keyword || '').trim().toLowerCase();
-            if (!keyword) return res.json({ code: 400, msg: '缺少keyword参数' });
+            if (!keyword) return res.status(400).json({ code: 400, msg: '缺少keyword参数' });
             const itemMap = d.getItemsMap();
             const results = [];
             Object.keys(itemMap).forEach(function(id) {
@@ -504,7 +504,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: results });
         } catch (e) {
-            res.json({ code: 500, msg: '搜索物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '搜索物品失败: ' + e.message });
         }
     });
 }

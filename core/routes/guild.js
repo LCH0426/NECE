@@ -54,7 +54,7 @@ function registerRoutes(router, d) {
             }
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.json({ code: 500, msg: '获取公会列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取公会列表失败: ' + e.message });
         }
     });
 
@@ -62,9 +62,9 @@ function registerRoutes(router, d) {
     router.get('/admin/guild/:id', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
-            if (isNaN(guildId)) { res.json({ code: 400, msg: '无效的公会ID' }); return; }
+            if (isNaN(guildId)) { res.status(400).json({ code: 400, msg: '无效的公会ID' }); return; }
             var guild = database.getGuild(guildId);
-            if (!guild) { res.json({ code: 404, msg: '公会不存在' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '公会不存在' }); return; }
 
             var members = database.getGuildMembers(guildId);
             var teleports = database.getGuildTeleports(guildId);
@@ -92,7 +92,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取公会详情失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取公会详情失败: ' + e.message });
         }
     });
 
@@ -100,15 +100,15 @@ function registerRoutes(router, d) {
     router.delete('/admin/guild/:id', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
-            if (isNaN(guildId)) { res.json({ code: 400, msg: '无效的公会ID' }); return; }
+            if (isNaN(guildId)) { res.status(400).json({ code: 400, msg: '无效的公会ID' }); return; }
             var guild = database.getGuild(guildId);
-            if (!guild) { res.json({ code: 404, msg: '公会不存在' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '公会不存在' }); return; }
 
             database.deleteGuild(guildId);
             d.adminLog.log(req.user.uid, '删除公会', '公会ID:' + guildId + ' 名称:' + guild.name);
             res.json({ code: 200, msg: '公会"' + guild.name + '"已删除' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除公会失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除公会失败: ' + e.message });
         }
     });
 
@@ -116,9 +116,9 @@ function registerRoutes(router, d) {
     router.put('/admin/guild/:id', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
-            if (isNaN(guildId)) { res.json({ code: 400, msg: '无效的公会ID' }); return; }
+            if (isNaN(guildId)) { res.status(400).json({ code: 400, msg: '无效的公会ID' }); return; }
             var guild = database.getGuild(guildId);
-            if (!guild) { res.json({ code: 404, msg: '公会不存在' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '公会不存在' }); return; }
 
             var body = req.body || {};
             var fields = {};
@@ -126,7 +126,7 @@ function registerRoutes(router, d) {
             if (typeof body.name === 'string' && body.name.length >= 2 && body.name.length <= 16) {
                 var existing = database.getGuildByName(body.name);
                 if (existing && existing.id !== guildId) {
-                    res.json({ code: 400, msg: '公会名称已被使用' });
+                    res.status(400).json({ code: 400, msg: '公会名称已被使用' });
                     return;
                 }
                 fields.name = body.name;
@@ -136,7 +136,7 @@ function registerRoutes(router, d) {
             if (typeof body.fund === 'number' && body.fund >= 0) fields.fund = body.fund;
 
             if (Object.keys(fields).length === 0) {
-                res.json({ code: 400, msg: '没有需要更新的字段' });
+                res.status(400).json({ code: 400, msg: '没有需要更新的字段' });
                 return;
             }
 
@@ -144,7 +144,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改公会信息', '公会ID:' + guildId + ' 修改:' + JSON.stringify(fields));
             res.json({ code: 200, msg: '公会信息已更新' });
         } catch (e) {
-            res.json({ code: 500, msg: '更新公会失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '更新公会失败: ' + e.message });
         }
     });
 
@@ -152,11 +152,11 @@ function registerRoutes(router, d) {
     router.get('/admin/guild/:id/teleports', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
-            if (isNaN(guildId)) { res.json({ code: 400, msg: '无效的公会ID' }); return; }
+            if (isNaN(guildId)) { res.status(400).json({ code: 400, msg: '无效的公会ID' }); return; }
             var teleports = database.getGuildTeleports(guildId);
             res.json({ code: 200, data: teleports });
         } catch (e) {
-            res.json({ code: 500, msg: '获取传送点失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取传送点失败: ' + e.message });
         }
     });
 
@@ -164,15 +164,15 @@ function registerRoutes(router, d) {
     router.post('/admin/guild/:id/teleports', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
-            if (isNaN(guildId)) { res.json({ code: 400, msg: '无效的公会ID' }); return; }
+            if (isNaN(guildId)) { res.status(400).json({ code: 400, msg: '无效的公会ID' }); return; }
             var guild = database.getGuild(guildId);
-            if (!guild) { res.json({ code: 404, msg: '公会不存在' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '公会不存在' }); return; }
 
             var body = req.body || {};
             var name = (body.name || '').trim();
-            if (!name) { res.json({ code: 400, msg: '传送点名称不能为空' }); return; }
+            if (!name) { res.status(400).json({ code: 400, msg: '传送点名称不能为空' }); return; }
             if (typeof body.x !== 'number' || typeof body.y !== 'number' || typeof body.z !== 'number') {
-                res.json({ code: 400, msg: '坐标参数无效' });
+                res.status(400).json({ code: 400, msg: '坐标参数无效' });
                 return;
             }
 
@@ -180,7 +180,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加公会传送点', '公会ID:' + guildId + ' 名称:' + name);
             res.json({ code: 200, msg: '传送点已添加' });
         } catch (e) {
-            res.json({ code: 500, msg: '添加传送点失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加传送点失败: ' + e.message });
         }
     });
 
@@ -189,12 +189,12 @@ function registerRoutes(router, d) {
         try {
             var guildId = parseInt(req.params.id);
             var tpId = parseInt(req.params.tpId);
-            if (isNaN(guildId) || isNaN(tpId)) { res.json({ code: 400, msg: '参数无效' }); return; }
+            if (isNaN(guildId) || isNaN(tpId)) { res.status(400).json({ code: 400, msg: '参数无效' }); return; }
             database.removeGuildTeleport(tpId, guildId);
             d.adminLog.log(req.user.uid, '删除公会传送点', '公会ID:' + guildId + ' 传送点ID:' + tpId);
             res.json({ code: 200, msg: '传送点已删除' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除传送点失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除传送点失败: ' + e.message });
         }
     });
 
@@ -202,13 +202,13 @@ function registerRoutes(router, d) {
     router.put('/admin/guild/:id/fund', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
-            if (isNaN(guildId)) { res.json({ code: 400, msg: '无效的公会ID' }); return; }
+            if (isNaN(guildId)) { res.status(400).json({ code: 400, msg: '无效的公会ID' }); return; }
             var guild = database.getGuild(guildId);
-            if (!guild) { res.json({ code: 404, msg: '公会不存在' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '公会不存在' }); return; }
 
             var body = req.body || {};
             if (typeof body.fund !== 'number' || body.fund < 0) {
-                res.json({ code: 400, msg: '资金数值无效' });
+                res.status(400).json({ code: 400, msg: '资金数值无效' });
                 return;
             }
 
@@ -216,7 +216,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改公会资金', '公会ID:' + guildId + ' 新资金:' + body.fund);
             res.json({ code: 200, msg: '公会资金已更新' });
         } catch (e) {
-            res.json({ code: 500, msg: '更新资金失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '更新资金失败: ' + e.message });
         }
     });
 
@@ -230,20 +230,20 @@ function registerRoutes(router, d) {
             var description = (body.description || '').trim();
 
             if (!name || name.length < 2 || name.length > 16) {
-                res.json({ code: 400, msg: '公会名称长度需在2-16个字符之间' });
+                res.status(400).json({ code: 400, msg: '公会名称长度需在2-16个字符之间' });
                 return;
             }
 
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             if (database.getGuildByPlayer(xuid)) {
-                res.json({ code: 400, msg: '你已经在一个公会中' });
+                res.status(400).json({ code: 400, msg: '你已经在一个公会中' });
                 return;
             }
 
             if (database.getGuildByName(name)) {
-                res.json({ code: 400, msg: '公会名称已被使用' });
+                res.status(400).json({ code: 400, msg: '公会名称已被使用' });
                 return;
             }
 
@@ -251,24 +251,24 @@ function registerRoutes(router, d) {
             try {
                 var cfgContent = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
                 var cfg = JSON.parse(cfgContent);
-                if (cfg.guildConfig && cfg.guildConfig.maxMembers) maxMembers = cfg.guildConfig.maxMembers;
+                if (cfg.guild && cfg.guild.maxMembers) maxMembers = cfg.guild.maxMembers;
             } catch (e) {}
 
             var guildId = database.createGuild(name, description, xuid, maxMembers);
             res.json({ code: 200, msg: '公会创建成功', data: { id: guildId } });
         } catch (e) {
-            res.json({ code: 500, msg: '创建公会失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '创建公会失败: ' + e.message });
         }
     });
 
     // 获取自己的公会信息
     router.get('/guild/my', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             var members = database.getGuildMembers(guild.id);
             var teleports = database.getGuildTeleports(guild.id);
@@ -298,22 +298,22 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取公会信息失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取公会信息失败: ' + e.message });
         }
     });
 
     // 更新自己的公会信息（仅会长可修改描述）
     router.put('/guild/my', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             // 只有会长可以修改公会信息
             if (guild.owner !== xuid) {
-                res.json({ code: 403, msg: '只有会长可以修改公会信息' });
+                res.status(403).json({ code: 403, msg: '只有会长可以修改公会信息' });
                 return;
             }
 
@@ -322,62 +322,62 @@ function registerRoutes(router, d) {
             if (typeof body.description === 'string') fields.description = body.description;
 
             if (Object.keys(fields).length === 0) {
-                res.json({ code: 400, msg: '没有需要更新的字段' });
+                res.status(400).json({ code: 400, msg: '没有需要更新的字段' });
                 return;
             }
 
             database.updateGuild(guild.id, fields);
             res.json({ code: 200, msg: '公会信息已更新' });
         } catch (e) {
-            res.json({ code: 500, msg: '更新公会失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '更新公会失败: ' + e.message });
         }
     });
 
     // 解散自己的公会（仅会长）
     router.delete('/guild/my', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             if (guild.owner !== xuid) {
-                res.json({ code: 403, msg: '只有会长可以解散公会' });
+                res.status(403).json({ code: 403, msg: '只有会长可以解散公会' });
                 return;
             }
 
             database.deleteGuild(guild.id);
             res.json({ code: 200, msg: '公会"' + guild.name + '"已解散' });
         } catch (e) {
-            res.json({ code: 500, msg: '解散公会失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '解散公会失败: ' + e.message });
         }
     });
 
     // 获取自己的公会传送点列表
     router.get('/guild/my/teleports', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             var teleports = database.getGuildTeleports(guild.id);
             res.json({ code: 200, data: teleports });
         } catch (e) {
-            res.json({ code: 500, msg: '获取传送点失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取传送点失败: ' + e.message });
         }
     });
 
     // 添加公会传送点（会长/管理员）
     router.post('/guild/my/teleports', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             // 只有会长和管理员可以添加传送点
             var members = database.getGuildMembers(guild.id);
@@ -385,33 +385,33 @@ function registerRoutes(router, d) {
             var isAdmin = members.some(function(m) { return m.xuid === xuid && m.role === 'admin'; });
 
             if (!isOwner && !isAdmin) {
-                res.json({ code: 403, msg: '只有会长和管理员可以添加传送点' });
+                res.status(403).json({ code: 403, msg: '只有会长和管理员可以添加传送点' });
                 return;
             }
 
             var body = req.body || {};
             var name = (body.name || '').trim();
-            if (!name) { res.json({ code: 400, msg: '传送点名称不能为空' }); return; }
+            if (!name) { res.status(400).json({ code: 400, msg: '传送点名称不能为空' }); return; }
             if (typeof body.x !== 'number' || typeof body.y !== 'number' || typeof body.z !== 'number') {
-                res.json({ code: 400, msg: '坐标参数无效' });
+                res.status(400).json({ code: 400, msg: '坐标参数无效' });
                 return;
             }
 
             database.addGuildTeleport(guild.id, name, body.x, body.y, body.z, String(body.dim || '0'), xuid);
             res.json({ code: 200, msg: '传送点已添加' });
         } catch (e) {
-            res.json({ code: 500, msg: '添加传送点失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加传送点失败: ' + e.message });
         }
     });
 
     // 删除公会传送点（会长/管理员）
     router.delete('/guild/my/teleports/:tpId', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             // 只有会长和管理员可以删除传送点
             var members = database.getGuildMembers(guild.id);
@@ -419,60 +419,60 @@ function registerRoutes(router, d) {
             var isAdmin = members.some(function(m) { return m.xuid === xuid && m.role === 'admin'; });
 
             if (!isOwner && !isAdmin) {
-                res.json({ code: 403, msg: '只有会长和管理员可以删除传送点' });
+                res.status(403).json({ code: 403, msg: '只有会长和管理员可以删除传送点' });
                 return;
             }
 
             var tpId = parseInt(req.params.tpId);
-            if (isNaN(tpId)) { res.json({ code: 400, msg: '参数无效' }); return; }
+            if (isNaN(tpId)) { res.status(400).json({ code: 400, msg: '参数无效' }); return; }
 
             database.removeGuildTeleport(tpId, guild.id);
             res.json({ code: 200, msg: '传送点已删除' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除传送点失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除传送点失败: ' + e.message });
         }
     });
 
     // 存入公会资金（任何成员）
     router.post('/guild/my/deposit', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             var body = req.body || {};
             var amount = parseFloat(body.amount);
             if (isNaN(amount) || amount <= 0) {
-                res.json({ code: 400, msg: '存款金额无效' });
+                res.status(400).json({ code: 400, msg: '存款金额无效' });
                 return;
             }
 
             // 从玩家账户扣除
-            var playerData = d.getPlayerData(xuid);
-            if (!playerData || playerData.money < amount) {
-                res.json({ code: 400, msg: '余额不足' });
+            var balance = d.money.get(xuid) || 0;
+            if (balance < amount) {
+                res.status(400).json({ code: 400, msg: '余额不足' });
                 return;
             }
 
-            d.reducePlayerMoney(xuid, amount);
+            d.money.reduce(xuid, amount);
             database.updateGuild(guild.id, { fund: guild.fund + amount });
 
             res.json({ code: 200, msg: '存入成功', data: { newFund: guild.fund + amount } });
         } catch (e) {
-            res.json({ code: 500, msg: '存入失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '存入失败: ' + e.message });
         }
     });
 
     // 取出公会资金（仅会长/管理员，根据配置）
     router.post('/guild/my/withdraw', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             var isOwner = guild.owner === xuid;
             var members = database.getGuildMembers(guild.id);
@@ -483,66 +483,66 @@ function registerRoutes(router, d) {
             try {
                 var cfgContent = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
                 var cfg = JSON.parse(cfgContent);
-                if (cfg.guildConfig && cfg.guildConfig.withdrawAdminOnly) withdrawAdminOnly = cfg.guildConfig.withdrawAdminOnly;
+                if (cfg.guild && cfg.guild.withdrawAdminOnly) withdrawAdminOnly = cfg.guild.withdrawAdminOnly;
             } catch (e) {}
 
             if (withdrawAdminOnly && !isOwner && !isAdmin) {
-                res.json({ code: 403, msg: '只有会长和管理员可以取出资金' });
+                res.status(403).json({ code: 403, msg: '只有会长和管理员可以取出资金' });
                 return;
             }
 
             var body = req.body || {};
             var amount = parseFloat(body.amount);
             if (isNaN(amount) || amount <= 0) {
-                res.json({ code: 400, msg: '取款金额无效' });
+                res.status(400).json({ code: 400, msg: '取款金额无效' });
                 return;
             }
 
             if (guild.fund < amount) {
-                res.json({ code: 400, msg: '公会资金不足' });
+                res.status(400).json({ code: 400, msg: '公会资金不足' });
                 return;
             }
 
             database.updateGuild(guild.id, { fund: guild.fund - amount });
-            d.addPlayerMoney(xuid, amount);
+            d.money.add(xuid, amount);
 
             res.json({ code: 200, msg: '取出成功', data: { newFund: guild.fund - amount } });
         } catch (e) {
-            res.json({ code: 500, msg: '取出失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '取出失败: ' + e.message });
         }
     });
 
     // 踢出成员（会长/管理员）
     router.post('/guild/my/kick', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             var isOwner = guild.owner === xuid;
             var members = database.getGuildMembers(guild.id);
             var isAdmin = members.some(function(m) { return m.xuid === xuid && m.role === 'admin'; });
 
             if (!isOwner && !isAdmin) {
-                res.json({ code: 403, msg: '只有会长和管理员可以踢出成员' });
+                res.status(403).json({ code: 403, msg: '只有会长和管理员可以踢出成员' });
                 return;
             }
 
             var body = req.body || {};
             var targetXuid = body.xuid;
-            if (!targetXuid) { res.json({ code: 400, msg: '目标玩家XUID无效' }); return; }
+            if (!targetXuid) { res.status(400).json({ code: 400, msg: '目标玩家XUID无效' }); return; }
 
             // 不能踢出自己
             if (targetXuid === xuid) {
-                res.json({ code: 400, msg: '不能踢出自己' });
+                res.status(400).json({ code: 400, msg: '不能踢出自己' });
                 return;
             }
 
             // 不能踢出会长
             if (targetXuid === guild.owner) {
-                res.json({ code: 400, msg: '不能踢出会长' });
+                res.status(400).json({ code: 400, msg: '不能踢出会长' });
                 return;
             }
 
@@ -550,7 +550,7 @@ function registerRoutes(router, d) {
             if (!isOwner) {
                 var targetMember = members.find(function(m) { return m.xuid === targetXuid; });
                 if (targetMember && targetMember.role === 'admin') {
-                    res.json({ code: 403, msg: '管理员不能踢出其他管理员' });
+                    res.status(403).json({ code: 403, msg: '管理员不能踢出其他管理员' });
                     return;
                 }
             }
@@ -558,38 +558,38 @@ function registerRoutes(router, d) {
             database.removeGuildMember(targetXuid);
             res.json({ code: 200, msg: '成员已踢出' });
         } catch (e) {
-            res.json({ code: 500, msg: '踢出失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '踢出失败: ' + e.message });
         }
     });
 
     // 提升成员为管理员（仅会长）
     router.post('/guild/my/promote', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             if (guild.owner !== xuid) {
-                res.json({ code: 403, msg: '只有会长可以提升管理员' });
+                res.status(403).json({ code: 403, msg: '只有会长可以提升管理员' });
                 return;
             }
 
             var body = req.body || {};
             var targetXuid = body.xuid;
-            if (!targetXuid) { res.json({ code: 400, msg: '目标玩家XUID无效' }); return; }
+            if (!targetXuid) { res.status(400).json({ code: 400, msg: '目标玩家XUID无效' }); return; }
 
             var members = database.getGuildMembers(guild.id);
             var targetMember = members.find(function(m) { return m.xuid === targetXuid; });
 
             if (!targetMember) {
-                res.json({ code: 404, msg: '目标玩家不在公会中' });
+                res.status(404).json({ code: 404, msg: '目标玩家不在公会中' });
                 return;
             }
 
             if (targetMember.role === 'admin') {
-                res.json({ code: 400, msg: '该玩家已经是管理员' });
+                res.status(400).json({ code: 400, msg: '该玩家已经是管理员' });
                 return;
             }
 
@@ -598,83 +598,83 @@ function registerRoutes(router, d) {
             try {
                 var cfgContent = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
                 var cfg = JSON.parse(cfgContent);
-                if (cfg.guildConfig && cfg.guildConfig.maxAdmins) maxAdmins = cfg.guildConfig.maxAdmins;
+                if (cfg.guild && cfg.guild.maxAdmins) maxAdmins = cfg.guild.maxAdmins;
             } catch (e) {}
 
             var adminCount = members.filter(function(m) { return m.role === 'admin'; }).length;
             if (adminCount >= maxAdmins) {
-                res.json({ code: 400, msg: '管理员数量已达上限(' + maxAdmins + ')' });
+                res.status(400).json({ code: 400, msg: '管理员数量已达上限(' + maxAdmins + ')' });
                 return;
             }
 
             database.updateMemberRole(targetXuid, 'admin');
             res.json({ code: 200, msg: '已提升为管理员' });
         } catch (e) {
-            res.json({ code: 500, msg: '提升失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '提升失败: ' + e.message });
         }
     });
 
     // 降级管理员为普通成员（仅会长）
     router.post('/guild/my/demote', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             if (guild.owner !== xuid) {
-                res.json({ code: 403, msg: '只有会长可以降级管理员' });
+                res.status(403).json({ code: 403, msg: '只有会长可以降级管理员' });
                 return;
             }
 
             var body = req.body || {};
             var targetXuid = body.xuid;
-            if (!targetXuid) { res.json({ code: 400, msg: '目标玩家XUID无效' }); return; }
+            if (!targetXuid) { res.status(400).json({ code: 400, msg: '目标玩家XUID无效' }); return; }
 
             var members = database.getGuildMembers(guild.id);
             var targetMember = members.find(function(m) { return m.xuid === targetXuid; });
 
             if (!targetMember) {
-                res.json({ code: 404, msg: '目标玩家不在公会中' });
+                res.status(404).json({ code: 404, msg: '目标玩家不在公会中' });
                 return;
             }
 
             if (targetMember.role !== 'admin') {
-                res.json({ code: 400, msg: '该玩家不是管理员' });
+                res.status(400).json({ code: 400, msg: '该玩家不是管理员' });
                 return;
             }
 
             database.updateMemberRole(targetXuid, 'member');
             res.json({ code: 200, msg: '已降级为普通成员' });
         } catch (e) {
-            res.json({ code: 500, msg: '降级失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '降级失败: ' + e.message });
         }
     });
 
     // 转让会长（仅会长）
     router.post('/guild/my/transfer', d.auth, function(req, res) {
         try {
-            var xuid = req.playerXuid;
-            if (!xuid) { res.json({ code: 401, msg: '无法获取玩家身份' }); return; }
+            var xuid = d.getXuidByUid(req.user.uid);
+            if (!xuid) { res.status(401).json({ code: 401, msg: '无法获取玩家身份' }); return; }
 
             var guild = database.getGuildByPlayer(xuid);
-            if (!guild) { res.json({ code: 404, msg: '你还没有加入任何公会' }); return; }
+            if (!guild) { res.status(404).json({ code: 404, msg: '你还没有加入任何公会' }); return; }
 
             if (guild.owner !== xuid) {
-                res.json({ code: 403, msg: '只有会长可以转让公会' });
+                res.status(403).json({ code: 403, msg: '只有会长可以转让公会' });
                 return;
             }
 
             var body = req.body || {};
             var targetXuid = body.xuid;
-            if (!targetXuid) { res.json({ code: 400, msg: '目标玩家XUID无效' }); return; }
+            if (!targetXuid) { res.status(400).json({ code: 400, msg: '目标玩家XUID无效' }); return; }
 
             var members = database.getGuildMembers(guild.id);
             var targetMember = members.find(function(m) { return m.xuid === targetXuid; });
 
             if (!targetMember) {
-                res.json({ code: 404, msg: '目标玩家不在公会中' });
+                res.status(404).json({ code: 404, msg: '目标玩家不在公会中' });
                 return;
             }
 
@@ -687,7 +687,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '会长已转让' });
         } catch (e) {
-            res.json({ code: 500, msg: '转让失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '转让失败: ' + e.message });
         }
     });
 
@@ -712,7 +712,7 @@ function registerRoutes(router, d) {
             }
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.json({ code: 500, msg: '获取公会列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取公会列表失败: ' + e.message });
         }
     });
 }

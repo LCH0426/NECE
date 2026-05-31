@@ -55,7 +55,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.json({ code: 500, msg: '获取留言列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取留言列表失败: ' + e.message });
         }
     });
 
@@ -81,7 +81,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.json({ code: 500, msg: '获取留言列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取留言列表失败: ' + e.message });
         }
     });
 
@@ -92,17 +92,17 @@ function registerRoutes(router, d) {
             let msg = d.messageBoard.getMessageById(msgId);
 
             if (!msg) {
-                return res.json({ code: 404, msg: '留言不存在' });
+                return res.status(404).json({ code: 404, msg: '留言不存在' });
             }
 
             let userXuid = d.getXuidByUid(req.user.uid) || req.user.uid;
             if (!d.database.isAdmin(req.user.uid) && msg.xuid !== userXuid) {
-                return res.json({ code: 403, msg: '无权查看此留言' });
+                return res.status(403).json({ code: 403, msg: '无权查看此留言' });
             }
 
             res.json({ code: 200, data: msg });
         } catch (e) {
-            res.json({ code: 500, msg: '获取留言详情失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取留言详情失败: ' + e.message });
         }
     });
 
@@ -113,11 +113,11 @@ function registerRoutes(router, d) {
             let mood = req.body.mood || '平静';
 
             if (!content || !content.trim()) {
-                return res.json({ code: 400, msg: '留言内容不能为空' });
+                return res.status(400).json({ code: 400, msg: '留言内容不能为空' });
             }
 
             if (content.length > 500) {
-                return res.json({ code: 400, msg: '留言内容不能超过500字符' });
+                return res.status(400).json({ code: 400, msg: '留言内容不能超过500字符' });
             }
 
             const MOOD_OPTIONS = ['开心', '难过', '平静', '兴奋', '生气'];
@@ -143,7 +143,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '留言发布成功', data: { id: newMsg.id } });
         } catch (e) {
-            res.json({ code: 500, msg: '发布留言失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '发布留言失败: ' + e.message });
         }
     });
 
@@ -154,20 +154,20 @@ function registerRoutes(router, d) {
             const msg = d.messageBoard.getMessageById(msgId);
 
             if (!msg) {
-                return res.json({ code: 404, msg: '留言不存在' });
+                return res.status(404).json({ code: 404, msg: '留言不存在' });
             }
 
             const userXuid = d.getXuidByUid(req.user.uid) || req.user.uid;
             if (!d.database.isAdmin(req.user.uid) && msg.xuid !== userXuid) {
-                return res.json({ code: 403, msg: '无权删除此留言' });
+                return res.status(403).json({ code: 403, msg: '无权删除此留言' });
             }
 
             if (msg.isDeleted) {
-                return res.json({ code: 400, msg: '留言已被删除' });
+                return res.status(400).json({ code: 400, msg: '留言已被删除' });
             }
 
             if (!d.messageBoard.deleteMessage(msgId)) {
-                return res.json({ code: 500, msg: '删除留言失败' });
+                return res.status(500).json({ code: 500, msg: '删除留言失败' });
             }
 
             // 仅管理员删他人留言时记录操作日志
@@ -177,7 +177,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '留言已删除' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除留言失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除留言失败: ' + e.message });
         }
     });
 }

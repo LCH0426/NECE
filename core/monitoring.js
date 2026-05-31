@@ -46,6 +46,7 @@ const ALL_MONEY_CACHE_TTL = 30000; // 缓存有效期30秒
 // 经济排行缓存，包含余额排行和银行存款排行
 const economyRankCache = {
     topBalances: [],
+    fullBalanceList: [],   // 完整余额排行缓存（供 /players/rank/balance 使用）
     totalBankCurrent: 0,
     totalBankFixed: 0,
     totalBankAll: 0,
@@ -196,8 +197,9 @@ function getEconomyRank() {
         return { name: item.name, bankTotal: item.bankTotal, current: item.current, fixed: item.fixed };
     });
 
-    // 更新缓存
+    // 更新缓存（含完整余额排行，供分页接口使用）
     economyRankCache.topBalances = topBalances;
+    economyRankCache.fullBalanceList = balanceList;
     economyRankCache.totalBankCurrent = totalBankCurrent;
     economyRankCache.totalBankFixed = totalBankFixed;
     economyRankCache.totalBankAll = totalBankCurrent + totalBankFixed;
@@ -603,12 +605,31 @@ function getSystemStats() {
     };
 }
 
+/**
+ * 获取完整余额排行（复用 getEconomyRank 的缓存，5分钟TTL）
+ * @param {string} order - 'asc' 或 'desc'
+ * @returns {Array} 排序后的 [{xuid, name, balance}]
+ */
+function getFullBalanceRank(order) {
+    const now = Date.now();
+    if (now - economyRankCache.timestamp >= ECONOMY_RANK_CACHE_TTL) {
+        getEconomyRank(); // 触发刷新
+    }
+    var list = economyRankCache.fullBalanceList || [];
+    if (order === 'asc') {
+        list = list.slice().sort(function(a, b) { return a.balance - b.balance; });
+    }
+    // 默认已是降序
+    return list;
+}
+
 module.exports = {
     // 游戏统计（原 serverStats）
     init: init,
     getTps: getTps,
     getAllMoney: getAllMoney,
     getEconomyRank: getEconomyRank,
+    getFullBalanceRank: getFullBalanceRank,
     // 玩家人数统计
     startPlayerCountSampling: startPlayerCountSampling,
     stopPlayerCountSampling: stopPlayerCountSampling,

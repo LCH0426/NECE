@@ -945,25 +945,29 @@ async function initAllConfigs() {
 	// ============ 依赖注入与模块创建 ============
 	// commonDeps：共享依赖包，聚合常用函数/数据，传递给需要广泛访问的模块
 	commonDeps = {
-		getPlayerMoney: getPlayerMoney,
-		addPlayerMoney: addPlayerMoney,
-		reducePlayerMoney: reducePlayerMoney,
-		addPlayerMoneyByXuid: addPlayerMoneyByXuid,
-		getPlayerMoneyByXuid: getPlayerMoneyByXuid,
-		getCurrencyName: getCurrencyName,
-		notifyEconomyChange: notifyEconomyChange,
-		getPlayerAvatarUrl: getPlayerAvatarUrl,
-		getVipInfo: getVipInfo,
-		giveItemById: giveItemById,
-		playerData: playerData,
-		savePlayerDataNow: savePlayerDataNow,
-		shopData: shopData,
-		recycleConfig: recycleConfig,
+		// 经济系统
+		getPlayerMoney: getPlayerMoney,       // (Player) => number — 获取在线玩家余额
+		addPlayerMoney: addPlayerMoney,       // (Player, number, string?) => void — 增加余额
+		reducePlayerMoney: reducePlayerMoney, // (Player, number, string?) => boolean — 减少余额
+		addPlayerMoneyByXuid: addPlayerMoneyByXuid,   // (xuid, number) => void — 按XUID增加余额
+		getPlayerMoneyByXuid: getPlayerMoneyByXuid,   // (xuid) => number — 按XUID查询余额
+		getCurrencyName: getCurrencyName,     // () => string — 获取货币名称
+		notifyEconomyChange: notifyEconomyChange, // (Player, number, string?) => void — 发送余额变动通知
+		money: money,                         // LLMoney API: get(xuid)/add(xuid,n)/reduce(xuid,n)
+		// 玩家数据
+		playerData: playerData,               // 内存中的玩家数据对象 { players: {}, nextUid: number }
+		savePlayerDataNow: savePlayerDataNow, // () => void — 立即保存所有玩家数据（关服用）
+		getPlayerSetting: getPlayerSetting,   // (xuid, key) => any — 获取玩家个人设置
+		getPlayerAvatarUrl: getPlayerAvatarUrl, // (xuid) => string — 获取玩家头像URL
+		getVipInfo: getVipInfo,               // (xuid) => object|null — 获取VIP信息
+		giveItemById: giveItemById,           // (Player, itemId, count) => boolean — 给予物品
+		// 商店/回收
+		shopData: shopData,                   // 商店商品数据
+		recycleConfig: recycleConfig,         // 回收配置
 		showRecycleForm: function(p) { shopModule.showRecycleForm(p, recycleConfig, commonDeps); },
-		RECYCLE_LOG_DIR: RECYCLE_LOG_DIR,
-		getPlayerSetting: getPlayerSetting,
-		money: money,
-		openMainMenu: personalCenter.openMainMenu
+		RECYCLE_LOG_DIR: RECYCLE_LOG_DIR,     // 回收日志目录
+		// UI
+		openMainMenu: personalCenter.openMainMenu // (Player) => void — 打开主菜单
 	};
 
 	teleportModule.init(config, homesDM, warpsDM, commonDeps);
@@ -1292,19 +1296,27 @@ mc.listen("onLeft", (player) => {
 });
 
 /** 注册游戏行为统计监听（挖掘、放置、击杀、死亡）和死亡点记录 */
+// 热路径缓存：避免每次事件都走 config.get 的 dot-path 解析
+var _rankEnabled = true;
+var _backEnabled = true;
+function _refreshStatConfigCache() {
+	_rankEnabled = config.get("rank.enabled") !== false;
+	_backEnabled = config.get("back.enabled") !== false;
+}
 function initStatTrackers() {
+	_refreshStatConfigCache();
 	mc.listen("onDestroyBlock", function(player, block) {
-		if (!config.get("rank.enabled")) return;
+		if (!_rankEnabled) return;
 		personalCenter.bumpStat(player.xuid, "mining", 1);
 	});
 
 	mc.listen("afterPlaceBlock", function(player, block) {
-		if (!config.get("rank.enabled")) return;
+		if (!_rankEnabled) return;
 		personalCenter.bumpStat(player.xuid, "placing", 1);
 	});
 
 	mc.listen("onMobDie", function(mob, source, cause) {
-		if (!config.get("rank.enabled")) return;
+		if (!_rankEnabled) return;
 		if (!source || !source.isPlayer()) return;
 		const killer = source.toPlayer();
 		if (killer && !killer.isSimulatedPlayer() && killer.realName !== undefined) {
@@ -1314,10 +1326,10 @@ function initStatTrackers() {
 	});
 
 	mc.listen("onPlayerDie", function(player, source) {
-		if (!config.get("rank.enabled")) return;
+		if (!_rankEnabled) return;
 		personalCenter.bumpStat(player.xuid, "deaths", 1);
 
-		if (config.get("back.enabled")) {
+		if (_backEnabled) {
 			teleportModule.recordDeathPoint(player);
 
 			// 死亡传送弹窗：记录死亡点后弹窗询问是否传送回去
@@ -1356,7 +1368,7 @@ initStatTrackers();
 
 /** 定时（约59秒）累计在线玩家的游戏时长到统计数据，只保存有变化的玩家 */
 function tickOnlineDurations() {
-	if (!config.get("rank.enabled")) return;
+	if (!_rankEnabled) return;
 	let now = Date.now();
 	Object.keys(_joinTimestamps).forEach(function(xuid) {
 		const blk = personalCenter.obtainStatBlock(xuid);
@@ -1370,16 +1382,37 @@ function tickOnlineDurations() {
 
 setInterval(tickOnlineDurations, 58848);
 
-// 定时（30秒）刷新在线玩家的leavetime，仅更新 leave_time 字段
+// 定时（30秒）清理已离线但未触发 onLeft 的残留条目（崩溃等异常情况）
+// 使用 mc.getOnlinePlayers() 单次原生调用替代 N 次 mc.getPlayer()
+var _leavetimeWriteTick = 0;
 setInterval(() => {
 	const now = Date.now();
+	// 一次原生调用获取所有在线玩家，构建 xuid Set
+	const onlineList = mc.getOnlinePlayers();
+	const onlineSet = {};
+	for (var i = 0; i < onlineList.length; i++) {
+		onlineSet[String(onlineList[i].xuid)] = true;
+	}
+	// 清理残留条目
 	Object.keys(onlinePlayers).forEach(xuid => {
-		const p = playerData.players[xuid];
-		if (p) {
-			p.leavetime = now;
-			database.updateLeaveTimeSQL(xuid, String(now));
+		if (!onlineSet[xuid]) {
+			delete onlinePlayers[xuid];
+			delete _joinTimestamps[xuid];
+			sidebarModule.clearPlayerCache(xuid);
 		}
 	});
+	// leavetime 仅每5个周期（约2.5分钟）写入一次，降低 SQLite 写入频率
+	_leavetimeWriteTick++;
+	if (_leavetimeWriteTick >= 5) {
+		_leavetimeWriteTick = 0;
+		Object.keys(onlinePlayers).forEach(xuid => {
+			const p = playerData.players[xuid];
+			if (p) {
+				p.leavetime = now;
+				database.updateLeaveTimeSQL(xuid, String(now));
+			}
+		});
+	}
 }, 30000);
 
 
@@ -1745,8 +1778,9 @@ mc.listen("onAttackEntity", function(player, entity) {
 			for (let i = 0; i < actions[entityType].length; i++) {
 				let action = actions[entityType][i];
 				if (U.cleanFormatting(action.name) === entityName) {
-					// @s占位符替换为玩家名字
-					const cmd = action.command.replace(/@s/g, player.name);
+					// @s占位符替换为玩家名字（过滤命令注入字符）
+					const safeName = player.name.replace(/[;&|`$(){}[\]<>!#]/g, '');
+					const cmd = action.command.replace(/@s/g, safeName);
 
 					if (action.permission === "console") {
 						mc.runcmdEx(cmd);
@@ -1809,6 +1843,7 @@ function initWebServer() {
 		webServer.onReload('config', function() {
 			try {
 				config.reload();
+				_refreshStatConfigCache();
 				if (hasWish) wishModule.reloadConfig();
 				backupModule.reload(config.get("backup"));
 				clearLagModule.reload();
@@ -1817,6 +1852,14 @@ function initWebServer() {
 		webServer.setPlayerDataRef(playerData);
 		webServer.setConfigRef(config);
 		webServer.setHasWish(hasWish, hasWish ? wishModule : null);
+		// JWT 默认密钥安全检查
+		if (webConfig.jwtSecret === 'NLCE_Default_Secret_Change_Me' || webConfig.jwtRefreshSecret === 'NLCE_Default_Refresh_Secret_Change_Me') {
+			logger.warn('==========================================================');
+			logger.warn('[安全] JWT 密钥仍为默认值！请立即修改 config.json 中的');
+			logger.warn('       web.jwtSecret 和 web.jwtRefreshSecret');
+			logger.warn('       否则任何人都可以伪造管理员登录令牌');
+			logger.warn('==========================================================');
+		}
 		webServer.startServer(webConfig);
 	}).catch(function(e) {
 		logger.error('[Web] 数据库初始化失败: ' + e.message);

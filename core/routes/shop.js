@@ -27,12 +27,19 @@ function registerRoutes(router, d) {
     const SHOP_DATA_PATH_API = d.pathModule.join(__dirname, '..', '..', 'data', 'shopdata.json');
     const ITEMS_PATH = d.pathModule.join(__dirname, '..', '..', 'WEB', 'textures', 'items.json');
 
-    // 加载物品贴图映射表（id -> {name, texture}），用于显示物品名称和图标
+    // 加载物品贴图映射表（id -> {name, texture}），带60秒缓存避免每次请求读磁盘
+    var _itemsMapCache = null;
+    var _itemsMapCacheTime = 0;
+    var ITEMS_MAP_CACHE_TTL = 60000;
     function loadItemsMap() {
+        var now = Date.now();
+        if (_itemsMapCache && now - _itemsMapCacheTime < ITEMS_MAP_CACHE_TTL) return _itemsMapCache;
         try {
             let content = d.fs.readFileSync(ITEMS_PATH, 'utf-8');
             let data = JSON.parse(content);
-            return data.item || data;
+            _itemsMapCache = data.item || data;
+            _itemsMapCacheTime = now;
+            return _itemsMapCache;
         } catch (e) {
             return {};
         }
@@ -102,7 +109,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: list });
         } catch (e) {
-            res.json({ code: 500, msg: '获取回收列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取回收列表失败: ' + e.message });
         }
     });
 
@@ -112,11 +119,11 @@ function registerRoutes(router, d) {
             let rawId = req.body.id;
             let price = req.body.price;
             if (!rawId || price === undefined) {
-                return res.json({ code: 400, msg: 'id和price为必填项' });
+                return res.status(400).json({ code: 400, msg: 'id和price为必填项' });
             }
             let v = validateItemId(rawId);
             if (!v.valid) {
-                return res.json({ code: 400, msg: '物品ID无效，不在items列表中' });
+                return res.status(400).json({ code: 400, msg: '物品ID无效，不在items列表中' });
             }
             let config = loadRecycleConfig();
             if (!config.recycleItems) config.recycleItems = {};
@@ -125,7 +132,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加回收物品', 'ID:' + v.fullId + ' 价格:' + price);
             res.json({ code: 200, msg: '添加成功', data: { id: v.fullId, name: v.name, image: v.image, price: price } });
         } catch (e) {
-            res.json({ code: 500, msg: '添加回收物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加回收物品失败: ' + e.message });
         }
     });
 
@@ -135,11 +142,11 @@ function registerRoutes(router, d) {
             let rawId = decodeURIComponent(req.params.id);
             let price = req.body.price;
             if (price === undefined) {
-                return res.json({ code: 400, msg: 'price为必填项' });
+                return res.status(400).json({ code: 400, msg: 'price为必填项' });
             }
             let config = loadRecycleConfig();
             if (!config.recycleItems || config.recycleItems[rawId] === undefined) {
-                return res.json({ code: 404, msg: '回收物品不存在' });
+                return res.status(404).json({ code: 404, msg: '回收物品不存在' });
             }
             let itemsMap = loadItemsMap();
             const info = getRecycleItemInfo(rawId, config.recycleItems, itemsMap);
@@ -148,7 +155,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改回收物品', 'ID:' + rawId + ' 价格:' + price);
             res.json({ code: 200, msg: '修改成功', data: { id: rawId, name: info.name, image: info.image, price: price } });
         } catch (e) {
-            res.json({ code: 500, msg: '修改回收物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改回收物品失败: ' + e.message });
         }
     });
 
@@ -158,14 +165,14 @@ function registerRoutes(router, d) {
             let rawId = decodeURIComponent(req.params.id);
             const config = loadRecycleConfig();
             if (!config.recycleItems || config.recycleItems[rawId] === undefined) {
-                return res.json({ code: 404, msg: '回收物品不存在' });
+                return res.status(404).json({ code: 404, msg: '回收物品不存在' });
             }
             delete config.recycleItems[rawId];
             saveRecycleConfig(config);
             d.adminLog.log(req.user.uid, '删除回收物品', 'ID:' + rawId);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除回收物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除回收物品失败: ' + e.message });
         }
     });
 
@@ -195,7 +202,7 @@ function registerRoutes(router, d) {
                 res.json({ code: 200, data: data });
             }
         } catch (e) {
-            res.json({ code: 500, msg: '获取商店数据失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取商店数据失败: ' + e.message });
         }
     });
 
@@ -205,14 +212,14 @@ function registerRoutes(router, d) {
             let data = loadShopData();
             let group = req.query.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
-                return res.json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
+                return res.status(400).json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
             }
             let groups = (data[group] || []).map(function(g, idx) {
                 return { index: idx, name: g.name, image: g.image, itemCount: (g.items || []).length };
             });
             res.json({ code: 200, data: groups });
         } catch (e) {
-            res.json({ code: 500, msg: '获取商店分组失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取商店分组失败: ' + e.message });
         }
     });
 
@@ -221,12 +228,12 @@ function registerRoutes(router, d) {
         try {
             let group = req.body.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
-                return res.json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
+                return res.status(400).json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
             }
             let name = req.body.name;
             let image = req.body.image || '';
             if (!name) {
-                return res.json({ code: 400, msg: '分组名称为必填项' });
+                return res.status(400).json({ code: 400, msg: '分组名称为必填项' });
             }
             let data = loadShopData();
             if (!data[group]) data[group] = [];
@@ -236,7 +243,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加商店分组', '大组:' + group + ' 名称:' + name);
             res.json({ code: 200, msg: '添加成功', data: { index: data[group].length - 1, name: name } });
         } catch (e) {
-            res.json({ code: 500, msg: '添加商店分组失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加商店分组失败: ' + e.message });
         }
     });
 
@@ -245,13 +252,13 @@ function registerRoutes(router, d) {
         try {
             let group = req.body.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
-                return res.json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
+                return res.status(400).json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
             }
             let gIdx = parseInt(req.params.groupIdx);
             let data = loadShopData();
             let list = data[group] || [];
             if (isNaN(gIdx) || gIdx < 0 || gIdx >= list.length) {
-                return res.json({ code: 404, msg: '分组不存在' });
+                return res.status(404).json({ code: 404, msg: '分组不存在' });
             }
             if (req.body.name !== undefined) list[gIdx].name = req.body.name;
             if (req.body.image !== undefined) list[gIdx].image = req.body.image;
@@ -260,7 +267,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改商店分组', '索引:' + gIdx + ' 名称:' + list[gIdx].name);
             res.json({ code: 200, msg: '修改成功', data: { index: gIdx, name: list[gIdx].name } });
         } catch (e) {
-            res.json({ code: 500, msg: '修改商店分组失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改商店分组失败: ' + e.message });
         }
     });
 
@@ -269,13 +276,13 @@ function registerRoutes(router, d) {
         try {
             let group = req.query.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
-                return res.json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
+                return res.status(400).json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
             }
             let gIdx = parseInt(req.params.groupIdx);
             let data = loadShopData();
             let list = data[group] || [];
             if (isNaN(gIdx) || gIdx < 0 || gIdx >= list.length) {
-                return res.json({ code: 404, msg: '分组不存在' });
+                return res.status(404).json({ code: 404, msg: '分组不存在' });
             }
             let removed = list.splice(gIdx, 1)[0];
             data[group] = list;
@@ -283,7 +290,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除商店分组', '名称:' + removed.name);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除商店分组失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除商店分组失败: ' + e.message });
         }
     });
 
@@ -292,16 +299,16 @@ function registerRoutes(router, d) {
         try {
             let group = req.query.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
-                return res.json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
+                return res.status(400).json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
             }
             let gIdx = parseInt(req.query.groupIdx);
             if (isNaN(gIdx)) {
-                return res.json({ code: 400, msg: 'groupIdx参数必填' });
+                return res.status(400).json({ code: 400, msg: 'groupIdx参数必填' });
             }
             let data = loadShopData();
             let groups = data[group] || [];
             if (gIdx < 0 || gIdx >= groups.length) {
-                return res.json({ code: 404, msg: '分组不存在' });
+                return res.status(404).json({ code: 404, msg: '分组不存在' });
             }
             let items = groups[gIdx].items || [];
             const itemsMap = loadItemsMap();
@@ -315,7 +322,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.json({ code: 500, msg: '获取商店物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取商店物品失败: ' + e.message });
         }
     });
 
@@ -324,25 +331,25 @@ function registerRoutes(router, d) {
         try {
             let group = req.body.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
-                return res.json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
+                return res.status(400).json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
             }
             let gIdx = parseInt(req.body.groupIdx);
             if (isNaN(gIdx)) {
-                return res.json({ code: 400, msg: 'groupIdx参数必填' });
+                return res.status(400).json({ code: 400, msg: 'groupIdx参数必填' });
             }
             const rawId = req.body.id;
             let money = req.body.money;
             if (!rawId || money === undefined) {
-                return res.json({ code: 400, msg: 'id和money为必填项' });
+                return res.status(400).json({ code: 400, msg: 'id和money为必填项' });
             }
             let v = validateItemId(rawId);
             if (!v.valid) {
-                return res.json({ code: 400, msg: '物品ID无效，不在items列表中' });
+                return res.status(400).json({ code: 400, msg: '物品ID无效，不在items列表中' });
             }
             let data = loadShopData();
             let groups = data[group] || [];
             if (gIdx < 0 || gIdx >= groups.length) {
-                return res.json({ code: 404, msg: '分组不存在' });
+                return res.status(404).json({ code: 404, msg: '分组不存在' });
             }
             const newItem = { id: v.fullId, money: money };
             if (!groups[gIdx].items) groups[gIdx].items = [];
@@ -352,7 +359,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加商店物品', '大组:' + group + ' 分组:' + gIdx + ' ID:' + v.fullId);
             res.json({ code: 200, msg: '添加成功', data: { id: v.fullId, name: v.name, money: money } });
         } catch (e) {
-            res.json({ code: 500, msg: '添加商店物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加商店物品失败: ' + e.message });
         }
     });
 
@@ -361,27 +368,27 @@ function registerRoutes(router, d) {
         try {
             let group = req.body.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
-                return res.json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
+                return res.status(400).json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
             }
             let gIdx = parseInt(req.body.groupIdx);
             let iIdx = parseInt(req.params.itemIdx);
             if (isNaN(gIdx) || isNaN(iIdx)) {
-                return res.json({ code: 400, msg: 'groupIdx和itemIdx参数必填' });
+                return res.status(400).json({ code: 400, msg: 'groupIdx和itemIdx参数必填' });
             }
             let data = loadShopData();
             let groups = data[group] || [];
             if (gIdx < 0 || gIdx >= groups.length) {
-                return res.json({ code: 404, msg: '分组不存在' });
+                return res.status(404).json({ code: 404, msg: '分组不存在' });
             }
             let items = groups[gIdx].items || [];
             if (iIdx < 0 || iIdx >= items.length) {
-                return res.json({ code: 404, msg: '物品不存在' });
+                return res.status(404).json({ code: 404, msg: '物品不存在' });
             }
             // 修改ID时需重新验证物品有效性
             if (req.body.id !== undefined) {
                 const v = validateItemId(req.body.id);
                 if (!v.valid) {
-                    return res.json({ code: 400, msg: '物品ID无效，不在items列表中' });
+                    return res.status(400).json({ code: 400, msg: '物品ID无效，不在items列表中' });
                 }
                 items[iIdx].id = v.fullId;
             }
@@ -394,7 +401,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改商店物品', '大组:' + group + ' 分组:' + gIdx + ' 物品索引:' + iIdx);
             res.json({ code: 200, msg: '修改成功' });
         } catch (e) {
-            res.json({ code: 500, msg: '修改商店物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改商店物品失败: ' + e.message });
         }
     });
 
@@ -403,21 +410,21 @@ function registerRoutes(router, d) {
         try {
             const group = req.query.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
-                return res.json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
+                return res.status(400).json({ code: 400, msg: 'group参数必填，值为Buy或Sell' });
             }
             const gIdx = parseInt(req.query.groupIdx);
             const iIdx = parseInt(req.params.itemIdx);
             if (isNaN(gIdx) || isNaN(iIdx)) {
-                return res.json({ code: 400, msg: 'groupIdx参数必填' });
+                return res.status(400).json({ code: 400, msg: 'groupIdx参数必填' });
             }
             const data = loadShopData();
             const groups = data[group] || [];
             if (gIdx < 0 || gIdx >= groups.length) {
-                return res.json({ code: 404, msg: '分组不存在' });
+                return res.status(404).json({ code: 404, msg: '分组不存在' });
             }
             let items = groups[gIdx].items || [];
             if (iIdx < 0 || iIdx >= items.length) {
-                return res.json({ code: 404, msg: '物品不存在' });
+                return res.status(404).json({ code: 404, msg: '物品不存在' });
             }
             const removed = items.splice(iIdx, 1)[0];
             groups[gIdx].items = items;
@@ -426,7 +433,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除商店物品', 'ID:' + (removed.id || ''));
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除商店物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除商店物品失败: ' + e.message });
         }
     });
 }

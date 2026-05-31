@@ -111,6 +111,7 @@ let _playerDataRef = null;  // 内存中的 playerData 对象引用，由 index.
 let _configRef = null;      // 内存中的 config 对象引用，由 index.js 注入
 let _hasWish = false;       // 是否加载了祈愿模块（由 index.js 注入）
 let _wishModuleRef = null;  // 祈愿模块引用（由 index.js 注入）
+let _webConfig = null;      // web配置引用（由 startServer 设置）
 
 /** 注入内存中的 playerData 对象引用，使 getPlayerData() 直接返回最新数据 */
 function setPlayerDataRef(ref) {
@@ -215,7 +216,7 @@ function parseCookies(req) {
 
 /** 设置 HttpOnly Refresh Token Cookie */
 function setRefreshTokenCookie(res, refreshToken, maxAge) {
-    const isSecure = false; // 开发环境默认 false，生产部署时应改为 true（需 HTTPS）
+    const isSecure = _webConfig && _webConfig.secureCookie === true;
     res.setHeader('Set-Cookie', [
         'refresh_token=' + refreshToken,
         'Path=/api/v1',
@@ -296,6 +297,10 @@ function issueTokenPair(uid, webConfig, existingFamilyId) {
  */
 function createApp(webConfig) {
     app = express();
+    // 反向代理支持：启用后 Express 从 X-Forwarded-For 头读取真实客户端 IP
+    if (webConfig.trustProxy) {
+        app.set('trust proxy', true);
+    }
 
     app.use(cors({
         origin: true,
@@ -461,7 +466,8 @@ function createV1Routes(webConfig) {
         getCurrencyName, getItemsMap, getItemName, getItemTexture, invalidateItemsCache,
         chatHistory, addChatMessage, MAX_CHAT_HISTORY,
         issueTokenPair, setRefreshTokenCookie, clearRefreshTokenCookie,
-        parseCookies, getRefreshSecret, triggerReload,
+        parseCookies, getRefreshSecret, getJwtSecret: function() { return _webConfig ? _webConfig.jwtSecret : ''; },
+        triggerReload,
         fs, pathModule,
         mc: mc, money: money,
         loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter,
@@ -483,7 +489,7 @@ function createV1Routes(webConfig) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取版本信息失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取版本信息失败: ' + e.message });
         }
     });
 
@@ -511,6 +517,7 @@ function createV1Routes(webConfig) {
  * @param {object} webConfig 含 port / host / enableFrontend 等字段
  */
 function startServer(webConfig) {
+    _webConfig = webConfig;
     const port = webConfig.port || 8080;
     const host = webConfig.host || '0.0.0.0';
 
@@ -577,7 +584,7 @@ function onReload(event, callback) {
 /** 触发指定事件的所有已注册回调，每个回调内部 try/catch 防止单个失败影响其余 */
 function triggerReload(event) {
     const cbs = _reloadCallbacks[event] || [];
-    cbs.forEach(function(cb) { try { cb(); } catch (e) {} });
+    cbs.forEach(function(cb) { try { cb(); } catch (e) { logger.error('[Web] 热重载回调失败[' + event + ']: ' + e.message); } });
 }
 
 module.exports = {

@@ -112,7 +112,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取邮件列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取邮件列表失败: ' + e.message });
         }
     });
 
@@ -123,7 +123,7 @@ function registerRoutes(router, d) {
             let mail = d.mailApi.getMailById(mailId);
 
             if (!mail) {
-                return res.json({ code: 404, msg: '邮件不存在' });
+                return res.status(404).json({ code: 404, msg: '邮件不存在' });
             }
 
             const toName = mail.toXuid === 'all' ? '全体玩家' : d.getPlayerName(mail.toXuid);
@@ -182,7 +182,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取邮件详情失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取邮件详情失败: ' + e.message });
         }
     });
 
@@ -195,27 +195,27 @@ function registerRoutes(router, d) {
         const mailItems = req.body.items || [];
 
         if (!content || !content.trim()) {
-            return res.json({ code: 400, msg: '邮件内容不能为空' });
+            return res.status(400).json({ code: 400, msg: '邮件内容不能为空' });
         }
 
         if (content.length > 2000) {
-            return res.json({ code: 400, msg: '邮件内容不能超过2000字符' });
+            return res.status(400).json({ code: 400, msg: '邮件内容不能超过2000字符' });
         }
 
         if (!toXuid) {
-            return res.json({ code: 400, msg: '缺少收件人参数 (toXuid，全体邮件请传 "all")' });
+            return res.status(400).json({ code: 400, msg: '缺少收件人参数 (toXuid，全体邮件请传 "all")' });
         }
 
         const intStarQian = Math.floor(Number(starQian));
         if (isNaN(intStarQian) || intStarQian < 0) {
-            return res.json({ code: 400, msg: d.getCurrencyName() + '奖励必须为非负整数' });
+            return res.status(400).json({ code: 400, msg: d.getCurrencyName() + '奖励必须为非负整数' });
         }
 
         // 验证并格式化附件物品，为普通物品生成SNBT字符串
         const validatedItems = [];
         if (Array.isArray(mailItems) && mailItems.length > 0) {
             if (mailItems.length > 10) {
-                return res.json({ code: 400, msg: '附件物品不能超过10个' });
+                return res.status(400).json({ code: 400, msg: '附件物品不能超过10个' });
             }
             for (let i = 0; i < mailItems.length; i++) {
                 const it = mailItems[i];
@@ -223,16 +223,16 @@ function registerRoutes(router, d) {
 
                 if (itemType === 'snbt') {
                     if (!it.snbt || typeof it.snbt !== 'string' || !it.snbt.trim()) {
-                        return res.json({ code: 400, msg: '第' + (i + 1) + '个物品缺少snbt' });
+                        return res.status(400).json({ code: 400, msg: '第' + (i + 1) + '个物品缺少snbt' });
                     }
                     validatedItems.push({ type: 'snbt', snbt: it.snbt.trim() });
                 } else {
                     if (!it.id || typeof it.id !== 'string') {
-                        return res.json({ code: 400, msg: '第' + (i + 1) + '个物品缺少id' });
+                        return res.status(400).json({ code: 400, msg: '第' + (i + 1) + '个物品缺少id' });
                     }
                     const count = Math.floor(Number(it.count)) || 1;
                     if (count < 1 || count > 2304) {
-                        return res.json({ code: 400, msg: '第' + (i + 1) + '个物品数量无效(1-2304)' });
+                        return res.status(400).json({ code: 400, msg: '第' + (i + 1) + '个物品数量无效(1-2304)' });
                     }
                     const itemId = it.id.startsWith('minecraft:') ? it.id : 'minecraft:' + it.id;
                     let itemName = d.getItemName(it.id) || it.id;
@@ -246,12 +246,12 @@ function registerRoutes(router, d) {
         // 定时邮件：校验时间格式（2026.05.12.18.00）并确保晚于当前时间
         if (scheduledTime) {
             if (!/^\d{4}\.\d{2}\.\d{2}\.\d{2}(\.\d{2})?$/.test(scheduledTime)) {
-                return res.json({ code: 400, msg: '定时时间格式不正确，正确格式：2026.05.12.18.00' });
+                return res.status(400).json({ code: 400, msg: '定时时间格式不正确，正确格式：2026.05.12.18.00' });
             }
             const parts = scheduledTime.split('.').map(Number);
             const scheduledDate = new Date(parts[0], parts[1] - 1, parts[2], parts[3], parts[4] || 0, 0);
             if (scheduledDate <= new Date()) {
-                return res.json({ code: 400, msg: '定时时间必须晚于当前时间' });
+                return res.status(400).json({ code: 400, msg: '定时时间必须晚于当前时间' });
             }
         }
 
@@ -260,7 +260,7 @@ function registerRoutes(router, d) {
             if (toXuid !== 'all') {
                 const playerData = d.getPlayerData();
                 if (!playerData || !playerData.players || !playerData.players[toXuid]) {
-                    return res.json({ code: 404, msg: '目标玩家不存在' });
+                    return res.status(404).json({ code: 404, msg: '目标玩家不存在' });
                 }
             }
 
@@ -317,7 +317,7 @@ function registerRoutes(router, d) {
                 data: { id: newMail.id, toXuid: toXuid, toName: targetDesc }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '发送邮件失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '发送邮件失败: ' + e.message });
         }
     });
 
@@ -328,21 +328,21 @@ function registerRoutes(router, d) {
             const mail = d.mailApi.getMailById(mailId);
 
             if (!mail) {
-                return res.json({ code: 404, msg: '邮件不存在' });
+                return res.status(404).json({ code: 404, msg: '邮件不存在' });
             }
 
             const targetDesc = mail.toXuid === 'all' ? '全体玩家' : d.getPlayerName(mail.toXuid);
             const contentPreview = (mail.content || '').substring(0, 100);
 
             if (!d.mailApi.deleteMail(mailId)) {
-                return res.json({ code: 500, msg: '保存邮件数据失败' });
+                return res.status(500).json({ code: 500, msg: '保存邮件数据失败' });
             }
 
             d.adminLog.log(req.user.uid, '删除邮件', 'ID:' + mailId + ' 目标:' + targetDesc, '内容: ' + contentPreview);
 
             res.json({ code: 200, msg: '邮件已删除' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除邮件失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除邮件失败: ' + e.message });
         }
     });
 }

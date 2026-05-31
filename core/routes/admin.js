@@ -34,7 +34,7 @@ function registerRoutes(router, d) {
             }
             res.json({ code: 200, data: stats });
         } catch (e) {
-            res.json({ code: 500, msg: '获取备份统计失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取备份统计失败: ' + e.message });
         }
     });
 
@@ -47,7 +47,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: backups });
         } catch (e) {
-            res.json({ code: 500, msg: '获取备份列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取备份列表失败: ' + e.message });
         }
     });
 
@@ -56,18 +56,18 @@ function registerRoutes(router, d) {
         try {
             // 防止并发备份
             if (d.backupModule.isBackupRunning()) {
-                return res.json({ code: 400, msg: '备份正在进行中，请稍后再试' });
+                return res.status(400).json({ code: 400, msg: '备份正在进行中，请稍后再试' });
             }
             d.adminLog.log(req.user.uid, '执行备份', '手动触发');
             d.backupModule.executeBackup(function(err, result) {
                 if (err) {
-                    res.json({ code: 500, msg: err.error || '备份失败' });
+                    res.status(500).json({ code: 500, msg: err.error || '备份失败' });
                 } else {
                     res.json({ code: 200, msg: '备份完成', data: result });
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '备份失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '备份失败: ' + e.message });
         }
     });
 
@@ -76,7 +76,7 @@ function registerRoutes(router, d) {
         try {
             res.json({ code: 200, data: { isRunning: d.backupModule.isBackupRunning() } });
         } catch (e) {
-            res.json({ code: 500, msg: '获取备份状态失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取备份状态失败: ' + e.message });
         }
     });
 
@@ -89,10 +89,10 @@ function registerRoutes(router, d) {
                 d.adminLog.log(req.user.uid, '删除备份', '文件:' + filename);
                 res.json({ code: 200, msg: '备份已删除' });
             } else {
-                res.json({ code: 400, msg: result.error });
+                res.status(400).json({ code: 400, msg: result.error });
             }
         } catch (e) {
-            res.json({ code: 500, msg: '删除备份失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除备份失败: ' + e.message });
         }
     });
 
@@ -102,19 +102,19 @@ function registerRoutes(router, d) {
             const filename = req.params.filename;
             // 防止路径穿越攻击
             if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-                return res.json({ code: 400, msg: '非法文件名' });
+                return res.status(400).json({ code: 400, msg: '非法文件名' });
             }
             if (!filename.endsWith('.7z')) {
-                return res.json({ code: 400, msg: '只能下载.7z备份文件' });
+                return res.status(400).json({ code: 400, msg: '只能下载.7z备份文件' });
             }
             const backupDir = d.backupModule.getBackupDir();
             const filePath = d.pathModule.join(backupDir, filename);
             if (!d.fs.existsSync(filePath)) {
-                return res.json({ code: 404, msg: '文件不存在' });
+                return res.status(404).json({ code: 404, msg: '文件不存在' });
             }
             res.download(filePath, filename);
         } catch (e) {
-            res.json({ code: 500, msg: '下载备份失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '下载备份失败: ' + e.message });
         }
     });
 
@@ -124,7 +124,7 @@ function registerRoutes(router, d) {
             let cfg = d.backupModule.getConfig();
             res.json({ code: 200, data: cfg });
         } catch (e) {
-            res.json({ code: 500, msg: '获取备份配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取备份配置失败: ' + e.message });
         }
     });
 
@@ -156,17 +156,17 @@ function registerRoutes(router, d) {
             const MAIN_CONFIG_PATH = d.pathModule.join(__dirname, '..', '..', 'config.json');
             try {
                 const mainCfg = JSON.parse(d.fs.readFileSync(MAIN_CONFIG_PATH, 'utf-8'));
-                mainCfg.backupConfig = cfg;
+                mainCfg.backup = cfg;
                 d.fs.writeFileSync(MAIN_CONFIG_PATH, JSON.stringify(mainCfg, null, 4), 'utf-8');
             } catch (e) {
-                return res.json({ code: 500, msg: '保存配置文件失败: ' + e.message });
+                return res.status(500).json({ code: 500, msg: '保存配置文件失败: ' + e.message });
             }
 
             d.backupModule.reload(cfg);
             d.adminLog.log(req.user.uid, '修改备份配置', JSON.stringify(cfg));
             res.json({ code: 200, msg: '备份配置已更新', data: cfg });
         } catch (e) {
-            res.json({ code: 500, msg: '更新备份配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '更新备份配置失败: ' + e.message });
         }
     });
 
@@ -176,7 +176,7 @@ function registerRoutes(router, d) {
             const list = d.banModule.apiGetBanList();
             res.json({ code: 200, data: list });
         } catch (e) {
-            res.json({ code: 500, msg: '获取封禁列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取封禁列表失败: ' + e.message });
         }
     });
 
@@ -187,7 +187,7 @@ function registerRoutes(router, d) {
             const reason = (req.body.reason || '').trim() || 'Web管理面板封禁';
             const operator = (req.body.operator || '').trim() || 'Web管理面板';
 
-            if (!identifier) return res.json({ code: 400, msg: '缺少identifier参数' });
+            if (!identifier) return res.status(400).json({ code: 400, msg: '缺少identifier参数' });
 
             let result = d.banModule.apiBan(identifier, reason, operator);
             if (result.success) {
@@ -195,7 +195,7 @@ function registerRoutes(router, d) {
             }
             res.json({ code: result.success ? 200 : 400, msg: result.message, data: result.success ? { xuid: result.xuid } : null });
         } catch (e) {
-            res.json({ code: 500, msg: '封禁操作失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '封禁操作失败: ' + e.message });
         }
     });
 
@@ -203,7 +203,7 @@ function registerRoutes(router, d) {
     router.post('/unban', d.adminAuth, function(req, res) {
         try {
             const identifier = (req.body.identifier || '').trim();
-            if (!identifier) return res.json({ code: 400, msg: '缺少identifier参数' });
+            if (!identifier) return res.status(400).json({ code: 400, msg: '缺少identifier参数' });
 
             let result = d.banModule.apiUnban(identifier);
             if (result.success) {
@@ -211,7 +211,7 @@ function registerRoutes(router, d) {
             }
             res.json({ code: result.success ? 200 : 400, msg: result.message });
         } catch (e) {
-            res.json({ code: 500, msg: '解封操作失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '解封操作失败: ' + e.message });
         }
     });
 
@@ -220,12 +220,12 @@ function registerRoutes(router, d) {
         try {
             const xuid = (req.query.xuid || '').trim();
             const ip = (req.query.ip || '').trim();
-            if (!xuid) return res.json({ code: 400, msg: '缺少xuid参数' });
+            if (!xuid) return res.status(400).json({ code: 400, msg: '缺少xuid参数' });
 
             const result = d.banModule.apiIsBanned(xuid, ip);
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.json({ code: 500, msg: '查询封禁状态失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '查询封禁状态失败: ' + e.message });
         }
     });
 
@@ -237,7 +237,7 @@ function registerRoutes(router, d) {
             const stats = d.monitoring.getPlayerCountStats();
             res.json({ code: 200, data: stats });
         } catch (e) {
-            res.json({ code: 500, msg: '获取人数统计失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取人数统计失败: ' + e.message });
         }
     });
 
@@ -267,7 +267,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取人数趋势失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取人数趋势失败: ' + e.message });
         }
     });
 
@@ -281,7 +281,7 @@ function registerRoutes(router, d) {
             let clearLagCfg = cfg.clearLag || {};
             res.json({ code: 200, data: clearLagCfg });
         } catch (e) {
-            res.json({ code: 500, msg: '获取清理配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取清理配置失败: ' + e.message });
         }
     });
 
@@ -296,23 +296,23 @@ function registerRoutes(router, d) {
             if (req.body.enabled !== undefined) clCfg.enabled = !!req.body.enabled;
             if (req.body.interval !== undefined) {
                 let v = parseInt(req.body.interval);
-                if (isNaN(v) || v < 60) return res.json({ code: 400, msg: 'interval必须>=60秒' });
+                if (isNaN(v) || v < 60) return res.status(400).json({ code: 400, msg: 'interval必须>=60秒' });
                 clCfg.interval = v;
             }
             if (req.body.reminderSeconds !== undefined) {
                 let v = parseInt(req.body.reminderSeconds);
-                if (isNaN(v) || v < 0) return res.json({ code: 400, msg: 'reminderSeconds必须为非负整数' });
+                if (isNaN(v) || v < 0) return res.status(400).json({ code: 400, msg: 'reminderSeconds必须为非负整数' });
                 clCfg.reminderSeconds = v;
             }
             if (req.body.message !== undefined) clCfg.message = req.body.message;
             if (req.body.cleanMessage !== undefined) clCfg.cleanMessage = req.body.cleanMessage;
             if (req.body.cleanTypes !== undefined) {
-                if (!Array.isArray(req.body.cleanTypes)) return res.json({ code: 400, msg: 'cleanTypes必须为数组' });
+                if (!Array.isArray(req.body.cleanTypes)) return res.status(400).json({ code: 400, msg: 'cleanTypes必须为数组' });
                 clCfg.cleanTypes = req.body.cleanTypes;
             }
             if (req.body.maxEntitiesPerType !== undefined) {
                 let v = parseInt(req.body.maxEntitiesPerType);
-                if (isNaN(v) || v < 1) return res.json({ code: 400, msg: 'maxEntitiesPerType必须为正整数' });
+                if (isNaN(v) || v < 1) return res.status(400).json({ code: 400, msg: 'maxEntitiesPerType必须为正整数' });
                 clCfg.maxEntitiesPerType = v;
             }
             cfg.clearLag = clCfg;
@@ -321,7 +321,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改清理配置', JSON.stringify(clCfg));
             res.json({ code: 200, msg: '清理配置已更新', data: clCfg });
         } catch (e) {
-            res.json({ code: 500, msg: '更新清理配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '更新清理配置失败: ' + e.message });
         }
     });
 
@@ -331,7 +331,7 @@ function registerRoutes(router, d) {
             let stats = d.clearLagModule.getStats();
             res.json({ code: 200, data: stats });
         } catch (e) {
-            res.json({ code: 500, msg: '获取实体统计失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取实体统计失败: ' + e.message });
         }
     });
 
@@ -342,7 +342,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '手动触发清理', '清理了' + result.killed + '个实体');
             res.json({ code: 200, msg: '清理完成', data: result });
         } catch (e) {
-            res.json({ code: 500, msg: '执行清理失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '执行清理失败: ' + e.message });
         }
     });
 
@@ -353,16 +353,16 @@ function registerRoutes(router, d) {
             var endTime = parseInt(req.query.end);
 
             if (isNaN(startTime) || isNaN(endTime)) {
-                res.json({ code: 400, msg: '缺少start或end参数（Unix时间戳秒）' });
+                res.status(400).json({ code: 400, msg: '缺少start或end参数（Unix时间戳秒）' });
                 return;
             }
             if (startTime >= endTime) {
-                res.json({ code: 400, msg: 'start必须小于end' });
+                res.status(400).json({ code: 400, msg: 'start必须小于end' });
                 return;
             }
             // 限制查询范围不超过30天
             if (endTime - startTime > 30 * 86400) {
-                res.json({ code: 400, msg: '查询范围不能超过30天' });
+                res.status(400).json({ code: 400, msg: '查询范围不能超过30天' });
                 return;
             }
 
@@ -376,7 +376,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取人数历史失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取人数历史失败: ' + e.message });
         }
     });
 }

@@ -66,14 +66,16 @@ function markPlayerDirty(xuid) {
 function savePlayerData() {
     if (_dirtyPlayers.size === 0) return;
     let playerData = _getPlayerData();
+    // 先快照再清空，避免清空后、写入前到达的 markPlayerDirty 调用丢失
+    let dirtySnapshot = Array.from(_dirtyPlayers);
+    _dirtyPlayers.clear();
     let ops = [];
-    _dirtyPlayers.forEach(function(xuid) {
+    dirtySnapshot.forEach(function(xuid) {
         if (playerData.players && playerData.players[xuid]) {
             const data = playerData.players[xuid];
             ops.push(function() { _database.setPlayerDataSQL(xuid, data); });
         }
     });
-    _dirtyPlayers.clear();
     _database.batchSavePlayerDb(ops);
     _database.requestSavePlayerDb();
 }
