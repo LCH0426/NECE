@@ -55,7 +55,7 @@ function registerRoutes(router, d) {
             let config = loadWishConfig();
             res.json({ code: 200, data: config });
         } catch (e) {
-            res.json({ code: 500, msg: '获取祈愿配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取祈愿配置失败: ' + e.message });
         }
     });
 
@@ -68,7 +68,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改卡池信息', 'Banner已更新');
             res.json({ code: 200, msg: '修改成功', data: { banner: config.banner } });
         } catch (e) {
-            res.json({ code: 500, msg: '修改卡池信息失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改卡池信息失败: ' + e.message });
         }
     });
 
@@ -78,7 +78,7 @@ function registerRoutes(router, d) {
             let name = req.body.name;
             let snbt = req.body.snbt;
             if (!name || !snbt) {
-                return res.json({ code: 400, msg: 'name和snbt为必填项' });
+                return res.status(400).json({ code: 400, msg: 'name和snbt为必填项' });
             }
             let config = loadWishConfig();
             if (!config.rewards) config.rewards = {};
@@ -89,7 +89,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加四星奖励', '名称:' + name);
             res.json({ code: 200, msg: '添加成功', data: item });
         } catch (e) {
-            res.json({ code: 500, msg: '添加四星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加四星奖励失败: ' + e.message });
         }
     });
 
@@ -100,7 +100,7 @@ function registerRoutes(router, d) {
             let config = loadWishConfig();
             let list = (config.rewards && config.rewards.fourStar) || [];
             if (isNaN(idx) || idx < 0 || idx >= list.length) {
-                return res.json({ code: 404, msg: '奖励不存在' });
+                return res.status(404).json({ code: 404, msg: '奖励不存在' });
             }
             if (req.body.name !== undefined) list[idx].name = req.body.name;
             if (req.body.snbt !== undefined) list[idx].snbt = req.body.snbt;
@@ -109,7 +109,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改四星奖励', '索引:' + idx + ' 名称:' + list[idx].name);
             res.json({ code: 200, msg: '修改成功', data: list[idx] });
         } catch (e) {
-            res.json({ code: 500, msg: '修改四星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改四星奖励失败: ' + e.message });
         }
     });
 
@@ -120,7 +120,7 @@ function registerRoutes(router, d) {
             let config = loadWishConfig();
             let list = (config.rewards && config.rewards.fourStar) || [];
             if (isNaN(idx) || idx < 0 || idx >= list.length) {
-                return res.json({ code: 404, msg: '奖励不存在' });
+                return res.status(404).json({ code: 404, msg: '奖励不存在' });
             }
             let removed = list.splice(idx, 1)[0];
             config.rewards.fourStar = list;
@@ -128,7 +128,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除四星奖励', '名称:' + removed.name);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除四星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除四星奖励失败: ' + e.message });
         }
     });
 
@@ -138,7 +138,7 @@ function registerRoutes(router, d) {
             let name = req.body.name;
             let snbt = req.body.snbt;
             if (!name || !snbt) {
-                return res.json({ code: 400, msg: 'name和snbt为必填项' });
+                return res.status(400).json({ code: 400, msg: 'name和snbt为必填项' });
             }
             let config = loadWishConfig();
             if (!config.rewards) config.rewards = {};
@@ -149,7 +149,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加五星奖励', '名称:' + name);
             res.json({ code: 200, msg: '添加成功', data: item });
         } catch (e) {
-            res.json({ code: 500, msg: '添加五星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加五星奖励失败: ' + e.message });
         }
     });
 
@@ -160,7 +160,7 @@ function registerRoutes(router, d) {
             let config = loadWishConfig();
             let list = (config.rewards && config.rewards.fiveStar) || [];
             if (isNaN(idx) || idx < 0 || idx >= list.length) {
-                return res.json({ code: 404, msg: '奖励不存在' });
+                return res.status(404).json({ code: 404, msg: '奖励不存在' });
             }
             if (req.body.name !== undefined) list[idx].name = req.body.name;
             if (req.body.snbt !== undefined) list[idx].snbt = req.body.snbt;
@@ -169,7 +169,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改五星奖励', '索引:' + idx + ' 名称:' + list[idx].name);
             res.json({ code: 200, msg: '修改成功', data: list[idx] });
         } catch (e) {
-            res.json({ code: 500, msg: '修改五星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改五星奖励失败: ' + e.message });
         }
     });
 
@@ -180,7 +180,7 @@ function registerRoutes(router, d) {
             let config = loadWishConfig();
             let list = (config.rewards && config.rewards.fiveStar) || [];
             if (isNaN(idx) || idx < 0 || idx >= list.length) {
-                return res.json({ code: 404, msg: '奖励不存在' });
+                return res.status(404).json({ code: 404, msg: '奖励不存在' });
             }
             let removed = list.splice(idx, 1)[0];
             config.rewards.fiveStar = list;
@@ -188,7 +188,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除五星奖励', '名称:' + removed.name);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除五星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除五星奖励失败: ' + e.message });
         }
     });
 
@@ -199,7 +199,7 @@ function registerRoutes(router, d) {
             let snbt = req.body.snbt;
             let cost = req.body.cost;
             if (!name || !snbt || cost === undefined) {
-                return res.json({ code: 400, msg: 'name、snbt和cost为必填项' });
+                return res.status(400).json({ code: 400, msg: 'name、snbt和cost为必填项' });
             }
             let config = loadWishConfig();
             if (!config.coreShop) config.coreShop = [];
@@ -209,7 +209,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加核心兑换物品', '名称:' + name);
             res.json({ code: 200, msg: '添加成功', data: item });
         } catch (e) {
-            res.json({ code: 500, msg: '添加核心兑换物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加核心兑换物品失败: ' + e.message });
         }
     });
 
@@ -220,7 +220,7 @@ function registerRoutes(router, d) {
             let config = loadWishConfig();
             let list = config.coreShop || [];
             if (isNaN(idx) || idx < 0 || idx >= list.length) {
-                return res.json({ code: 404, msg: '兑换物品不存在' });
+                return res.status(404).json({ code: 404, msg: '兑换物品不存在' });
             }
             if (req.body.name !== undefined) list[idx].name = req.body.name;
             if (req.body.snbt !== undefined) list[idx].snbt = req.body.snbt;
@@ -232,7 +232,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改核心兑换物品', '索引:' + idx + ' 名称:' + list[idx].name);
             res.json({ code: 200, msg: '修改成功', data: list[idx] });
         } catch (e) {
-            res.json({ code: 500, msg: '修改核心兑换物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改核心兑换物品失败: ' + e.message });
         }
     });
 
@@ -243,7 +243,7 @@ function registerRoutes(router, d) {
             let config = loadWishConfig();
             let list = config.coreShop || [];
             if (isNaN(idx) || idx < 0 || idx >= list.length) {
-                return res.json({ code: 404, msg: '兑换物品不存在' });
+                return res.status(404).json({ code: 404, msg: '兑换物品不存在' });
             }
             let removed = list.splice(idx, 1)[0];
             config.coreShop = list;
@@ -251,7 +251,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除核心兑换物品', '名称:' + removed.name);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.json({ code: 500, msg: '删除核心兑换物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除核心兑换物品失败: ' + e.message });
         }
     });
 
@@ -263,22 +263,22 @@ function registerRoutes(router, d) {
             if (!cfg.rewards.threeStar) cfg.rewards.threeStar = {};
             if (req.body.minDust !== undefined) {
                 const min = parseInt(req.body.minDust);
-                if (isNaN(min) || min < 0) return res.json({ code: 400, msg: 'minDust必须为非负整数' });
+                if (isNaN(min) || min < 0) return res.status(400).json({ code: 400, msg: 'minDust必须为非负整数' });
                 cfg.rewards.threeStar.minDust = min;
             }
             if (req.body.maxDust !== undefined) {
                 const max = parseInt(req.body.maxDust);
-                if (isNaN(max) || max < 0) return res.json({ code: 400, msg: 'maxDust必须为非负整数' });
+                if (isNaN(max) || max < 0) return res.status(400).json({ code: 400, msg: 'maxDust必须为非负整数' });
                 cfg.rewards.threeStar.maxDust = max;
             }
             if (cfg.rewards.threeStar.minDust > cfg.rewards.threeStar.maxDust) {
-                return res.json({ code: 400, msg: 'minDust不能大于maxDust' });
+                return res.status(400).json({ code: 400, msg: 'minDust不能大于maxDust' });
             }
             saveWishConfig(cfg);
             d.adminLog.log(req.user.uid, '修改三星物品配置', JSON.stringify(cfg.rewards.threeStar));
             res.json({ code: 200, msg: '修改成功', data: cfg.rewards.threeStar });
         } catch (e) {
-            res.json({ code: 500, msg: '修改三星物品配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改三星物品配置失败: ' + e.message });
         }
     });
 
@@ -289,36 +289,36 @@ function registerRoutes(router, d) {
             if (!cfg.rates) cfg.rates = {};
             if (req.body.fiveStar !== undefined) {
                 let v = parseFloat(req.body.fiveStar);
-                if (isNaN(v) || v < 0 || v > 1) return res.json({ code: 400, msg: 'fiveStar概率必须在0-1之间' });
+                if (isNaN(v) || v < 0 || v > 1) return res.status(400).json({ code: 400, msg: 'fiveStar概率必须在0-1之间' });
                 cfg.rates.fiveStar = v;
             }
             if (req.body.fourStar !== undefined) {
                 let v = parseFloat(req.body.fourStar);
-                if (isNaN(v) || v < 0 || v > 1) return res.json({ code: 400, msg: 'fourStar概率必须在0-1之间' });
+                if (isNaN(v) || v < 0 || v > 1) return res.status(400).json({ code: 400, msg: 'fourStar概率必须在0-1之间' });
                 cfg.rates.fourStar = v;
             }
             // 软保底：达到该抽数后概率逐步提升
             if (req.body.fiveStarSoftPity !== undefined) {
                 let v = parseInt(req.body.fiveStarSoftPity);
-                if (isNaN(v) || v < 1) return res.json({ code: 400, msg: 'fiveStarSoftPity必须为正整数' });
+                if (isNaN(v) || v < 1) return res.status(400).json({ code: 400, msg: 'fiveStarSoftPity必须为正整数' });
                 cfg.rates.fiveStarSoftPity = v;
             }
             // 硬保底：达到该抽数必出五星
             if (req.body.fiveStarHardPity !== undefined) {
                 let v = parseInt(req.body.fiveStarHardPity);
-                if (isNaN(v) || v < 1) return res.json({ code: 400, msg: 'fiveStarHardPity必须为正整数' });
+                if (isNaN(v) || v < 1) return res.status(400).json({ code: 400, msg: 'fiveStarHardPity必须为正整数' });
                 cfg.rates.fiveStarHardPity = v;
             }
             if (req.body.fourStarGuarantee !== undefined) {
                 let v = parseInt(req.body.fourStarGuarantee);
-                if (isNaN(v) || v < 1) return res.json({ code: 400, msg: 'fourStarGuarantee必须为正整数' });
+                if (isNaN(v) || v < 1) return res.status(400).json({ code: 400, msg: 'fourStarGuarantee必须为正整数' });
                 cfg.rates.fourStarGuarantee = v;
             }
             saveWishConfig(cfg);
             d.adminLog.log(req.user.uid, '修改祈愿概率配置', JSON.stringify(cfg.rates));
             res.json({ code: 200, msg: '修改成功', data: cfg.rates });
         } catch (e) {
-            res.json({ code: 500, msg: '修改祈愿概率配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改祈愿概率配置失败: ' + e.message });
         }
     });
 
@@ -329,19 +329,19 @@ function registerRoutes(router, d) {
             if (!cfg.cost) cfg.cost = {};
             if (req.body.single !== undefined) {
                 let v = parseInt(req.body.single);
-                if (isNaN(v) || v < 0) return res.json({ code: 400, msg: 'single必须为非负整数' });
+                if (isNaN(v) || v < 0) return res.status(400).json({ code: 400, msg: 'single必须为非负整数' });
                 cfg.cost.single = v;
             }
             if (req.body.ten !== undefined) {
                 let v = parseInt(req.body.ten);
-                if (isNaN(v) || v < 0) return res.json({ code: 400, msg: 'ten必须为非负整数' });
+                if (isNaN(v) || v < 0) return res.status(400).json({ code: 400, msg: 'ten必须为非负整数' });
                 cfg.cost.ten = v;
             }
             saveWishConfig(cfg);
             d.adminLog.log(req.user.uid, '修改祈愿花费配置', JSON.stringify(cfg.cost));
             res.json({ code: 200, msg: '修改成功', data: cfg.cost });
         } catch (e) {
-            res.json({ code: 500, msg: '修改祈愿花费配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改祈愿花费配置失败: ' + e.message });
         }
     });
 
@@ -356,7 +356,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改祈愿系统说明', 'description已更新');
             res.json({ code: 200, msg: '修改成功', data: { description: cfg.description } });
         } catch (e) {
-            res.json({ code: 500, msg: '修改祈愿系统说明失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改祈愿系统说明失败: ' + e.message });
         }
     });
 
@@ -392,7 +392,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: features });
         } catch (e) {
-            res.json({ code: 500, msg: '获取功能开关失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取功能开关失败: ' + e.message });
         }
     });
 
@@ -415,7 +415,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改功能开关', JSON.stringify(updated));
             res.json({ code: 200, msg: '修改成功', data: updated });
         } catch (e) {
-            res.json({ code: 500, msg: '修改功能开关失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改功能开关失败: ' + e.message });
         }
     });
 }

@@ -31,20 +31,20 @@ function registerRoutes(router, d) {
         const captchaCode = req.body.captchaCode;
 
         if (!uid || !password) {
-            return res.json({ code: 400, msg: 'UID和密码不能为空' });
+            return res.status(400).json({ code: 400, msg: 'UID和密码不能为空' });
         }
 
         if (!captchaId || !captchaCode) {
-            return res.json({ code: 400, msg: '验证码不能为空' });
+            return res.status(400).json({ code: 400, msg: '验证码不能为空' });
         }
 
         // 验证码校验（一次性，验证后自动失效）
         if (!d.database.verifyCaptcha(captchaId, captchaCode)) {
-            return res.json({ code: 400, msg: '验证码错误或已过期' });
+            return res.status(400).json({ code: 400, msg: '验证码错误或已过期' });
         }
 
         if (!d.database.verifyPassword(String(uid), password)) {
-            return res.json({ code: 401, msg: 'UID或密码错误' });
+            return res.status(401).json({ code: 401, msg: 'UID或密码错误' });
         }
 
         // 签发Token对，Refresh Token通过Cookie下发
@@ -130,11 +130,12 @@ function registerRoutes(router, d) {
         // 将Access Token加入黑名单（保留至原过期时间自动清理）
         if (accessToken) {
             try {
-                const decoded = d.jwt.decode(accessToken);
+                // 用 verify 验证签名（忽略过期），防止伪造 jti 黑名单他人 token
+                const decoded = d.jwt.verify(accessToken, d.getJwtSecret(), { ignoreExpiration: true });
                 if (decoded && decoded.jti && decoded.exp) {
                     d.database.blacklistAccessToken(decoded.jti, decoded.exp * 1000);
                 }
-            } catch (e) {}
+            } catch (e) { /* token签名无效或格式错误，跳过黑名单 */ }
         }
 
         const cookies = d.parseCookies(req);
@@ -147,7 +148,7 @@ function registerRoutes(router, d) {
                 if (refreshDecoded && refreshDecoded.jti) {
                     d.database.revokeRefreshToken(refreshDecoded.jti);
                 }
-            } catch (e) {}
+            } catch (e) { /* token格式错误，跳过撤销 */ }
         }
 
         d.clearRefreshTokenCookie(res);

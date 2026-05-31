@@ -26,6 +26,7 @@ const D = require('./debug');
 const fs = require('fs');
 const pathModule = require('path');
 const _7z = require('7zip-min');
+const { copyDirSync, rmrf } = require('./utils');
 
 let backupConfig = null;    // 备份配置（interval、compressionLevel、maxAgeDays、maxCount）
 let backupDir = '';         // 备份文件存储目录
@@ -324,7 +325,7 @@ function executeBackup(callback) {
 
                                 if (completed >= total) {
                                     // 清理临时目录
-                                    try { rmrfSync(tempDir); } catch (e) { logger.error('清理临时目录失败: ' + e.message); }
+                                    try { rmrf(tempDir); } catch (e) { logger.error('清理临时目录失败: ' + e.message); }
                                     finishBackup(results, startTime, onlinePlayers, callback);
                                 }
                             });
@@ -341,45 +342,6 @@ function executeBackup(callback) {
             }
         });
     }, 1000);
-}
-
-/**
- * 递归同步复制目录
- * @param {string} src - 源目录
- * @param {string} dest - 目标目录
- */
-function copyDirSync(src, dest) {
-    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-    var entries = fs.readdirSync(src, { withFileTypes: true });
-    for (var i = 0; i < entries.length; i++) {
-        var entry = entries[i];
-        var srcPath = pathModule.join(src, entry.name);
-        var destPath = pathModule.join(dest, entry.name);
-        if (entry.isDirectory()) {
-            copyDirSync(srcPath, destPath);
-        } else {
-            fs.copyFileSync(srcPath, destPath);
-        }
-    }
-}
-
-/**
- * 递归同步删除目录
- * @param {string} dirPath - 要删除的目录
- */
-function rmrfSync(dirPath) {
-    if (!fs.existsSync(dirPath)) return;
-    var entries = fs.readdirSync(dirPath, { withFileTypes: true });
-    for (var i = 0; i < entries.length; i++) {
-        var entry = entries[i];
-        var fullPath = pathModule.join(dirPath, entry.name);
-        if (entry.isDirectory()) {
-            rmrfSync(fullPath);
-        } else {
-            fs.unlinkSync(fullPath);
-        }
-    }
-    fs.rmdirSync(dirPath);
 }
 
 /**

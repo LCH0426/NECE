@@ -85,7 +85,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: { players: players, count: players.length } });
         } catch (e) {
-            res.json({ code: 500, msg: '获取在线玩家失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取在线玩家失败: ' + e.message });
         }
     });
 
@@ -95,13 +95,13 @@ function registerRoutes(router, d) {
         let reason = req.body.reason || '';
 
         if (!xuid) {
-            return res.json({ code: 400, msg: '缺少xuid参数' });
+            return res.status(400).json({ code: 400, msg: '缺少xuid参数' });
         }
 
         try {
             let player = d.mc.getPlayer(xuid);
             if (!player) {
-                return res.json({ code: 404, msg: '玩家不在线' });
+                return res.status(404).json({ code: 404, msg: '玩家不在线' });
             }
 
             const kickReason = reason || '被管理员踢出';
@@ -112,7 +112,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '已踢出玩家 ' + playerName });
         } catch (e) {
-            res.json({ code: 500, msg: '踢出玩家失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '踢出玩家失败: ' + e.message });
         }
     });
 
@@ -123,17 +123,17 @@ function registerRoutes(router, d) {
         let amount = req.body.amount;
 
         if (!xuid || !action || amount === undefined) {
-            return res.json({ code: 400, msg: '缺少必要参数 (xuid, action, amount)' });
+            return res.status(400).json({ code: 400, msg: '缺少必要参数 (xuid, action, amount)' });
         }
 
         const intAmount = Math.floor(Number(amount));
         if (isNaN(intAmount) || intAmount <= 0) {
-            return res.json({ code: 400, msg: '金额必须为正整数' });
+            return res.status(400).json({ code: 400, msg: '金额必须为正整数' });
         }
 
         try {
             if (typeof d.money === 'undefined' || d.money === null) {
-                return res.json({ code: 500, msg: '经济系统未加载' });
+                return res.status(500).json({ code: 500, msg: '经济系统未加载' });
             }
 
             const beforeBalance = d.money.get(xuid) || 0;
@@ -152,7 +152,7 @@ function registerRoutes(router, d) {
                     success = d.money.reduce(xuid, currentBalance - intAmount);
                 }
             } else {
-                return res.json({ code: 400, msg: '无效操作，支持: add, reduce, set' });
+                return res.status(400).json({ code: 400, msg: '无效操作，支持: add, reduce, set' });
             }
 
             if (success) {
@@ -181,10 +181,10 @@ function registerRoutes(router, d) {
                     data: { xuid: xuid, name: playerName, action: action, amount: intAmount, before: beforeBalance, after: afterBalance }
                 });
             } else {
-                res.json({ code: 500, msg: '经济操作失败，余额可能不足' });
+                res.status(500).json({ code: 500, msg: '经济操作失败，余额可能不足' });
             }
         } catch (e) {
-            res.json({ code: 500, msg: '经济操作失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '经济操作失败: ' + e.message });
         }
     });
 
@@ -194,21 +194,21 @@ function registerRoutes(router, d) {
         let content = req.body.content;
 
         if (!xuid) {
-            return res.json({ code: 400, msg: '缺少xuid参数' });
+            return res.status(400).json({ code: 400, msg: '缺少xuid参数' });
         }
 
         if (!content || !content.trim()) {
-            return res.json({ code: 400, msg: '消息内容不能为空' });
+            return res.status(400).json({ code: 400, msg: '消息内容不能为空' });
         }
 
         if (content.length > 1000) {
-            return res.json({ code: 400, msg: '消息内容不能超过1000字符' });
+            return res.status(400).json({ code: 400, msg: '消息内容不能超过1000字符' });
         }
 
         try {
             let player = d.mc.getPlayer(xuid);
             if (!player) {
-                return res.json({ code: 404, msg: '玩家不在线' });
+                return res.status(404).json({ code: 404, msg: '玩家不在线' });
             }
 
             let playerName = player.name;
@@ -223,7 +223,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '弹窗已发送给 ' + playerName });
         } catch (e) {
-            res.json({ code: 500, msg: '发送弹窗失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '发送弹窗失败: ' + e.message });
         }
     });
 
@@ -232,7 +232,7 @@ function registerRoutes(router, d) {
         try {
             let playerData = d.getPlayerData();
             if (!playerData || !playerData.players) {
-                return res.json({ code: 500, msg: '无法读取玩家数据' });
+                return res.status(500).json({ code: 500, msg: '无法读取玩家数据' });
             }
 
             let page = parseInt(req.query.page) || 1;
@@ -286,7 +286,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取玩家列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取玩家列表失败: ' + e.message });
         }
     });
 
@@ -295,7 +295,7 @@ function registerRoutes(router, d) {
         try {
             let playerData = d.getPlayerData();
             if (!playerData || !playerData.players) {
-                return res.json({ code: 500, msg: '无法读取玩家数据' });
+                return res.status(500).json({ code: 500, msg: '无法读取玩家数据' });
             }
 
             let page = parseInt(req.query.page) || 1;
@@ -341,7 +341,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取UID排行失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取UID排行失败: ' + e.message });
         }
     });
 
@@ -350,7 +350,7 @@ function registerRoutes(router, d) {
         try {
             let playerData = d.getPlayerData();
             if (!playerData || !playerData.players) {
-                return res.json({ code: 500, msg: '无法读取玩家数据' });
+                return res.status(500).json({ code: 500, msg: '无法读取玩家数据' });
             }
 
             let page = parseInt(req.query.page) || 1;
@@ -396,7 +396,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取在线时间排行失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取在线时间排行失败: ' + e.message });
         }
     });
 
@@ -405,36 +405,29 @@ function registerRoutes(router, d) {
         try {
             let playerData = d.getPlayerData();
             if (!playerData || !playerData.players) {
-                return res.json({ code: 500, msg: '无法读取玩家数据' });
+                return res.status(500).json({ code: 500, msg: '无法读取玩家数据' });
             }
 
             let page = parseInt(req.query.page) || 1;
             let pageSize = parseInt(req.query.pageSize) || 20;
             let order = (req.query.order || 'desc').toLowerCase();
 
-            const playerList = [];
+            // 复用 monitoring 模块的余额排行缓存（5分钟TTL），避免每次请求遍历所有玩家
+            const cachedList = d.monitoring.getFullBalanceRank(order);
             const players = playerData.players;
 
-            Object.keys(players).forEach(function(xuid) {
-                const p = players[xuid];
-                let balance = 0;
-                try { balance = d.money.get(xuid) || 0; } catch (e) { balance = 0; }
-
-                playerList.push({
-                    uid: p.uid,
-                    name: p.name || '',
-                    xuid: xuid,
-                    balance: balance,
+            // 合并缓存的余额数据与玩家详情
+            const playerList = cachedList.map(function(item) {
+                const p = players[item.xuid] || {};
+                return {
+                    uid: p.uid || 0,
+                    name: item.name || p.name || '',
+                    xuid: item.xuid,
+                    balance: item.balance,
                     playTime: (p.count && p.count.playTime) || 0,
                     registerTime: p.registerTime || ''
-                });
+                };
             });
-
-            if (order === 'asc') {
-                playerList.sort(function(a, b) { return a.balance - b.balance; });
-            } else {
-                playerList.sort(function(a, b) { return b.balance - a.balance; });
-            }
 
             let total = playerList.length;
             let totalPages = Math.ceil(total / pageSize);
@@ -450,7 +443,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取余额排行失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取余额排行失败: ' + e.message });
         }
     });
 
@@ -461,7 +454,7 @@ function registerRoutes(router, d) {
             let playerData = d.getPlayerData();
 
             if (!playerData || !playerData.players || !playerData.players[xuid]) {
-                return res.json({ code: 404, msg: '玩家不存在' });
+                return res.status(404).json({ code: 404, msg: '玩家不存在' });
             }
 
             const pData = playerData.players[xuid];
@@ -514,7 +507,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取玩家详情失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取玩家详情失败: ' + e.message });
         }
     });
 
@@ -543,12 +536,12 @@ function registerRoutes(router, d) {
             const modeStr = String(mode).toLowerCase();
             const modeInfo = MODE_MAP[modeStr];
             if (!modeInfo) {
-                return res.json({ code: 400, msg: '无效的游戏模式，可选值: survival(生存), creative(创造), adventure(冒险), spectator(旁观)' });
+                return res.status(400).json({ code: 400, msg: '无效的游戏模式，可选值: survival(生存), creative(创造), adventure(冒险), spectator(旁观)' });
             }
 
             const player = d.mc.getPlayer(xuid);
             if (!player) {
-                return res.json({ code: 404, msg: '玩家不在线' });
+                return res.status(404).json({ code: 404, msg: '玩家不在线' });
             }
 
             let playerName = player.realName || player.name;
@@ -558,7 +551,7 @@ function registerRoutes(router, d) {
 
             let cmdResult = d.mc.runcmd('gamemode ' + modeInfo.cmd + ' "' + playerName + '"');
             if (!cmdResult) {
-                return res.json({ code: 500, msg: '修改游戏模式失败' });
+                return res.status(500).json({ code: 500, msg: '修改游戏模式失败' });
             }
 
             d.adminLog.log(req.user.uid, '修改游戏模式', playerName + '(' + xuid + ')',
@@ -570,7 +563,7 @@ function registerRoutes(router, d) {
                 data: { name: playerName, xuid: xuid, oldMode: oldMode, oldModeName: oldModeName, newMode: modeInfo.id, newModeName: modeInfo.name }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '修改游戏模式失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改游戏模式失败: ' + e.message });
         }
     });
 
@@ -581,7 +574,7 @@ function registerRoutes(router, d) {
             let stats = d.monitoring.getSystemStats();
             res.json({ code: 200, data: stats });
         } catch (e) {
-            res.json({ code: 500, msg: '获取系统信息失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取系统信息失败: ' + e.message });
         }
     });
 
@@ -593,7 +586,7 @@ function registerRoutes(router, d) {
     // 根据物品ID查询物品名称和贴图路径
     router.get('/item-info', d.adminAuth, function(req, res) {
         let itemId = (req.query.id || '').trim();
-        if (!itemId) return res.json({ code: 400, msg: '缺少id参数' });
+        if (!itemId) return res.status(400).json({ code: 400, msg: '缺少id参数' });
         const shortId = itemId.replace(/^minecraft:/, '');
         let name = d.getItemName(shortId);
         let image = d.getItemTexture(shortId);
@@ -606,7 +599,7 @@ function registerRoutes(router, d) {
             let data = d.monitoring.getTps();
             res.json({ code: 200, data: data });
         } catch (e) {
-            res.json({ code: 500, msg: '获取TPS失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取TPS失败: ' + e.message });
         }
     });
 
@@ -616,7 +609,7 @@ function registerRoutes(router, d) {
             let data = d.monitoring.getAllMoney();
             res.json({ code: 200, data: data });
         } catch (e) {
-            res.json({ code: 500, msg: '获取全服余额失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取全服余额失败: ' + e.message });
         }
     });
 
@@ -626,7 +619,7 @@ function registerRoutes(router, d) {
             let data = d.monitoring.getEconomyRank();
             res.json({ code: 200, data: data });
         } catch (e) {
-            res.json({ code: 500, msg: '获取经济排行失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取经济排行失败: ' + e.message });
         }
     });
     // 获取单个玩家背包（在线玩家实时查询，离线玩家返回缓存数据）
@@ -704,7 +697,7 @@ function registerRoutes(router, d) {
             // 离线玩家：从数据库读取缓存并补全物品信息
             const cached = d.database.getPlayerInventorySQL(xuid);
             if (!cached) {
-                return res.json({ code: 404, msg: '无背包缓存数据' });
+                return res.status(404).json({ code: 404, msg: '无背包缓存数据' });
             }
             res.json({
                 code: 200,
@@ -717,7 +710,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.json({ code: 500, msg: '获取背包数据失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取背包数据失败: ' + e.message });
         }
     });
 
@@ -785,7 +778,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.json({ code: 500, msg: '获取在线背包数据失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取在线背包数据失败: ' + e.message });
         }
     });
 
@@ -793,7 +786,7 @@ function registerRoutes(router, d) {
     router.post('/players/crash', d.adminAuth, function(req, res) {
         try {
             const identifier = (req.body.identifier || '').trim();
-            if (!identifier) return res.json({ code: 400, msg: '缺少identifier参数（玩家名或XUID）' });
+            if (!identifier) return res.status(400).json({ code: 400, msg: '缺少identifier参数（玩家名或XUID）' });
 
             let target = null;
             try { target = d.mc.getPlayer(identifier); } catch (e) {}
@@ -803,17 +796,17 @@ function registerRoutes(router, d) {
                     if (onlinePlayers[i].name === identifier) { target = onlinePlayers[i]; break; }
                 }
             }
-            if (!target) return res.json({ code: 404, msg: '玩家不在线' });
+            if (!target) return res.status(404).json({ code: 404, msg: '玩家不在线' });
 
             const success = target.crash();
             if (success) {
                 d.adminLog.log(req.user.uid, '崩溃玩家客户端', target.name, 'XUID:' + target.xuid);
                 res.json({ code: 200, msg: '已执行', data: { name: target.name, xuid: target.xuid } });
             } else {
-                res.json({ code: 500, msg: '执行失败' });
+                res.status(500).json({ code: 500, msg: '执行失败' });
             }
         } catch (e) {
-            res.json({ code: 500, msg: '操作失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '操作失败: ' + e.message });
         }
     });
 }

@@ -262,13 +262,18 @@ function _loadPendingTransfers() {
     }
 }
 
-/** 将待领取转账记录持久化到磁盘 */
+/** 将待领取转账记录持久化到磁盘（防抖，500ms） */
+let _savePendingTimer = null;
 function _savePendingTransfers() {
-    try {
-        fs.writeFileSync(pendingTransfersPath, JSON.stringify(pendingTransfers, null, '\t'), 'utf-8');
-    } catch (e) {
-        logger.error("保存待领取转账失败: " + e.message);
-    }
+    if (_savePendingTimer) clearTimeout(_savePendingTimer);
+    _savePendingTimer = setTimeout(function() {
+        _savePendingTimer = null;
+        try {
+            fs.writeFileSync(pendingTransfersPath, JSON.stringify(pendingTransfers, null, '\t'), 'utf-8');
+        } catch (e) {
+            logger.error("保存待领取转账失败: " + e.message);
+        }
+    }, 500);
 }
 
 /**
@@ -461,8 +466,20 @@ function _showTransferOfflineAmountForm(player, target) {
 /**
  * 执行转账核心逻辑：扣除发送者余额，增加接收者余额
  * 接收者在线则直接到账，离线则存入待领取队列
+ * 内置去重机制，3秒内相同发送者+接收者+金额的转账会被拒绝
  */
+const _recentTransfers = {};  // { senderXuid: { key: timestamp }
 function _executeTransfer(sender, targetName, targetXuid, amount) {
+    // 去重：防止双击重复转账
+    const transferKey = targetXuid + ':' + amount;
+    const now = Date.now();
+    const senderRecent = _recentTransfers[sender.xuid];
+    if (senderRecent && senderRecent[transferKey] && now - senderRecent[transferKey] < 3000) {
+        sender.tell("§e[经济] 请勿重复转账，请稍后再试");
+        return;
+    }
+    if (!senderRecent) _recentTransfers[sender.xuid] = {};
+    _recentTransfers[sender.xuid][transferKey] = now;
     reducePlayerMoney(sender, amount, "转账给" + targetName);
     const targetPlayer = mc.getPlayer(targetXuid);
     if (targetPlayer) {

@@ -25,6 +25,7 @@ const initSqlJs = require('sql.js');
 const fs = require('fs');
 const pathModule = require('path');
 const crypto = require('crypto');
+const { ensureDir } = require('./utils');
 
 /** 认证数据库路径 */
 const DB_PATH = 'plugins/NLCE/data/nlce.db';
@@ -50,13 +51,6 @@ function dbDebugLog() {
     const args = ['[DB]'];
     for (let i = 0; i < arguments.length; i++) args.push(arguments[i]);
     logger.info(args.join(' '));
-}
-
-function ensureDir(filePath) {
-    const dir = pathModule.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
 }
 
 /** 初始化认证数据库（nlce.db），建表并创建索引，支持从已有文件恢复 */
@@ -116,6 +110,17 @@ async function initDatabase() {
     return db;
 }
 
+/**
+ * 原子写入文件：先写临时文件，再重命名，防止中途崩溃导致文件损坏
+ * @param {string} filePath - 目标文件路径
+ * @param {Buffer} buffer - 写入内容
+ */
+function atomicWriteSync(filePath, buffer) {
+    const tmpPath = filePath + '.tmp';
+    fs.writeFileSync(tmpPath, buffer);
+    fs.renameSync(tmpPath, filePath);
+}
+
 /** 保存认证数据库到磁盘，保存前清理过期数据 */
 function saveDatabase() {
     if (!db) return;
@@ -124,7 +129,7 @@ function saveDatabase() {
         const data = db.export();
         const buffer = Buffer.from(data);
         ensureDir(DB_PATH);
-        fs.writeFileSync(DB_PATH, buffer);
+        atomicWriteSync(DB_PATH, buffer);
     } catch (e) {
         logger.error('保存数据库失败:', e.message);
     }
@@ -205,7 +210,13 @@ function verifyPassword(uid, password) {
     const storedHash = result[0].values[0][0];
     const salt = result[0].values[0][1];
     const hash = hashPassword(password, salt);
-    return hash === storedHash;
+    // 恒定时间比较，防止时序攻击
+    try {
+        if (hash.length !== storedHash.length) return false;
+        return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(storedHash, 'hex'));
+    } catch (e) {
+        return false;
+    }
 }
 
 /** 检查用户是否已设置密码 */
@@ -454,7 +465,7 @@ function savePlayerDatabase() {
         dbDebugLog('savePlayerDatabase: 导出并保存数据库');
         const buffer = Buffer.from(data);
         ensureDir(PLAYER_DB_PATH);
-        fs.writeFileSync(PLAYER_DB_PATH, buffer);
+        atomicWriteSync(PLAYER_DB_PATH, buffer);
         _playerDbDirty = false;
     } catch (e) {
         logger.error('[PlayerDB] 保存失败:', e.message);
