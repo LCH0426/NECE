@@ -100,8 +100,8 @@ function registerRoutes(router, d) {
     router.get('/backup/download/:filename', d.adminAuth, d.backupDownloadLimiter, function(req, res) {
         try {
             const filename = req.params.filename;
-            // 防止路径穿越攻击
-            if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+            // 防止路径穿越攻击（含 null 字节注入）
+            if (filename.includes('..') || filename.includes('/') || filename.includes('\\') || filename.includes('\0')) {
                 return res.status(400).json({ code: 400, msg: '非法文件名' });
             }
             if (!filename.endsWith('.7z')) {
