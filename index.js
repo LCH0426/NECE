@@ -1903,7 +1903,7 @@ function registerWebCommands() {
 
 	// admin控制台命令：添加/移除Web面板管理员（支持UID或玩家名）
 	try {
-		const adminCmd = mc.newCommand('admin', '管理员管理 (add/del <uid|玩家名>)', PermType.Any);
+		const adminCmd = mc.newCommand('admin', '管理员管理 (add/del <uid|玩家名>) [仅控制台]', PermType.GameMasters);
 		adminCmd.mandatory('action', ParamType.String);
 		adminCmd.mandatory('id', ParamType.RawText);
 		adminCmd.overload(['action', 'id']);
