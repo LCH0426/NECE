@@ -2098,22 +2098,13 @@ if (typeof ll !== 'undefined' && ll.onUnload) {
 }
 
 // ============ 启动Banner ============
-if (hasWish) {
-	colorLog("yellow",    "  _   _   _        _____    ______ ");
-	colorLog("yellow",    " | \ | | | |      |  __ \  |  ____|");
-	colorLog("yellow",    " |  \| | | |      | |__) | | |__   ");
-	colorLog("yellow",    " | . ` | | |      |  ___/  |  __|  ");
-	colorLog("yellow",    " | |\  | | |____  | |      | |____ ");
-	colorLog("yellow",    " |_| \_| |______| |_|      |______|");
-} else {
-	colorLog("yellow",    " _   _   _         _____   ______ ");
-	colorLog("yellow",    "| \\ | | | |       / ____| |  ____|");
-	colorLog("yellow",    "|  \\| | | |      | |      | |__   ");
-	colorLog("yellow",    "| . ` | | |      | |      |  __|  ");
-	colorLog("yellow",    "| |\\  | | |____  | |____  | |____ ");
-	colorLog("yellow",    "|_| \\_| |______|  \\_____| |______|");
-}
+colorLog("yellow",    " _   _   _         _____   ______ ");
+colorLog("yellow",    "| \\ | | | |       / ____| |  ____|");
+colorLog("yellow",    "|  \\| | | |      | |      | |__   ");
+colorLog("yellow",    "| . ` | | |      | |      |  __|  ");
+colorLog("yellow",    "| |\\  | | |____  | |____  | |____ ");
+colorLog("yellow",    "|_| \\_| |______|  \\_____| |______|");
 
 logger.info("");
-logger.info(`       ${hasWish ? 'NLPE' : 'NLCE'} 1.9.9 (${DESIGNATION_NAME})`);
+logger.info(`       NLCE 1.9.9 (${DESIGNATION_NAME})`);
 logger.info("");
