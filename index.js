@@ -42,7 +42,6 @@ const playerDataModule = require('./core/playerData');
 const avatarModule = require('./core/avatar');
 const chatModule = require('./core/chat');
 const sidebarModule = require('./core/sidebar');
-const quickMenuModule = require('./core/quickMenu');
 const menuModule = require('./core/menu');
 const personalCenter = require('./core/personalCenter');
 const guildModule = require('./core/guild');
@@ -74,7 +73,6 @@ const FRIEND_DATA_PATH = C.PATHS.FRIEND_DATA;
 const MESSAGE_DATA_PATH = C.PATHS.MESSAGE_DATA;
 const BAN_DATA_PATH = C.PATHS.BAN_DATA;
 const MAIL_DATA_PATH = C.PATHS.MAIL_DATA;
-const QUICK_MENU_CONFIG_PATH = C.PATHS.QUICK_MENU_CONFIG;
 const NAR_CONFIG_PATH = C.PATHS.NAR_CONFIG;
 const ITEMS_DATA_PATH = C.PATHS.ITEMS_DATA;
 const HOMES_DATA_PATH = C.PATHS.HOMES_DATA;
@@ -819,9 +817,6 @@ const messageBoardDM = registerDataManager('messageBoard', MESSAGEBOARD_DATA_PAT
 	messages: [],
 	nextId: 1
 });
-const quickMenuConfigDM = registerDataManager('quickMenuConfig', QUICK_MENU_CONFIG_PATH, {
-	items: []
-});
 const playerSettingsDM = registerDataManager('playerSettings', PLAYER_SETTINGS_PATH, {}, {
 	pretty: false,
 	sqlPrefix: 'settings'
@@ -916,9 +911,7 @@ async function initAllConfigs() {
 		logger: logger,
 		showPersonalCenterForm: personalCenter.showPersonalCenterForm
 	});
-	quickMenuModule.init({ quickMenuConfigDM: quickMenuConfigDM, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData });
-	quickMenuModule.loadConfig();
-	menuModule.init({ config: config, getCurrencyName: getCurrencyName });
+	menuModule.init({ config: config, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData });
 	menuModule.loadConfig();
 	chatModule.init({ fs: fs, U: U, chatCfgPath: CHAT_CFG_PATH, badWordsPath: BAD_WORDS_PATH, webServer: webServer });
 	chatModule.loadChatConfig();
@@ -1519,8 +1512,8 @@ mc.listen("onServerStarted", async () => {
 	banModule.registerConsoleCommands();
 	banModule.registerGameCommands();
 	sidebarModule.init({ constants: C, config: config, money: money, getCurrencyName: getCurrencyName, getPlayerSetting: getPlayerSetting, tpsData: tpsData });
-	quickMenuModule.registerCommands(registerPlayerCommand);
-	quickMenuModule.registerCompassListener();
+	menuModule.registerCommands(registerPlayerCommand);
+	menuModule.registerCompassListener();
 	menuModule.registerClockListener();
 	registerWebCommands();
 	initWebServer();
@@ -1853,13 +1846,39 @@ function initWebServer() {
 		webServer.setPlayerDataRef(playerData);
 		webServer.setConfigRef(config);
 		webServer.setHasWish(hasWish, hasWish ? wishModule : null);
-		// JWT 默认密钥安全检查
+		// JWT 密钥管理：优先从 data/.jwt_secret 读取，不存在则自动生成
+		(function loadOrGenerateJwtSecrets() {
+			var crypto = require('crypto');
+			var secretPath = 'plugins/NLCE/data/.jwt_secret';
+			try {
+				if (fs.existsSync(secretPath)) {
+					var saved = JSON.parse(fs.readFileSync(secretPath, 'utf-8'));
+					webConfig.jwtSecret = saved.jwtSecret;
+					webConfig.jwtRefreshSecret = saved.jwtRefreshSecret;
+				} else {
+					throw new Error('no secret file');
+				}
+			} catch (e) {
+				webConfig.jwtSecret = crypto.randomBytes(48).toString('base64url');
+				webConfig.jwtRefreshSecret = crypto.randomBytes(48).toString('base64url');
+				try {
+					U.ensureDir(secretPath);
+					fs.writeFileSync(secretPath, JSON.stringify({
+						jwtSecret: webConfig.jwtSecret,
+						jwtRefreshSecret: webConfig.jwtRefreshSecret
+					}, null, 2), 'utf-8');
+					logger.info('[安全] 已自动生成 JWT 密钥并保存到 data/.jwt_secret');
+				} catch (writeErr) {
+					logger.error('[安全] 保存 JWT 密钥失败: ' + writeErr.message);
+				}
+			}
+		})();
+		// 移除 config.json 中残留的默认密钥（密钥已由 data/.jwt_secret 管理）
 		if (webConfig.jwtSecret === 'NLCE_Default_Secret_Change_Me' || webConfig.jwtRefreshSecret === 'NLCE_Default_Refresh_Secret_Change_Me') {
-			logger.warn('==========================================================');
-			logger.warn('[安全] JWT 密钥仍为默认值！请立即修改 config.json 中的');
-			logger.warn('       web.jwtSecret 和 web.jwtRefreshSecret');
-			logger.warn('       否则任何人都可以伪造管理员登录令牌');
-			logger.warn('==========================================================');
+			delete webConfig.jwtSecret;
+			delete webConfig.jwtRefreshSecret;
+			config.set('web', webConfig);
+			logger.info('[安全] 已清除 config.json 中的默认 JWT 密钥');
 		}
 		webServer.startServer(webConfig);
 	}).catch(function(e) {
