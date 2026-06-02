@@ -25,7 +25,7 @@ function registerRoutes(router, d) {
 
     const RECYCLE_PATH = d.pathModule.join(__dirname, '..', '..', 'data', 'Recycleitems.json');
     const SHOP_DATA_PATH_API = d.pathModule.join(__dirname, '..', '..', 'data', 'shopdata.json');
-    const ITEMS_PATH = d.pathModule.join(__dirname, '..', '..', 'WEB', 'textures', 'items.json');
+    const ITEMS_PATH = d.pathModule.join(__dirname, '..', '..', 'public', 'textures', 'items.json');
 
     // 加载物品贴图映射表（id -> {name, texture}），带60秒缓存避免每次请求读磁盘
     var _itemsMapCache = null;

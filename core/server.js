@@ -41,7 +41,7 @@ const backupModule = require('./backup');
 const clearLagModule = require('./clearLag');
 const banModule = require('./ban');
 
-const WEB_DIR = pathModule.join(__dirname, '..', 'WEB');
+const WEB_DIR = pathModule.join(__dirname, '..', 'public');
 const ACCESS_TOKEN_EXPIRE = '15m';
 const REFRESH_TOKEN_EXPIRE = '7d';
 
@@ -161,12 +161,12 @@ function getCurrencyName() {
     return _currencyNameCache;
 }
 
-/** 读取 WEB/textures/items.json 的物品映射表，带 60s 缓存；返回 { itemId: { name, texture } | string } */
+/** 读取 public/textures/items.json 的物品映射表，带 60s 缓存；返回 { itemId: { name, texture } | string } */
 function getItemsMap() {
     const now = Date.now();
     if (_itemsCache && now - _itemsCacheTime < ITEMS_CACHE_TTL) return _itemsCache;
     try {
-        const itemsPath = pathModule.join(__dirname, '..', 'WEB', 'textures', 'items.json');
+        const itemsPath = pathModule.join(__dirname, '..', 'public', 'textures', 'items.json');
         const content = fs.readFileSync(itemsPath, 'utf-8');
         const itemsData = JSON.parse(content);
         _itemsCache = itemsData.item || itemsData;
