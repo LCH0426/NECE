@@ -247,6 +247,24 @@
       ]
     }
   },
+  "quickMenu": {
+    "items": [
+      { "name": "商店系统", "img": "textures/ui/icon_recipe_equipment", "comm": "shop" },
+      { "name": "回收物品", "img": "textures/ui/trash_default", "comm": "rc" },
+      { "name": "传送系统", "img": "textures/items/compass_item", "comm": "tpg" },
+      { "name": "回家", "img": "textures/items/bed_red", "comm": "home" },
+      { "name": "传送请求", "img": "textures/ui/absorption_heart", "comm": "tpa" },
+      { "name": "好友列表", "img": "textures/ui/FriendsIcon", "comm": "friend" },
+      { "name": "邮件系统", "img": "textures/ui/mail_icon", "comm": "mail" },
+      { "name": "祈愿抽卡", "img": "textures/ui/gift_square", "comm": "wish" },
+      { "name": "排行榜", "img": "textures/ui/icon_best3", "comm": "rank" },
+      { "name": "VIP会员", "img": "textures/ui/icon_fall", "comm": "vip" },
+      { "name": "银行系统", "img": "textures/ui/icon_book_writable", "comm": "bank" },
+      { "name": "个人设置", "img": "textures/ui/icon_setting", "comm": "settings" },
+      { "name": "留言板", "img": "textures/ui/book_edit_default", "comm": "mb" },
+      { "name": "返回死亡点", "img": "textures/ui/icon_defeat", "comm": "back" }
+    ]
+  },
   "motd": {
     "enabled": true,
     "interval": 10,
@@ -323,9 +341,7 @@
     "enableFrontend": true,
     "port": 8080,
     "host": "0.0.0.0",
-    "jwtSecret": "NLCE_Default_Secret_Change_Me",
     "jwtExpire": "15m",
-    "jwtRefreshSecret": "NLCE_Default_Refresh_Secret_Change_Me",
     "jwtRefreshExpire": "7d"
   }
 }
