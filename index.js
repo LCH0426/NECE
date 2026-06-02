@@ -1300,6 +1300,7 @@ mc.listen("onLeft", (player) => {
 var _rankEnabled = true;
 var _backEnabled = true;
 function _refreshStatConfigCache() {
+	if (!config) return; // config 尚未初始化时跳过
 	_rankEnabled = config.get("rank.enabled") !== false;
 	_backEnabled = config.get("back.enabled") !== false;
 }
