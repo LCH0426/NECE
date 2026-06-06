@@ -16,7 +16,7 @@
  */
 
 /**
- * NLCE Web管理面板服务器
+ * NECE Web管理面板服务器
  * Express.js REST API，提供玩家管理、数据查询、系统监控等管理接口
  * 认证方案：短期 Access Token + 长期 HttpOnly Refresh Token (旋转刷新机制)
  * 路由模块化拆分至 core/routes/ 目录，本文件负责核心工具函数和服务器生命周期
@@ -485,7 +485,7 @@ function createV1Routes(webConfig) {
                     version: '1.9.9',
                     serverVersion: serverVersion,
                     protocol: protocol,
-                    type: _hasWish ? 'NLPE' : 'NLCE'
+                    type: _hasWish ? 'NLPE' : 'NECE'
                 }
             });
         } catch (e) {

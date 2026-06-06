@@ -16,7 +16,7 @@
  */
 
 /**
- * NLCE 聊天系统
+ * NECE 聊天系统
  * 聊天配置、敏感词过滤、消息格式化、onChat事件监听、聊天记录日志
  * 日志以 JSONL 格式按日期分文件存储，支持关键词/发送者过滤查询
  */
@@ -93,7 +93,7 @@ function rebuildBadWordRegex() {
 }
 
 /**
- * 查询玩家所属公会名称（NLCE 公会系统）
+ * 查询玩家所属公会名称（NECE 公会系统）
  * 带 per-xuid 缓存，TTL 5分钟，避免每条消息都查数据库
  */
 var _orgNameCache = {};  // { xuid: { name, expire } }

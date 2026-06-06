@@ -16,7 +16,7 @@
  */
 
 /**
- * NLCE CDK兑换码系统
+ * NECE CDK兑换码系统
  * 创建和管理礼包兑换码，支持物品、SNBT序列化物品、货币等多种奖励类型
  * 使用工厂模式，通过createCdkModule(deps)创建模块实例
  */

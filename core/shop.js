@@ -16,7 +16,7 @@
  */
 
 /**
- * NLCE 商店与回收系统
+ * NECE 商店与回收系统
  * 商品购买/出售、物品回收、商店分组与物品管理
  */
 
@@ -36,7 +36,7 @@ const RECYCLE_PAGE_SIZE = 10; // 回收物品列表每页显示数量
  */
 function writeShopLog(player, itemName, count, cost, balance) {
 	try {
-		const logDir = "plugins/NLCE/logs";
+		const logDir = "plugins/NECE/logs";
 		const logPath = logDir + "/shop.log";
 		if (!fs.existsSync(logDir)) {
 			fs.mkdirSync(logDir, { recursive: true });
@@ -54,7 +54,7 @@ function writeShopLog(player, itemName, count, cost, balance) {
 /** 写入出售/回收日志到 logs/shop.log */
 function writeShopSellLog(player, itemName, count, income, balance) {
 	try {
-		const logDir = "plugins/NLCE/logs";
+		const logDir = "plugins/NECE/logs";
 		const logPath = logDir + "/shop.log";
 		if (!fs.existsSync(logDir)) {
 			fs.mkdirSync(logDir, { recursive: true });

@@ -16,7 +16,7 @@
  */
 
 /**
- * NLCE 头像系统模块
+ * NECE 头像系统模块
  * 支持三种头像来源：QQ头像（通过QQ号）、自定义图片链接、Citlalia图床
  * 头像数据存储在 playerData.avatar 中 { type: "default"|"qq"|"link"|"citlalia", value: string }
  */
