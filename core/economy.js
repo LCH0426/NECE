@@ -16,7 +16,7 @@
  */
 
 /**
- * NLCE 经济系统
+ * NECE 经济系统
  * 封装 llmoney 经济操作，提供余额查询、增减、通知、转账等功能
  */
 
@@ -28,7 +28,7 @@ let _currencyNameCache = null; // 货币名称缓存，避免重复读取配置
 let _deps = {};
 
 // 待领取转账 —— 离线玩家收到转账时暂存于此，上线后自动通知
-const pendingTransfersPath = "plugins/NLCE/data/pendingTransfers.json";
+const pendingTransfersPath = "plugins/NECE/data/pendingTransfers.json";
 let pendingTransfers = {};
 
 /** 初始化经济模块，加载待领取转账数据 */
@@ -286,7 +286,7 @@ function _savePendingTransfers() {
  */
 function _writeTransferLog(senderName, targetName, amount, senderBalance, targetBalance) {
     try {
-        const logDir = "plugins/NLCE/logs";
+        const logDir = "plugins/NECE/logs";
         const logPath = logDir + "/shop.log";
         if (!fs.existsSync(logDir)) {
             fs.mkdirSync(logDir, { recursive: true });

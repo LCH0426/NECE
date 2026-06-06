@@ -16,41 +16,41 @@
  */
 
 /**
- * NLCE 常量定义与路径配置
+ * NECE 常量定义与路径配置
  * 集中管理所有文件路径、默认设置、枚举值等全局常量
  */
 
 
 /** 所有数据文件路径配置（JSON 数据、日志目录、配置文件等） */
 const PATHS = {
-    CONFIG: "plugins/NLCE/config.json",
-    PLAYER_DATA: "plugins/NLCE/data/playerdata.json",
-    PLAYER_SETTINGS: "plugins/NLCE/data/PlayerSettings.json",
-    SHOP_DATA: "plugins/NLCE/data/shopdata.json",
-    CDK_DATA: "plugins/NLCE/data/cdkdata.json",
-    RECYCLE_DATA: "plugins/NLCE/data/Recycleitems.json",
-    RECYCLE_LOG_DIR: "plugins/NLCE/logs/rc",
-    MESSAGEBOARD_DATA: "plugins/NLCE/data/MessageBoardData.json",
-    WISH_DATA: "plugins/NLCE/data/WishData.json",
-    WISH_CONFIG: "plugins/NLCE/data/WishConfig.json",
-    ENCHANT_BOOK_SHOP: "plugins/NLCE/data/EnchantBookShop.json",
-    SPAWN_EGG_SHOP: "plugins/NLCE/data/SpawnEggShop.json",
-    WISH_HISTORY_LOG_DIR: "plugins/NLCE/logs/wish",
-    DEATH_POINT_DATA: "plugins/NLCE/data/DeathPointData.json",
-    FRIEND_DATA: "plugins/NLCE/data/FriendData.json",
-    MESSAGE_DATA: "plugins/NLCE/data/MessageData.json",
-    MAIL_DATA: "plugins/NLCE/data/MailData.json",
-    QUICK_MENU_CONFIG: "plugins/NLCE/data/QuickMenuConfig.json",
-    NAR_CONFIG: "plugins/NLCE/data/NARConfig.json",
-    ITEMS_DATA: "plugins/NLCE/data/items.json",
-    TPS_DATA: "plugins/NLCE/data/tps.json",
-    HOMES_DATA: "plugins/NLCE/data/homes.json",
-    WARPS_DATA: "plugins/NLCE/data/warps.json",
-    CHAT_CFG: "./plugins/NLCE/data/ChatConfig.json",
-    BAD_WORDS: "./plugins/NLCE/data/fuckbad.json",
-    BAN_DATA: "plugins/NLCE/data/BanData.json",
-    DEBUG_DISMISSED: "plugins/NLCE/data/debug_dismissed.json",
-    GUILD_DATA: "plugins/NLCE/data/guild.json"
+    CONFIG: "plugins/NECE/config.json",
+    PLAYER_DATA: "plugins/NECE/data/playerdata.json",
+    PLAYER_SETTINGS: "plugins/NECE/data/PlayerSettings.json",
+    SHOP_DATA: "plugins/NECE/data/shopdata.json",
+    CDK_DATA: "plugins/NECE/data/cdkdata.json",
+    RECYCLE_DATA: "plugins/NECE/data/Recycleitems.json",
+    RECYCLE_LOG_DIR: "plugins/NECE/logs/rc",
+    MESSAGEBOARD_DATA: "plugins/NECE/data/MessageBoardData.json",
+    WISH_DATA: "plugins/NECE/data/WishData.json",
+    WISH_CONFIG: "plugins/NECE/data/WishConfig.json",
+    ENCHANT_BOOK_SHOP: "plugins/NECE/data/EnchantBookShop.json",
+    SPAWN_EGG_SHOP: "plugins/NECE/data/SpawnEggShop.json",
+    WISH_HISTORY_LOG_DIR: "plugins/NECE/logs/wish",
+    DEATH_POINT_DATA: "plugins/NECE/data/DeathPointData.json",
+    FRIEND_DATA: "plugins/NECE/data/FriendData.json",
+    MESSAGE_DATA: "plugins/NECE/data/MessageData.json",
+    MAIL_DATA: "plugins/NECE/data/MailData.json",
+    QUICK_MENU_CONFIG: "plugins/NECE/data/QuickMenuConfig.json",
+    NAR_CONFIG: "plugins/NECE/data/NARConfig.json",
+    ITEMS_DATA: "plugins/NECE/data/items.json",
+    TPS_DATA: "plugins/NECE/data/tps.json",
+    HOMES_DATA: "plugins/NECE/data/homes.json",
+    WARPS_DATA: "plugins/NECE/data/warps.json",
+    CHAT_CFG: "./plugins/NECE/data/ChatConfig.json",
+    BAD_WORDS: "./plugins/NECE/data/fuckbad.json",
+    BAN_DATA: "plugins/NECE/data/BanData.json",
+    DEBUG_DISMISSED: "plugins/NECE/data/debug_dismissed.json",
+    GUILD_DATA: "plugins/NECE/data/guild.json"
 };
 
 /** IPv4 用户进服时的 IPv6 提示消息 */

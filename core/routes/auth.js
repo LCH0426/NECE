@@ -16,7 +16,7 @@
  */
 
 /**
- * NLCE Web路由 - 认证
+ * NECE Web路由 - 认证
  * 处理登录、登出、Token续签、验证码、用户信息等认证相关路由
  * 使用双Token机制（Access Token + Refresh Token），Refresh Token通过HttpOnly Cookie传递
  */

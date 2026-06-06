@@ -16,7 +16,7 @@
  */
 
 /**
- * NLCE SQLite数据库管理
+ * NECE SQLite数据库管理
  * 管理认证数据（用户/管理员/JWT令牌）和玩家数据（核心/设置/好友/消息/家园等）的SQL存储
  */
 
@@ -28,9 +28,9 @@ const crypto = require('crypto');
 const { ensureDir } = require('./utils');
 
 /** 认证数据库路径 */
-const DB_PATH = 'plugins/NLCE/data/nlce.db';
+const DB_PATH = 'plugins/NECE/data/nlce.db';
 /** 玩家数据数据库路径 */
-const PLAYER_DB_PATH = 'plugins/NLCE/data/playerdata.db';
+const PLAYER_DB_PATH = 'plugins/NECE/data/playerdata.db';
 /** 密码盐值长度（字节），输出为 hex 后长度翻倍 */
 const SALT_LENGTH = 32;
 /** PBKDF2 迭代次数 */

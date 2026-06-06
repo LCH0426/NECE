@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌙 NLCE
+# 🌙 NECE
 
 **LegacyScriptEngine (Node.js) 强大多功能服务器插件**
 
@@ -8,7 +8,7 @@
 
 [![许可证](https://img.shields.io/badge/许可证-GPL--3.0-blue.svg)](LICENSE)
 [![平台](https://img.shields.io/badge/平台-Node.js-339933?logo=node.js\&logoColor=white)](https://nodejs.org/)
-[![版本](https://img.shields.io/badge/版本-1.9.9-orange.svg)](https://github.com/LCH0426/NLCE)
+[![版本](https://img.shields.io/badge/版本-1.9.9-orange.svg)](https://github.com/LCH0426/NECE)
 [![语言](https://img.shields.io/badge/语言-JavaScript-F7DF1E?logo=javascript\&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 
 </div>
@@ -17,7 +17,7 @@
 
 ## 介绍
 
-**NLCE**（**N**icole **E**ssential **C**ommunity **E**dition）是一款专为 **LegacyScriptEngine-server-nodejs** 设计的功能全面的多功能插件。使用 **JavaScript** 编写，提供从经济商店到 Web 管理面板等一系列丰富功能。
+**NECE**（**N**icole **E**ssential **C**ommunity **E**dition）是一款专为 **LegacyScriptEngine-server-nodejs** 设计的功能全面的多功能插件。使用 **JavaScript** 编写，提供从经济商店到 Web 管理面板等一系列丰富功能。
 
 ### 名字来源
 
@@ -26,7 +26,7 @@
 ### 项目背景
 
 - **原版**：Citlalia 服务器内部自用版本
-- **社区版**：NLCE - 面向广大服务器管理者的开源版本
+- **社区版**：NECE - 面向广大服务器管理者的开源版本
 
 
 
@@ -131,7 +131,7 @@
 
 ## Web 管理面板
 
-NLCE 内置基于 Express.js 的网页端管理后台，提供以下功能：
+NECE 内置基于 Express.js 的网页端管理后台，提供以下功能：
 
 - **身份认证** — 基于 JWT 的登录系统，支持验证码验证
 - **玩家管理** — 查看在线玩家、踢出玩家、修改余额、更改游戏模式
@@ -149,13 +149,13 @@ NLCE 内置基于 Express.js 的网页端管理后台，提供以下功能：
 ## 安装
 
 1. 确保 BDS 服务器已安装 **LegacyScriptEngine-nodejs**
-2. 下载最新版本，将 `NLCE` 文件夹放置在服务器的 `plugins/` 目录中
+2. 下载最新版本，将 `NECE` 文件夹放置在服务器的 `plugins/` 目录中
 3. 启动服务器 — 插件将自动生成默认配置文件
-4. 根据需要修改 `plugins/NLCE/config.json` 以启用/禁用功能
+4. 根据需要修改 `plugins/NECE/config.json` 以启用/禁用功能
 
 ## 配置说明
 
-主配置文件位于 `plugins/NLCE/config.json`，关键配置项如下：
+主配置文件位于 `plugins/NECE/config.json`，关键配置项如下：
 
 | 配置项                   | 默认值         | 描述          |
 | --------------------- | ----------- | ----------- |
@@ -190,7 +190,7 @@ NLCE 内置基于 Express.js 的网页端管理后台，提供以下功能：
 ## 项目结构
 
 ```
-NLCE/
+NECE/
 ├── index.js              # 插件主入口
 ├── core/
 │   ├── server.js          # Web 服务器与 REST API

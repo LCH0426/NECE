@@ -50,7 +50,7 @@ const clearLagModule = require('./core/clearLag');
 
 
 // ============ 插件注册 ============
-const PLUGIN_NAME = "NLCE";
+const PLUGIN_NAME = "NECE";
 const DESIGNATION_NAME = "Robin";
 const PLUGIN_AUTHOR = "LCH0426";
 
@@ -236,7 +236,7 @@ DataManager.prototype.load = function() {
 			var backupPath = this.path + '.bak.' + Date.now();
 			fs.copyFileSync(this.path, backupPath);
 			logger.warn('==============================');
-			logger.warn('[NLCE] !! 数据文件格式错误 !!');
+			logger.warn('[NECE] !! 数据文件格式错误 !!');
 			logger.warn('文件：' + this.path);
 			logger.warn('错误：' + e.message);
 			logger.warn('已备份到：' + backupPath);
@@ -650,9 +650,9 @@ function initRankConfig() {
 			"enableFrontend": true,
 			"port": 8080,
 			"host": "0.0.0.0",
-			"jwtSecret": "NLCE_Default_Secret_Change_Me",
+			"jwtSecret": "NECE_Default_Secret_Change_Me",
 			"jwtExpire": "15m",
-			"jwtRefreshSecret": "NLCE_Default_Refresh_Secret_Change_Me",
+			"jwtRefreshSecret": "NECE_Default_Refresh_Secret_Change_Me",
 			"jwtRefreshExpire": "7d"
 		});
 		// 旧键迁移：将旧格式的 enable* 标志和 *Config 键迁移到新的嵌套结构
@@ -736,7 +736,7 @@ function _migrateOldConfigKeys() {
 
 	if (_changed) {
 		config._save();
-		logger.info('[NLCE] 配置文件已从旧格式迁移到新嵌套结构');
+		logger.info('[NECE] 配置文件已从旧格式迁移到新嵌套结构');
 	}
 }
 
@@ -749,7 +749,7 @@ function initPlayerData() {
 	const sqlPlayers = database.getAllPlayerDataSQL();
 	const sqlNextUid = database.getNextUidSQL();
 	playerData = { nextUid: sqlNextUid, players: sqlPlayers };
-	logger.info('[NLCE] 玩家核心数据已从SQL加载 (' + Object.keys(sqlPlayers).length + ' 个玩家)');
+	logger.info('[NECE] 玩家核心数据已从SQL加载 (' + Object.keys(sqlPlayers).length + ' 个玩家)');
 	debugLog('initPlayerData: SQL模式, nextUid=' + sqlNextUid + ', 玩家数=' + Object.keys(sqlPlayers).length);
 	if (!playerData.players) playerData.players = {};
 	if (!playerData.nextUid) playerData.nextUid = 10000;
@@ -876,7 +876,7 @@ async function initAllConfigs() {
 	debugLog("initAllConfigs: Debug模式已" + (_debugMode ? "开启" : "关闭"));
 	// 初始化玩家数据库(SQL)
 	await database.initPlayerDatabase();
-	logger.info('[NLCE] 玩家数据库(SQL)初始化完成');
+	logger.info('[NECE] 玩家数据库(SQL)初始化完成');
 	initPlayerData();
 	initPlayerSettings();
 	initShopData();
@@ -1289,7 +1289,7 @@ mc.listen("onLeft", (player) => {
 			}
 		} catch (e) {}
 		database.savePlayerInventorySQL(xuidStr, snapshot, armorSnapshot, offhandSnapshot);
-	} catch (e) { logger.warn('[NLCE] 保存背包快照失败: ' + e.message); }
+	} catch (e) { logger.warn('[NECE] 保存背包快照失败: ' + e.message); }
 });
 
 /** 注册游戏行为统计监听（挖掘、放置、击杀、死亡）和死亡点记录 */
@@ -1527,7 +1527,7 @@ mc.listen("onServerStarted", async () => {
 	setInterval(function() { mailModule.checkScheduledMails(); }, 30000);
 
 	const mem = process.memoryUsage();
-	logger.info('[NLCE] 内存使用 - 堆已用: ' + (mem.heapUsed / 1024 / 1024).toFixed(2) + 'MB, 堆总量: ' + (mem.heapTotal / 1024 / 1024).toFixed(2) + 'MB, RSS: ' + (mem.rss / 1024 / 1024).toFixed(2) + 'MB');
+	logger.info('[NECE] 内存使用 - 堆已用: ' + (mem.heapUsed / 1024 / 1024).toFixed(2) + 'MB, 堆总量: ' + (mem.heapTotal / 1024 / 1024).toFixed(2) + 'MB, RSS: ' + (mem.rss / 1024 / 1024).toFixed(2) + 'MB');
 });
 
 /** 玩家预加入事件：检查封禁状态，被封禁的玩家在此阶段踢出 */
@@ -1854,7 +1854,7 @@ function initWebServer() {
 		// JWT 密钥管理：优先从 data/.jwt_secret 读取，不存在则自动生成
 		(function loadOrGenerateJwtSecrets() {
 			var crypto = require('crypto');
-			var secretPath = 'plugins/NLCE/data/.jwt_secret';
+			var secretPath = 'plugins/NECE/data/.jwt_secret';
 			try {
 				if (fs.existsSync(secretPath)) {
 					var saved = JSON.parse(fs.readFileSync(secretPath, 'utf-8'));
@@ -1879,7 +1879,7 @@ function initWebServer() {
 			}
 		})();
 		// 移除 config.json 中残留的默认密钥（密钥已由 data/.jwt_secret 管理）
-		if (webConfig.jwtSecret === 'NLCE_Default_Secret_Change_Me' || webConfig.jwtRefreshSecret === 'NLCE_Default_Refresh_Secret_Change_Me') {
+		if (webConfig.jwtSecret === 'NECE_Default_Secret_Change_Me' || webConfig.jwtRefreshSecret === 'NECE_Default_Refresh_Secret_Change_Me') {
 			delete webConfig.jwtSecret;
 			delete webConfig.jwtRefreshSecret;
 			config.set('web', webConfig);
@@ -2130,5 +2130,5 @@ colorLog("yellow",    "| |\\  | | |____  | |____  | |____ ");
 colorLog("yellow",    "|_| \\_| |______|  \\_____| |______|");
 
 logger.info("");
-logger.info(`       NLCE 1.9.9 (${DESIGNATION_NAME})`);
+logger.info(`       NECE 1.9.9 (${DESIGNATION_NAME})`);
 logger.info("");
