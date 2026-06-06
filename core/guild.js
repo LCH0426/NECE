@@ -40,6 +40,7 @@ let getCurrencyName = null;
 let getPlayerName = null;   // (xuid) => name
 let getPlayerData = null;   // () => playerData
 let mailApi = null;         // 邮件模块
+let chatModule = null;      // 聊天模块（用于清除公会名缓存）
 let notifyEconomyChange = null;
 
 /** 模块初始化 */
@@ -53,6 +54,7 @@ function init(deps) {
     getPlayerName = deps.getPlayerName || function(xuid) { return xuid; };
     getPlayerData = deps.getPlayerData || function() { return null; };
     mailApi = deps.mailApi || null;
+    chatModule = deps.chatModule || null;
     notifyEconomyChange = deps.notifyEconomyChange || function() {};
 }
 
@@ -206,6 +208,7 @@ function doDisbandGuild(player) {
                 try { var mp = mc.getPlayer(members[mi].xuid); if (mp) mp.tell('§e[公会] §c公会"' + disbandName + '"已被会长解散'); } catch (e) {}
             }
             database.deleteGuild(guild.id);
+            if (chatModule) chatModule.clearAllOrgNameCache();
             p.tell('§e[公会] §a公会"' + disbandName + '"已解散');
             logger.info('[Guild] 玩家 ' + p.name + ' 解散公会: ' + disbandName);
         }
@@ -455,6 +458,7 @@ function doKickMember(player, targetName) {
     if (role === 'admin' && target.role === 'admin') { player.tell('§e[公会] §c管理员不能踢出其他管理员'); return; }
 
     database.removeGuildMember(target.xuid);
+    if (chatModule) chatModule.clearOrgNameCache(target.xuid);
     player.tell('§e[公会] §a已将"' + targetName + '"踢出公会');
     sendSystemMail(target.xuid, '§c' + player.name + '已将您从"' + guild.name + '"公会移除');
     try {
@@ -840,6 +844,7 @@ function showChangeGuildNameForm(player, guild) {
 
         var oldName = guild.name;
         database.updateGuild(guild.id, { name: newName });
+        if (chatModule) chatModule.clearAllOrgNameCache();
         p.tell('§e[公会] §a公会名称已从"' + oldName + '"修改为"' + newName + '"');
 
         // 通知所有成员
@@ -917,6 +922,7 @@ function showMemberManagePanel(player) {
                 p.sendModalForm('§c确认踢出', '确定要将"' + target.name + '"踢出公会吗？', '§c确认', '§a取消', function(p2, r) {
                     if (!r) { showMemberManagePanel(p2); return; }
                     database.removeGuildMember(target.xuid);
+                    if (chatModule) chatModule.clearOrgNameCache(target.xuid);
                     p2.tell('§e[公会] §a已将"' + target.name + '"踢出公会');
                     sendSystemMail(target.xuid, '§c' + p2.name + '已将您从"' + guild.name + '"公会移除');
                     try { var tp = mc.getPlayer(target.xuid); if (tp) tp.tell('§e[公会] §c你已被踢出公会"' + guild.name + '"'); } catch (e) {}
@@ -1130,6 +1136,7 @@ function doLeaveGuild(player) {
         function(p, result) {
             if (!result) return;
             database.removeGuildMember(xuid);
+            if (chatModule) chatModule.clearOrgNameCache(xuid);
             p.tell('§e[公会] §a你已退出公会"' + guild.name + '"');
             // 通知会长和管理员
             var members = database.getGuildMembers(guild.id);
@@ -1627,6 +1634,7 @@ function showAdminChangeGuildName(player, guild) {
 
         var oldName = guild.name;
         database.updateGuild(guild.id, { name: newName });
+        if (chatModule) chatModule.clearAllOrgNameCache();
         p.tell('§e[公会] §a公会名称已从"' + oldName + '"修改为"' + newName + '"');
 
         // 通知所有成员
@@ -1691,6 +1699,7 @@ function showAdminMemberManage(player, guild) {
                 p.sendModalForm('§c确认踢出', '确定要将"' + target.name + '"踢出公会"' + guild.name + '"吗？', '§c确认', '§a取消', function(p2, r) {
                     if (!r) { showAdminMemberManage(p2, guild); return; }
                     database.removeGuildMember(target.xuid);
+                    if (chatModule) chatModule.clearOrgNameCache(target.xuid);
                     p2.tell('§e[公会] §a已将"' + target.name + '"踢出公会');
                     sendSystemMail(target.xuid, '§c系统管理员' + p2.name + '已将您从"' + guild.name + '"公会移除');
                     try { var tp = mc.getPlayer(target.xuid); if (tp) tp.tell('§e[公会] §c你已被管理员踢出公会"' + guild.name + '"'); } catch (e) {}
@@ -2032,6 +2041,7 @@ function doAdminDisbandGuild(player, guild) {
                 try { var mp = mc.getPlayer(members[i].xuid); if (mp) mp.tell('§e[公会] §c你的公会"' + disbandGuildName + '"已被管理员解散'); } catch (e) {}
             }
             database.deleteGuild(guild.id);
+            if (chatModule) chatModule.clearAllOrgNameCache();
             p.tell('§e[公会] §a公会"' + guild.name + '"已被解散');
             logger.info('[Guild] 管理员 ' + p.name + ' 解散公会: ' + guild.name + ' (ID:' + guild.id + ')');
             showAdminPanel(p);

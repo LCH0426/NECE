@@ -136,14 +136,11 @@ let _itemsCache = null;            // 物品映射表缓存（避免每次请求
 let _itemsCacheTime = 0;
 const ITEMS_CACHE_TTL = 60000;     // 物品缓存有效期 60 秒
 
-let _currencyNameCache = null;     // 货币名称缓存
-let _currencyNameCacheTime = 0;
-const CURRENCY_CACHE_TTL = 30000;  // 货币缓存有效期 30 秒
+let _currencyNameCache = null;     // 货币名称缓存（仅配置重载时更新）
 
-/** 获取货币名称，优先使用内存中的 config 引用，回退为读文件；带 30s 缓存 */
+/** 获取货币名称，首次调用时从配置加载，后续直接返回缓存值 */
 function getCurrencyName() {
-    const now = Date.now();
-    if (_currencyNameCache && now - _currencyNameCacheTime < CURRENCY_CACHE_TTL) return _currencyNameCache;
+    if (_currencyNameCache !== null) return _currencyNameCache;
     try {
         if (_configRef) {
             _currencyNameCache = _configRef.get('currencyName') || '星茜';
@@ -153,12 +150,15 @@ function getCurrencyName() {
             const cfg = JSON.parse(content);
             _currencyNameCache = cfg.currencyName || '星茜';
         }
-        _currencyNameCacheTime = now;
     } catch (e) {
         _currencyNameCache = '星茜';
-        _currencyNameCacheTime = now;
     }
     return _currencyNameCache;
+}
+
+/** 重置货币名称缓存（配置重载时调用） */
+function invalidateCurrencyNameCache() {
+    _currencyNameCache = null;
 }
 
 /** 读取 public/textures/items.json 的物品映射表，带 60s 缓存；返回 { itemId: { name, texture } | string } */
@@ -336,7 +336,7 @@ function createApp(webConfig) {
  */
 function verifyAccessToken(req, webConfig, callback) {
     const authHeader = req.headers['authorization'];
-    const token = (authHeader && authHeader.split(' ')[1]) || req.query.token;
+    const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
         return callback({ code: 401, msg: '未登录' });
@@ -580,6 +580,9 @@ function onReload(event, callback) {
     if (!_reloadCallbacks[event]) _reloadCallbacks[event] = [];
     _reloadCallbacks[event].push(callback);
 }
+
+// 配置重载时清除货币名称缓存
+onReload('config', invalidateCurrencyNameCache);
 
 /** 触发指定事件的所有已注册回调，每个回调内部 try/catch 防止单个失败影响其余 */
 function triggerReload(event) {
