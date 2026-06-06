@@ -27,7 +27,7 @@ let _U = null;
 let _pathModule = null;
 
 // 默认聊天配置：启用状态、格式模板、敏感词开关
-let chatCfg = { enabled: true, format: "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§a<§r{name}§a> §r{msg}", wordFilter: true };
+let chatCfg = { enabled: true, format: "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e|§a<§r{name}§a> §r{msg}", wordFilter: true };
 let badWordList = [];
 let badWordRegex = null;  // 预编译的敏感词正则，避免每次检测时重建
 
@@ -57,30 +57,19 @@ function init(deps) {
 }
 
 /**
- * 从磁盘加载聊天配置和敏感词列表
- * 兼容旧字段名 profanityFilter -> wordFilter 的自动迁移
+ * 从 config.json 的 chat 节加载聊天配置，从独立文件加载敏感词列表
  */
 function loadChatConfig() {
     try {
-        const chatCfgPath = _deps.chatCfgPath;
-        const badWordsPath = _deps.badWordsPath;
-        if (_fs.existsSync(chatCfgPath)) {
-            const raw = _fs.readFileSync(chatCfgPath, 'utf-8');
-            const parsed = raw ? JSON.parse(raw) : {};
-            chatCfg = Object.assign(chatCfg, parsed);
-            // 兼容旧字段名 profanityFilter，自动迁移为 wordFilter
-            if (parsed.profanityFilter !== undefined && parsed.wordFilter === undefined) {
-                chatCfg.wordFilter = parsed.profanityFilter;
-                delete chatCfg.profanityFilter;
-                _fs.writeFileSync(chatCfgPath, JSON.stringify(chatCfg, null, 4), 'utf-8');
-            }
-        } else {
-            _U.ensureDir(chatCfgPath);
-            _fs.writeFileSync(chatCfgPath, JSON.stringify(chatCfg, null, 4), 'utf-8');
+        // 聊天配置从 config.json 加载
+        var cfg = _deps.getConfig ? _deps.getConfig() : {};
+        if (cfg && cfg.chat) {
+            chatCfg = Object.assign(chatCfg, cfg.chat);
         }
+        // 敏感词列表从独立文件加载
+        const badWordsPath = _deps.badWordsPath;
         if (_fs.existsSync(badWordsPath)) {
             const bwRaw = _fs.readFileSync(badWordsPath, 'utf-8');
-            // 过滤掉空字符串条目
             badWordList = (bwRaw ? JSON.parse(bwRaw) : []).filter(function(w) { return w && w.trim() !== ""; });
         } else {
             _U.ensureDir(badWordsPath);
@@ -126,6 +115,166 @@ function resolveOrgName(xuid) {
     return '§c无§r';
 }
 
+/** 清除指定玩家的公会名缓存（退出/被踢时调用） */
+function clearOrgNameCache(xuid) {
+    delete _orgNameCache[xuid];
+}
+
+/** 清除所有公会名缓存（公会改名/解散时调用） */
+function clearAllOrgNameCache() {
+    _orgNameCache = {};
+}
+
+// ============ 称号系统 ============
+
+/** 获取玩家称号数据，首次访问时自动初始化 */
+function _getPlayerTitles(xuid) {
+    var pd = _deps.getPlayerData();
+    if (!pd || !pd.players || !pd.players[xuid]) return { owned: ['萌新'], active: '萌新' };
+    var p = pd.players[xuid];
+    if (!p.titles) {
+        p.titles = { owned: ['萌新'], active: '萌新' };
+    }
+    if (!p.titles.owned || p.titles.owned.length === 0) {
+        p.titles.owned = ['萌新'];
+    }
+    if (!p.titles.active) {
+        p.titles.active = '萌新';
+    }
+    return p.titles;
+}
+
+/** 获取玩家当前称号（用于聊天格式） */
+function getPlayerActiveTitle(xuid) {
+    var titles = _getPlayerTitles(xuid);
+    return titles.active || '萌新';
+}
+
+/** 获取玩家拥有的所有称号 */
+function getPlayerOwnedTitles(xuid) {
+    return _getPlayerTitles(xuid).owned || ['萌新'];
+}
+
+/** 为玩家添加称号（管理员/Web API 调用） */
+function addPlayerTitle(xuid, title) {
+    var titles = _getPlayerTitles(xuid);
+    if (titles.owned.indexOf(title) === -1) {
+        titles.owned.push(title);
+    }
+    if (_deps.savePlayerData) _deps.savePlayerData();
+}
+
+/** 设置玩家当前称号 */
+function setActiveTitle(xuid, title) {
+    var titles = _getPlayerTitles(xuid);
+    if (titles.owned.indexOf(title) === -1) return false;
+    titles.active = title;
+    if (_deps.savePlayerData) _deps.savePlayerData();
+    return true;
+}
+
+/** 获取称号商店配置 */
+function getTitleShopConfig() {
+    var cfg = _deps.getConfig ? _deps.getConfig() : {};
+    return (cfg && cfg.titles) ? cfg.titles : { defaultTitle: '萌新', shop: [] };
+}
+
+/** 显示称号系统主界面 */
+function showTitleMainForm(player) {
+    try {
+        var fm = mc.newSimpleForm();
+        fm.setTitle("§l§b称号系统");
+        fm.setContent("§a当前称号: §b" + getPlayerActiveTitle(player.xuid));
+        fm.addButton("§e设置称号", "textures/ui/icon_setting");
+        fm.addButton("§a购买称号", "textures/ui/coin");
+        player.sendForm(fm, function(p, id) {
+            if (id === null) return;
+            if (id === 0) showSetTitleForm(p);
+            if (id === 1) showBuyTitleForm(p);
+        });
+    } catch (e) {
+        logger.error('[Chat/Title] showTitleMainForm 错误: ' + e.message);
+    }
+}
+
+/** 显示设置称号表单（选择已拥有的称号） */
+function showSetTitleForm(player) {
+    try {
+        var owned = getPlayerOwnedTitles(player.xuid);
+        var current = getPlayerActiveTitle(player.xuid);
+        var fm = mc.newSimpleForm();
+        fm.setTitle("§l§e设置称号");
+        fm.setContent("§a当前称号: §b" + current + "\n§a点击选择要使用的称号：");
+        owned.forEach(function(t) {
+            fm.addButton((t === current ? "§b★ " : "§7") + t, "textures/ui/icon_steve");
+        });
+        player.sendForm(fm, function(p, id) {
+            if (id === null) { showTitleMainForm(p); return; }
+            var selected = owned[id];
+            if (selected) {
+                setActiveTitle(p.xuid, selected);
+                p.tell("§e[称号] §a称号已设置为: §b" + selected);
+            }
+        });
+    } catch (e) {
+        logger.error('[Chat/Title] showSetTitleForm 错误: ' + e.message);
+    }
+}
+
+/** 显示购买称号表单 */
+function showBuyTitleForm(player) {
+    try {
+        var shopConfig = getTitleShopConfig();
+        var shop = shopConfig.shop || [];
+        var owned = getPlayerOwnedTitles(player.xuid);
+        var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '星茜';
+        var balance = 0;
+        try { balance = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0; } catch (e) { logger.warn('[Chat/Title] 获取余额失败: ' + e.message); }
+
+        // 过滤掉已拥有的称号
+        var available = shop.filter(function(item) { return owned.indexOf(item.name) === -1; });
+        if (available.length === 0) {
+            player.tell("§e[称号] §a你已经拥有所有可购买的称号！");
+            return;
+        }
+
+        var fm = mc.newSimpleForm();
+        fm.setTitle("§l§a购买称号");
+        fm.setContent("§a余额: §e" + balance + " " + currencyName);
+        available.forEach(function(item) {
+            fm.addButton("§b" + item.name + " §e- " + item.cost + " " + currencyName, "textures/ui/coin");
+        });
+        player.sendForm(fm, function(p, id) {
+            if (id === null) { showTitleMainForm(p); return; }
+            var item = available[id];
+            if (!item) return;
+            var bal = 0;
+            try { bal = _deps.getPlayerMoney ? _deps.getPlayerMoney(p) : 0; } catch (e) { logger.warn('[Chat/Title] 获取余额失败: ' + e.message); }
+            if (bal < item.cost) {
+                p.tell("§e[称号] §c余额不足！需要 " + item.cost + " " + currencyName + "，当前余额 " + bal);
+                return;
+            }
+            try {
+                _deps.reducePlayerMoney(p, item.cost, "购买称号: " + item.name);
+            } catch (e) {
+                p.tell("§e[称号] §c扣款失败: " + e.message);
+                logger.error('[Chat/Title] 扣款失败: ' + e.message);
+                return;
+            }
+            addPlayerTitle(p.xuid, item.name);
+            setActiveTitle(p.xuid, item.name);
+            p.tell("§e[称号] §a成功购买并设置称号: §b" + item.name);
+        });
+    } catch (e) {
+        logger.error('[Chat/Title] showBuyTitleForm 错误: ' + e.message);
+    }
+}
+
+/** 注册 /titles 命令 */
+function registerTitleCommand(registerPlayerCommand) {
+    registerPlayerCommand("titles", "称号系统", function(p) { showTitleMainForm(p); });
+}
+
 /**
  * 检测文本是否包含敏感词
  * @param {string} text - 待检测文本
@@ -142,6 +291,7 @@ const CHAT_PLACEHOLDER_MAP = {
     os: function(p) { let d = p.getDevice(); const o = d ? d.os : "未知"; return o === "Win32" ? "GDK" : o; },
     ping: function(p) { const d = p.getDevice(); return d ? d.avgPing : "N/A"; },
     org: function(p) { return resolveOrgName(p.xuid); },
+    titles: function(p) { return getPlayerActiveTitle(p.xuid); },
     name: function(p) { return p.realName; }
 };
 
@@ -337,9 +487,17 @@ module.exports = {
     loadChatConfig: loadChatConfig,
     isBadWord: isBadWord,
     buildChatOutput: buildChatOutput,
+    clearOrgNameCache: clearOrgNameCache,
+    clearAllOrgNameCache: clearAllOrgNameCache,
     registerChatListener: registerChatListener,
     getChatCfg: getChatCfg,
     writeMessage: _writeChatMessage,
     getAvailableDates: getAvailableDates,
-    queryHistory: queryHistory
+    queryHistory: queryHistory,
+    // 称号系统
+    getPlayerActiveTitle: getPlayerActiveTitle,
+    getPlayerOwnedTitles: getPlayerOwnedTitles,
+    addPlayerTitle: addPlayerTitle,
+    setActiveTitle: setActiveTitle,
+    registerTitleCommand: registerTitleCommand
 };

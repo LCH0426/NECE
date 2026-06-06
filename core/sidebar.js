@@ -36,7 +36,7 @@ let _sidebarMoneyCacheTime = 0;  // 上次余额缓存刷新时间戳
 let _playerDeviceCache = {};
 let _playerBiomeCache = {};
 const DEVICE_CACHE_TTL = 5000;   // 设备信息缓存5秒
-const BIOME_CACHE_TTL = 5000;    // 生物群系缓存5秒
+const BIOME_CACHE_TTL = 1000;    // 生物群系缓存1秒
 
 // 上次渲染的侧边栏内容，内容不变时跳过重复渲染；xuid -> string
 let _lastRenderedSidebar = {};

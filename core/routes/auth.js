@@ -125,7 +125,7 @@ function registerRoutes(router, d) {
     // 退出登录：将Access Token加入黑名单，撤销Refresh Token，清除Cookie
     router.post('/auth/logout', function(req, res) {
         const authHeader = req.headers['authorization'];
-        const accessToken = (authHeader && authHeader.split(' ')[1]) || req.query.token;
+        const accessToken = authHeader && authHeader.split(' ')[1];
 
         // 将Access Token加入黑名单（保留至原过期时间自动清理）
         if (accessToken) {

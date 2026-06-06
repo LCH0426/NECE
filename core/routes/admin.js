@@ -379,6 +379,40 @@ function registerRoutes(router, d) {
             res.status(500).json({ code: 500, msg: '获取人数历史失败: ' + e.message });
         }
     });
+
+    // ===== 称号管理 =====
+
+    // 获取指定玩家的称号列表
+    router.get('/player/:xuid/titles', d.adminAuth, function(req, res) {
+        try {
+            var xuid = req.params.xuid;
+            var owned = d.chatModule.getPlayerOwnedTitles(xuid);
+            var active = d.chatModule.getPlayerActiveTitle(xuid);
+            res.json({ code: 200, data: { xuid: xuid, owned: owned, active: active } });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '获取玩家称号失败: ' + e.message });
+        }
+    });
+
+    // 为指定玩家添加称号
+    router.post('/player/:xuid/titles', d.adminAuth, function(req, res) {
+        try {
+            var xuid = req.params.xuid;
+            var title = (req.body.title || '').trim();
+            if (!title) {
+                return res.status(400).json({ code: 400, msg: '称号不能为空' });
+            }
+            var playerData = d.getPlayerData();
+            if (!playerData || !playerData.players || !playerData.players[xuid]) {
+                return res.status(404).json({ code: 404, msg: '玩家不存在' });
+            }
+            d.chatModule.addPlayerTitle(xuid, title);
+            d.adminLog.log(req.user.uid, '添加称号', '玩家XUID:' + xuid + ' 称号:' + title);
+            res.json({ code: 200, msg: '称号添加成功', data: { xuid: xuid, title: title } });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '添加称号失败: ' + e.message });
+        }
+    });
 }
 
 module.exports = { registerRoutes };

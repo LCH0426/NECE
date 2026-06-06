@@ -77,7 +77,6 @@ const NAR_CONFIG_PATH = C.PATHS.NAR_CONFIG;
 const ITEMS_DATA_PATH = C.PATHS.ITEMS_DATA;
 const HOMES_DATA_PATH = C.PATHS.HOMES_DATA;
 const WARPS_DATA_PATH = C.PATHS.WARPS_DATA;
-const CHAT_CFG_PATH = C.PATHS.CHAT_CFG;
 const BAD_WORDS_PATH = C.PATHS.BAD_WORDS;
 const GUILD_DATA_PATH = C.PATHS.GUILD_DATA;
 
@@ -913,7 +912,11 @@ async function initAllConfigs() {
 	});
 	menuModule.init({ config: config, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData });
 	menuModule.loadConfig();
-	chatModule.init({ fs: fs, U: U, chatCfgPath: CHAT_CFG_PATH, badWordsPath: BAD_WORDS_PATH, webServer: webServer });
+	chatModule.init({ fs: fs, U: U, badWordsPath: BAD_WORDS_PATH, webServer: webServer,
+		getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData,
+		getPlayerMoney: getPlayerMoney, reducePlayerMoney: reducePlayerMoney,
+		getCurrencyName: getCurrencyName, getConfig: function() { return config._data || {}; }
+	});
 	chatModule.loadChatConfig();
 	chatModule.registerChatListener();
 	initNarConfig();
@@ -932,6 +935,7 @@ async function initAllConfigs() {
 		},
 		getPlayerData: function() { return playerData; },
 		mailApi: mailModule,
+		chatModule: chatModule,
 		notifyEconomyChange: notifyEconomyChange
 	});
 
@@ -1620,6 +1624,7 @@ function registerAllCommands() {
 	if (hasWish) {
 		wishModule.registerCommands(registerPlayerCommand);
 	}
+	chatModule.registerTitleCommand(registerPlayerCommand);
 }
 
 
