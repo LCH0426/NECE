@@ -2122,12 +2122,12 @@ if (typeof ll !== 'undefined' && ll.onUnload) {
 }
 
 // ============ 启动Banner ============
-colorLog("yellow",    " _   _   _         _____   ______ ");
-colorLog("yellow",    "| \\ | | | |       / ____| |  ____|");
-colorLog("yellow",    "|  \\| | | |      | |      | |__   ");
-colorLog("yellow",    "| . ` | | |      | |      |  __|  ");
-colorLog("yellow",    "| |\\  | | |____  | |____  | |____ ");
-colorLog("yellow",    "|_| \\_| |______|  \\_____| |______|");
+colorLog("yellow", "███╗   ██╗███████╗ ██████╗███████╗");
+colorLog("yellow", "████╗  ██║██╔════╝██╔════╝██╔════╝");
+colorLog("yellow", "██╔██╗ ██║█████╗  ██║     █████╗  ");
+colorLog("yellow", "██║╚██╗██║██╔══╝  ██║     ██╔══╝  ");
+colorLog("yellow", "██║ ╚████║███████╗╚██████╗███████╗");
+colorLog("yellow", "╚═╝  ╚═══╝╚══════╝ ╚═════╝╚══════╝");
 
 logger.info("");
 logger.info(`       NECE 1.9.9 (${DESIGNATION_NAME})`);
