@@ -17,36 +17,36 @@
 
 // ============ 模块导入 ============
 const fs = require('fs');
-const database = require('./core/database');
-const debugModule = require('./core/debug');
-const webServer = require('./core/server');
-const behaviorLog = require('./core/behaviorLog');
-const C = require('./core/constants');
-const U = require('./core/utils');
-const shopModule = require('./core/shop');
-const teleportModule = require('./core/teleport');
-const vipModuleCreator = require('./core/vip');
-const cdkModuleCreator = require('./core/cdk');
-const rankModuleCreator = require('./core/rank');
-const bankModuleCreator = require('./core/bank');
-const backupModule = require('./core/backup');
-const messageBoardModule = require('./core/messageBoard');
-const friendModule = require('./core/friend');
+const database = require('./src/database');
+const debugModule = require('./src/debug');
+const webServer = require('./src/server');
+const behaviorLog = require('./src/behaviorLog');
+const C = require('./src/constants');
+const U = require('./src/utils');
+const shopModule = require('./src/shop');
+const teleportModule = require('./src/teleport');
+const vipModuleCreator = require('./src/vip');
+const cdkModuleCreator = require('./src/cdk');
+const rankModuleCreator = require('./src/rank');
+const bankModuleCreator = require('./src/bank');
+const backupModule = require('./src/backup');
+const messageBoardModule = require('./src/messageBoard');
+const friendModule = require('./src/friend');
 let wishModule = null;
 let hasWish = false;
-try { wishModule = require('./core/wish'); hasWish = true; } catch (e) { /* wish模块不存在时跳过 */ }
-const banModule = require('./core/ban');
-const mailModule = require('./core/mail');
-const economyModule = require('./core/economy');
-const playerDataModule = require('./core/playerData');
-const avatarModule = require('./core/avatar');
-const chatModule = require('./core/chat');
-const sidebarModule = require('./core/sidebar');
-const menuModule = require('./core/menu');
-const personalCenter = require('./core/personalCenter');
-const guildModule = require('./core/guild');
-const motdModule = require('./core/motd');
-const clearLagModule = require('./core/clearLag');
+try { wishModule = require('./src/wish'); hasWish = true; } catch (e) { /* wish模块不存在时跳过 */ }
+const banModule = require('./src/ban');
+const mailModule = require('./src/mail');
+const economyModule = require('./src/economy');
+const playerDataModule = require('./src/playerData');
+const avatarModule = require('./src/avatar');
+const chatModule = require('./src/chat');
+const sidebarModule = require('./src/sidebar');
+const menuModule = require('./src/menu');
+const personalCenter = require('./src/personalCenter');
+const guildModule = require('./src/guild');
+const motdModule = require('./src/motd');
+const clearLagModule = require('./src/clearLag');
 
 
 // ============ 插件注册 ============
@@ -1817,7 +1817,7 @@ function initWebServer() {
 	}
 	database.initDatabase().then(function() {
 		logger.info('[Web] 数据库初始化完成');
-		const monitoring = require('./core/monitoring');
+		const monitoring = require('./src/monitoring');
 		monitoring.init(tpsData, money, playerData, database);
 		monitoring.startPlayerCountSampling(600000); // 10分钟记录一次玩家人数
 		// 注册Web面板的热重载回调（修改数据后可通过Web触发重新加载）

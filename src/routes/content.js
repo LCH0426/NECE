@@ -18,7 +18,7 @@
 /**
  * NECE 留言板路由模块
  * 提供留言板的CRUD操作，支持心情标签、删除权限控制
- * 赞助管理已集成至 wish 模块（core/wish.js）
+ * 赞助管理已集成至 wish 模块（src/wish.js）
  */
 
 function registerRoutes(router, d) {
