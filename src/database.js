@@ -16,12 +16,13 @@
  */
 
 /**
- * NECE SQLite数据库管理（better-sqlite3）
+ * NECE SQLite数据库管理
  * 管理认证数据（用户/管理员/JWT令牌）和玩家数据（核心/设置/好友/消息/家园等）的SQL存储
- * 使用 better-sqlite3 实现真正的增量写入和 WAL 模式
  */
 
-const Database = require('better-sqlite3');
+
+const initSqlJs = require('sql.js');
+const fs = require('fs');
 const pathModule = require('path');
 const crypto = require('crypto');
 const { ensureDir } = require('./utils');
@@ -39,10 +40,12 @@ const HASH_LENGTH = 64;
 
 let db = null;           // 认证数据库实例
 let playerDb = null;     // 玩家数据库实例
-let playerDbReady = false;
-let _debug = false;
+let playerDbReady = false; // 玩家数据库是否初始化完成
+let _debug = false;      // 数据库模块调试开关
 
+/** 设置数据库模块调试模式 */
 function setDebugMode(enabled) { _debug = !!enabled; }
+/** 数据库专用调试日志，仅在 _debug 开启时输出 */
 function dbDebugLog() {
     if (!_debug) return;
     const args = ['[DB]'];
@@ -50,16 +53,20 @@ function dbDebugLog() {
     logger.info(args.join(' '));
 }
 
-// ============ 认证数据库 ============
-
-/** 初始化认证数据库（nlce.db），better-sqlite3 直接打开文件，自动持久化 */
-function initDatabase() {
+/** 初始化认证数据库（nlce.db），建表并创建索引，支持从已有文件恢复 */
+async function initDatabase() {
     ensureDir(DB_PATH);
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
 
-    db.exec(`CREATE TABLE IF NOT EXISTS users (
+    const SQL = await initSqlJs();
+
+    if (fs.existsSync(DB_PATH)) {
+        const buffer = fs.readFileSync(DB_PATH);
+        db = new SQL.Database(buffer);
+    } else {
+        db = new SQL.Database();
+    }
+
+    db.run(`CREATE TABLE IF NOT EXISTS users (
         uid TEXT PRIMARY KEY,
         password_hash TEXT NOT NULL,
         salt TEXT NOT NULL,
@@ -67,18 +74,18 @@ function initDatabase() {
         updated_at TEXT DEFAULT (datetime('now', 'localtime'))
     )`);
 
-    db.exec(`CREATE TABLE IF NOT EXISTS admins (
+    db.run(`CREATE TABLE IF NOT EXISTS admins (
         uid TEXT PRIMARY KEY,
         added_at TEXT DEFAULT (datetime('now', 'localtime'))
     )`);
 
-    db.exec(`CREATE TABLE IF NOT EXISTS captcha (
+    db.run(`CREATE TABLE IF NOT EXISTS captcha (
         captcha_id TEXT PRIMARY KEY,
         code TEXT NOT NULL,
         created_at INTEGER NOT NULL
     )`);
 
-    db.exec(`CREATE TABLE IF NOT EXISTS refresh_tokens (
+    db.run(`CREATE TABLE IF NOT EXISTS refresh_tokens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         uid TEXT NOT NULL,
         token_jti TEXT NOT NULL UNIQUE,
@@ -88,153 +95,320 @@ function initDatabase() {
         is_revoked INTEGER NOT NULL DEFAULT 0
     )`);
 
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_uid ON refresh_tokens(uid)`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family ON refresh_tokens(family_id)`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_jti ON refresh_tokens(token_jti)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_uid ON refresh_tokens(uid)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family ON refresh_tokens(family_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_jti ON refresh_tokens(token_jti)`);
 
-    db.exec(`CREATE TABLE IF NOT EXISTS access_token_blacklist (
+    db.run(`CREATE TABLE IF NOT EXISTS access_token_blacklist (
         jti TEXT PRIMARY KEY,
         expires_at INTEGER NOT NULL
     )`);
 
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_blacklist_expires ON access_token_blacklist(expires_at)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_blacklist_expires ON access_token_blacklist(expires_at)`);
 
-    cleanExpiredData();
+    saveDatabase();
     return db;
 }
 
-/** better-sqlite3 自动持久化，此函数保留兼容性（空操作） */
-function saveDatabase() { cleanExpiredData(); }
-function requestSaveAuthDb() {}
-function cancelPendingAuthSave() {}
+/**
+ * 原子写入文件：先写临时文件，再重命名，防止中途崩溃导致文件损坏
+ * @param {string} filePath - 目标文件路径
+ * @param {Buffer} buffer - 写入内容
+ */
+function atomicWriteSync(filePath, buffer) {
+    const tmpPath = filePath + '.tmp';
+    fs.writeFileSync(tmpPath, buffer);
+    fs.renameSync(tmpPath, filePath);
+}
+
+/** 保存认证数据库到磁盘，保存前清理过期数据 */
+function saveDatabase() {
+    if (!db) return;
+    try {
+        cleanExpiredData();
+        const data = db.export();
+        const buffer = Buffer.from(data);
+        ensureDir(DB_PATH);
+        atomicWriteSync(DB_PATH, buffer);
+    } catch (e) {
+        logger.error('保存数据库失败:', e.message);
+    }
+}
+
+let _authDbSaveTimer = null;
+/** 防抖保存认证数据库，10秒内多次调用只触发一次实际写入 */
+function requestSaveAuthDb() {
+    if (_authDbSaveTimer) clearTimeout(_authDbSaveTimer);
+    _authDbSaveTimer = setTimeout(function() {
+        _authDbSaveTimer = null;
+        saveDatabase();
+    }, 10000);
+}
+
+/** 取消待执行的认证数据库防抖保存（用于关服前立即保存） */
+function cancelPendingAuthSave() {
+    if (_authDbSaveTimer) {
+        clearTimeout(_authDbSaveTimer);
+        _authDbSaveTimer = null;
+    }
+}
 
 /** 清理过期的验证码（5分钟）、刷新令牌和黑名单条目 */
 function cleanExpiredData() {
     if (!db) return;
     try {
-        const now = Date.now();
+        let now = Date.now();
         const captchaExpire = now - 5 * 60 * 1000;
-        db.prepare('DELETE FROM captcha WHERE created_at < ?').run(captchaExpire);
-        db.prepare('DELETE FROM refresh_tokens WHERE expires_at < ?').run(now);
-        db.prepare('DELETE FROM access_token_blacklist WHERE expires_at < ?').run(now);
+        db.run('DELETE FROM captcha WHERE created_at < ?', [captchaExpire]);
+        db.run('DELETE FROM refresh_tokens WHERE expires_at < ?', [now]);
+        db.run('DELETE FROM access_token_blacklist WHERE expires_at < ?', [now]);
     } catch (e) {
         logger.error('清理过期数据失败:', e.message);
     }
 }
 
+/** 使用 PBKDF2-SHA512 对密码进行哈希 */
 function hashPassword(password, salt) {
     return crypto.pbkdf2Sync(password, salt, HASH_ITERATIONS, HASH_LENGTH, 'sha512').toString('hex');
 }
 
+/** 生成随机盐值（hex 编码） */
 function generateSalt() {
     return crypto.randomBytes(SALT_LENGTH).toString('hex');
 }
 
+/**
+ * 设置用户密码（存在则更新，不存在则插入）
+ * @param {string} uid - 用户 ID
+ * @param {string} password - 明文密码
+ * @returns {boolean} 始终返回 true
+ */
 function setPassword(uid, password) {
     const salt = generateSalt();
     const hash = hashPassword(password, salt);
-    const existing = db.prepare('SELECT uid FROM users WHERE uid = ?').get(uid);
-    if (existing) {
-        db.prepare('UPDATE users SET password_hash = ?, salt = ?, updated_at = datetime(\'now\', \'localtime\') WHERE uid = ?').run(hash, salt, uid);
+
+    const existing = db.exec('SELECT uid FROM users WHERE uid = ?', [uid]);
+    if (existing.length > 0 && existing[0].values.length > 0) {
+        db.run('UPDATE users SET password_hash = ?, salt = ?, updated_at = datetime(\'now\', \'localtime\') WHERE uid = ?', [hash, salt, uid]);
     } else {
-        db.prepare('INSERT INTO users (uid, password_hash, salt) VALUES (?, ?, ?)').run(uid, hash, salt);
+        db.run('INSERT INTO users (uid, password_hash, salt) VALUES (?, ?, ?)', [uid, hash, salt]);
     }
+    requestSaveAuthDb();
     return true;
 }
 
+/**
+ * 验证用户密码是否正确
+ * @param {string} uid - 用户 ID
+ * @param {string} password - 待验证的明文密码
+ * @returns {boolean} 密码是否匹配
+ */
 function verifyPassword(uid, password) {
-    const row = db.prepare('SELECT password_hash, salt FROM users WHERE uid = ?').get(uid);
-    if (!row) return false;
-    const hash = hashPassword(password, row.salt);
+    const result = db.exec('SELECT password_hash, salt FROM users WHERE uid = ?', [uid]);
+    if (result.length === 0 || result[0].values.length === 0) return false;
+
+    const storedHash = result[0].values[0][0];
+    const salt = result[0].values[0][1];
+    const hash = hashPassword(password, salt);
+    // 恒定时间比较，防止时序攻击
     try {
-        if (hash.length !== row.password_hash.length) return false;
-        return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(row.password_hash, 'hex'));
-    } catch (e) { return false; }
+        if (hash.length !== storedHash.length) return false;
+        return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(storedHash, 'hex'));
+    } catch (e) {
+        return false;
+    }
 }
 
+/** 检查用户是否已设置密码 */
 function hasPassword(uid) {
-    return !!db.prepare('SELECT uid FROM users WHERE uid = ?').get(uid);
+    const result = db.exec('SELECT uid FROM users WHERE uid = ?', [uid]);
+    return result.length > 0 && result[0].values.length > 0;
 }
 
+/** 添加管理员，已存在则返回 false */
 function addAdmin(uid) {
-    if (db.prepare('SELECT uid FROM admins WHERE uid = ?').get(uid)) return false;
-    db.prepare('INSERT INTO admins (uid) VALUES (?)').run(uid);
+    const existing = db.exec('SELECT uid FROM admins WHERE uid = ?', [uid]);
+    if (existing.length > 0 && existing[0].values.length > 0) return false;
+    db.run('INSERT INTO admins (uid) VALUES (?)', [uid]);
+    requestSaveAuthDb();
     return true;
 }
 
+/** 移除管理员，不存在则返回 false */
 function removeAdmin(uid) {
-    if (!db.prepare('SELECT uid FROM admins WHERE uid = ?').get(uid)) return false;
-    db.prepare('DELETE FROM admins WHERE uid = ?').run(uid);
+    const existing = db.exec('SELECT uid FROM admins WHERE uid = ?', [uid]);
+    if (existing.length === 0 || existing[0].values.length === 0) return false;
+    db.run('DELETE FROM admins WHERE uid = ?', [uid]);
+    requestSaveAuthDb();
     return true;
 }
 
+/** 检查用户是否为管理员 */
 function isAdmin(uid) {
-    return !!db.prepare('SELECT uid FROM admins WHERE uid = ?').get(uid);
+    const result = db.exec('SELECT uid FROM admins WHERE uid = ?', [uid]);
+    return result.length > 0 && result[0].values.length > 0;
 }
 
+/** 获取所有管理员列表及其添加时间 */
 function getAllAdmins() {
-    return db.prepare('SELECT uid, added_at FROM admins').all();
+    const result = db.exec('SELECT uid, added_at FROM admins');
+    if (result.length === 0) return [];
+    return result[0].values.map(row => ({ uid: row[0], added_at: row[1] }));
 }
 
+/**
+ * 生成验证码记录并返回唯一 ID
+ * @param {string} code - 验证码文本
+ * @returns {string} captchaId（hex 编码的 16 字节随机值）
+ */
 function generateCaptcha(code) {
     const captchaId = crypto.randomBytes(16).toString('hex');
-    db.prepare('INSERT INTO captcha (captcha_id, code, created_at) VALUES (?, ?, ?)').run(captchaId, code, Date.now());
+    const createdAt = Date.now();
+
+    db.run('INSERT INTO captcha (captcha_id, code, created_at) VALUES (?, ?, ?)', [captchaId, code, createdAt]);
+    requestSaveAuthDb();
     return captchaId;
 }
 
+/**
+ * 验证验证码（不区分大小写），验证后无论成功与否均删除记录
+ * @param {string} captchaId - 验证码 ID
+ * @param {string} input - 用户输入的验证码
+ * @returns {boolean} 验证码是否匹配且未过期（5分钟有效期）
+ */
 function verifyCaptcha(captchaId, input) {
-    const row = db.prepare('SELECT code, created_at FROM captcha WHERE captcha_id = ?').get(captchaId);
-    if (!row) return false;
-    if (Date.now() - row.created_at > 5 * 60 * 1000) {
-        db.prepare('DELETE FROM captcha WHERE captcha_id = ?').run(captchaId);
+    const result = db.exec('SELECT code, created_at FROM captcha WHERE captcha_id = ?', [captchaId]);
+    if (result.length === 0 || result[0].values.length === 0) return false;
+
+    const code = result[0].values[0][0];
+    const createdAt = result[0].values[0][1];
+
+    if (Date.now() - createdAt > 5 * 60 * 1000) {
+        db.run('DELETE FROM captcha WHERE captcha_id = ?', [captchaId]);
+        requestSaveAuthDb();
         return false;
     }
-    db.prepare('DELETE FROM captcha WHERE captcha_id = ?').run(captchaId);
-    return row.code.toLowerCase() === input.toLowerCase();
+
+    db.run('DELETE FROM captcha WHERE captcha_id = ?', [captchaId]);
+    requestSaveAuthDb();
+
+    return code.toLowerCase() === input.toLowerCase();
 }
 
+/** 清除所有过期（超过5分钟）的验证码记录 */
 function cleanExpiredCaptchas() {
-    db.prepare('DELETE FROM captcha WHERE created_at < ?').run(Date.now() - 5 * 60 * 1000);
+    const expireTime = Date.now() - 5 * 60 * 1000;
+    db.run('DELETE FROM captcha WHERE created_at < ?', [expireTime]);
+    requestSaveAuthDb();
 }
 
+/**
+ * 保存刷新令牌记录
+ * @param {string} uid - 用户 ID
+ * @param {string} jti - 令牌唯一标识
+ * @param {string} familyId - 令牌家族 ID（用于令牌轮换时批量吊销）
+ * @param {number} expiresAt - 过期时间戳（毫秒）
+ */
 function saveRefreshToken(uid, jti, familyId, expiresAt) {
-    db.prepare('INSERT INTO refresh_tokens (uid, token_jti, family_id, created_at, expires_at, is_revoked) VALUES (?, ?, ?, ?, ?, 0)').run(uid, jti, familyId, Date.now(), expiresAt);
+    let now = Date.now();
+    db.run(
+        'INSERT INTO refresh_tokens (uid, token_jti, family_id, created_at, expires_at, is_revoked) VALUES (?, ?, ?, ?, ?, 0)',
+        [uid, jti, familyId, now, expiresAt]
+    );
+    requestSaveAuthDb();
 }
 
+/**
+ * 根据 jti 查找刷新令牌
+ * @param {string} jti - 令牌唯一标识
+ * @returns {Object|null} 令牌对象或 null
+ */
 function findRefreshToken(jti) {
-    const row = db.prepare('SELECT id, uid, token_jti, family_id, created_at, expires_at, is_revoked FROM refresh_tokens WHERE token_jti = ?').get(jti);
-    if (!row) return null;
-    return { id: row.id, uid: row.uid, tokenJti: row.token_jti, familyId: row.family_id, createdAt: row.created_at, expiresAt: row.expires_at, isRevoked: row.is_revoked === 1 };
+    let result = db.exec(
+        'SELECT id, uid, token_jti, family_id, created_at, expires_at, is_revoked FROM refresh_tokens WHERE token_jti = ?',
+        [jti]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+
+    let row = result[0].values[0];
+    return {
+        id: row[0],
+        uid: row[1],
+        tokenJti: row[2],
+        familyId: row[3],
+        createdAt: row[4],
+        expiresAt: row[5],
+        isRevoked: row[6] === 1
+    };
 }
 
-function revokeRefreshToken(jti) { db.prepare('UPDATE refresh_tokens SET is_revoked = 1 WHERE token_jti = ?').run(jti); }
-function revokeFamilyTokens(familyId) { db.prepare('UPDATE refresh_tokens SET is_revoked = 1 WHERE family_id = ?').run(familyId); }
-function revokeAllUserTokens(uid) { db.prepare('UPDATE refresh_tokens SET is_revoked = 1 WHERE uid = ?').run(uid); }
-function cleanExpiredRefreshTokens() { db.prepare('DELETE FROM refresh_tokens WHERE expires_at < ?').run(Date.now()); }
+/** 吊销指定刷新令牌 */
+function revokeRefreshToken(jti) {
+    db.run('UPDATE refresh_tokens SET is_revoked = 1 WHERE token_jti = ?', [jti]);
+    requestSaveAuthDb();
+}
 
+/** 吊销同一家族下的所有刷新令牌（用于令牌轮换安全检测） */
+function revokeFamilyTokens(familyId) {
+    db.run('UPDATE refresh_tokens SET is_revoked = 1 WHERE family_id = ?', [familyId]);
+    requestSaveAuthDb();
+}
+
+/** 吊销指定用户的所有刷新令牌 */
+function revokeAllUserTokens(uid) {
+    db.run('UPDATE refresh_tokens SET is_revoked = 1 WHERE uid = ?', [uid]);
+    requestSaveAuthDb();
+}
+
+/** 删除已过期的刷新令牌记录 */
+function cleanExpiredRefreshTokens() {
+    let now = Date.now();
+    db.run('DELETE FROM refresh_tokens WHERE expires_at < ?', [now]);
+    requestSaveAuthDb();
+}
+
+/** 将访问令牌加入黑名单（用户登出时调用） */
 function blacklistAccessToken(jti, expiresAt) {
-    db.prepare('INSERT OR IGNORE INTO access_token_blacklist (jti, expires_at) VALUES (?, ?)').run(jti, expiresAt);
+    db.run(
+        'INSERT OR IGNORE INTO access_token_blacklist (jti, expires_at) VALUES (?, ?)',
+        [jti, expiresAt]
+    );
+    requestSaveAuthDb();
 }
 
+/** 检查访问令牌是否在黑名单中 */
 function isAccessTokenBlacklisted(jti) {
-    return !!db.prepare('SELECT jti FROM access_token_blacklist WHERE jti = ?').get(jti);
+    let result = db.exec('SELECT jti FROM access_token_blacklist WHERE jti = ?', [jti]);
+    return result.length > 0 && result[0].values.length > 0;
 }
 
+/** 清除已过期的黑名单条目 */
 function cleanExpiredBlacklist() {
-    db.prepare('DELETE FROM access_token_blacklist WHERE expires_at < ?').run(Date.now());
+    const now = Date.now();
+    db.run('DELETE FROM access_token_blacklist WHERE expires_at < ?', [now]);
+    requestSaveAuthDb();
 }
 
-// ============ 玩家数据库 ============
+// ===================== 玩家数据 SQL 方法 =====================
 
-/** 初始化玩家数据库，启用 WAL 模式和 64MB 缓存 */
-function initPlayerDatabase() {
+/** 初始化玩家数据库，启用 WAL 模式和 64MB 缓存以提升性能 */
+async function initPlayerDatabase() {
     ensureDir(PLAYER_DB_PATH);
-    playerDb = new Database(PLAYER_DB_PATH);
-    playerDb.pragma('journal_mode = WAL');
-    playerDb.pragma('synchronous = NORMAL');
-    playerDb.pragma('cache_size = -64000');
+    const SQL = await initSqlJs();
+    if (fs.existsSync(PLAYER_DB_PATH)) {
+        const buffer = fs.readFileSync(PLAYER_DB_PATH);
+        playerDb = new SQL.Database(buffer);
+        dbDebugLog('initPlayerDatabase: 加载现有数据库, 大小=' + buffer.length + ' bytes');
+    } else {
+        playerDb = new SQL.Database();
+        dbDebugLog('initPlayerDatabase: 创建新数据库');
+    }
+    playerDb.run("PRAGMA journal_mode=WAL");
+    playerDb.run("PRAGMA synchronous=NORMAL");
+    playerDb.run("PRAGMA cache_size=-64000");
 
-    playerDb.exec(`CREATE TABLE IF NOT EXISTS player_data (
+    // 创建所有玩家数据表（IF NOT EXISTS 确保幂等）
+    playerDb.run(`CREATE TABLE IF NOT EXISTS player_data (
         xuid TEXT PRIMARY KEY, uid INTEGER, name TEXT, uuid TEXT,
         register_time TEXT, leave_time TEXT, health_bonus INTEGER DEFAULT 0,
         rw TEXT, tax_data TEXT DEFAULT '{}', bank_data TEXT DEFAULT '{}',
@@ -242,496 +416,1012 @@ function initPlayerDatabase() {
         avatar TEXT DEFAULT '{}', count TEXT DEFAULT '{}',
         last_ip TEXT DEFAULT '', platform TEXT DEFAULT ''
     )`);
-    try { playerDb.exec("ALTER TABLE player_data ADD COLUMN last_ip TEXT DEFAULT ''"); } catch (e) {}
-    try { playerDb.exec("ALTER TABLE player_data ADD COLUMN platform TEXT DEFAULT ''"); } catch (e) {}
-    playerDb.exec('CREATE TABLE IF NOT EXISTS player_settings (xuid TEXT, key TEXT, value TEXT, PRIMARY KEY (xuid, key))');
-    playerDb.exec('CREATE TABLE IF NOT EXISTS death_points (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, data TEXT)');
-    playerDb.exec('CREATE TABLE IF NOT EXISTS friends (xuid TEXT, friend_xuid TEXT, friend_name TEXT, add_time TEXT, PRIMARY KEY (xuid, friend_xuid))');
-    playerDb.exec('CREATE TABLE IF NOT EXISTS friend_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, message TEXT, time TEXT, handled INTEGER DEFAULT 0, rejected INTEGER DEFAULT 0, is_sent INTEGER DEFAULT 0)');
-    playerDb.exec('CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, to_xuid TEXT, to_name TEXT, content TEXT, time TEXT, is_read INTEGER DEFAULT 0)');
-    playerDb.exec('CREATE TABLE IF NOT EXISTS homes (xuid TEXT, name TEXT, x REAL, y REAL, z REAL, dim INTEGER, last_use TEXT, PRIMARY KEY (xuid, name))');
-    playerDb.exec('CREATE TABLE IF NOT EXISTS player_inventory (xuid TEXT PRIMARY KEY, items TEXT DEFAULT \'[]\', armor TEXT DEFAULT \'[]\', offhand TEXT DEFAULT \'[]\', save_time TEXT)');
-    try { playerDb.exec('ALTER TABLE player_inventory ADD COLUMN armor TEXT DEFAULT \'[]\''); } catch (e) {}
-    try { playerDb.exec('ALTER TABLE player_inventory ADD COLUMN offhand TEXT DEFAULT \'[]\''); } catch (e) {}
+    // 兼容已有数据库：添加缺失列（已存在则忽略）
+    try { playerDb.run("ALTER TABLE player_data ADD COLUMN last_ip TEXT DEFAULT ''"); } catch (e) {}
+    try { playerDb.run("ALTER TABLE player_data ADD COLUMN platform TEXT DEFAULT ''"); } catch (e) {}
+    playerDb.run('CREATE TABLE IF NOT EXISTS player_settings (xuid TEXT, key TEXT, value TEXT, PRIMARY KEY (xuid, key))');
+    playerDb.run('CREATE TABLE IF NOT EXISTS death_points (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, data TEXT)');
+    playerDb.run('CREATE TABLE IF NOT EXISTS friends (xuid TEXT, friend_xuid TEXT, friend_name TEXT, add_time TEXT, PRIMARY KEY (xuid, friend_xuid))');
+    playerDb.run('CREATE TABLE IF NOT EXISTS friend_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, message TEXT, time TEXT, handled INTEGER DEFAULT 0, rejected INTEGER DEFAULT 0, is_sent INTEGER DEFAULT 0)');
+    playerDb.run('CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, to_xuid TEXT, to_name TEXT, content TEXT, time TEXT, is_read INTEGER DEFAULT 0)');
+    playerDb.run('CREATE TABLE IF NOT EXISTS homes (xuid TEXT, name TEXT, x REAL, y REAL, z REAL, dim INTEGER, last_use TEXT, PRIMARY KEY (xuid, name))');
+    playerDb.run('CREATE TABLE IF NOT EXISTS player_inventory (xuid TEXT PRIMARY KEY, items TEXT DEFAULT \'[]\', armor TEXT DEFAULT \'[]\', offhand TEXT DEFAULT \'[]\', save_time TEXT)');
+    try { playerDb.run('ALTER TABLE player_inventory ADD COLUMN armor TEXT DEFAULT \'[]\''); } catch (e) {}
+    try { playerDb.run('ALTER TABLE player_inventory ADD COLUMN offhand TEXT DEFAULT \'[]\''); } catch (e) {}
 
+    // 公会系统表
     createGuildTables();
+    // 玩家人数统计表
     createPlayerCountTable();
 
     playerDbReady = true;
     dbDebugLog('initPlayerDatabase: 数据库就绪');
+    _playerDbDirty = true;
+    savePlayerDatabase();
     return playerDb;
 }
 
-function isPlayerDbReady() { return playerDbReady && playerDb !== null; }
+/** 检查玩家数据库是否已初始化可用 */
+function isPlayerDbReady() {
+    return playerDbReady && playerDb !== null;
+}
 
-// better-sqlite3 自动持久化，以下函数保留兼容性（空操作）
-function markPlayerDbDirty() {}
-function savePlayerDatabase() {}
-function requestSavePlayerDb() {}
-function cancelPendingSave() {}
+let _playerDbDirty = false;
+
+/** 标记玩家数据库有未写入磁盘的变更 */
+function markPlayerDbDirty() {
+    _playerDbDirty = true;
+}
+
+/** 将玩家数据库内存内容导出并写入磁盘文件，未脏则跳过 */
+function savePlayerDatabase() {
+    if (!playerDb) return;
+    if (!_playerDbDirty) {
+        dbDebugLog('savePlayerDatabase: 数据未变更，跳过导出');
+        return;
+    }
+    try {
+        const data = playerDb.export();
+        dbDebugLog('savePlayerDatabase: 导出并保存数据库');
+        const buffer = Buffer.from(data);
+        ensureDir(PLAYER_DB_PATH);
+        atomicWriteSync(PLAYER_DB_PATH, buffer);
+        _playerDbDirty = false;
+    } catch (e) {
+        logger.error('[PlayerDB] 保存失败:', e.message);
+    }
+}
+
+let _playerDbSaveTimer = null;
+/** 防抖保存玩家数据库，30秒内多次调用只触发一次写盘 */
+function requestSavePlayerDb() {
+    if (_playerDbSaveTimer) clearTimeout(_playerDbSaveTimer);
+    _playerDbSaveTimer = setTimeout(function() {
+        _playerDbSaveTimer = null;
+        savePlayerDatabase();
+    }, 30000);
+}
+
+/** 取消待执行的玩家数据库防抖保存 */
+function cancelPendingSave() {
+    if (_playerDbSaveTimer) {
+        clearTimeout(_playerDbSaveTimer);
+        _playerDbSaveTimer = null;
+    }
+}
 
 // --- 玩家核心数据 ---
 
+/**
+ * 根据 XUID 获取玩家核心数据，JSON 字段自动解析
+ * @param {string} xuid - 玩家 XUID
+ * @returns {Object|null} 玩家数据对象，不存在返回 null
+ */
 function getPlayerDataSQL(xuid) {
     if (!playerDb) return null;
-    const row = playerDb.prepare('SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform FROM player_data WHERE xuid = ?').get(xuid);
-    if (!row) return null;
+    let result = playerDb.exec(
+        'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform FROM player_data WHERE xuid = ?',
+        [xuid]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const row = result[0].values[0];
     return {
-        uid: row.uid, name: row.name, uuid: row.uuid, registerTime: row.register_time,
-        leavetime: row.leave_time, healthBonus: row.health_bonus, rw: row.rw,
-        taxdata: JSON.parse(row.tax_data || '{}'), bankdata: JSON.parse(row.bank_data || '{}'),
-        quickmenu: JSON.parse(row.quick_menu || '{}'), vipdata: JSON.parse(row.vip_data || '{}'),
-        avatar: JSON.parse(row.avatar || '{}'), count: JSON.parse(row.count || '{}'),
-        lastIp: row.last_ip || '', platform: row.platform || ''
+        uid: row[0],
+        name: row[1],
+        uuid: row[2],
+        registerTime: row[3],
+        leavetime: row[4],
+        healthBonus: row[5],
+        rw: row[6],
+        taxdata: JSON.parse(row[7] || '{}'),
+        bankdata: JSON.parse(row[8] || '{}'),
+        quickmenu: JSON.parse(row[9] || '{}'),
+        vipdata: JSON.parse(row[10] || '{}'),
+        avatar: JSON.parse(row[11] || '{}'),
+        count: JSON.parse(row[12] || '{}'),
+        lastIp: row[13] || '',
+        platform: row[14] || ''
     };
 }
 
+/**
+ * 插入或替换玩家核心数据（INSERT OR REPLACE 语义）
+ * @param {string} xuid - 玩家 XUID
+ * @param {Object} data - 玩家数据对象，JSON 字段自动序列化
+ */
 function setPlayerDataSQL(xuid, data) {
     if (!playerDb) return;
-    playerDb.prepare(`INSERT OR REPLACE INTO player_data
-        (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-        xuid, data.uid, data.name, data.uuid, data.registerTime,
-        String(data.leavetime || ''), data.healthBonus || 0, data.rw,
-        JSON.stringify(data.taxdata || {}), JSON.stringify(data.bankdata || {}),
-        JSON.stringify(data.quickmenu || {}), JSON.stringify(data.vipdata || {}),
-        JSON.stringify(data.avatar || {}), JSON.stringify(data.count || {}),
-        data.lastIp || '', data.platform || ''
+    markPlayerDbDirty();
+    playerDb.run(
+        `INSERT OR REPLACE INTO player_data
+         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [xuid, data.uid, data.name, data.uuid, data.registerTime,
+         String(data.leavetime || ''), data.healthBonus || 0, data.rw,
+         JSON.stringify(data.taxdata || {}), JSON.stringify(data.bankdata || {}),
+         JSON.stringify(data.quickmenu || {}), JSON.stringify(data.vipdata || {}),
+         JSON.stringify(data.avatar || {}), JSON.stringify(data.count || {}),
+         data.lastIp || '', data.platform || '']
     );
 }
 
+/**
+ * 部分更新：仅更新 leave_time 字段，避免全行序列化
+ * @param {string} xuid - 玩家XUID
+ * @param {string} timestamp - 时间戳字符串
+ */
 function updateLeaveTimeSQL(xuid, timestamp) {
     if (!playerDb) return;
-    playerDb.prepare('UPDATE player_data SET leave_time = ? WHERE xuid = ?').run(String(timestamp), xuid);
+    markPlayerDbDirty();
+    playerDb.run('UPDATE player_data SET leave_time = ? WHERE xuid = ?', [String(timestamp), xuid]);
 }
 
+/**
+ * 部分更新：仅更新 count JSON 中的 playTime 字段，避免全行序列化
+ * @param {string} xuid - 玩家XUID
+ * @param {number} playTime - 累计在线秒数
+ */
 function updatePlayTimeSQL(xuid, playTime) {
     if (!playerDb) return;
-    playerDb.prepare("UPDATE player_data SET count = json_set(COALESCE(count, '{}'), '$.playTime', ?) WHERE xuid = ?").run(playTime, xuid);
+    markPlayerDbDirty();
+    // SQLite json_set 更新 count 字段中的 playTime
+    playerDb.run(
+        "UPDATE player_data SET count = json_set(COALESCE(count, '{}'), '$.playTime', ?) WHERE xuid = ?",
+        [playTime, xuid]
+    );
 }
 
+/** 获取所有玩家核心数据，返回 { xuid: data } 映射 */
 function getAllPlayerDataSQL() {
     if (!playerDb) return {};
     dbDebugLog('getAllPlayerDataSQL: 查询所有玩家数据');
-    const rows = playerDb.prepare('SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform FROM player_data').all();
+    let result = playerDb.exec(
+        'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform FROM player_data'
+    );
     const players = {};
-    rows.forEach(function(r) {
-        players[r.xuid] = {
-            uid: r.uid, name: r.name, uuid: r.uuid, registerTime: r.register_time,
-            leavetime: r.leave_time, healthBonus: r.health_bonus, rw: r.rw,
-            taxdata: JSON.parse(r.tax_data || '{}'), bankdata: JSON.parse(r.bank_data || '{}'),
-            quickmenu: JSON.parse(r.quick_menu || '{}'), vipdata: JSON.parse(r.vip_data || '{}'),
-            avatar: JSON.parse(r.avatar || '{}'), count: JSON.parse(r.count || '{}'),
-            lastIp: r.last_ip || '', platform: r.platform || ''
+    if (result.length === 0) return players;
+    const cols = result[0].columns;
+    result[0].values.forEach(function(row) {
+        const obj = {};
+        for (let i = 1; i < cols.length; i++) {
+            obj[cols[i]] = row[i];
+        }
+        players[row[0]] = {
+            uid: obj.uid,
+            name: obj.name,
+            uuid: obj.uuid,
+            registerTime: obj.register_time,
+            leavetime: obj.leave_time,
+            healthBonus: obj.health_bonus,
+            rw: obj.rw,
+            taxdata: JSON.parse(obj.tax_data || '{}'),
+            bankdata: JSON.parse(obj.bank_data || '{}'),
+            quickmenu: JSON.parse(obj.quick_menu || '{}'),
+            vipdata: JSON.parse(obj.vip_data || '{}'),
+            avatar: JSON.parse(obj.avatar || '{}'),
+            count: JSON.parse(obj.count || '{}'),
+            lastIp: obj.last_ip || '',
+            platform: obj.platform || ''
         };
     });
     return players;
 }
 
+/** 获取下一个可用的玩家 UID（自增逻辑，起始值 10000） */
 function getNextUidSQL() {
     if (!playerDb) return 10000;
-    const row = playerDb.prepare('SELECT MAX(uid) as maxUid FROM player_data').get();
-    return (row && row.maxUid ? row.maxUid : 10000) + 1;
+    let result = playerDb.exec('SELECT MAX(uid) FROM player_data');
+    if (result.length === 0 || result[0].values.length === 0 || result[0].values[0][0] === null) return 10000;
+    return (result[0].values[0][0] || 10000) + 1;
 }
 
 // --- 玩家设置 ---
 
+/** 获取指定玩家的所有设置项，值自动 JSON 解析 */
 function getPlayerSettingsSQL(xuid) {
     if (!playerDb) return {};
-    const rows = playerDb.prepare('SELECT key, value FROM player_settings WHERE xuid = ?').all(xuid);
+    let result = playerDb.exec('SELECT key, value FROM player_settings WHERE xuid = ?', [xuid]);
     const settings = {};
-    rows.forEach(function(r) {
-        try { settings[r.key] = JSON.parse(r.value); } catch (e) { settings[r.key] = r.value; }
+    if (result.length === 0) return settings;
+    result[0].values.forEach(function(row) {
+        try { settings[row[0]] = JSON.parse(row[1]); }
+        catch (e) { settings[row[0]] = row[1]; }
     });
     return settings;
 }
 
+/** 获取所有玩家的设置，返回 { xuid: { key: value } } 映射 */
 function getAllPlayerSettingsSQL() {
     if (!playerDb) return {};
-    const rows = playerDb.prepare('SELECT xuid, key, value FROM player_settings').all();
-    const all = {};
-    rows.forEach(function(r) {
-        if (!all[r.xuid]) all[r.xuid] = {};
-        try { all[r.xuid][r.key] = JSON.parse(r.value); } catch (e) { all[r.xuid][r.key] = r.value; }
+    let result = playerDb.exec('SELECT xuid, key, value FROM player_settings');
+    let all = {};
+    if (result.length === 0) return all;
+    result[0].values.forEach(function(row) {
+        if (!all[row[0]]) all[row[0]] = {};
+        try { all[row[0]][row[1]] = JSON.parse(row[2]); }
+        catch (e) { all[row[0]][row[1]] = row[2]; }
     });
     return all;
 }
 
+/** 设置玩家单项设置，值自动 JSON 序列化 */
 function setPlayerSettingSQL(xuid, key, value) {
     if (!playerDb) return;
-    playerDb.prepare('INSERT OR REPLACE INTO player_settings (xuid, key, value) VALUES (?, ?, ?)').run(xuid, key, JSON.stringify(value));
+    markPlayerDbDirty();
+    playerDb.run(
+        'INSERT OR REPLACE INTO player_settings (xuid, key, value) VALUES (?, ?, ?)',
+        [xuid, key, JSON.stringify(value)]
+    );
 }
 
 // --- 死亡点 ---
 
+/** 获取玩家的所有死亡点记录（按 ID 排序） */
 function getDeathPointsSQL(xuid) {
     if (!playerDb) return [];
-    return playerDb.prepare('SELECT data FROM death_points WHERE xuid = ? ORDER BY id').all(xuid).map(function(r) { return JSON.parse(r.data); });
+    let result = playerDb.exec('SELECT data FROM death_points WHERE xuid = ? ORDER BY id', [xuid]);
+    if (result.length === 0) return [];
+    return result[0].values.map(function(row) { return JSON.parse(row[0]); });
 }
 
+/** 获取所有玩家的死亡点数据，返回 { xuid: [points] } 映射 */
 function getAllDeathPointsSQL() {
     if (!playerDb) return {};
-    const rows = playerDb.prepare('SELECT xuid, data FROM death_points ORDER BY id').all();
-    const all = {};
-    rows.forEach(function(r) {
-        if (!all[r.xuid]) all[r.xuid] = [];
-        all[r.xuid].push(JSON.parse(r.data));
+    let result = playerDb.exec('SELECT xuid, data FROM death_points ORDER BY id');
+    let all = {};
+    if (result.length === 0) return all;
+    result[0].values.forEach(function(row) {
+        if (!all[row[0]]) all[row[0]] = [];
+        all[row[0]].push(JSON.parse(row[1]));
     });
     return all;
 }
 
+/** 设置玩家死亡点（先删后插，使用 prepared statement 批量写入） */
 function setDeathPointsSQL(xuid, points) {
     if (!playerDb) return;
-    const insert = playerDb.prepare('INSERT INTO death_points (xuid, data) VALUES (?, ?)');
-    playerDb.transaction(function() {
-        playerDb.prepare('DELETE FROM death_points WHERE xuid = ?').run(xuid);
-        if (points && points.length > 0) {
-            points.forEach(function(p) { insert.run(xuid, JSON.stringify(p)); });
-        }
-    })();
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM death_points WHERE xuid = ?', [xuid]);
+    if (points && points.length > 0) {
+        let stmt = playerDb.prepare('INSERT INTO death_points (xuid, data) VALUES (?, ?)');
+        points.forEach(function(p) {
+            stmt.run([xuid, JSON.stringify(p)]);
+        });
+        stmt.free();
+    }
 }
 
 // --- 好友 ---
 
+/** 获取玩家的好友列表、收到的好友请求和发出的好友请求 */
 function getFriendsSQL(xuid) {
     if (!playerDb) return { friends: [], requests: [], sentRequests: [] };
-    const friends = playerDb.prepare('SELECT friend_xuid, friend_name, add_time FROM friends WHERE xuid = ?').all(xuid).map(function(r) {
-        return { xuid: r.friend_xuid, name: r.friend_name, addTime: r.add_time };
-    });
-    const requests = playerDb.prepare('SELECT from_xuid, from_name, message, time, handled, rejected FROM friend_requests WHERE xuid = ? AND is_sent = 0').all(xuid).map(function(r) {
-        return { xuid: r.from_xuid, name: r.from_name, message: r.message, time: r.time, handled: r.handled === 1, rejected: r.rejected === 1 };
-    });
-    const sentRequests = playerDb.prepare('SELECT from_xuid, from_name, message, time, handled, rejected FROM friend_requests WHERE xuid = ? AND is_sent = 1').all(xuid).map(function(r) {
-        return { xuid: r.from_xuid, name: r.from_name, message: r.message, time: r.time, handled: r.handled === 1, rejected: r.rejected === 1 };
-    });
+    let friends = [];
+    const fr = playerDb.exec('SELECT friend_xuid, friend_name, add_time FROM friends WHERE xuid = ?', [xuid]);
+    if (fr.length > 0) {
+        friends = fr[0].values.map(function(r) { return { xuid: r[0], name: r[1], addTime: r[2] }; });
+    }
+    let requests = [];
+    const req = playerDb.exec('SELECT from_xuid, from_name, message, time, handled, rejected FROM friend_requests WHERE xuid = ? AND is_sent = 0', [xuid]);
+    if (req.length > 0) {
+        requests = req[0].values.map(function(r) {
+            return { xuid: r[0], name: r[1], message: r[2], time: r[3], handled: r[4] === 1, rejected: r[5] === 1 };
+        });
+    }
+    let sentRequests = [];
+    const sent = playerDb.exec('SELECT from_xuid, from_name, message, time, handled, rejected FROM friend_requests WHERE xuid = ? AND is_sent = 1', [xuid]);
+    if (sent.length > 0) {
+        sentRequests = sent[0].values.map(function(r) {
+            return { xuid: r[0], name: r[1], message: r[2], time: r[3], handled: r[4] === 1, rejected: r[5] === 1 };
+        });
+    }
     return { friends: friends, requests: requests, sentRequests: sentRequests };
 }
 
+/** 获取所有有好友或好友请求的玩家数据（批量查询，避免N+1） */
 function getAllFriendsSQL() {
     if (!playerDb) return {};
-    const all = {};
-    playerDb.prepare('SELECT xuid, friend_xuid, friend_name, add_time FROM friends').all().forEach(function(r) {
-        if (!all[r.xuid]) all[r.xuid] = { friends: [], requests: [], sentRequests: [] };
-        all[r.xuid].friends.push({ xuid: r.friend_xuid, name: r.friend_name, addTime: r.add_time });
-    });
-    playerDb.prepare('SELECT xuid, from_xuid, from_name, message, time, handled, rejected, is_sent FROM friend_requests').all().forEach(function(r) {
-        if (!all[r.xuid]) all[r.xuid] = { friends: [], requests: [], sentRequests: [] };
-        var entry = { xuid: r.from_xuid, name: r.from_name, message: r.message, time: r.time, handled: r.handled === 1, rejected: r.rejected === 1 };
-        if (r.is_sent === 1) { all[r.xuid].sentRequests.push(entry); } else { all[r.xuid].requests.push(entry); }
-    });
+    let all = {};
+
+    // 批量查询所有好友关系，按 xuid 分组
+    const frResult = playerDb.exec('SELECT xuid, friend_xuid, friend_name, add_time FROM friends');
+    if (frResult.length > 0) {
+        frResult[0].values.forEach(function(r) {
+            if (!all[r[0]]) all[r[0]] = { friends: [], requests: [], sentRequests: [] };
+            all[r[0]].friends.push({ xuid: r[1], name: r[2], addTime: r[3] });
+        });
+    }
+
+    // 批量查询所有好友请求，按 xuid 和 is_sent 分组
+    const reqResult = playerDb.exec('SELECT xuid, from_xuid, from_name, message, time, handled, rejected, is_sent FROM friend_requests');
+    if (reqResult.length > 0) {
+        reqResult[0].values.forEach(function(r) {
+            if (!all[r[0]]) all[r[0]] = { friends: [], requests: [], sentRequests: [] };
+            var entry = { xuid: r[1], name: r[2], message: r[3], time: r[4], handled: r[5] === 1, rejected: r[6] === 1 };
+            if (r[7] === 1) {
+                all[r[0]].sentRequests.push(entry);
+            } else {
+                all[r[0]].requests.push(entry);
+            }
+        });
+    }
     return all;
 }
 
+/** 添加好友关系（INSERT OR REPLACE 防重复） */
 function addFriendSQL(xuid, friendXuid, friendName, addTime) {
     if (!playerDb) return;
-    playerDb.prepare('INSERT OR REPLACE INTO friends (xuid, friend_xuid, friend_name, add_time) VALUES (?, ?, ?, ?)').run(xuid, friendXuid, friendName, addTime);
+    markPlayerDbDirty();
+    playerDb.run('INSERT OR REPLACE INTO friends (xuid, friend_xuid, friend_name, add_time) VALUES (?, ?, ?, ?)',
+        [xuid, friendXuid, friendName, addTime]);
 }
 
+/** 删除单向好友关系 */
 function removeFriendSQL(xuid, friendXuid) {
     if (!playerDb) return;
-    playerDb.prepare('DELETE FROM friends WHERE xuid = ? AND friend_xuid = ?').run(xuid, friendXuid);
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM friends WHERE xuid = ? AND friend_xuid = ?', [xuid, friendXuid]);
 }
 
+/**
+ * 添加好友请求记录
+ * @param {string} xuid - 接收方 XUID
+ * @param {string} fromXuid - 发送方 XUID
+ * @param {boolean} isSent - 是否为发出的请求（用于区分收/发方向）
+ */
 function addFriendRequestSQL(xuid, fromXuid, fromName, message, time, isSent) {
     if (!playerDb) return;
-    playerDb.prepare('INSERT INTO friend_requests (xuid, from_xuid, from_name, message, time, handled, rejected, is_sent) VALUES (?, ?, ?, ?, ?, 0, 0, ?)').run(xuid, fromXuid, fromName, message, time, isSent ? 1 : 0);
+    markPlayerDbDirty();
+    playerDb.run('INSERT INTO friend_requests (xuid, from_xuid, from_name, message, time, handled, rejected, is_sent) VALUES (?, ?, ?, ?, ?, 0, 0, ?)',
+        [xuid, fromXuid, fromName, message, time, isSent ? 1 : 0]);
 }
 
+/** 标记好友请求为已处理（接受或拒绝） */
 function handleFriendRequestSQL(xuid, fromXuid, rejected) {
     if (!playerDb) return;
-    playerDb.prepare('UPDATE friend_requests SET handled = 1, rejected = ? WHERE xuid = ? AND from_xuid = ? AND handled = 0').run(rejected ? 1 : 0, xuid, fromXuid);
+    markPlayerDbDirty();
+    playerDb.run('UPDATE friend_requests SET handled = 1, rejected = ? WHERE xuid = ? AND from_xuid = ? AND handled = 0',
+        [rejected ? 1 : 0, xuid, fromXuid]);
 }
 
-function clearFriendsSQL(xuid) { if (playerDb) playerDb.prepare('DELETE FROM friends WHERE xuid = ?').run(xuid); }
-function clearFriendRequestsSQL(xuid) { if (playerDb) playerDb.prepare('DELETE FROM friend_requests WHERE xuid = ?').run(xuid); }
+/** 清空玩家的所有好友关系 */
+function clearFriendsSQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM friends WHERE xuid = ?', [xuid]);
+}
+
+/** 清空玩家的所有好友请求 */
+function clearFriendRequestsSQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM friend_requests WHERE xuid = ?', [xuid]);
+}
 
 // --- 私信消息 ---
 
+/** 获取玩家的私信记录（按 ID 排序） */
 function getMessagesSQL(xuid) {
     if (!playerDb) return [];
-    return playerDb.prepare('SELECT from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages WHERE xuid = ? ORDER BY id').all(xuid).map(function(r) {
-        return { fromXuid: r.from_xuid, fromName: r.from_name, toXuid: r.to_xuid, toName: r.to_name, content: r.content, time: r.time, read: r.is_read === 1 };
+    let result = playerDb.exec('SELECT from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages WHERE xuid = ? ORDER BY id', [xuid]);
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return { fromXuid: r[0], fromName: r[1], toXuid: r[2], toName: r[3], content: r[4], time: r[5], read: r[6] === 1 };
     });
 }
 
+/** 获取所有有私信记录的玩家数据（批量查询，避免N+1） */
 function getAllMessagesSQL() {
     if (!playerDb) return {};
-    const all = {};
-    playerDb.prepare('SELECT xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages ORDER BY xuid, id').all().forEach(function(r) {
-        if (!all[r.xuid]) all[r.xuid] = { messages: [] };
-        all[r.xuid].messages.push({ fromXuid: r.from_xuid, fromName: r.from_name, toXuid: r.to_xuid, toName: r.to_name, content: r.content, time: r.time, read: r.is_read === 1 });
+    let result = playerDb.exec('SELECT xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages ORDER BY xuid, id');
+    let all = {};
+    if (result.length === 0) return all;
+    result[0].values.forEach(function(r) {
+        if (!all[r[0]]) all[r[0]] = { messages: [] };
+        all[r[0]].messages.push({ fromXuid: r[1], fromName: r[2], toXuid: r[3], toName: r[4], content: r[5], time: r[6], read: r[7] === 1 });
     });
     return all;
 }
 
+/** 添加一条私信记录 */
 function addMessageSQL(xuid, msg) {
     if (!playerDb || !msg) return;
-    playerDb.prepare('INSERT INTO messages (xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
-        xuid, msg.fromXuid || '', msg.fromName || '', msg.toXuid || '', msg.toName || '', msg.content || '', msg.time || '', msg.read ? 1 : 0);
+    markPlayerDbDirty();
+    playerDb.run(
+        'INSERT INTO messages (xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [xuid, msg.fromXuid || '', msg.fromName || '', msg.toXuid || '', msg.toName || '', msg.content || '', msg.time || '', msg.read ? 1 : 0]
+    );
 }
 
+/** 将指定发送者的未读消息标记为已读 */
 function markMessagesReadSQL(xuid, fromXuid) {
     if (!playerDb) return;
-    playerDb.prepare('UPDATE messages SET is_read = 1 WHERE xuid = ? AND from_xuid = ? AND is_read = 0').run(xuid, fromXuid);
+    markPlayerDbDirty();
+    playerDb.run('UPDATE messages SET is_read = 1 WHERE xuid = ? AND from_xuid = ? AND is_read = 0', [xuid, fromXuid]);
 }
 
+/** 删除指定的一条私信 */
 function deleteMessageSQL(xuid, fromXuid, time) {
     if (!playerDb) return;
-    playerDb.prepare('DELETE FROM messages WHERE xuid = ? AND from_xuid = ? AND time = ?').run(xuid, fromXuid, time);
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM messages WHERE xuid = ? AND from_xuid = ? AND time = ?', [xuid, fromXuid, time]);
 }
 
-function clearMessagesSQL(xuid) { if (playerDb) playerDb.prepare('DELETE FROM messages WHERE xuid = ?').run(xuid); }
+/** 清空玩家的所有私信记录 */
+function clearMessagesSQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM messages WHERE xuid = ?', [xuid]);
+}
 
 // --- 家园传送点 ---
 
+/** 获取玩家的所有家园传送点 */
 function getHomesSQL(xuid) {
     if (!playerDb) return [];
-    return playerDb.prepare('SELECT name, x, y, z, dim, last_use FROM homes WHERE xuid = ?').all(xuid).map(function(r) {
-        return { name: r.name, x: r.x, y: r.y, z: r.z, dim: r.dim, lastUse: r.last_use };
+    let result = playerDb.exec('SELECT name, x, y, z, dim, last_use FROM homes WHERE xuid = ?', [xuid]);
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return { name: r[0], x: r[1], y: r[2], z: r[3], dim: r[4], lastUse: r[5] };
     });
 }
 
+/** 获取所有有家园传送点的玩家数据（批量查询，避免N+1） */
 function getAllHomesSQL() {
     if (!playerDb) return {};
-    const all = {};
-    playerDb.prepare('SELECT xuid, name, x, y, z, dim, last_use FROM homes').all().forEach(function(r) {
-        if (!all[r.xuid]) all[r.xuid] = [];
-        all[r.xuid].push({ name: r.name, x: r.x, y: r.y, z: r.z, dim: r.dim, lastUse: r.last_use });
+    let result = playerDb.exec('SELECT xuid, name, x, y, z, dim, last_use FROM homes');
+    let all = {};
+    if (result.length === 0) return all;
+    result[0].values.forEach(function(r) {
+        if (!all[r[0]]) all[r[0]] = [];
+        all[r[0]].push({ name: r[1], x: r[2], y: r[3], z: r[4], dim: r[5], lastUse: r[6] });
     });
     return all;
 }
 
+/** 设置玩家所有家园传送点（先删后插，使用 prepared statement） */
 function setHomesSQL(xuid, homes) {
     if (!playerDb) return;
-    const insert = playerDb.prepare('INSERT INTO homes (xuid, name, x, y, z, dim, last_use) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    playerDb.transaction(function() {
-        playerDb.prepare('DELETE FROM homes WHERE xuid = ?').run(xuid);
-        if (homes && homes.length > 0) {
-            homes.forEach(function(h) { insert.run(xuid, h.name, h.x, h.y, h.z, h.dim || 0, h.lastUse || 0); });
-        }
-    })();
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM homes WHERE xuid = ?', [xuid]);
+    if (homes && homes.length > 0) {
+        const stmt = playerDb.prepare('INSERT INTO homes (xuid, name, x, y, z, dim, last_use) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        homes.forEach(function(h) {
+            stmt.run([xuid, h.name, h.x, h.y, h.z, h.dim || 0, h.lastUse || 0]);
+        });
+        stmt.free();
+    }
 }
 
+/** 新增单个家园传送点 */
 function addHomeSQL(xuid, home) {
     if (!playerDb) return;
-    playerDb.prepare('INSERT INTO homes (xuid, name, x, y, z, dim, last_use) VALUES (?, ?, ?, ?, ?, ?, ?)').run(xuid, home.name, home.x, home.y, home.z, home.dim || 0, home.lastUse || 0);
+    markPlayerDbDirty();
+    playerDb.run('INSERT INTO homes (xuid, name, x, y, z, dim, last_use) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [xuid, home.name, home.x, home.y, home.z, home.dim || 0, home.lastUse || 0]);
 }
 
+/** 删除指定名称的家园传送点 */
 function removeHomeSQL(xuid, name) {
     if (!playerDb) return;
-    playerDb.prepare('DELETE FROM homes WHERE xuid = ? AND name = ?').run(xuid, name);
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM homes WHERE xuid = ? AND name = ?', [xuid, name]);
 }
 
+/** 更新已有家园传送点的坐标、维度等信息 */
 function updateHomeSQL(xuid, name, home) {
     if (!playerDb) return;
-    playerDb.prepare('UPDATE homes SET x = ?, y = ?, z = ?, dim = ?, last_use = ? WHERE xuid = ? AND name = ?').run(home.x, home.y, home.z, home.dim || 0, home.lastUse || 0, xuid, name);
+    markPlayerDbDirty();
+    playerDb.run('UPDATE homes SET x = ?, y = ?, z = ?, dim = ?, last_use = ? WHERE xuid = ? AND name = ?',
+        [home.x, home.y, home.z, home.dim || 0, home.lastUse || 0, xuid, name]);
 }
 
+/**
+ * 保存玩家背包快照到数据库
+ * @param {string} xuid - 玩家 XUID
+ * @param {Array} items - 物品数组 [{slot, type, count, name}]
+ * @param {Array} armor - 装备数组 [{slot, type, count, name}]
+ * @param {Array} offhand - 副手数组 [{slot, type, count, name}]
+ */
 function savePlayerInventorySQL(xuid, items, armor, offhand) {
     if (!playerDb) return;
-    playerDb.prepare('INSERT OR REPLACE INTO player_inventory (xuid, items, armor, offhand, save_time) VALUES (?, ?, ?, ?, ?)').run(
-        xuid, JSON.stringify(items || []), JSON.stringify(armor || []), JSON.stringify(offhand || []), String(Date.now()));
+    markPlayerDbDirty();
+    playerDb.run('INSERT OR REPLACE INTO player_inventory (xuid, items, armor, offhand, save_time) VALUES (?, ?, ?, ?, ?)',
+        [xuid, JSON.stringify(items || []), JSON.stringify(armor || []), JSON.stringify(offhand || []), String(Date.now())]);
 }
 
+/**
+ * 获取玩家背包快照
+ * @param {string} xuid - 玩家 XUID
+ * @returns {{ items: Array, armor: Array, offhand: Array, saveTime: string }|null}
+ */
 function getPlayerInventorySQL(xuid) {
     if (!playerDb) return null;
-    const row = playerDb.prepare('SELECT items, armor, offhand, save_time FROM player_inventory WHERE xuid = ?').get(xuid);
-    if (!row) return null;
-    return { items: JSON.parse(row.items || '[]'), armor: JSON.parse(row.armor || '[]'), offhand: JSON.parse(row.offhand || '[]'), saveTime: row.save_time };
+    let result = playerDb.exec('SELECT items, armor, offhand, save_time FROM player_inventory WHERE xuid = ?', [xuid]);
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const row = result[0].values[0];
+    return {
+        items: JSON.parse(row[0] || '[]'),
+        armor: JSON.parse(row[1] || '[]'),
+        offhand: JSON.parse(row[2] || '[]'),
+        saveTime: row[3]
+    };
 }
 
-// ============ 公会系统 SQL 方法 ============
+// ===================== 公会系统 SQL 方法 =====================
 
+/** 创建公会相关三张表（guilds / guild_members / guild_teleports） */
 function createGuildTables() {
     if (!playerDb) return;
-    playerDb.exec(`CREATE TABLE IF NOT EXISTS guilds (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, description TEXT DEFAULT '',
-        owner TEXT NOT NULL, level INTEGER DEFAULT 1, fund REAL DEFAULT 0, max_members INTEGER DEFAULT 20,
-        hq_x REAL, hq_y REAL, hq_z REAL, hq_dim TEXT, created_at INTEGER NOT NULL
+    playerDb.run(`CREATE TABLE IF NOT EXISTS guilds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        description TEXT DEFAULT '',
+        owner TEXT NOT NULL,
+        level INTEGER DEFAULT 1,
+        fund REAL DEFAULT 0,
+        max_members INTEGER DEFAULT 20,
+        hq_x REAL, hq_y REAL, hq_z REAL, hq_dim TEXT,
+        created_at INTEGER NOT NULL
     )`);
-    playerDb.exec(`CREATE TABLE IF NOT EXISTS guild_members (
-        xuid TEXT NOT NULL, guild_id INTEGER NOT NULL, role TEXT DEFAULT 'member',
-        joined_at INTEGER NOT NULL, PRIMARY KEY (xuid), FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+    playerDb.run(`CREATE TABLE IF NOT EXISTS guild_members (
+        xuid TEXT NOT NULL,
+        guild_id INTEGER NOT NULL,
+        role TEXT DEFAULT 'member',
+        joined_at INTEGER NOT NULL,
+        PRIMARY KEY (xuid),
+        FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
     )`);
-    playerDb.exec(`CREATE TABLE IF NOT EXISTS guild_teleports (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, name TEXT NOT NULL,
-        x REAL NOT NULL, y REAL NOT NULL, z REAL NOT NULL, dim TEXT NOT NULL,
-        created_by TEXT NOT NULL, created_at INTEGER NOT NULL,
+    playerDb.run(`CREATE TABLE IF NOT EXISTS guild_teleports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        x REAL NOT NULL, y REAL NOT NULL, z REAL NOT NULL,
+        dim TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
         FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
     )`);
     dbDebugLog('createGuildTables: 公会表创建完成');
 }
 
+// ===================== 玩家人数统计 SQL 方法 =====================
+
+/** 创建玩家人数历史记录表 */
 function createPlayerCountTable() {
     if (!playerDb) return;
-    playerDb.exec('CREATE TABLE IF NOT EXISTS player_count_history (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER NOT NULL, count INTEGER NOT NULL)');
-    playerDb.exec('CREATE INDEX IF NOT EXISTS idx_player_count_ts ON player_count_history(timestamp)');
+    playerDb.run(`CREATE TABLE IF NOT EXISTS player_count_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp INTEGER NOT NULL,
+        count INTEGER NOT NULL
+    )`);
+    playerDb.run('CREATE INDEX IF NOT EXISTS idx_player_count_ts ON player_count_history(timestamp)');
     dbDebugLog('createPlayerCountTable: 玩家人数统计表创建完成');
 }
 
+/** 插入一条玩家人数记录，同时清理超过7天的旧数据 */
 function insertPlayerCount(timestamp, count) {
     if (!playerDb) return;
-    playerDb.prepare('INSERT INTO player_count_history (timestamp, count) VALUES (?, ?)').run(timestamp, count);
-    playerDb.prepare('DELETE FROM player_count_history WHERE timestamp < ?').run(timestamp - 7 * 24 * 60 * 60);
+    markPlayerDbDirty();
+    playerDb.run(
+        'INSERT INTO player_count_history (timestamp, count) VALUES (?, ?)',
+        [timestamp, count]
+    );
+    // 清理7天前的数据
+    var cutoff = timestamp - 7 * 24 * 60 * 60;
+    playerDb.run('DELETE FROM player_count_history WHERE timestamp < ?', [cutoff]);
 }
 
+/** 查询指定时间段内的玩家人数记录 */
 function getPlayerCountHistory(startTime, endTime) {
     if (!playerDb) return [];
-    return playerDb.prepare('SELECT timestamp, count FROM player_count_history WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC').all(startTime, endTime);
+    var result = playerDb.exec(
+        'SELECT timestamp, count FROM player_count_history WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC',
+        [startTime, endTime]
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return { timestamp: r[0], count: r[1] };
+    });
 }
 
+/** 查询最新一条玩家人数记录 */
 function getPlayerCountLatest() {
     if (!playerDb) return null;
-    return playerDb.prepare('SELECT timestamp, count FROM player_count_history ORDER BY timestamp DESC LIMIT 1').get() || null;
+    var result = playerDb.exec(
+        'SELECT timestamp, count FROM player_count_history ORDER BY timestamp DESC LIMIT 1'
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    return { timestamp: result[0].values[0][0], count: result[0].values[0][1] };
 }
 
+/** 创建公会，返回新公会的 ID */
 function createGuild(name, description, owner, maxMembers) {
     if (!playerDb) return null;
+    markPlayerDbDirty();
     const now = Date.now();
-    const info = playerDb.prepare('INSERT INTO guilds (name, description, owner, max_members, created_at) VALUES (?, ?, ?, ?, ?)').run(name, description || '', owner, maxMembers || 20, now);
-    const guildId = info.lastInsertRowid;
-    playerDb.prepare('INSERT INTO guild_members (xuid, guild_id, role, joined_at) VALUES (?, ?, ?, ?)').run(owner, guildId, 'owner', now);
+    playerDb.run(
+        'INSERT INTO guilds (name, description, owner, max_members, created_at) VALUES (?, ?, ?, ?, ?)',
+        [name, description || '', owner, maxMembers || 20, now]
+    );
+    const result = playerDb.exec('SELECT last_insert_rowid()');
+    const guildId = result[0].values[0][0];
+    // 自动把会长加入成员表
+    playerDb.run(
+        'INSERT INTO guild_members (xuid, guild_id, role, joined_at) VALUES (?, ?, ?, ?)',
+        [owner, guildId, 'owner', now]
+    );
     return guildId;
 }
 
-function _rowToGuild(r) {
-    if (!r) return null;
-    return { id: r.id, name: r.name, description: r.description, owner: r.owner, level: r.level, fund: r.fund, maxMembers: r.max_members, hqX: r.hq_x, hqY: r.hq_y, hqZ: r.hq_z, hqDim: r.hq_dim, createdAt: r.created_at };
+/** 根据 ID 获取公会信息 */
+function getGuild(guildId) {
+    if (!playerDb) return null;
+    const result = playerDb.exec(
+        'SELECT id, name, description, owner, level, fund, max_members, hq_x, hq_y, hq_z, hq_dim, created_at FROM guilds WHERE id = ?',
+        [guildId]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const r = result[0].values[0];
+    return {
+        id: r[0], name: r[1], description: r[2], owner: r[3],
+        level: r[4], fund: r[5], maxMembers: r[6],
+        hqX: r[7], hqY: r[8], hqZ: r[9], hqDim: r[10],
+        createdAt: r[11]
+    };
 }
 
-function getGuild(guildId) { return _rowToGuild(playerDb.prepare('SELECT * FROM guilds WHERE id = ?').get(guildId)); }
-function getGuildByName(name) { return _rowToGuild(playerDb.prepare('SELECT * FROM guilds WHERE name = ?').get(name)); }
+/** 根据公会名获取公会信息 */
+function getGuildByName(name) {
+    if (!playerDb) return null;
+    const result = playerDb.exec(
+        'SELECT id, name, description, owner, level, fund, max_members, hq_x, hq_y, hq_z, hq_dim, created_at FROM guilds WHERE name = ?',
+        [name]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const r = result[0].values[0];
+    return {
+        id: r[0], name: r[1], description: r[2], owner: r[3],
+        level: r[4], fund: r[5], maxMembers: r[6],
+        hqX: r[7], hqY: r[8], hqZ: r[9], hqDim: r[10],
+        createdAt: r[11]
+    };
+}
+
+/** 根据玩家 XUID 获取其所在公会信息（单公会制） */
 function getGuildByPlayer(xuid) {
-    return _rowToGuild(playerDb.prepare('SELECT g.* FROM guilds g INNER JOIN guild_members gm ON g.id = gm.guild_id WHERE gm.xuid = ?').get(xuid));
+    if (!playerDb) return null;
+    const result = playerDb.exec(
+        `SELECT g.id, g.name, g.description, g.owner, g.level, g.fund, g.max_members,
+                g.hq_x, g.hq_y, g.hq_z, g.hq_dim, g.created_at
+         FROM guilds g INNER JOIN guild_members gm ON g.id = gm.guild_id WHERE gm.xuid = ?`,
+        [xuid]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const r = result[0].values[0];
+    return {
+        id: r[0], name: r[1], description: r[2], owner: r[3],
+        level: r[4], fund: r[5], maxMembers: r[6],
+        hqX: r[7], hqY: r[8], hqZ: r[9], hqDim: r[10],
+        createdAt: r[11]
+    };
 }
-function getAllGuilds() { return playerDb.prepare('SELECT * FROM guilds ORDER BY id').all().map(_rowToGuild); }
 
+/** 获取所有公会列表 */
+function getAllGuilds() {
+    if (!playerDb) return [];
+    const result = playerDb.exec(
+        'SELECT id, name, description, owner, level, fund, max_members, hq_x, hq_y, hq_z, hq_dim, created_at FROM guilds ORDER BY id'
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return {
+            id: r[0], name: r[1], description: r[2], owner: r[3],
+            level: r[4], fund: r[5], maxMembers: r[6],
+            hqX: r[7], hqY: r[8], hqZ: r[9], hqDim: r[10],
+            createdAt: r[11]
+        };
+    });
+}
+
+/** 删除公会（CASCADE 自动清理成员和传送点） */
 function deleteGuild(guildId) {
     if (!playerDb) return;
-    playerDb.prepare('DELETE FROM guild_teleports WHERE guild_id = ?').run(guildId);
-    playerDb.prepare('DELETE FROM guild_members WHERE guild_id = ?').run(guildId);
-    playerDb.prepare('DELETE FROM guilds WHERE id = ?').run(guildId);
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM guild_teleports WHERE guild_id = ?', [guildId]);
+    playerDb.run('DELETE FROM guild_members WHERE guild_id = ?', [guildId]);
+    playerDb.run('DELETE FROM guilds WHERE id = ?', [guildId]);
 }
 
+/** 更新公会字段（动态拼接 SET 子句） */
 function updateGuild(guildId, fields) {
     if (!playerDb || !fields) return;
-    const fieldMap = { name: 'name', description: 'description', owner: 'owner', level: 'level', fund: 'fund', maxMembers: 'max_members', hqX: 'hq_x', hqY: 'hq_y', hqZ: 'hq_z', hqDim: 'hq_dim' };
-    const sets = [], vals = [];
-    for (var key in fields) { if (fields.hasOwnProperty(key) && fieldMap[key]) { sets.push(fieldMap[key] + ' = ?'); vals.push(fields[key]); } }
+    markPlayerDbDirty();
+    var sets = [];
+    var vals = [];
+    var fieldMap = {
+        name: 'name', description: 'description', owner: 'owner',
+        level: 'level', fund: 'fund', maxMembers: 'max_members',
+        hqX: 'hq_x', hqY: 'hq_y', hqZ: 'hq_z', hqDim: 'hq_dim'
+    };
+    for (var key in fields) {
+        if (fields.hasOwnProperty(key) && fieldMap[key]) {
+            sets.push(fieldMap[key] + ' = ?');
+            vals.push(fields[key]);
+        }
+    }
     if (sets.length === 0) return;
     vals.push(guildId);
-    playerDb.prepare('UPDATE guilds SET ' + sets.join(', ') + ' WHERE id = ?').run(vals);
+    playerDb.run('UPDATE guilds SET ' + sets.join(', ') + ' WHERE id = ?', vals);
 }
 
+/** 添加公会成员（INSERT OR REPLACE，单公会制下 xuid 是主键） */
 function addGuildMember(xuid, guildId, role) {
     if (!playerDb) return;
-    playerDb.prepare('INSERT OR REPLACE INTO guild_members (xuid, guild_id, role, joined_at) VALUES (?, ?, ?, ?)').run(xuid, guildId, role || 'member', Date.now());
+    markPlayerDbDirty();
+    playerDb.run(
+        'INSERT OR REPLACE INTO guild_members (xuid, guild_id, role, joined_at) VALUES (?, ?, ?, ?)',
+        [xuid, guildId, role || 'member', Date.now()]
+    );
 }
 
-function removeGuildMember(xuid) { if (playerDb) playerDb.prepare('DELETE FROM guild_members WHERE xuid = ?').run(xuid); }
+/** 移除公会成员 */
+function removeGuildMember(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM guild_members WHERE xuid = ?', [xuid]);
+}
 
+/** 获取公会所有成员信息（含玩家名，从 player_data 关联） */
 function getGuildMembers(guildId) {
     if (!playerDb) return [];
-    return playerDb.prepare('SELECT gm.xuid, gm.role, gm.joined_at, pd.name FROM guild_members gm LEFT JOIN player_data pd ON gm.xuid = pd.xuid WHERE gm.guild_id = ? ORDER BY gm.joined_at').all(guildId).map(function(r) {
-        return { xuid: r.xuid, role: r.role, joinedAt: r.joined_at, name: r.name || r.xuid };
+    const result = playerDb.exec(
+        `SELECT gm.xuid, gm.role, gm.joined_at, pd.name
+         FROM guild_members gm LEFT JOIN player_data pd ON gm.xuid = pd.xuid
+         WHERE gm.guild_id = ? ORDER BY gm.joined_at`,
+        [guildId]
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return { xuid: r[0], role: r[1], joinedAt: r[2], name: r[3] || r[0] };
     });
 }
 
+/** 获取公会成员数量 */
 function getMemberCount(guildId) {
     if (!playerDb) return 0;
-    const row = playerDb.prepare('SELECT COUNT(*) as cnt FROM guild_members WHERE guild_id = ?').get(guildId);
-    return row ? row.cnt : 0;
+    const result = playerDb.exec('SELECT COUNT(*) FROM guild_members WHERE guild_id = ?', [guildId]);
+    if (result.length === 0) return 0;
+    return result[0].values[0][0];
 }
 
+/** 获取玩家在公会中的角色 */
 function getMemberRole(xuid) {
     if (!playerDb) return null;
-    const row = playerDb.prepare('SELECT role FROM guild_members WHERE xuid = ?').get(xuid);
-    return row ? row.role : null;
+    const result = playerDb.exec('SELECT role FROM guild_members WHERE xuid = ?', [xuid]);
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    return result[0].values[0][0];
 }
 
-function updateMemberRole(xuid, role) { if (playerDb) playerDb.prepare('UPDATE guild_members SET role = ? WHERE xuid = ?').run(role, xuid); }
+/** 更新成员角色 */
+function updateMemberRole(xuid, role) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('UPDATE guild_members SET role = ? WHERE xuid = ?', [role, xuid]);
+}
 
+/** 添加公会传送点 */
 function addGuildTeleport(guildId, name, x, y, z, dim, createdBy) {
     if (!playerDb) return;
-    playerDb.prepare('INSERT INTO guild_teleports (guild_id, name, x, y, z, dim, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(guildId, name, x, y, z, dim, createdBy, Date.now());
+    markPlayerDbDirty();
+    playerDb.run(
+        'INSERT INTO guild_teleports (guild_id, name, x, y, z, dim, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [guildId, name, x, y, z, dim, createdBy, Date.now()]
+    );
 }
 
-function removeGuildTeleport(tpId, guildId) { if (playerDb) playerDb.prepare('DELETE FROM guild_teleports WHERE id = ? AND guild_id = ?').run(tpId, guildId); }
+/** 删除公会传送点 */
+function removeGuildTeleport(tpId, guildId) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM guild_teleports WHERE id = ? AND guild_id = ?', [tpId, guildId]);
+}
 
+/** 获取公会所有传送点 */
 function getGuildTeleports(guildId) {
     if (!playerDb) return [];
-    return playerDb.prepare('SELECT id, name, x, y, z, dim, created_by, created_at FROM guild_teleports WHERE guild_id = ? ORDER BY id').all(guildId).map(function(r) {
-        return { id: r.id, name: r.name, x: r.x, y: r.y, z: r.z, dim: r.dim, createdBy: r.created_by, createdAt: r.created_at };
+    const result = playerDb.exec(
+        'SELECT id, name, x, y, z, dim, created_by, created_at FROM guild_teleports WHERE guild_id = ? ORDER BY id',
+        [guildId]
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(function(r) {
+        return { id: r[0], name: r[1], x: r[2], y: r[3], z: r[4], dim: r[5], createdBy: r[6], createdAt: r[7] };
     });
 }
 
+/** 获取公会传送点数量 */
 function getGuildTeleportCount(guildId) {
     if (!playerDb) return 0;
-    const row = playerDb.prepare('SELECT COUNT(*) as cnt FROM guild_teleports WHERE guild_id = ?').get(guildId);
-    return row ? row.cnt : 0;
+    const result = playerDb.exec('SELECT COUNT(*) FROM guild_teleports WHERE guild_id = ?', [guildId]);
+    if (result.length === 0) return 0;
+    return result[0].values[0][0];
 }
 
+/** 根据名称查找公会传送点 */
 function getGuildTeleportByName(guildId, name) {
     if (!playerDb) return null;
-    const r = playerDb.prepare('SELECT id, name, x, y, z, dim, created_by, created_at FROM guild_teleports WHERE guild_id = ? AND name = ?').get(guildId, name);
-    if (!r) return null;
-    return { id: r.id, name: r.name, x: r.x, y: r.y, z: r.z, dim: r.dim, createdBy: r.created_by, createdAt: r.created_at };
+    const result = playerDb.exec(
+        'SELECT id, name, x, y, z, dim, created_by, created_at FROM guild_teleports WHERE guild_id = ? AND name = ?',
+        [guildId, name]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const r = result[0].values[0];
+    return { id: r[0], name: r[1], x: r[2], y: r[3], z: r[4], dim: r[5], createdBy: r[6], createdAt: r[7] };
 }
 
-// --- 批量操作 ---
+// --- 批量保存优化 ---
 
-/** 在事务中批量执行写入操作（better-sqlite3 原生事务，原子性保证） */
+/**
+ * 在事务中批量执行玩家数据写入操作，任一失败则整体回滚
+ * @param {Function[]} operations - 需要执行的写入函数数组
+ */
 function batchSavePlayerDb(operations) {
     if (!playerDb) return;
-    const txn = playerDb.transaction(function() { operations.forEach(function(op) { op(); }); });
-    try { txn(); } catch (e) { logger.error('[PlayerDB] 批量操作失败:', e.message); }
+    markPlayerDbDirty();
+    playerDb.run('BEGIN TRANSACTION');
+    try {
+        operations.forEach(function(op) { op(); });
+        playerDb.run('COMMIT');
+    } catch (e) {
+        playerDb.run('ROLLBACK');
+        logger.error('[PlayerDB] 批量操作失败:', e.message);
+    }
 }
 
-// --- 通用 SQL DataManager 辅助方法 ---
+// --- 通用SQL DataManager 辅助方法 ---
 
+/**
+ * 通用查询：获取某模块（dm_ 前缀表）的所有玩家数据
+ * @param {string} prefix - 模块名前缀，对应表名 dm_{prefix}
+ * @returns {Object} { xuid: parsedData } 映射
+ */
 function sqlGetAll(prefix) {
     if (!playerDb) return {};
+    let table = 'dm_' + prefix;
     try {
-        const rows = playerDb.prepare('SELECT xuid, data FROM dm_' + prefix).all();
+        const result = playerDb.exec('SELECT xuid, data FROM ' + table);
         const all = {};
-        rows.forEach(function(r) { try { all[r.xuid] = JSON.parse(r.data); } catch (e) { all[r.xuid] = {}; } });
+        if (result.length === 0) return all;
+        result[0].values.forEach(function(row) {
+            try { all[row[0]] = JSON.parse(row[1]); }
+            catch (e) { all[row[0]] = {}; }
+        });
         return all;
-    } catch (e) { return {}; }
+    } catch (e) {
+        return {};
+    }
 }
 
+/** 通用写入：设置某模块的玩家数据（INSERT OR REPLACE） */
 function sqlSet(prefix, xuid, data) {
     if (!playerDb) return;
-    playerDb.prepare('INSERT OR REPLACE INTO dm_' + prefix + ' (xuid, data) VALUES (?, ?)').run(xuid, JSON.stringify(data));
+    markPlayerDbDirty();
+    let table = 'dm_' + prefix;
+    playerDb.run('INSERT OR REPLACE INTO ' + table + ' (xuid, data) VALUES (?, ?)',
+        [xuid, JSON.stringify(data)]);
 }
 
+/** 通用删除：删除某模块的指定玩家数据 */
 function sqlDelete(prefix, xuid) {
     if (!playerDb) return;
-    playerDb.prepare('DELETE FROM dm_' + prefix + ' WHERE xuid = ?').run(xuid);
+    markPlayerDbDirty();
+    let table = 'dm_' + prefix;
+    playerDb.run('DELETE FROM ' + table + ' WHERE xuid = ?', [xuid]);
 }
 
+/** 确保某模块的 dm_ 前缀表已创建 */
 function sqlEnsureTable(prefix) {
     if (!playerDb) return;
-    playerDb.exec('CREATE TABLE IF NOT EXISTS dm_' + prefix + ' (xuid TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT "{}")');
+    const table = 'dm_' + prefix;
+    playerDb.run('CREATE TABLE IF NOT EXISTS ' + table + ' (xuid TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT "{}")');
 }
 
 module.exports = {
-    initDatabase, saveDatabase, requestSaveAuthDb, cancelPendingAuthSave,
-    setPassword, verifyPassword, hasPassword, addAdmin, removeAdmin, isAdmin, getAllAdmins,
-    generateCaptcha, verifyCaptcha, cleanExpiredCaptchas,
-    saveRefreshToken, findRefreshToken, revokeRefreshToken, revokeFamilyTokens, revokeAllUserTokens, cleanExpiredRefreshTokens,
-    blacklistAccessToken, isAccessTokenBlacklisted, cleanExpiredBlacklist,
-    initPlayerDatabase, isPlayerDbReady, savePlayerDatabase, markPlayerDbDirty, requestSavePlayerDb, cancelPendingSave,
-    getPlayerDataSQL, setPlayerDataSQL, updateLeaveTimeSQL, updatePlayTimeSQL, getAllPlayerDataSQL, getNextUidSQL,
-    getPlayerSettingsSQL, getAllPlayerSettingsSQL, setPlayerSettingSQL,
-    getDeathPointsSQL, getAllDeathPointsSQL, setDeathPointsSQL,
-    getFriendsSQL, getAllFriendsSQL, addFriendSQL, removeFriendSQL, addFriendRequestSQL, handleFriendRequestSQL, clearFriendsSQL, clearFriendRequestsSQL,
-    getMessagesSQL, getAllMessagesSQL, addMessageSQL, markMessagesReadSQL, deleteMessageSQL, clearMessagesSQL,
-    getHomesSQL, getAllHomesSQL, setHomesSQL, addHomeSQL, removeHomeSQL, updateHomeSQL,
-    batchSavePlayerDb, savePlayerInventorySQL, getPlayerInventorySQL,
-    createGuildTables, createGuild, getGuild, getGuildByName, getGuildByPlayer, getAllGuilds, deleteGuild, updateGuild,
-    addGuildMember, removeGuildMember, getGuildMembers, getMemberCount, getMemberRole, updateMemberRole,
-    addGuildTeleport, removeGuildTeleport, getGuildTeleports, getGuildTeleportCount, getGuildTeleportByName,
-    insertPlayerCount, getPlayerCountHistory, getPlayerCountLatest,
-    sqlGetAll, sqlSet, sqlDelete, sqlEnsureTable,
+    initDatabase,
+    saveDatabase,
+    requestSaveAuthDb,
+    cancelPendingAuthSave,
+    setPassword,
+    verifyPassword,
+    hasPassword,
+    addAdmin,
+    removeAdmin,
+    isAdmin,
+    getAllAdmins,
+    generateCaptcha,
+    verifyCaptcha,
+    cleanExpiredCaptchas,
+    saveRefreshToken,
+    findRefreshToken,
+    revokeRefreshToken,
+    revokeFamilyTokens,
+    revokeAllUserTokens,
+    cleanExpiredRefreshTokens,
+    blacklistAccessToken,
+    isAccessTokenBlacklisted,
+    cleanExpiredBlacklist,
+    // 玩家数据SQL
+    initPlayerDatabase,
+    isPlayerDbReady,
+    savePlayerDatabase,
+    markPlayerDbDirty,
+    requestSavePlayerDb,
+    cancelPendingSave,
+    getPlayerDataSQL,
+    setPlayerDataSQL,
+    updateLeaveTimeSQL,
+    updatePlayTimeSQL,
+    getAllPlayerDataSQL,
+    getNextUidSQL,
+    getPlayerSettingsSQL,
+    getAllPlayerSettingsSQL,
+    setPlayerSettingSQL,
+    getDeathPointsSQL,
+    getAllDeathPointsSQL,
+    setDeathPointsSQL,
+    getFriendsSQL,
+    getAllFriendsSQL,
+    addFriendSQL,
+    removeFriendSQL,
+    addFriendRequestSQL,
+    handleFriendRequestSQL,
+    clearFriendsSQL,
+    clearFriendRequestsSQL,
+    getMessagesSQL,
+    getAllMessagesSQL,
+    addMessageSQL,
+    markMessagesReadSQL,
+    deleteMessageSQL,
+    clearMessagesSQL,
+    getHomesSQL,
+    getAllHomesSQL,
+    setHomesSQL,
+    addHomeSQL,
+    removeHomeSQL,
+    updateHomeSQL,
+    batchSavePlayerDb,
+    savePlayerInventorySQL,
+    getPlayerInventorySQL,
+    // 公会系统SQL
+    createGuildTables,
+    createGuild,
+    getGuild,
+    getGuildByName,
+    getGuildByPlayer,
+    getAllGuilds,
+    deleteGuild,
+    updateGuild,
+    addGuildMember,
+    removeGuildMember,
+    getGuildMembers,
+    getMemberCount,
+    getMemberRole,
+    updateMemberRole,
+    addGuildTeleport,
+    removeGuildTeleport,
+    getGuildTeleports,
+    getGuildTeleportCount,
+    getGuildTeleportByName,
+    // 玩家人数统计SQL
+    insertPlayerCount,
+    getPlayerCountHistory,
+    getPlayerCountLatest,
+    // 通用SQL辅助
+    sqlGetAll,
+    sqlSet,
+    sqlDelete,
+    sqlEnsureTable,
+    // Debug
     setDebugMode
 };
