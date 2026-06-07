@@ -236,7 +236,7 @@ NECE/
 | -------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------ | ---------------- |
 | [express](https://www.npmjs.com/package/express)                     | ^4.21.0 | [MIT](https://github.com/expressjs/express/blob/master/LICENSE)                | Web 服务器框架        |
 | [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken)           | ^9.0.2  | [MIT](https://github.com/auth0/node-jsonwebtoken/blob/master/LICENSE)          | JWT 身份认证         |
-| [sql.js](https://www.npmjs.com/package/sql.js)                       | ^1.11.0 | [MIT](https://github.com/sql-js/sql.js/blob/master/LICENSE)                    | SQLite 数据库（内存模式） |
+| [better-sqlite3](https://www.npmjs.com/package/better-sqlite3)       | ^11.0.0 | [MIT](https://github.com/WiseLibs/better-sqlite3/blob/master/LICENSE)           | SQLite 数据库（WAL 模式，增量写入） |
 | [cors](https://www.npmjs.com/package/cors)                           | ^2.8.5  | [MIT](https://github.com/expressjs/cors/blob/master/LICENSE)                   | 跨域资源共享           |
 | [svg-captcha](https://www.npmjs.com/package/svg-captcha)             | ^1.4.0  | [MIT](https://github.com/produck/svg-captcha/blob/1.x/LICENSE.md)              | 验证码生成            |
 | [csv-parser](https://www.npmjs.com/package/csv-parser)               | ^3.2.0  | [MIT](https://github.com/mafintosh/csv-parser/blob/master/LICENSE)             | CSV 日志解析         |
