@@ -247,7 +247,7 @@ function addPlayerMoneyByXuid(xuid, value, source) {
     }
 }
 
-// ============ 转账系统 (原 core/pay.js) ============
+// ============ 转账系统 (原 src/pay.js) ============
 
 /** 从磁盘加载待领取转账记录 */
 function _loadPendingTransfers() {
