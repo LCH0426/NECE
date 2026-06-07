@@ -57,8 +57,8 @@
 | **留言板**            | 社区留言板，支持发帖、回复与管理                 | ✅ 可用 |
 | **家园系统**           | 设置、删除和传送到个人家园点，支持数量限制和冷却时间       | ✅ 可用 |
 | **公共传送点**          | 由管理员管理的公共传送点，方便社区快速出行            | ✅ 可用 |
-| **互传系统**           | 玩家间传送请求（tpa/tpn/tpy），支持接受/拒绝/取消  | ✅ 可用 |
-| **随机传送 (RTP)**     | 在可配置范围内随机传送，含冷却时间和出生点保护          | ✅ 可用 |
+| **互传系统**           | 玩家间传送请求，下拉选择玩家和传送方式，支持接受/拒绝/取消 | ✅ 可用 |
+| **称号系统**           | 购买和设置称号，聊天前缀展示，管理员可自定义添加        | ✅ 可用 |
 | **Web 管理面板**       | 基于 Express.js 的网页端管理后台，使用 JWT 认证 | ✅ 可用 |
 | **封禁系统**           | 支持按玩家ID/UID/XUID封禁，IP关联封禁        | ✅ 可用 |
 | **排行榜**            | 经济、存款、击杀、死亡、挖掘等多维度排行             | ✅ 可用 |
@@ -92,11 +92,10 @@
 | `/mb`          | 打开留言板     | `enableMessageBoard`  |
 | `/vip`         | 打开 VIP 菜单 | `enableVip`           |
 | `/bank`        | 打开银行系统    | `enableBank`          |
-| `/wish`        | 打开祈愿系统    | `enableWish`          |
-| `/level`       | 查看冒险等级与奖励 | `enableLevel`         |
-| `/xpshop`      | 打开经验商店    | `enableDustShop`      |
-| `/dustshop`    | 打开星尘商店    | `enableDustShop`      |
-| `/enchantshop` | 打开附魔书商店   | `enableDustShop`      |
+| `/wish`        | 打开祈愿系统    | —                     |
+| `/level`       | 查看冒险等级与奖励 | `level.enabled`       |
+| `/xpshop`      | 打开经验商店    | `shop.enableXpShop`   |
+| `/titles`      | 称号系统       | —                     |
 | `/settings`    | 打开个人设置    | —                     |
 | `/back`        | 返回死亡点     | `enableBack`          |
 | `/mail`        | 打开邮件系统    | `enableMail`          |
@@ -105,14 +104,13 @@
 | `/tpg`         | 打开传送系统主菜单 | `teleport.enabled`    |
 | `/home`        | 打开家园系统    | `teleport.enableHome` |
 | `/warp`        | 打开公共传送点   | `teleport.enableWarp` |
-| `/tpa`         | 传送到玩家     | `teleport.enableTpa`  |
-| `/tpn`         | 请玩家传送过来   | `teleport.enableTpa`  |
-| `/tpy`         | 双方互传请求    | `teleport.enableTpa`  |
+| `/tpa`         | 互传系统（选择玩家+方式） | `teleport.enableTpa`  |
 | `/tpcancel`    | 取消传送请求    | `teleport.enableTpa`  |
 | `/tpaccept`    | 接受传送请求    | `teleport.enableTpa`  |
 | `/tpdeny`      | 拒绝传送请求    | `teleport.enableTpa`  |
-| `/rtp`         | 随机传送      | `teleport.enableRtp`  |
-| `/org`         | 打开公会系统    | `enableGuild`         |
+| `/qcd`         | 打开快捷菜单    | —                     |
+| `/qmenu`       | 打开快捷菜单    | —                     |
+| `/org`         | 打开公会系统    | `guild.enabled`       |
 
 ### 管理员指令
 
@@ -145,6 +143,9 @@ NECE 内置基于 Express.js 的网页端管理后台，提供以下功能：
 - **留言板管理** — 查看和管理社区留言
 - **封禁管理** — 封禁/解封玩家，查看封禁列表，支持按ID/UID/XUID操作
 - **公会管理** — 查看/创建/解散公会，管理成员、传送点和资金
+- **称号管理** — 查看玩家称号、为玩家添加自定义称号
+- **赞助管理** — 管理赞助者记录（仅祈愿模块启用时可用）
+- **传送配置** — 修改传送系统参数（冷却、花费、功能开关）
 
 ## 安装
 
@@ -160,67 +161,70 @@ NECE 内置基于 Express.js 的网页端管理后台，提供以下功能：
 | 配置项                   | 默认值         | 描述          |
 | --------------------- | ----------- | ----------- |
 | `currencyName`        | `"星茜"`      | 游戏内货币名称     |
-| `enableRank`          | `true`      | 启用排行榜系统     |
-| `enableShop`          | `true`      | 启用商店系统      |
-| `enableCdk`           | `true`      | 启用 CDK 兑换   |
-| `enableRecycle`       | `true`      | 启用回收系统      |
-| `enableDustShop`      | `true`      | 启用星尘商店与经验商店 |
-| `enableWish`          | `true`      | 启用祈愿系统      |
-| `enableBank`          | `true`      | 启用银行系统      |
-| `enableVip`           | `true`      | 启用 VIP 系统   |
-| `enableFriend`        | `true`      | 启用好友系统      |
-| `enableGuild`         | `true`      | 启用公会系统      |
-| `enableMessageBoard`  | `true`      | 启用留言板       |
-| `enableMail`          | `true`      | 启用邮件系统      |
-| `enableLevel`         | `true`      | 启用冒险等级系统    |
-| `enableBack`          | `true`      | 启用死亡点返回     |
+| `shop.enabled`        | `true`      | 启用商店系统      |
+| `shop.enableRecycle`  | `true`      | 启用回收系统      |
+| `shop.enableXpShop`   | `true`      | 启用经验商店      |
+| `rank.enabled`        | `true`      | 启用排行榜系统     |
+| `cdk.enabled`         | `true`      | 启用 CDK 兑换   |
+| `bank.enabled`        | `true`      | 启用银行系统      |
+| `vip.enabled`         | `true`      | 启用 VIP 系统   |
+| `friend.enabled`      | `true`      | 启用好友系统      |
+| `guild.enabled`       | `true`      | 启用公会系统      |
+| `messageBoard.enabled`| `true`      | 启用留言板       |
+| `mail.enabled`        | `true`      | 启用邮件系统      |
+| `level.enabled`       | `true`      | 启用冒险等级系统    |
+| `back.enabled`        | `true`      | 启用死亡点返回     |
 | `teleport.enabled`    | `true`      | 启用传送系统      |
 | `teleport.enableHome` | `true`      | 启用家园系统      |
 | `teleport.enableWarp` | `true`      | 启用公共传送点     |
 | `teleport.enableTpa`  | `true`      | 启用互传系统      |
-| `teleport.enableRtp`  | `true`      | 启用随机传送      |
+| `titles.defaultTitle` | `"萌新"`     | 玩家默认称号      |
+| `titles.shop`         | `[]`        | 可购买称号列表     |
+| `chat.enabled`        | `true`      | 启用自定义聊天格式   |
+| `chat.format`         | `...`       | 聊天格式模板      |
+| `chat.wordFilter`     | `true`      | 启用敏感词过滤     |
+| `teleport.enableTpa`  | `true`      | 启用互传系统      |
 | `teleport.homeLimit`  | `10`        | 每位玩家最大家园数   |
 | `teleport.tpaCost`    | `0`         | 互传费用        |
-| `teleport.rtpRange`   | `5000`      | 随机传送最大范围    |
 | `web.enabled`         | `true`      | 启用 Web 管理面板 |
 | `web.enableFrontend`  | `true`      | 启用 Web 前端   |
 | `web.port`            | `8080`      | Web 面板端口    |
 | `web.host`            | `"0.0.0.0"` | Web 面板绑定地址  |
+| `web.secureCookie`    | `false`     | HTTPS 时启用 Secure Cookie |
 
 ## 项目结构
 
 ```
 NECE/
-├── index.js              # 插件主入口
-├── core/
-│   ├── server.js          # Web 服务器与 REST API
-│   ├── database.js        # SQLite 数据库管理
-│   ├── systemMonitor.js   # 系统资源监控
-│   ├── serverStats.js     # 服务器统计（TPS/MSPT）
-│   ├── behaviorLog.js     # 玩家行为日志与查询API
-│   ├── chatLog.js         # 聊天历史记录
-│   ├── adminLog.js        # 管理员操作审计日志
-│   ├── mail.js            # 邮件系统模块
-│   ├── messageBoard.js    # 留言板模块
-│   ├── backup.js          # 自动备份系统
-│   ├── wish.js            # 祈愿系统模块
-│   ├── friend.js          # 好友与消息系统模块
-│   ├── ban.js             # 封禁系统模块
-│   ├── teleport.js        # 传送系统模块（home/warp/tpa/rtp）
-│   ├── vip.js             # VIP 系统模块
-│   ├── cdk.js             # CDK 兑换模块
-│   ├── guild.js           # 公会系统模块
-│   ├── rank.js            # 排行榜模块
-│   ├── bank.js            # 银行系统模块
-│   ├── pay.js             # 经济与支付模块
-│   ├── shop.js            # 商店与回收模块
-│   ├── constants.js       # 常量定义
-│   └── utils.js           # 工具函数
-├── data/
-│   └── items.json         # 物品数据注册表
-├── WEB/                   # Web 前端资源
-├── manifest.json          # LSE 插件清单
-├── package.json           # Node.js 依赖声明
+├── index.js              # 插件主入口（模块初始化、事件监听、命令注册）
+├── config.json           # 插件配置
+├── manifest.json         # LSE 插件清单
+├── src/                  # 功能模块
+│   ├── constants.js      # 常量定义（路径、默认设置、枚举）
+│   ├── utils.js          # 工具函数
+│   ├── database.js       # SQLite 数据库管理
+│   ├── economy.js        # 经济系统
+│   ├── playerData.js     # 玩家数据管理
+│   ├── personalCenter.js # 个人中心
+│   ├── chat.js           # 聊天系统 + 称号系统
+│   ├── sidebar.js        # 侧边栏/actionbar 渲染
+│   ├── menu.js           # 菜单系统（主菜单+快捷菜单）
+│   ├── teleport.js       # 传送系统（家/地标/TPA/死亡点）
+│   ├── shop.js           # 商店与回收
+│   ├── bank.js           # 银行系统
+│   ├── vip.js            # VIP 会员
+│   ├── wish.js           # 祈愿抽卡 + 赞助管理
+│   ├── guild.js          # 公会系统
+│   ├── monitoring.js     # 系统监控
+│   ├── server.js         # Web 服务器
+│   └── routes/           # Web API 路由
+│       ├── admin.js      # 系统监控/清理/聊天/称号管理API
+│       ├── players.js    # 玩家列表/排行/详情
+│       └── ...           # 其他路由模块
+├── data/                 # 数据文件
+├── public/               # Web 面板前端
+├── manifest.json         # LSE 插件清单
+├── package.json          # Node.js 依赖声明
 └── LICENSE                # GPL-3.0 许可证
 ```
 
@@ -272,6 +276,6 @@ You should have received a copy of the GNU General Public License along with thi
 
 **Made with ❤️ by LCH0426**
 
-[⬆ 回到顶部](#-nlce)
+[⬆ 回到顶部](#-nece)
 
 </div>
