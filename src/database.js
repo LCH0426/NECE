@@ -135,23 +135,13 @@ function saveDatabase() {
     }
 }
 
-let _authDbSaveTimer = null;
-/** 防抖保存认证数据库，10秒内多次调用只触发一次实际写入 */
+/** 立即保存认证数据库到磁盘 */
 function requestSaveAuthDb() {
-    if (_authDbSaveTimer) clearTimeout(_authDbSaveTimer);
-    _authDbSaveTimer = setTimeout(function() {
-        _authDbSaveTimer = null;
-        saveDatabase();
-    }, 10000);
+    saveDatabase();
 }
 
-/** 取消待执行的认证数据库防抖保存（用于关服前立即保存） */
-function cancelPendingAuthSave() {
-    if (_authDbSaveTimer) {
-        clearTimeout(_authDbSaveTimer);
-        _authDbSaveTimer = null;
-    }
-}
+/** 兼容性空操作（无防抖，无需取消） */
+function cancelPendingAuthSave() {}
 
 /** 清理过期的验证码（5分钟）、刷新令牌和黑名单条目 */
 function cleanExpiredData() {
@@ -472,23 +462,13 @@ function savePlayerDatabase() {
     }
 }
 
-let _playerDbSaveTimer = null;
-/** 防抖保存玩家数据库，30秒内多次调用只触发一次写盘 */
+/** 立即保存玩家数据库 */
 function requestSavePlayerDb() {
-    if (_playerDbSaveTimer) clearTimeout(_playerDbSaveTimer);
-    _playerDbSaveTimer = setTimeout(function() {
-        _playerDbSaveTimer = null;
-        savePlayerDatabase();
-    }, 30000);
+    savePlayerDatabase();
 }
 
-/** 取消待执行的玩家数据库防抖保存 */
-function cancelPendingSave() {
-    if (_playerDbSaveTimer) {
-        clearTimeout(_playerDbSaveTimer);
-        _playerDbSaveTimer = null;
-    }
-}
+/** 兼容性空操作（无防抖，无需取消） */
+function cancelPendingSave() {}
 
 // --- 玩家核心数据 ---
 
