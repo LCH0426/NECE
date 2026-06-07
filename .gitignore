@@ -12,6 +12,4 @@ FIX.md
 wish_config.json
 wish.js
 .github/
-.node-gyp-patched/
-find-visualstudio.js
 
