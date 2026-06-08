@@ -272,10 +272,11 @@ function registerRoutes(router, d) {
             const end = start + pageSize;
             let pagedPlayers = playerList.slice(start, end);
 
-            // 只对当前页的玩家获取余额和在线状态
+            // 只对当前页的玩家获取余额、在线状态和封禁状态
             pagedPlayers.forEach(function(p) {
                 try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
                 try { p.isOnline = !!d.mc.getPlayer(p.xuid); } catch (e) { p.isOnline = false; }
+                try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
             });
 
             res.json({
@@ -327,9 +328,10 @@ function registerRoutes(router, d) {
             let start = (page - 1) * pageSize;
             let pagedPlayers = playerList.slice(start, start + pageSize);
 
-            // 只对当前页的玩家获取余额
+            // 只对当前页的玩家获取余额和封禁状态
             pagedPlayers.forEach(function(p) {
                 try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
+                try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
             });
 
             res.json({
@@ -382,9 +384,10 @@ function registerRoutes(router, d) {
             let start = (page - 1) * pageSize;
             let pagedPlayers = playerList.slice(start, start + pageSize);
 
-            // 只对当前页的玩家获取余额
+            // 只对当前页的玩家获取余额和封禁状态
             pagedPlayers.forEach(function(p) {
                 try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
+                try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
             });
 
             res.json({
@@ -433,6 +436,11 @@ function registerRoutes(router, d) {
             let totalPages = Math.ceil(total / pageSize);
             let start = (page - 1) * pageSize;
             const pagedPlayers = playerList.slice(start, start + pageSize);
+
+            // 添加封禁状态
+            pagedPlayers.forEach(function(p) {
+                try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
+            });
 
             res.json({
                 code: 200,
@@ -490,6 +498,12 @@ function registerRoutes(router, d) {
                 }
             } catch (e) {}
 
+            // 封禁状态和称号
+            let isBanned = false;
+            try { isBanned = d.banModule.isPlayerBanned(xuid, pData.lastIp); } catch (e) {}
+            let activeTitle = '萌新';
+            try { activeTitle = d.chatModule.getPlayerActiveTitle(xuid); } catch (e) {}
+
             res.json({
                 code: 200,
                 data: {
@@ -500,6 +514,8 @@ function registerRoutes(router, d) {
                     registerTime: pData.registerTime || '',
                     balance: balance,
                     isOnline: isOnline,
+                    isBanned: isBanned,
+                    activeTitle: activeTitle,
                     onlineInfo: onlineInfo,
                     lastIp: pData.lastIp || '',
                     platform: pData.platform || '',

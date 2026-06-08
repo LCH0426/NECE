@@ -32,9 +32,9 @@ function createRankModule(deps) {
         fm.setTitle("排行榜");
         fm.addButton("经济排行榜", "textures/ui/icon_recipe_nature");
         fm.addButton("存款排行榜", "textures/ui/icon_book_writable");
-        fm.addButton("击杀排行榜", "textures/ui/icon_sword");
-        fm.addButton("死亡排行榜", "textures/ui/icon_wither");
-        fm.addButton("挖掘排行榜", "textures/ui/icon_recipe_equipment");
+        fm.addButton("击杀排行榜", "textures/items/diamond_sword");
+        fm.addButton("死亡排行榜", "textures/ui/bad_omen_effect");
+        fm.addButton("挖掘排行榜", "textures/items/diamond_pickaxe");
         fm.addButton("关闭", "textures/ui/cancel");
         player.sendForm(fm, function(p, id) {
             if (id === null || id === 5) return;

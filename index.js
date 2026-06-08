@@ -429,21 +429,31 @@ function JsonConfigFileAdapter(filePath, defaultContent) {
 	}
 }
 
+/** 内部辅助：检查路径片段是否包含原型污染关键字 */
+var _PROTO_KEYS = { '__proto__': true, 'constructor': true, 'prototype': true };
+function _isUnsafeKey(key) { return !!_PROTO_KEYS[key]; }
+
 /** 内部辅助：按点号路径解析嵌套对象，返回 { obj, key } 或 null */
 JsonConfigFileAdapter.prototype._resolve = function(path) {
-	if (path.indexOf('.') === -1) return { obj: this._data, key: path };
+	if (path.indexOf('.') === -1) {
+		if (_isUnsafeKey(path)) return null;
+		return { obj: this._data, key: path };
+	}
 	var parts = path.split('.');
 	var current = this._data;
 	for (var i = 0; i < parts.length - 1; i++) {
+		if (_isUnsafeKey(parts[i])) return null;
 		if (current === null || current === undefined || typeof current !== 'object') return null;
 		current = current[parts[i]];
 	}
 	if (current === null || current === undefined || typeof current !== 'object') return null;
+	if (_isUnsafeKey(parts[parts.length - 1])) return null;
 	return { obj: current, key: parts[parts.length - 1] };
 };
 
 /** 初始化配置项：不存在时写入默认值并保存（支持点号路径） */
 JsonConfigFileAdapter.prototype.init = function(name, defaultValue) {
+	if (_isUnsafeKey(name)) return defaultValue;
 	var resolved = this._resolve(name);
 	if (!resolved) {
 		// 父路径不存在，需要逐层创建
@@ -451,11 +461,13 @@ JsonConfigFileAdapter.prototype.init = function(name, defaultValue) {
 			var parts = name.split('.');
 			var current = this._data;
 			for (var i = 0; i < parts.length - 1; i++) {
+				if (_isUnsafeKey(parts[i])) return defaultValue;
 				if (current[parts[i]] === undefined || current[parts[i]] === null || typeof current[parts[i]] !== 'object') {
 					current[parts[i]] = {};
 				}
 				current = current[parts[i]];
 			}
+			if (_isUnsafeKey(parts[parts.length - 1])) return defaultValue;
 			if (current[parts[parts.length - 1]] === undefined) {
 				current[parts[parts.length - 1]] = defaultValue;
 				this._save();
@@ -486,6 +498,7 @@ JsonConfigFileAdapter.prototype.get = function(name, defaultValue) {
 
 /** 设置配置项并立即保存（支持点号路径） */
 JsonConfigFileAdapter.prototype.set = function(name, value) {
+	if (_isUnsafeKey(name)) return false;
 	if (name.indexOf('.') === -1) {
 		this._data[name] = value;
 		this._save();
@@ -497,11 +510,13 @@ JsonConfigFileAdapter.prototype.set = function(name, value) {
 		var parts = name.split('.');
 		var current = this._data;
 		for (var i = 0; i < parts.length - 1; i++) {
+			if (_isUnsafeKey(parts[i])) return false;
 			if (current[parts[i]] === undefined || current[parts[i]] === null || typeof current[parts[i]] !== 'object') {
 				current[parts[i]] = {};
 			}
 			current = current[parts[i]];
 		}
+		if (_isUnsafeKey(parts[parts.length - 1])) return false;
 		current[parts[parts.length - 1]] = value;
 		this._save();
 		return true;

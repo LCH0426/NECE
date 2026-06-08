@@ -258,7 +258,7 @@ function showScheduledMailDetailForm(player, mail) {
 
     gui.setContent(content);
     gui.addButton("§b修改定时时间", "textures/ui/icon_recipe_equipment");
-    gui.addButton("§c删除定时邮件", "textures/ui/icon_delete");
+    gui.addButton("§c删除定时邮件", "textures/ui/cancel");
     gui.addButton("§a返回列表", "textures/ui/arrow_left");
 
     player.sendForm(gui, function(p, id) {
@@ -420,10 +420,10 @@ function showMailListForm(player, page) {
     }
 
     if (currentPage < totalPages - 1) {
-        gui.addButton("§e下一页", "textures/ui/arrow_down");
+        gui.addButton("§e下一页", "textures/ui/arrowRight");
     }
     if (currentPage > 0) {
-        gui.addButton("§e上一页", "textures/ui/arrow_up");
+        gui.addButton("§e上一页", "textures/ui/arrowLeft");
     }
 
     gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
