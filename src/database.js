@@ -1322,6 +1322,7 @@ module.exports = {
     getAllAdmins,
     generateCaptcha,
     verifyCaptcha,
+    cleanExpiredData,
     cleanExpiredCaptchas,
     saveRefreshToken,
     findRefreshToken,

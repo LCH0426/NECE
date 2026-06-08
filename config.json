@@ -1,5 +1,4 @@
 {
-  "version": "1.9.10",
   "debug": false,
   "currencyName": "星茜",
   "sidebarCompact": false,
@@ -13,7 +12,6 @@
       { "name": "服务器元老", "cost": 5000 }
     ]
   },
-  "debugmsg": "你正在参与服务器测试，如遇问题请反馈给管理员。",
   "chat": {
     "enabled": true,
     "format": "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e|a<§r{name}§a> §r{msg}",
@@ -28,9 +26,6 @@
     "enabled": true
   },
   "cdk": {
-    "enabled": true
-  },
-  "wish": {
     "enabled": true
   },
   "bank": {

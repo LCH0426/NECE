@@ -2112,13 +2112,18 @@ if (typeof ll !== 'undefined' && ll.onUnload) {
 }
 
 // ============ 启动Banner ============
+
+logger.info("");
 colorLog("yellow", "███╗   ██╗███████╗ ██████╗███████╗");
 colorLog("yellow", "████╗  ██║██╔════╝██╔════╝██╔════╝");
 colorLog("yellow", "██╔██╗ ██║█████╗  ██║     █████╗  ");
 colorLog("yellow", "██║╚██╗██║██╔══╝  ██║     ██╔══╝  ");
 colorLog("yellow", "██║ ╚████║███████╗╚██████╗███████╗");
 colorLog("yellow", "╚═╝  ╚═══╝╚══════╝ ╚═════╝╚══════╝");
-
 logger.info("");
-logger.info(`       NECE ${config.get('version')} (${DESIGNATION_NAME})`);
+try {
+    var _manifest = JSON.parse(fs.readFileSync('plugins/NECE/manifest.json', 'utf-8'));
+    var _ver = _manifest.version || 'unknown';
+} catch (e) { var _ver = 'unknown'; }
+logger.info(`       NECE ${_ver} (${DESIGNATION_NAME})`);
 logger.info("");
