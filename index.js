@@ -1250,6 +1250,7 @@ mc.listen("onJoin", (player) => {
  * 玩家离开事件：累计在线时长，清除在线状态和缓存，记录离开时间
  */
 mc.listen("onLeft", (player) => {
+	if (!_initialized) return;
 	const xuid = player.xuid;
 	const xuidStr = String(xuid);
 	if (_joinTimestamps[xuid]) {
@@ -1270,7 +1271,9 @@ mc.listen("onLeft", (player) => {
 	saveSinglePlayerData(xuidStr);
 	// 保存背包快照到数据库（供API查询离线玩家背包）
 	try {
+		if (!player || !_initialized) return;
 		const inv = player.getInventory();
+		if (!inv) return;
 		const allItems = inv.getAllItems();
 		const snapshot = [];
 		for (let s = 0; s < allItems.length; s++) {
@@ -1316,8 +1319,13 @@ function _refreshStatConfigCache() {
 function initStatTrackers() {
 	_refreshStatConfigCache();
 	mc.listen("onDestroyBlock", function(player, block) {
-		if (!_rankEnabled) return;
+		if (!_initialized || !_rankEnabled) return;
 		personalCenter.bumpStat(player.xuid, "mining", 1);
+	});
+
+	mc.listen("afterPlaceBlock", function(player, block) {
+		if (!_initialized || !_rankEnabled) return;
+		personalCenter.bumpStat(player.xuid, "placing", 1);
 	});
 
 	mc.listen("afterPlaceBlock", function(player, block) {
@@ -1483,21 +1491,24 @@ function getVipInfo(player) {
 // ============ TPS实时计算 ============
 // 每个游戏刻（tick）计数，累计20个tick后根据实际耗时计算TPS值
 mc.listen("onTick", () => {
-	if (debugModule.isUnloading()) return;
-	if (tpsData['tps_Count'] == null) {
-		tpsData['tps_Time_start'] = Date.now();
-		tpsData['tps_Time_end'] = 0;
-		tpsData['tps_Count'] = 0;
-	} else {
-		tpsData['tps_Count']++;
-	}
-	if (tpsData['tps_Count'] != null && tpsData['tps_Count'] >= 20) {
-		tpsData['tps_Time_end'] = Date.now();
-		const elapsed = tpsData['tps_Time_end'] - tpsData['tps_Time_start'];
-		const tpsValue = 20000 / elapsed;  // 20个tick理想耗时20000ms（每tick=1000ms），实际耗时越长TPS越低
-		tpsData['tps'] = tpsValue >= 20 ? '20.00' : tpsValue.toFixed(2);
-		tpsData['tps_Count'] = null;
-	}
+	try {
+		if (!_initialized) return;
+		if (debugModule.isUnloading()) return;
+		if (tpsData['tps_Count'] == null) {
+			tpsData['tps_Time_start'] = Date.now();
+			tpsData['tps_Time_end'] = 0;
+			tpsData['tps_Count'] = 0;
+		} else {
+			tpsData['tps_Count']++;
+		}
+		if (tpsData['tps_Count'] != null && tpsData['tps_Count'] >= 20) {
+			tpsData['tps_Time_end'] = Date.now();
+			const elapsed = tpsData['tps_Time_end'] - tpsData['tps_Time_start'];
+			const tpsValue = 20000 / elapsed;
+			tpsData['tps'] = tpsValue >= 20 ? '20.00' : tpsValue.toFixed(2);
+			tpsData['tps_Count'] = null;
+		}
+	} catch (e) { /* 关服时全局对象已销毁，忽略 */ }
 });
 
 // ============ 服务器启动完成事件 ============
@@ -2112,6 +2123,7 @@ function showSetPasswordForm(player) {
 // LSE环境下的插件卸载事件，保存所有数据并停止Web服务器
 if (typeof ll !== 'undefined' && ll.onUnload) {
 	ll.onUnload(function() {
+		_initialized = false;
 		debugModule.setUnloading();
 		flushAllSaves();
 		if (config && config.flush) config.flush();

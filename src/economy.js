@@ -132,13 +132,13 @@ function reducePlayerMoney(player, value, source) {
         }
 
         const beforeMoney = money.get(xuid) || 0;
-        logger.info('尝试减少玩家 ' + player.name + ' (' + xuid + ') 货币：' + beforeMoney + ' - ' + intValue);
+        if (_config && _config.get('debug')) logger.info('尝试减少玩家 ' + player.name + ' (' + xuid + ') 货币：' + beforeMoney + ' - ' + intValue);
 
         let success = money.reduce(xuid, intValue);
-        logger.info('money.reduce调用结果：' + success);
+        if (_config && _config.get('debug')) logger.info('money.reduce调用结果：' + success);
 
         const afterMoney = money.get(xuid) || 0;
-        logger.info('减少货币后余额：' + afterMoney);
+        if (_config && _config.get('debug')) logger.info('减少货币后余额：' + afterMoney);
 
         if (success) {
             notifyEconomyChange(player, -intValue, source || "系统扣费");
@@ -182,10 +182,10 @@ function addPlayerMoney(player, value, source) {
             return false;
         }
 
-        logger.info('尝试增加玩家 ' + player.name + ' (' + xuid + ') 货币：' + intValue);
+        if (_config && _config.get('debug')) logger.info('尝试增加玩家 ' + player.name + ' (' + xuid + ') 货币：' + intValue);
 
         let success = money.add(xuid, intValue);
-        logger.info('money.add调用结果：' + success);
+        if (_config && _config.get('debug')) logger.info('money.add调用结果：' + success);
 
         if (success) {
             notifyEconomyChange(player, intValue, source || "系统收入");
