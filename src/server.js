@@ -482,7 +482,7 @@ function createV1Routes(webConfig) {
             res.json({
                 code: 200,
                 data: {
-                    version: '1.9.9',
+                    version: _configRef.get('version'),
                     serverVersion: serverVersion,
                     protocol: protocol,
                     type: _hasWish ? 'NEPE' : 'NECE'
