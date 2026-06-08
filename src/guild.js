@@ -64,21 +64,15 @@ function cfg() {
 }
 
 /**
- * 显示空值提醒表单（标题+提示文本+关闭/返回按钮）
+ * 显示空值提醒表单（sendModalForm，标题+提示文本+关闭/返回按钮）
  * @param {Player} player - 玩家
  * @param {string} title - 表单标题
  * @param {string} text - 提示文本
  * @param {Function} backFn - 点击返回时调用的函数
  */
 function showEmptyTipForm(player, title, text, backFn) {
-    var fm = mc.newSimpleForm();
-    fm.setTitle(title);
-    fm.setContent(text);
-    fm.addButton('§c关闭', 'textures/ui/cancel');
-    fm.addButton('§a返回', 'textures/ui/arrow_left');
-    player.sendForm(fm, function(p, id) {
-        if (id == null || id === 0) return;
-        if (id === 1 && backFn) backFn(p);
+    player.sendModalForm(title, text, '§a返回', '§c关闭', function(p, result) {
+        if (result && backFn) backFn(p);
     });
 }
 
@@ -267,7 +261,7 @@ function doShowInfo(player) {
 /** 列出所有公会 - 按钮显示，点击查看详情 */
 function doListGuilds(player) {
     var guilds = database.getAllGuilds();
-    if (guilds.length === 0) { player.tell('§e[公会] §e当前没有任何公会'); return; }
+    if (guilds.length === 0) { showEmptyTipForm(player, '§e公会列表', '§a当前没有任何公会。', showMainMenu); return; }
 
     var fm = mc.newSimpleForm();
     fm.setTitle('§l§b公会列表');
@@ -1263,7 +1257,7 @@ function showJoinGuildPanel(player) {
     if (database.getGuildByPlayer(xuid)) { player.tell('§e[公会] §c你已在公会中'); return; }
 
     var guilds = database.getAllGuilds();
-    if (guilds.length === 0) { player.tell('§e[公会] §e当前没有任何公会'); return; }
+    if (guilds.length === 0) { showEmptyTipForm(player, '§e公会列表', '§a当前没有任何公会。', showMainMenu); return; }
 
     var fm = mc.newSimpleForm();
     fm.setTitle('§l§d申请加入公会');
@@ -1464,8 +1458,7 @@ function showOnlinePlayerSelectForm(player, guild) {
         }
 
         if (candidates.length === 0) {
-            player.tell('§e[公会] §e当前没有可邀请的在线玩家');
-            showInvitePlayerForm(player);
+            showEmptyTipForm(player, '§e邀请玩家', '§a当前没有可邀请的在线玩家。', showMainMenu);
             return;
         }
 
@@ -1586,9 +1579,7 @@ function showAdminPanel(player) {
     fm.setTitle('§l§c管理员 - 公会管理');
 
     if (guilds.length === 0) {
-        fm.setContent('§e当前没有任何公会');
-        fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
-        player.sendForm(fm, function() { showMainMenu(player); });
+        showEmptyTipForm(player, '§c管理面板', '§a当前没有任何公会。', showMainMenu);
         return;
     }
 
@@ -1798,8 +1789,7 @@ function showAdminOnlinePlayerSelect(player, guild) {
         }
 
         if (candidates.length === 0) {
-            player.tell('§e[公会] §e当前没有可邀请的在线玩家');
-            showAdminInviteForm(player, guild);
+            showEmptyTipForm(player, '§e邀请玩家', '§a当前没有可邀请的在线玩家。', showMainMenu);
             return;
         }
 

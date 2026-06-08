@@ -1141,8 +1141,9 @@ function showPlayerSendMailForm(player) {
     });
 
     if (playerList.length === 0) {
-        player.tell("§e[邮件] §c当前没有其他在线玩家！");
-        showMailSystemForm(player);
+        player.sendModalForm("§e发送邮件", "§a当前没有其他在线玩家", "§a返回", "§c关闭", function(p, result) {
+            if (result) showMailSystemForm(p);
+        });
         return;
     }
 

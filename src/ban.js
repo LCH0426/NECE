@@ -254,7 +254,10 @@ function showBanListForm(player) {
     gui.setTitle("§l§c封禁列表");
 
     if (banList.length === 0) {
-        gui.setContent("§a当前没有封禁的玩家");
+        player.sendModalForm("§c封禁列表", "§a当前没有封禁的玩家", "§a返回", "§c关闭", function(p, result) {
+            if (result) showBanMainForm(p);
+        });
+        return;
     } else {
         gui.setContent("§c共有 " + banList.length + " 名被封禁的玩家：\n点击查看详情");
         banList.forEach(function(entry) {

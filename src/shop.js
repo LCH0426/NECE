@@ -173,7 +173,9 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 	const totalValue = result.totalValue;
 
 	if (totalValue <= 0) {
-		player.tell("§e[商店] §c没有可回收的物品！");
+		player.sendModalForm("§e回收系统", "§a背包中没有可回收的物品", "§a返回商店", "§c关闭", function(p, result) {
+			if (result) showShopMainForm(p, deps);
+		});
 		return;
 	}
 
@@ -205,11 +207,9 @@ function showRecycleForm(player, recycleConfig, deps) {
 	const totalValue = result.totalValue;
 
 	if (Object.keys(recyclable).length === 0) {
-		const fm = mc.newSimpleForm();
-		fm.setTitle("§a回收系统");
-		fm.setContent("§c您的背包中没有可回收的物品！");
-		fm.addButton("§a确定");
-		player.sendForm(fm, function() {});
+		player.sendModalForm("§a回收系统", "§c您的背包中没有可回收的物品！", "§a返回商店", "§c关闭", function(p, result) {
+			if (result) showShopMainForm(p, deps);
+		});
 		return;
 	}
 
