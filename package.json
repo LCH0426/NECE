@@ -1,7 +1,11 @@
 {
-  "name": "lessential",
-  "description": "LEssential",
+  "name": "nece",
+  "description": "NECE",
   "main": "index.js",
+  "scripts": {
+    "test": "node --test --test-force-exit test/unit/*.test.js",
+    "test:verbose": "node --test --test-force-exit --test-reporter spec test/unit/*.test.js"
+  },
   "dependencies": {
     "7zip-min": "^3.0.1",
     "cors": "^2.8.5",

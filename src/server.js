@@ -113,6 +113,13 @@ let _hasWish = false;       // 是否加载了祈愿模块（由 index.js 注入
 let _wishModuleRef = null;  // 祈愿模块引用（由 index.js 注入）
 let _webConfig = null;      // web配置引用（由 startServer 设置）
 
+// 从 manifest.json 读取版本号
+let _manifestVersion = 'unknown';
+try {
+    const _mf = JSON.parse(fs.readFileSync(pathModule.join(__dirname, '..', 'manifest.json'), 'utf-8'));
+    _manifestVersion = _mf.version || 'unknown';
+} catch (e) {}
+
 /** 注入内存中的 playerData 对象引用，使 getPlayerData() 直接返回最新数据 */
 function setPlayerDataRef(ref) {
     _playerDataRef = ref;
@@ -482,7 +489,7 @@ function createV1Routes(webConfig) {
             res.json({
                 code: 200,
                 data: {
-                    version: _configRef.get('version'),
+                    version: _manifestVersion,
                     serverVersion: serverVersion,
                     protocol: protocol,
                     type: _hasWish ? 'NEPE' : 'NECE'
@@ -539,11 +546,9 @@ function startServer(webConfig) {
     // 启动限流记录定期清理
     startRateLimitCleanup();
 
-    // 每 60 秒清理过期数据，防止数据库无限膨胀
+    // 每 60 秒清理过期数据（统一调用，只触发一次写盘）
     cleanupTimer = setInterval(() => {
-        database.cleanExpiredCaptchas();
-        database.cleanExpiredRefreshTokens();
-        database.cleanExpiredBlacklist();
+        database.cleanExpiredData();
     }, 60000);
 }
 
