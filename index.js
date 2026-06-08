@@ -236,7 +236,7 @@ DataManager.prototype.load = function() {
 			var backupPath = this.path + '.bak.' + Date.now();
 			fs.copyFileSync(this.path, backupPath);
 			logger.warn('==============================');
-			logger.warn('[NECE] !! 数据文件格式错误 !!');
+			logger.warn('[!! 数据文件格式错误 !!');
 			logger.warn('文件：' + this.path);
 			logger.warn('错误：' + e.message);
 			logger.warn('已备份到：' + backupPath);
@@ -601,7 +601,6 @@ function initRankConfig() {
 	try {
 		config = new JsonConfigFileAdapter(CONFIG_PATH);
 		config.init("debug", false);
-		config.init("debugmsg", "你正在参与服务器测试，如遇问题请反馈给管理员。");
 		_debugMode = config.get("debug", false);
 		debugModule.setDebugMode(_debugMode);
 		config.init("currencyName", "星茜");
@@ -736,7 +735,7 @@ function _migrateOldConfigKeys() {
 
 	if (_changed) {
 		config._save();
-		logger.info('[NECE] 配置文件已从旧格式迁移到新嵌套结构');
+		logger.info('[配置文件已从旧格式迁移到新嵌套结构');
 	}
 }
 
@@ -749,7 +748,7 @@ function initPlayerData() {
 	const sqlPlayers = database.getAllPlayerDataSQL();
 	const sqlNextUid = database.getNextUidSQL();
 	playerData = { nextUid: sqlNextUid, players: sqlPlayers };
-	logger.info('[NECE] 玩家核心数据已从SQL加载 (' + Object.keys(sqlPlayers).length + ' 个玩家)');
+	logger.info(' 玩家核心数据已从SQL加载 (' + Object.keys(sqlPlayers).length + ' 个玩家)');
 	debugLog('initPlayerData: SQL模式, nextUid=' + sqlNextUid + ', 玩家数=' + Object.keys(sqlPlayers).length);
 	if (!playerData.players) playerData.players = {};
 	if (!playerData.nextUid) playerData.nextUid = 10000;
@@ -874,15 +873,18 @@ async function initAllConfigs() {
 	});
 	database.setDebugMode(_debugMode);
 	debugLog("initAllConfigs: Debug模式已" + (_debugMode ? "开启" : "关闭"));
+	debugLog("initAllConfigs: 开始初始化所有模块...");
 	// 初始化玩家数据库(SQL)
 	await database.initPlayerDatabase();
-	logger.info('[NECE] 玩家数据库(SQL)初始化完成');
+	debugLog("initAllConfigs: 玩家数据库初始化完成");
 	initPlayerData();
+	debugLog("initAllConfigs: 玩家数据加载完成, 玩家数=" + Object.keys(playerData.players || {}).length);
 	initPlayerSettings();
 	initShopData();
 	initCdkData();
 	loadItemsDataMap();
 	initRecycleConfig();
+	debugLog("initAllConfigs: 商店/CDK/物品/回收配置加载完成");
 	messageBoardModule.init(messageBoardDM);
 	spawnEggShopConfig = spawnEggShopDM.load();
 	initDeathPointData();
@@ -1195,10 +1197,9 @@ mc.listen("onJoin", (player) => {
 			let dismissed = {};
 			try { dismissed = JSON.parse(fs.readFileSync(debugDismissedPath, 'utf-8')); } catch (e) {}
 			if (!dismissed[playerXUID]) {
-				const debugMsg = config.get("debugmsg", "你正在参与服务器测试，如遇问题请反馈给管理员。");
 				const form = mc.newSimpleForm();
 				form.setTitle("Debug Mod");
-				form.setContent(debugMsg);
+				form.setContent("你正在参与服务器测试，如遇问题请反馈给管理员。");
 				form.addButton("关闭");
 				player.sendForm(form, function() {
 					dismissed[playerXUID] = true;
@@ -1289,7 +1290,7 @@ mc.listen("onLeft", (player) => {
 			}
 		} catch (e) {}
 		database.savePlayerInventorySQL(xuidStr, snapshot, armorSnapshot, offhandSnapshot);
-	} catch (e) { logger.warn('[NECE] 保存背包快照失败: ' + e.message); }
+	} catch (e) { logger.warn('保存背包快照失败: ' + e.message); }
 });
 
 /** 注册游戏行为统计监听（挖掘、放置、击杀、死亡）和死亡点记录 */
@@ -1492,23 +1493,16 @@ mc.listen("onTick", () => {
 mc.listen("onServerStarted", async () => {
 	await initAllConfigs();
 	registerAllCommands();
-	// /org 命令：支持无参数打开GUI和带参数文本操作
+	// /org 命令：打开公会系统GUI
 	if (config.get("guild.enabled")) {
 		try {
 			var orgCmd = mc.newCommand('org', '公会系统', PermType.Any);
-			orgCmd.optional('action', ParamType.RawText);
-			orgCmd.optional('param', ParamType.RawText);
-			orgCmd.overload(['action', 'param']);
-			orgCmd.overload(['action']);
 			orgCmd.overload([]);
-			orgCmd.setCallback(function(_cmd, origin, output, results) {
+			orgCmd.setCallback(function(_cmd, origin, output) {
 				var player = origin.player;
 				if (!player) { output.error('§c此命令仅玩家可在游戏内执行！'); return; }
 				if (!config.get("guild.enabled")) { player.tell('§c公会系统当前已关闭！'); return; }
-				var args = [];
-				if (results.action) args.push(String(results.action));
-				if (results.param) args.push(String(results.param));
-				guildModule.handleCommand(player, args);
+				guildModule.showGuildMainForm(player);
 			});
 			orgCmd.setup();
 		} catch (e) { logger.error('/org 命令注册出错！错误：' + e); }
@@ -1527,7 +1521,7 @@ mc.listen("onServerStarted", async () => {
 	setInterval(function() { mailModule.checkScheduledMails(); }, 30000);
 
 	const mem = process.memoryUsage();
-	logger.info('[NECE] 内存使用 - 堆已用: ' + (mem.heapUsed / 1024 / 1024).toFixed(2) + 'MB, 堆总量: ' + (mem.heapTotal / 1024 / 1024).toFixed(2) + 'MB, RSS: ' + (mem.rss / 1024 / 1024).toFixed(2) + 'MB');
+	logger.info('[内存使用] - 堆已用: ' + (mem.heapUsed / 1024 / 1024).toFixed(2) + 'MB, 堆总量: ' + (mem.heapTotal / 1024 / 1024).toFixed(2) + 'MB, RSS: ' + (mem.rss / 1024 / 1024).toFixed(2) + 'MB');
 });
 
 /** 玩家预加入事件：检查封禁状态，被封禁的玩家在此阶段踢出 */

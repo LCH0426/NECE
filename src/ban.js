@@ -333,7 +333,7 @@ function showBanPlayerForm(player) {
     gui.addInput("封禁原因", "输入封禁原因（可选）", "管理员封禁");
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined || !Array.isArray(data)) {
+        if (data == null || data === undefined || !Array.isArray(data)) {
             showBanListForm(p);
             return;
         }

@@ -114,7 +114,7 @@ function showAvatarSettingsForm(player) {
 	gui.addInput("头像值", "QQ号码/图片链接/头像码", avatar.value || "");
 
 	player.sendForm(gui, function(p, data) {
-		if (data === null || data === undefined || !Array.isArray(data)) {
+		if (data == null || data === undefined || !Array.isArray(data)) {
 			_showPersonalCenterForm(p);
 			return;
 		}
