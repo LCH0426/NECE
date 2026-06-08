@@ -320,8 +320,8 @@ function showTransferTypeForm(player) {
     let fm = mc.newSimpleForm();
     fm.setTitle("转账");
     fm.setContent("选择转账对象类型");
-    fm.addButton("在线玩家", "textures/ui/icon_online");
-    fm.addButton("离线玩家", "textures/ui/icon_offline");
+    fm.addButton("在线玩家", "textures/ui/online");
+    fm.addButton("离线玩家", "textures/ui/offline");
     fm.addButton("返回", "textures/ui/recap_glyph_desaturated");
     player.sendForm(fm, function(p, id) {
         if (id === null || id === 2) { showMoneyMainForm(p); return; }

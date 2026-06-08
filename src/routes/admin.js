@@ -180,36 +180,42 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 封禁玩家（支持按XUID、名称或IP识别）
+    // 封禁玩家（统一使用 XUID 标识）
     router.post('/ban', d.adminAuth, function(req, res) {
         try {
-            let identifier = (req.body.identifier || '').trim();
+            let xuid = (req.body.xuid || '').trim();
             const reason = (req.body.reason || '').trim() || 'Web管理面板封禁';
             const operator = (req.body.operator || '').trim() || 'Web管理面板';
 
-            if (!identifier) return res.status(400).json({ code: 400, msg: '缺少identifier参数' });
+            if (!xuid) return res.status(400).json({ code: 400, msg: '缺少xuid参数' });
 
-            let result = d.banModule.apiBan(identifier, reason, operator);
+            let result = d.banModule.apiBan(xuid, reason, operator);
             if (result.success) {
-                d.adminLog.log(req.user.uid, '封禁玩家', identifier, '原因: ' + reason);
+                d.adminLog.log(req.user.uid, '封禁玩家', xuid, '原因: ' + reason);
+                const playerName = d.getPlayerName(xuid) || xuid;
+                res.json({ code: 200, msg: result.message, data: { xuid: result.xuid, name: playerName, isBanned: true } });
+            } else {
+                res.status(400).json({ code: 400, msg: result.message });
             }
-            res.json({ code: result.success ? 200 : 400, msg: result.message, data: result.success ? { xuid: result.xuid } : null });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '封禁操作失败: ' + e.message });
         }
     });
 
-    // 解封玩家（支持按XUID、名称或IP识别）
+    // 解封玩家（统一使用 XUID 标识）
     router.post('/unban', d.adminAuth, function(req, res) {
         try {
-            const identifier = (req.body.identifier || '').trim();
-            if (!identifier) return res.status(400).json({ code: 400, msg: '缺少identifier参数' });
+            const xuid = (req.body.xuid || '').trim();
+            if (!xuid) return res.status(400).json({ code: 400, msg: '缺少xuid参数' });
 
-            let result = d.banModule.apiUnban(identifier);
+            let result = d.banModule.apiUnban(xuid);
             if (result.success) {
-                d.adminLog.log(req.user.uid, '解封玩家', identifier);
+                d.adminLog.log(req.user.uid, '解封玩家', xuid);
+                const playerName = d.getPlayerName(xuid) || xuid;
+                res.json({ code: 200, msg: result.message, data: { xuid: xuid, name: playerName, isBanned: false } });
+            } else {
+                res.status(400).json({ code: 400, msg: result.message });
             }
-            res.json({ code: result.success ? 200 : 400, msg: result.message });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '解封操作失败: ' + e.message });
         }
@@ -411,6 +417,41 @@ function registerRoutes(router, d) {
             res.json({ code: 200, msg: '称号添加成功', data: { xuid: xuid, title: title } });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '添加称号失败: ' + e.message });
+        }
+    });
+
+    // 设置玩家当前使用的称号
+    router.put('/player/:xuid/titles/active', d.adminAuth, function(req, res) {
+        try {
+            var xuid = req.params.xuid;
+            var title = (req.body.title || '').trim();
+            if (!title) {
+                return res.status(400).json({ code: 400, msg: '称号不能为空' });
+            }
+            var ok = d.chatModule.setActiveTitle(xuid, title);
+            if (!ok) {
+                return res.status(400).json({ code: 400, msg: '该玩家未拥有此称号' });
+            }
+            d.adminLog.log(req.user.uid, '设置称号', '玩家XUID:' + xuid + ' 称号:' + title);
+            res.json({ code: 200, msg: '称号设置成功', data: { xuid: xuid, active: title } });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '设置称号失败: ' + e.message });
+        }
+    });
+
+    // 删除玩家的指定称号
+    router.delete('/player/:xuid/titles/:title', d.adminAuth, function(req, res) {
+        try {
+            var xuid = req.params.xuid;
+            var title = req.params.title;
+            if (d.chatModule.removePlayerTitle(xuid, title)) {
+                d.adminLog.log(req.user.uid, '删除称号', '玩家XUID:' + xuid + ' 称号:' + title);
+                res.json({ code: 200, msg: '称号删除成功' });
+            } else {
+                res.status(404).json({ code: 404, msg: '该玩家未拥有此称号' });
+            }
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '删除称号失败: ' + e.message });
         }
     });
 }

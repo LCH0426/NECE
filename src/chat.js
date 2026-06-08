@@ -144,15 +144,21 @@ function _getPlayerTitles(xuid) {
     return p.titles;
 }
 
-/** 获取玩家当前称号（用于聊天格式），默认返回"萌新" */
+/** 获取玩家当前称号（用于聊天格式），默认返回"萌新"，"无称号"时返回空字符串 */
 function getPlayerActiveTitle(xuid) {
     var titles = _getPlayerTitles(xuid);
+    if (titles.active === '无称号') return '';
     return titles.active || '萌新';
 }
 
-/** 获取玩家拥有的所有称号 */
+/** 获取玩家拥有的所有称号（始终包含"无称号"选项） */
 function getPlayerOwnedTitles(xuid) {
-    return _getPlayerTitles(xuid).owned || ['萌新'];
+    var owned = _getPlayerTitles(xuid).owned || ['萌新'];
+    // 确保"无称号"始终在列表首位
+    if (owned.indexOf('无称号') === -1) {
+        return ['无称号'].concat(owned);
+    }
+    return owned;
 }
 
 /** 为玩家添加称号（管理员/Web API 调用） */
@@ -173,6 +179,18 @@ function setActiveTitle(xuid, title) {
     return true;
 }
 
+/** 删除玩家的指定称号，不能删除默认称号"萌新" */
+function removePlayerTitle(xuid, title) {
+    if (title === '萌新') return false;
+    var titles = _getPlayerTitles(xuid);
+    var idx = titles.owned.indexOf(title);
+    if (idx === -1) return false;
+    titles.owned.splice(idx, 1);
+    if (titles.active === title) titles.active = '萌新';
+    if (_deps.savePlayerData) _deps.savePlayerData();
+    return true;
+}
+
 /** 获取称号商店配置 */
 function getTitleShopConfig() {
     var cfg = _deps.getConfig ? _deps.getConfig() : {};
@@ -186,7 +204,7 @@ function showTitleMainForm(player) {
         fm.setTitle("§l§b称号系统");
         fm.setContent("§a当前称号: §b" + getPlayerActiveTitle(player.xuid));
         fm.addButton("§e设置称号", "textures/ui/icon_setting");
-        fm.addButton("§a购买称号", "textures/ui/coin");
+        fm.addButton("§a购买称号", "textures/ui/marketplace");
         player.sendForm(fm, function(p, id) {
             if (id === null) return;
             if (id === 0) showSetTitleForm(p);
@@ -499,5 +517,6 @@ module.exports = {
     getPlayerOwnedTitles: getPlayerOwnedTitles,
     addPlayerTitle: addPlayerTitle,
     setActiveTitle: setActiveTitle,
+    removePlayerTitle: removePlayerTitle,
     registerTitleCommand: registerTitleCommand
 };

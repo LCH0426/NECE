@@ -486,10 +486,10 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     gui.setContent(content);
 
     if (currentPage < totalPages - 1) {
-        gui.addButton("§e下一页", "textures/ui/arrow_down");
+        gui.addButton("§e下一页", "textures/ui/arrowRight");
     }
     if (currentPage > 0) {
-        gui.addButton("§e上一页", "textures/ui/arrow_up");
+        gui.addButton("§e上一页", "textures/ui/arrowLeft");
     }
 
     gui.addButton("§b发送消息", "textures/ui/backup_replace");

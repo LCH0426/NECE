@@ -313,7 +313,7 @@ function showGuildDetail(player, guild) {
     if (!myGuild) {
         fm.addButton('§a申请加入公会', 'textures/ui/color_plus');
     }
-    fm.addButton('§7返回公会列表', 'textures/ui/back');
+    fm.addButton('§7返回公会列表', 'textures/ui/refresh_light');
 
     player.sendForm(fm, function(p, id) {
         if (id === null) { doListGuilds(p); return; }
@@ -663,7 +663,7 @@ function showMainMenu(player) {
         fm.addButton('§b公会信息', 'textures/ui/icon_book_writable');
         fm.addButton('§a成员管理', 'textures/ui/FriendsDiversity');
         fm.addButton('§e传送点管理', 'textures/items/compass_item');
-        fm.addButton('§6公积金', 'textures/ui/MCoin.png');
+        fm.addButton('§6公积金', 'textures/ui/my_characters');
         fm.addButton('§d传送到总部', 'textures/items/bed_red');
         fm.addButton('§9公会列表', 'textures/ui/icon_best3');
         if (role === 'owner' || role === 'admin') {
@@ -673,7 +673,7 @@ function showMainMenu(player) {
         if (isAdmin) {
             fm.addButton('§c管理面板', 'textures/ui/op');
         }
-        fm.addButton('§c退出公会', 'textures/ui/refresh_light');
+        fm.addButton('§c退出公会', 'textures/ui/cancel');
     } else {
         var myInvites = _guildInvites[xuid] || [];
         var inviteStr = myInvites.length > 0 ? '\n§e你有 ' + myInvites.length + ' 条公会邀请' : '';
@@ -1608,7 +1608,7 @@ function showAdminGuildManage(player, guild) {
 
     fm.addButton('§a成员管理', 'textures/ui/FriendsDiversity');
     fm.addButton('§e传送点管理', 'textures/items/compass_item');
-    fm.addButton('§6资金管理', 'textures/ui/icon_coin');
+    fm.addButton('§6资金管理', 'textures/ui/my_characters');
     fm.addButton('§d邀请玩家', 'textures/ui/color_plus');
     fm.addButton('§e修改公会名称', 'textures/ui/book_edit_default');
     fm.addButton('§c解散公会', 'textures/ui/hammer_l');
