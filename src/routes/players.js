@@ -67,6 +67,11 @@ function registerRoutes(router, d) {
                     }
                 } catch (e) {}
 
+                let isBanned = false;
+                try { isBanned = d.banModule.isPlayerBanned(p.xuid, ip); } catch (e) {}
+                let activeTitle = '萌新';
+                try { activeTitle = d.chatModule.getPlayerActiveTitle(p.xuid); } catch (e) {}
+
                 return {
                     name: p.name,
                     realName: p.realName || p.name,
@@ -77,6 +82,8 @@ function registerRoutes(router, d) {
                     dimension: p.dimension || 0,
                     position: p.pos || null,
                     balance: balance,
+                    isBanned: isBanned,
+                    activeTitle: activeTitle,
                     gameMode: p.gameMode || 0,
                     ping: ping,
                     os: os
@@ -272,11 +279,12 @@ function registerRoutes(router, d) {
             const end = start + pageSize;
             let pagedPlayers = playerList.slice(start, end);
 
-            // 只对当前页的玩家获取余额、在线状态和封禁状态
+            // 只对当前页的玩家获取余额、在线状态、封禁状态和称号
             pagedPlayers.forEach(function(p) {
                 try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
                 try { p.isOnline = !!d.mc.getPlayer(p.xuid); } catch (e) { p.isOnline = false; }
                 try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
+                try { p.activeTitle = d.chatModule.getPlayerActiveTitle(p.xuid); } catch (e) { p.activeTitle = ''; }
             });
 
             res.json({
