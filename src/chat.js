@@ -170,10 +170,10 @@ function addPlayerTitle(xuid, title) {
     if (_deps.savePlayerData) _deps.savePlayerData();
 }
 
-/** 设置玩家当前称号 */
+/** 设置玩家当前称号（"无称号"始终可选） */
 function setActiveTitle(xuid, title) {
     var titles = _getPlayerTitles(xuid);
-    if (titles.owned.indexOf(title) === -1) return false;
+    if (title !== '无称号' && titles.owned.indexOf(title) === -1) return false;
     titles.active = title;
     if (_deps.savePlayerData) _deps.savePlayerData();
     return true;
@@ -224,7 +224,7 @@ function showSetTitleForm(player) {
         fm.setTitle("§l§e设置称号");
         fm.setContent("§a当前称号: §b" + current + "\n§a点击选择要使用的称号：");
         owned.forEach(function(t) {
-            fm.addButton((t === current ? "§b★ " : "§7") + t);
+            fm.addButton((t === current ? "§b★ " : "") + t);
         });
         player.sendForm(fm, function(p, id) {
             if (id == null) { showTitleMainForm(p); return; }
@@ -239,7 +239,26 @@ function showSetTitleForm(player) {
     }
 }
 
-/** 显示购买称号表单 */
+/**
+ * 移除 Minecraft 颜色代码（§0-§9, §a-§v, §l, §r, §o, §n, §m, §k）后的纯文本长度
+ * @param {string} text - 含颜色代码的文本
+ * @returns {number} 纯文本字符数
+ */
+function getPlainTextLength(text) {
+    return text.replace(/§[0-9a-vk-or]/gi, '').length;
+}
+
+/**
+ * 检查称号是否包含违禁词（基于纯文本，去除颜色代码后检测）
+ * @param {string} title - 称号文本
+ * @returns {boolean} 是否包含违禁词
+ */
+function isTitleForbidden(title) {
+    var plain = title.replace(/§[0-9a-vk-or]/gi, '');
+    return isBadWord(plain);
+}
+
+/** 显示购买称号表单（含预设称号 + 自定义称号入口） */
 function showBuyTitleForm(player) {
     try {
         var shopConfig = getTitleShopConfig();
@@ -247,45 +266,159 @@ function showBuyTitleForm(player) {
         var owned = getPlayerOwnedTitles(player.xuid);
         var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '星茜';
         var balance = 0;
-        try { balance = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0; } catch (e) { logger.warn('[Chat/Title] 获取余额失败: ' + e.message); }
+        try { balance = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0; } catch (e) {}
 
         // 过滤掉已拥有的称号
         var available = shop.filter(function(item) { return owned.indexOf(item.name) === -1; });
-        if (available.length === 0) {
-            player.tell("§e[称号] §a你已经拥有所有可购买的称号！");
-            return;
-        }
 
         var fm = mc.newSimpleForm();
         fm.setTitle("§l§a购买称号");
-        fm.setContent("§a余额: §e" + balance + " " + currencyName);
+        fm.setContent("§a余额: §e" + balance + " " + currencyName + "\n§7选择预设称号或自定义称号");
         available.forEach(function(item) {
             fm.addButton("§b" + item.name + " §e- " + item.cost + " " + currencyName);
         });
+        fm.addButton("§a✦ §l自定义称号 §7(§e" + shopConfig.perCharCost + " " + currencyName + "/字§7)");
+
         player.sendForm(fm, function(p, id) {
             if (id === null) { showTitleMainForm(p); return; }
-            var item = available[id];
-            if (!item) return;
-            var bal = 0;
-            try { bal = _deps.getPlayerMoney ? _deps.getPlayerMoney(p) : 0; } catch (e) { logger.warn('[Chat/Title] 获取余额失败: ' + e.message); }
-            if (bal < item.cost) {
-                p.tell("§e[称号] §c余额不足！需要 " + item.cost + " " + currencyName + "，当前余额 " + bal);
-                return;
+            if (id < available.length) {
+                // 预设称号 → 二次确认
+                var item = available[id];
+                if (!item) return;
+                showBuyConfirmForm(p, item.name, item.cost, 'preset');
+            } else {
+                // 自定义称号
+                showCustomTitleForm(p);
             }
-            try {
-                _deps.reducePlayerMoney(p, item.cost, "购买称号: " + item.name);
-            } catch (e) {
-                p.tell("§e[称号] §c扣款失败: " + e.message);
-                logger.error('[Chat/Title] 扣款失败: ' + e.message);
-                return;
-            }
-            addPlayerTitle(p.xuid, item.name);
-            setActiveTitle(p.xuid, item.name);
-            p.tell("§e[称号] §a成功购买并设置称号: §b" + item.name);
         });
     } catch (e) {
         logger.error('[Chat/Title] showBuyTitleForm 错误: ' + e.message);
     }
+}
+
+/**
+ * 显示购买确认表单（二次确认）
+ * @param {Player} player - 玩家
+ * @param {string} titleName - 称号名称
+ * @param {number} cost - 费用
+ * @param {string} type - 'preset' 或 'custom'
+ */
+function showBuyConfirmForm(player, titleName, cost, type) {
+    var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '星茜';
+    var balance = 0;
+    try { balance = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0; } catch (e) {}
+
+    // 重复购买检查
+    var currentOwned = getPlayerOwnedTitles(player.xuid);
+    if (currentOwned.indexOf(titleName) !== -1) {
+        player.tell("§e[称号] §c你已经拥有该称号！");
+        return;
+    }
+
+    var fm = mc.newModalForm();
+    fm.setTitle("§e确认购买");
+    fm.setContent(
+        "§a称号: §b" + titleName + "\n" +
+        "§a费用: §e" + cost + " " + currencyName + "\n" +
+        "§a余额: §e" + balance + " " + currencyName + "\n\n" +
+        (balance < cost ? "§c⚠ 余额不足！" : "§a确认购买？")
+    );
+    fm.setConfirmButton("§a确认购买");
+    fm.setCancelButton("§c取消");
+
+    player.sendForm(fm, function(p, result) {
+        if (!result) { showBuyTitleForm(p); return; }
+
+        // 再次检查余额
+        var bal = 0;
+        try { bal = _deps.getPlayerMoney ? _deps.getPlayerMoney(p) : 0; } catch (e) {}
+        if (bal < cost) {
+            p.tell("§e[称号] §c余额不足！需要 " + cost + " " + currencyName);
+            return;
+        }
+
+        // 再次检查重复
+        var owned = getPlayerOwnedTitles(p.xuid);
+        if (owned.indexOf(titleName) !== -1) {
+            p.tell("§e[称号] §c你已经拥有该称号！");
+            return;
+        }
+
+        // 扣款
+        try {
+            _deps.reducePlayerMoney(p, cost, "购买称号: " + titleName);
+        } catch (e) {
+            p.tell("§e[称号] §c扣款失败: " + e.message);
+            return;
+        }
+
+        addPlayerTitle(p.xuid, titleName);
+        setActiveTitle(p.xuid, titleName);
+        p.tell("§e[称号] §a成功购买并设置称号: §b" + titleName);
+    });
+}
+
+/** 显示自定义称号输入表单 */
+function showCustomTitleForm(player) {
+    var shopConfig = getTitleShopConfig();
+    var maxChars = shopConfig.maxChars || 10;
+    var perCharCost = shopConfig.perCharCost || 100;
+    var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '星茜';
+
+    var fm = mc.newCustomForm();
+    fm.setTitle("§l§a自定义称号");
+    fm.addLabel(
+        "§a规则说明:\n" +
+        "§7- 最多 §e" + maxChars + " §7个字符（不含颜色代码）\n" +
+        "§7- 每字 §e" + perCharCost + " " + currencyName + "\n" +
+        "§7- 支持颜色代码: §1§2§3§4§5§6§7§8§9§a§b§c§d§e§f\n" +
+        "§7- 不得包含违禁词"
+    );
+    fm.addInput("称号内容", "输入称号，可用§加颜色代码", "");
+
+    player.sendForm(fm, function(p, data) {
+        if (data === null) { showBuyTitleForm(p); return; }
+
+        var input = (data[1] || '').trim();
+        if (!input) {
+            p.tell("§e[称号] §c称号不能为空！");
+            showCustomTitleForm(p);
+            return;
+        }
+
+        // 计算纯文本长度
+        var plainLen = getPlainTextLength(input);
+        if (plainLen === 0) {
+            p.tell("§e[称号] §c称号内容不能为空！");
+            showCustomTitleForm(p);
+            return;
+        }
+        if (plainLen > maxChars) {
+            p.tell("§e[称号] §c称号超过最大长度限制！当前 " + plainLen + " 字，上限 " + maxChars + " 字");
+            showCustomTitleForm(p);
+            return;
+        }
+
+        // 违禁词检测
+        if (isTitleForbidden(input)) {
+            p.tell("§e[称号] §c称号包含违禁词，请修改后重试");
+            showCustomTitleForm(p);
+            return;
+        }
+
+        // 计算费用
+        var cost = plainLen * perCharCost;
+
+        // 重复检查
+        var owned = getPlayerOwnedTitles(p.xuid);
+        if (owned.indexOf(input) !== -1) {
+            p.tell("§e[称号] §c你已经拥有该称号！");
+            return;
+        }
+
+        // 进入二次确认
+        showBuyConfirmForm(p, input, cost, 'custom');
+    });
 }
 
 /** 注册 /titles 命令 */
@@ -315,17 +448,24 @@ const CHAT_PLACEHOLDER_MAP = {
 
 /**
  * 根据配置模板和玩家信息构建格式化的聊天输出
+ * 空称号时自动移除对应的 §e| 分隔符，避免显示多余的竖线
  * @param {Object} player - 发送消息的玩家对象
  * @param {string} message - 聊天消息内容
  * @returns {string} 格式化后的聊天字符串
  */
 function buildChatOutput(player, message) {
-    const pattern = chatCfg.format || "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§a<§r{name}§a> §r{msg}";
-    return pattern.replace(/\{(\w+)\}/g, function(match, key) {
+    const pattern = chatCfg.format || "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e|§a<§r{name}§a> §r{msg}";
+    var result = pattern.replace(/\{(\w+)\}/g, function(m, key) {
         if (key === 'msg') return message;
         const fn = CHAT_PLACEHOLDER_MAP[key];
         return fn ? fn(player) : '';
     });
+    // 空称号时移除多余的 §b§e| 分隔符，避免显示 "||"
+    var titleVal = getPlayerActiveTitle(player.xuid);
+    if (!titleVal) {
+        result = result.replace(/§b§e\|/g, '');
+    }
+    return result;
 }
 
 /** 确保聊天日志目录存在 */

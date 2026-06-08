@@ -4,6 +4,8 @@
   "sidebarCompact": false,
   "titles": {
     "defaultTitle": "萌新",
+    "maxChars": 10,
+    "perCharCost": 100,
     "shop": [
       { "name": "冒险家", "cost": 500 },
       { "name": "矿工大师", "cost": 1000 },

@@ -336,10 +336,11 @@ function registerRoutes(router, d) {
             let start = (page - 1) * pageSize;
             let pagedPlayers = playerList.slice(start, start + pageSize);
 
-            // 只对当前页的玩家获取余额和封禁状态
+            // 只对当前页的玩家获取余额、封禁状态和称号
             pagedPlayers.forEach(function(p) {
                 try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
                 try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
+                try { p.activeTitle = d.chatModule.getPlayerActiveTitle(p.xuid); } catch (e) { p.activeTitle = ''; }
             });
 
             res.json({
@@ -392,10 +393,11 @@ function registerRoutes(router, d) {
             let start = (page - 1) * pageSize;
             let pagedPlayers = playerList.slice(start, start + pageSize);
 
-            // 只对当前页的玩家获取余额和封禁状态
+            // 只对当前页的玩家获取余额、封禁状态和称号
             pagedPlayers.forEach(function(p) {
                 try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
                 try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
+                try { p.activeTitle = d.chatModule.getPlayerActiveTitle(p.xuid); } catch (e) { p.activeTitle = ''; }
             });
 
             res.json({
@@ -445,9 +447,10 @@ function registerRoutes(router, d) {
             let start = (page - 1) * pageSize;
             const pagedPlayers = playerList.slice(start, start + pageSize);
 
-            // 添加封禁状态
+            // 添加封禁状态和称号
             pagedPlayers.forEach(function(p) {
                 try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
+                try { p.activeTitle = d.chatModule.getPlayerActiveTitle(p.xuid); } catch (e) { p.activeTitle = ''; }
             });
 
             res.json({
