@@ -253,7 +253,7 @@ function showEditQuickMenu(player) {
     gui.addLabel("§e提示：选择后会覆盖之前的设置");
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined) {
+        if (data == null || data === undefined) {
             showQuickMenu(p);
             return;
         }

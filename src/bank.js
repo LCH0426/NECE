@@ -292,7 +292,7 @@ function createBankModule(deps) {
         gui.addInput("输入金额", "例如：100 或 -50", "");
 
         player.sendForm(gui, function(p, data) {
-            if (data === null || typeof data !== "object" || data.length < 2) { showBankMainForm(p); return; }
+            if (data == null || typeof data !== "object" || data.length < 2) { showBankMainForm(p); return; }
             let amountStr = (data[1] || "").trim();
             let amount = parseFloat(amountStr);
             if (isNaN(amount)) { p.tell("§c请输入有效的金额"); showCurrentOperationForm(p); return; }
@@ -420,7 +420,7 @@ function createBankModule(deps) {
         gui.addInput("输入存款金额", "例如：1000", "");
         gui.addDropdown("选择存款期限", ["7天（周）", "30天（月）", "90天（季）"], 0, "选择定期存款的期限");
         player.sendForm(gui, function(p, data) {
-            if (data === null || typeof data !== "object" || data.length < 2) { showFixedDepositMainForm(p); return; }
+            if (data == null || typeof data !== "object" || data.length < 2) { showFixedDepositMainForm(p); return; }
             const amountStr = (data[0] || "").trim();
             const amount = parseFloat(amountStr);
             const durationIndex = data[1];

@@ -372,7 +372,7 @@ function showXPBuyForm(player, deps) {
 	gui.addInput("手动输入经验数量", "输入正整数（如100、500）", "");
 
 	player.sendForm(gui, function(p, data) {
-		if (data === null) return;
+		if (data == null) return;
 
 		const levelIndex = data[1];
 		const customXP = data[2] || "";
@@ -535,7 +535,7 @@ function showBuySearchForm(player, deps) {
 	fm.setTitle("搜索物品");
 	fm.addInput("输入物品名称或ID", "", "");
 	player.sendForm(fm, function(p, data) {
-		if (data === null || !data || !data[0]) {
+		if (data == null || !data || !data[0]) {
 			showBuyMenu(p, deps);
 			return;
 		}
@@ -620,7 +620,7 @@ function showBuyItemForm(player, item, deps) {
 	fm.addInput("输入购买数量", "正整数", "");
 	fm.addSlider("快速选择数量", 0, 128, 1, 0);
 	player.sendForm(fm, function(p, data) {
-		if (data === null || !Array.isArray(data)) return;
+		if (data == null || !Array.isArray(data)) return;
 		const inputStr = (data[1] || "").trim();
 		const sliderVal = data[2] || 0;
 		let count;
@@ -718,7 +718,7 @@ function showSellSearchForm(player, deps) {
 	fm.setTitle("搜索回收物品");
 	fm.addInput("输入物品名称或ID", "", "");
 	player.sendForm(fm, function(p, data) {
-		if (data === null || !data || !data[0]) {
+		if (data == null || !data || !data[0]) {
 			showSellMenu(p, deps);
 			return;
 		}
@@ -792,7 +792,7 @@ function showSellItemForm(player, item, deps) {
 	fm.addSwitch("全部出售", false);
 	fm.addInput("输入出售数量", "正整数", "");
 	player.sendForm(fm, function(p, data) {
-		if (data === null || !Array.isArray(data)) return;
+		if (data == null || !Array.isArray(data)) return;
 		const sellAll = data[1] || false;
 		const inputStr = (data[2] || "").trim();
 		let count;

@@ -27,7 +27,7 @@ let _U = null;
 let _pathModule = null;
 
 // 默认聊天配置：启用状态、格式模板、敏感词开关
-let chatCfg = { enabled: true, format: "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e|§a<§r{name}§a> §r{msg}", wordFilter: true };
+let chatCfg = { enabled: true, format: "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e§a<§r{name}§a> §r{msg}", wordFilter: true };
 let badWordList = [];
 let badWordRegex = null;  // 预编译的敏感词正则，避免每次检测时重建
 
@@ -144,10 +144,10 @@ function _getPlayerTitles(xuid) {
     return p.titles;
 }
 
-/** 获取玩家当前称号（用于聊天格式） */
+/** 获取玩家当前称号（用于聊天格式），空值返回空字符串 */
 function getPlayerActiveTitle(xuid) {
     var titles = _getPlayerTitles(xuid);
-    return titles.active || '萌新';
+    return titles.active || '';
 }
 
 /** 获取玩家拥有的所有称号 */
@@ -164,10 +164,10 @@ function addPlayerTitle(xuid, title) {
     if (_deps.savePlayerData) _deps.savePlayerData();
 }
 
-/** 设置玩家当前称号 */
+/** 设置玩家当前称号（允许空字符串表示无称号） */
 function setActiveTitle(xuid, title) {
     var titles = _getPlayerTitles(xuid);
-    if (titles.owned.indexOf(title) === -1) return false;
+    if (title !== '' && titles.owned.indexOf(title) === -1) return false;
     titles.active = title;
     if (_deps.savePlayerData) _deps.savePlayerData();
     return true;
@@ -197,23 +197,30 @@ function showTitleMainForm(player) {
     }
 }
 
-/** 显示设置称号表单（选择已拥有的称号） */
+/** 显示设置称号表单（选择已拥有的称号，支持无称号） */
 function showSetTitleForm(player) {
     try {
         var owned = getPlayerOwnedTitles(player.xuid);
         var current = getPlayerActiveTitle(player.xuid);
+        var isEmpty = !current || current === '';
         var fm = mc.newSimpleForm();
         fm.setTitle("§l§e设置称号");
-        fm.setContent("§a当前称号: §b" + current + "\n§a点击选择要使用的称号：");
+        fm.setContent("§a当前称号: " + (isEmpty ? "§7无" : "§b" + current) + "\n§a点击选择要使用的称号：");
+        fm.addButton((isEmpty ? "§b★ " : "§7") + "无称号");
         owned.forEach(function(t) {
-            fm.addButton((t === current ? "§b★ " : "§7") + t, "textures/ui/icon_steve");
+            fm.addButton((t === current ? "§b★ " : "§7") + t);
         });
         player.sendForm(fm, function(p, id) {
-            if (id === null) { showTitleMainForm(p); return; }
-            var selected = owned[id];
-            if (selected) {
-                setActiveTitle(p.xuid, selected);
-                p.tell("§e[称号] §a称号已设置为: §b" + selected);
+            if (id == null) { showTitleMainForm(p); return; }
+            if (id === 0) {
+                setActiveTitle(p.xuid, '');
+                p.tell("§e[称号] §a已取消称号显示");
+            } else {
+                var selected = owned[id - 1];
+                if (selected) {
+                    setActiveTitle(p.xuid, selected);
+                    p.tell("§e[称号] §a称号已设置为: §b" + selected);
+                }
             }
         });
     } catch (e) {
@@ -242,7 +249,7 @@ function showBuyTitleForm(player) {
         fm.setTitle("§l§a购买称号");
         fm.setContent("§a余额: §e" + balance + " " + currencyName);
         available.forEach(function(item) {
-            fm.addButton("§b" + item.name + " §e- " + item.cost + " " + currencyName, "textures/ui/coin");
+            fm.addButton("§b" + item.name + " §e- " + item.cost + " " + currencyName);
         });
         player.sendForm(fm, function(p, id) {
             if (id === null) { showTitleMainForm(p); return; }

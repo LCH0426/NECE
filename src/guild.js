@@ -64,6 +64,25 @@ function cfg() {
 }
 
 /**
+ * 显示空值提醒表单（标题+提示文本+关闭/返回按钮）
+ * @param {Player} player - 玩家
+ * @param {string} title - 表单标题
+ * @param {string} text - 提示文本
+ * @param {Function} backFn - 点击返回时调用的函数
+ */
+function showEmptyTipForm(player, title, text, backFn) {
+    var fm = mc.newSimpleForm();
+    fm.setTitle(title);
+    fm.setContent(text);
+    fm.addButton('§c关闭', 'textures/ui/cancel');
+    fm.addButton('§a返回', 'textures/ui/arrow_left');
+    player.sendForm(fm, function(p, id) {
+        if (id == null || id === 0) return;
+        if (id === 1 && backFn) backFn(p);
+    });
+}
+
+/**
  * 发送系统邮件给指定玩家
  * @param {string} xuid - 收件人XUID
  * @param {string} content - 邮件内容
@@ -336,7 +355,10 @@ function doTeleportHQ(player) {
     var xuid = String(player.xuid);
     var guild = database.getGuildByPlayer(xuid);
     if (!guild) { player.tell('§e[公会] §c你没有加入任何公会'); return; }
-    if (guild.hqX == null) { player.tell('§e[公会] §c公会总部尚未设置'); return; }
+    if (guild.hqX == null) {
+        showEmptyTipForm(player, '§c总部未设置', '§e公会总部尚未设置，请联系会长或管理员设置总部后重试。', showMainMenu);
+        return;
+    }
 
     var remain = checkCooldown(xuid);
     if (remain > 0) { player.tell('§e[公会] §c传送冷却中，请等待 ' + remain + ' 秒'); return; }
@@ -647,7 +669,7 @@ function showMainMenu(player) {
         fm.addButton('§b公会信息', 'textures/ui/icon_book_writable');
         fm.addButton('§a成员管理', 'textures/ui/FriendsDiversity');
         fm.addButton('§e传送点管理', 'textures/items/compass_item');
-        fm.addButton('§6公积金', 'extures/ui/icon_recipe_nature');
+        fm.addButton('§6公积金', 'textures/ui/MCoin.png');
         fm.addButton('§d传送到总部', 'textures/items/bed_red');
         fm.addButton('§9公会列表', 'textures/ui/icon_best3');
         if (role === 'owner' || role === 'admin') {
@@ -769,7 +791,7 @@ function showCreateGuildForm(player) {
     fm.addInput('公会描述', '可选', '');
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showMainMenu(p); return; }
+        if (data == null) { showMainMenu(p); return; }
         var name = (data[0] || '').trim();
         var desc = (data[1] || '').trim();
         if (!name) { p.tell('§e[公会] §c公会名称不能为空'); return; }
@@ -835,7 +857,7 @@ function showChangeGuildNameForm(player, guild) {
     fm.addInput('新公会名称', '2-16个字符', '');
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showGuildInfoPanel(p); return; }
+        if (data == null) { showGuildInfoPanel(p); return; }
         var newName = (data[1] || '').trim();
         if (!newName) { p.tell('§e[公会] §c公会名称不能为空'); showChangeGuildNameForm(p, guild); return; }
         if (newName.length < 2 || newName.length > 16) { p.tell('§e[公会] §c公会名称长度需在2-16个字符之间'); showChangeGuildNameForm(p, guild); return; }
@@ -903,7 +925,7 @@ function showMemberManagePanel(player) {
     fm.addDropdown('选择操作', actions, 0);
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showMainMenu(p); return; }
+        if (data == null) { showMainMenu(p); return; }
         var memberIdx = data[0];
         var actionIdx = data[1];
         var target = memberMap[memberIdx];
@@ -1047,7 +1069,7 @@ function showAddTeleportForm(player) {
     fm.addInput('传送点名称', '请输入名称', '');
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showTeleportPanel(p); return; }
+        if (data == null) { showTeleportPanel(p); return; }
         var name = (data[0] || '').trim();
         if (!name) { p.tell('§e[公会] §c名称不能为空'); return; }
         doAddTeleport(p, name);
@@ -1101,7 +1123,7 @@ function showTreasuryPanel(player) {
     fm.addInput('金额', '请输入金额', '');
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showMainMenu(p); return; }
+        if (data == null) { showMainMenu(p); return; }
         var opIdx = data[2];
         var amountStr = (data[3] || '').trim();
         var amount = parseFloat(amountStr);
@@ -1180,7 +1202,7 @@ function showPendingInvitesPanel(player) {
     fm.addDropdown('操作', ['接受邀请', '拒绝邀请'], 0);
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showMainMenu(p); return; }
+        if (data == null) { showMainMenu(p); return; }
         var invIdx = data[0];
         var actionIdx = data[1];
         var inv = invites[invIdx];
@@ -1330,8 +1352,7 @@ function showJoinRequestsPanel(player) {
 
     var requests = _joinRequests[guild.id] || [];
     if (requests.length === 0) {
-        player.tell('§e[公会] §e当前没有待处理的加入申请');
-        showMainMenu(player);
+        showEmptyTipForm(player, '§e无待处理申请', '§a当前没有待处理的加入申请。', showMainMenu);
         return;
     }
 
@@ -1346,7 +1367,7 @@ function showJoinRequestsPanel(player) {
     fm.addDropdown('操作', ['批准加入', '拒绝申请'], 0);
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showMainMenu(p); return; }
+        if (data == null) { showMainMenu(p); return; }
         var reqIdx = data[0];
         var actionIdx = data[1];
         var req = requests[reqIdx];
@@ -1485,7 +1506,7 @@ function showSearchInviteForm(player, guild) {
     fm.addInput('玩家名或UID', '输入玩家名或UID进行搜索', '');
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showInvitePlayerForm(p); return; }
+        if (data == null) { showInvitePlayerForm(p); return; }
         var query = (data[0] || '').trim();
         if (!query) { p.tell('§e[公会] §c请输入玩家名或UID'); showInvitePlayerForm(p); return; }
 
@@ -1625,7 +1646,7 @@ function showAdminChangeGuildName(player, guild) {
     fm.addInput('新公会名称', '2-16个字符', '');
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showAdminGuildManage(p, guild); return; }
+        if (data == null) { showAdminGuildManage(p, guild); return; }
         var newName = (data[1] || '').trim();
         if (!newName) { p.tell('§e[公会] §c公会名称不能为空'); showAdminChangeGuildName(p, guild); return; }
         if (newName.length < 2 || newName.length > 16) { p.tell('§e[公会] §c公会名称长度需在2-16个字符之间'); showAdminChangeGuildName(p, guild); return; }
@@ -1676,7 +1697,7 @@ function showAdminMemberManage(player, guild) {
     fm.addDropdown('选择操作', actions, 0);
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showAdminGuildManage(p, guild); return; }
+        if (data == null) { showAdminGuildManage(p, guild); return; }
         var memberIdx = data[0];
         var actionIdx = data[1];
         var target = memberMap[memberIdx];
@@ -1819,7 +1840,7 @@ function showAdminSearchInvite(player, guild) {
     fm.addInput('玩家名或UID', '输入玩家名或UID进行搜索', '');
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showAdminInviteForm(p, guild); return; }
+        if (data == null) { showAdminInviteForm(p, guild); return; }
         var query = (data[0] || '').trim();
         if (!query) { p.tell('§e[公会] §c请输入玩家名或UID'); showAdminInviteForm(p, guild); return; }
 
@@ -1924,7 +1945,7 @@ function showAdminAddTeleportForm(player, guild) {
     fm.addInput('传送点名称', '请输入名称', '');
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showAdminTeleportManage(p, guild); return; }
+        if (data == null) { showAdminTeleportManage(p, guild); return; }
         var name = (data[0] || '').trim();
         if (!name) { p.tell('§e[公会] §c名称不能为空'); showAdminTeleportManage(p, guild); return; }
 
@@ -1963,7 +1984,7 @@ function showAdminDelTeleportForm(player, guild) {
     fm.addDropdown('选择要删除的传送点', tpNames, 0);
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showAdminTeleportManage(p, guild); return; }
+        if (data == null) { showAdminTeleportManage(p, guild); return; }
         var tpIdx = data[0];
         var tp = tps[tpIdx];
         if (!tp) { showAdminTeleportManage(p, guild); return; }
@@ -1982,7 +2003,7 @@ function showAdminTreasuryPanel(player, guild) {
     fm.addInput('金额', '请输入金额', '');
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showAdminGuildManage(p, guild); return; }
+        if (data == null) { showAdminGuildManage(p, guild); return; }
 
         var opIdx = data[1];
         var amountStr = (data[2] || '').trim();

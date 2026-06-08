@@ -186,7 +186,7 @@ function createVipModule(deps) {
         fm.addDropdown("选择时长", ["天卡 (800点§c" + getCurrencyName() + "§r)", "周卡 (4800点§c" + getCurrencyName() + "§r)", "月卡 (16800点§c" + getCurrencyName() + "§r)", "季卡 (48000点§c" + getCurrencyName() + "§r)"], 0, "选择月光祝福的时长");
 
         player.sendForm(fm, function(p, data) {
-            if (data === null || data === undefined) {
+            if (data == null || data === undefined) {
                 return;
             }
 

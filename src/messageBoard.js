@@ -119,7 +119,7 @@ function createAddMessageForm(player) {
     fm.addDropdown("§f选择心情", C.MOOD_OPTIONS, 0);
 
     player.sendForm(fm, function(pl, data) {
-        if (data === null || !Array.isArray(data)) {
+        if (data == null || !Array.isArray(data)) {
             showMainForm(pl);
             return;
         }
@@ -366,7 +366,7 @@ function createSearchMessageForm(player) {
     fm.addInput("§f请输入留言ID（数字）", "ID", "");
 
     player.sendForm(fm, function(pl, data) {
-        if (data === null) {
+        if (data == null) {
             showMainForm(pl);
             return;
         }

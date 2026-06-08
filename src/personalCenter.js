@@ -778,7 +778,7 @@ function showPlayerSettingsForm(player) {
 		}
 	}
 	player.sendForm(settingsForm, function(p, data) {
-		if (data === null || data === undefined) {
+		if (data == null || data === undefined) {
 			showPersonalCenterForm(p);
 			return;
 		}

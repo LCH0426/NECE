@@ -328,7 +328,7 @@ function showSendMessageForm(player, toXuid, toName, page) {
     gui.addInput("消息内容", "请输入消息内容", "");
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined || !Array.isArray(data)) {
+        if (data == null || data === undefined || !Array.isArray(data)) {
             return;
         }
 
@@ -630,7 +630,7 @@ function showSearchFriendForm(player) {
     gui.addInput("搜索关键词", "输入玩家名称或UID", "");
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined || !Array.isArray(data) || data.length < 2) {
+        if (data == null || data === undefined || !Array.isArray(data) || data.length < 2) {
             showMyFriendsForm(p);
             return;
         }
@@ -759,7 +759,7 @@ function showSendFriendRequestForm(player, targetInfo) {
     gui.addInput("验证消息", "请输入验证消息（可选）", "我是" + player.name);
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || !Array.isArray(data) || data.length < 2) {
+        if (data == null || !Array.isArray(data) || data.length < 2) {
             showPlayerDetailForm(p, targetInfo);
             return;
         }

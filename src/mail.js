@@ -289,7 +289,7 @@ function showModifyScheduledTimeForm(player, mail) {
     gui.addInput("定时时间", "格式：2026.02.12.00.00（年月日时分）", mail.scheduledTime);
 
     player.sendForm(gui, function(p, data) {
-        if (data === null) {
+        if (data == null) {
             if (mail) {
                 showScheduledMailDetailForm(p, mail);
             } else {
@@ -724,7 +724,7 @@ function showSendGlobalMailForm(player) {
     gui.addDropdown("物品5", itemOptions, 0);
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined || !Array.isArray(data)) {
+        if (data == null || data === undefined || !Array.isArray(data)) {
             showMailSystemForm(p);
             return;
         }
@@ -915,7 +915,7 @@ function showSearchPlayerForMailForm(player) {
     gui.addInput("搜索关键词", "输入UID或玩家名称", "");
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined || !Array.isArray(data)) {
+        if (data == null || data === undefined || !Array.isArray(data)) {
             showMailSystemForm(p);
             return;
         }
@@ -1030,7 +1030,7 @@ function showSendSingleMailForm(player, target) {
     gui.addDropdown("物品5", itemOptions, 0);
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined || !Array.isArray(data)) {
+        if (data == null || data === undefined || !Array.isArray(data)) {
             showMailSystemForm(p);
             return;
         }
@@ -1199,7 +1199,7 @@ function showPlayerSendMailForm(player) {
     gui.addDropdown("物品3", itemOptions, 0);
 
     player.sendForm(gui, function(p, data) {
-        if (data === null || data === undefined || !Array.isArray(data)) {
+        if (data == null || data === undefined || !Array.isArray(data)) {
             showMailSystemForm(p);
             return;
         }

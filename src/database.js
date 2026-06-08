@@ -128,6 +128,7 @@ function saveDatabase() {
         cleanExpiredData();
         const data = db.export();
         const buffer = Buffer.from(data);
+        dbDebugLog('saveDatabase: 导出大小=' + buffer.length + ' bytes');
         ensureDir(DB_PATH);
         atomicWriteSync(DB_PATH, buffer);
     } catch (e) {
@@ -452,8 +453,8 @@ function savePlayerDatabase() {
     }
     try {
         const data = playerDb.export();
-        dbDebugLog('savePlayerDatabase: 导出并保存数据库');
         const buffer = Buffer.from(data);
+        dbDebugLog('savePlayerDatabase: 导出大小=' + buffer.length + ' bytes');
         ensureDir(PLAYER_DB_PATH);
         atomicWriteSync(PLAYER_DB_PATH, buffer);
         _playerDbDirty = false;
