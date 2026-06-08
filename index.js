@@ -39,7 +39,6 @@ const banModule = require('./src/ban');
 const mailModule = require('./src/mail');
 const economyModule = require('./src/economy');
 const playerDataModule = require('./src/playerData');
-const avatarModule = require('./src/avatar');
 const chatModule = require('./src/chat');
 const sidebarModule = require('./src/sidebar');
 const menuModule = require('./src/menu');
@@ -866,11 +865,6 @@ async function initAllConfigs() {
 		getPlayerSettings: function() { return playerSettings; },
 		savePlayerSettings: function() { playerSettingsDM.save(true); }
 	});
-	avatarModule.init({
-		getPlayerData: function() { return playerData; },
-		savePlayerData: savePlayerData,
-		showPersonalCenterForm: personalCenter.showPersonalCenterForm
-	});
 	database.setDebugMode(_debugMode);
 	debugLog("initAllConfigs: Debug模式已" + (_debugMode ? "开启" : "关闭"));
 	debugLog("initAllConfigs: 开始初始化所有模块...");
@@ -891,8 +885,10 @@ async function initAllConfigs() {
 	debugLog('friendModule.init: 好友模块初始化, playerData.players 条目=' + Object.keys(playerData.players || {}).length);
 	friendModule.init(friendDM, messageDM, {
 		playerData: playerData.players,
+		getPlayerData: function() { return playerData; },
+		savePlayerData: savePlayerData,
 		getPlayerInfoByXuid: function(xuid) { return playerData.players[xuid] || null; },
-		getPlayerAvatarUrl: getPlayerAvatarUrl,
+		getPlayerAvatarUrl: friendModule.getPlayerAvatarUrl,
 		getPlayerSetting: getPlayerSetting,
 		showPersonalCenterForm: personalCenter.showPersonalCenterForm,
 		mailApi: mailModule
@@ -1622,10 +1618,10 @@ function registerAllCommands() {
 }
 
 
-// ============ 头像系统代理 ============
+// ============ 头像系统代理（已合并到好友模块） ============
 
-const getPlayerAvatarUrl = avatarModule.getPlayerAvatarUrl;
-const showAvatarSettingsForm = avatarModule.showAvatarSettingsForm;
+const getPlayerAvatarUrl = friendModule.getPlayerAvatarUrl;
+const showAvatarSettingsForm = friendModule.showAvatarSettingsForm;
 
 
 // ============ 玩家搜索与工具 ============

@@ -1011,6 +1011,130 @@ function getUnreadMessageCount(xuid) {
     return msgData.messages.filter(function(m) { return !m.read; }).length;
 }
 
+// ============ 头像系统（合并自 avatar.js） ============
+
+/**
+ * 获取玩家头像数据，首次访问时自动初始化为默认头像
+ * @param {string} xuid - 玩家XUID
+ * @returns {{ type: string, value: string }} 头像数据对象
+ */
+function getPlayerAvatarData(xuid) {
+    let p = _deps.getPlayerData ? _deps.getPlayerData().players[xuid] : null;
+    if (!p) return { type: "default", value: "" };
+    if (!p.avatar) {
+        p.avatar = { type: "default", value: "" };
+        if (_deps.savePlayerData) _deps.savePlayerData();
+    }
+    return p.avatar;
+}
+
+/**
+ * 根据头像类型生成完整的图片URL
+ * @param {string} xuid - 玩家XUID
+ * @returns {string} 头像URL或内置纹理路径
+ */
+function getPlayerAvatarUrl(xuid) {
+    let avatar = getPlayerAvatarData(xuid);
+    switch (avatar.type) {
+        case "qq":
+            return "http://q1.qlogo.cn/g?b=qq&nk=" + avatar.value + "&s=100";
+        case "link":
+            return avatar.value;
+        case "citlalia":
+            return "https://citlalia.cn/img/" + avatar.value;
+        default:
+            return "textures/ui/icon_steve";
+    }
+}
+
+/**
+ * 设置玩家头像类型和值
+ * @param {string} xuid - 玩家XUID
+ * @param {string} type - 头像类型（qq/link/citlalia）
+ * @param {string} value - 头像值（QQ号/URL/图床ID）
+ */
+function setPlayerAvatar(xuid, type, value) {
+    const p = _deps.getPlayerData ? _deps.getPlayerData().players[xuid] : null;
+    if (!p) return;
+    p.avatar = { type: type, value: value };
+    if (_deps.savePlayerData) _deps.savePlayerData();
+}
+
+/**
+ * 显示头像设置自定义表单
+ * @param {Player} player - 玩家
+ */
+function showAvatarSettingsForm(player) {
+    const xuid = player.xuid;
+    const avatar = getPlayerAvatarData(xuid);
+
+    const gui = mc.newCustomForm();
+    gui.setTitle("§l§e个人头像设置");
+
+    let content = "-------------------------\n";
+    content += "§a当前头像类型：§f" + getAvatarTypeName(avatar.type) + "\n";
+    content += "§a当前头像值：§f" + (avatar.value || "未设置") + "\n";
+    content += "-------------------------\n";
+    content += "§e请选择头像设置方式并输入对应值：\n";
+
+    gui.addLabel(content);
+    gui.addDropdown("头像类型", ["QQ头像", "自定义链接", "Citlalia头像码"],
+        avatar.type === "qq" ? 0 : avatar.type === "link" ? 1 : avatar.type === "citlalia" ? 2 : 0);
+    gui.addInput("头像值", "QQ号码/图片链接/头像码", avatar.value || "");
+
+    player.sendForm(gui, function(p, data) {
+        if (data == null || !Array.isArray(data)) {
+            if (_deps.showPersonalCenterForm) _deps.showPersonalCenterForm(p);
+            return;
+        }
+
+        let typeIndex = data[1] !== undefined ? data[1] : 0;
+        const value = (data[2] || "").trim();
+
+        if (!value) {
+            p.tell("§e[头像] §c请输入头像值！");
+            showAvatarSettingsForm(p);
+            return;
+        }
+
+        let type, successMsg;
+        if (typeIndex === 0) {
+            if (!/^\d+$/.test(value)) {
+                p.tell("§e[头像] §c请输入有效的QQ号码（纯数字）！");
+                showAvatarSettingsForm(p);
+                return;
+            }
+            type = "qq";
+            successMsg = "§e[头像] §aQQ头像设置成功！";
+        } else if (typeIndex === 1) {
+            if (!value.startsWith("http")) {
+                p.tell("§e[头像] §c请输入有效的图片链接（以http开头）！");
+                showAvatarSettingsForm(p);
+                return;
+            }
+            type = "link";
+            successMsg = "§e[头像] §a自定义链接头像设置成功！";
+        } else {
+            type = "citlalia";
+            successMsg = "§aCitlalia头像码设置成功！";
+        }
+
+        setPlayerAvatar(p.xuid, type, value);
+        p.tell(successMsg);
+        if (_deps.showPersonalCenterForm) _deps.showPersonalCenterForm(p);
+    });
+}
+
+/** 将头像类型标识符转换为中文显示名称 */
+function getAvatarTypeName(type) {
+    switch (type) {
+        case "qq": return "QQ头像";
+        case "link": return "自定义链接";
+        case "citlalia": return "Citlalia头像码";
+        default: return "默认头像";
+    }
+}
+
 module.exports = {
     init: init,
     getPlayerFriendData: getPlayerFriendData,
@@ -1021,5 +1145,11 @@ module.exports = {
     getPendingRequestCount: getPendingRequestCount,
     getUnreadMessageCount: getUnreadMessageCount,
     searchPlayers: searchPlayers,
-    sendMessage: sendMessage
+    sendMessage: sendMessage,
+    // 头像系统
+    getPlayerAvatarData: getPlayerAvatarData,
+    getPlayerAvatarUrl: getPlayerAvatarUrl,
+    setPlayerAvatar: setPlayerAvatar,
+    showAvatarSettingsForm: showAvatarSettingsForm,
+    getAvatarTypeName: getAvatarTypeName
 };
