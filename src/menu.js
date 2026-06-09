@@ -275,8 +275,10 @@ function showEditQuickMenu(player) {
     });
 }
 
-/** 注册 qcd/qmenu 命令 */
+/** 注册菜单相关命令 */
 function registerCommands(registerPlayerCommand) {
+    registerPlayerCommand("menu", "打开服务器主菜单", function(pl) { showMainMenu(pl); });
+    registerPlayerCommand("cd", "打开服务器主菜单", function(pl) { showMainMenu(pl); });
     registerPlayerCommand("qcd", "§a打开快捷菜单", function(pl) { showQuickMenu(pl); });
     registerPlayerCommand("qmenu", "§a打开快捷菜单", function(pl) { showQuickMenu(pl); });
 }

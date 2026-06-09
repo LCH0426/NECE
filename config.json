@@ -4,6 +4,7 @@
   "sidebarCompact": false,
   "titles": {
     "defaultTitle": "萌新",
+    "maxTitles": 10,
     "maxChars": 10,
     "perCharCost": 100,
     "shop": [

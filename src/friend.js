@@ -1040,8 +1040,6 @@ function getPlayerAvatarUrl(xuid) {
             return "http://q1.qlogo.cn/g?b=qq&nk=" + avatar.value + "&s=100";
         case "link":
             return avatar.value;
-        case "citlalia":
-            return "https://citlalia.cn/img/" + avatar.value;
         default:
             return "textures/ui/icon_steve";
     }
@@ -1078,9 +1076,9 @@ function showAvatarSettingsForm(player) {
     content += "§e请选择头像设置方式并输入对应值：\n";
 
     gui.addLabel(content);
-    gui.addDropdown("头像类型", ["QQ头像", "自定义链接", "Citlalia头像码"],
-        avatar.type === "qq" ? 0 : avatar.type === "link" ? 1 : avatar.type === "citlalia" ? 2 : 0);
-    gui.addInput("头像值", "QQ号码/图片链接/头像码", avatar.value || "");
+    gui.addDropdown("头像类型", ["QQ头像", "自定义链接"],
+        avatar.type === "qq" ? 0 : avatar.type === "link" ? 1 : 0);
+    gui.addInput("头像值", "QQ号码/图片链接", avatar.value || "");
 
     player.sendForm(gui, function(p, data) {
         if (data == null || !Array.isArray(data)) {
@@ -1106,7 +1104,7 @@ function showAvatarSettingsForm(player) {
             }
             type = "qq";
             successMsg = "§e[头像] §aQQ头像设置成功！";
-        } else if (typeIndex === 1) {
+        } else {
             if (!value.startsWith("http")) {
                 p.tell("§e[头像] §c请输入有效的图片链接（以http开头）！");
                 showAvatarSettingsForm(p);
@@ -1114,9 +1112,6 @@ function showAvatarSettingsForm(player) {
             }
             type = "link";
             successMsg = "§e[头像] §a自定义链接头像设置成功！";
-        } else {
-            type = "citlalia";
-            successMsg = "§aCitlalia头像码设置成功！";
         }
 
         setPlayerAvatar(p.xuid, type, value);
@@ -1130,7 +1125,6 @@ function getAvatarTypeName(type) {
     switch (type) {
         case "qq": return "QQ头像";
         case "link": return "自定义链接";
-        case "citlalia": return "Citlalia头像码";
         default: return "默认头像";
     }
 }
