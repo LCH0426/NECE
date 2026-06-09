@@ -242,12 +242,17 @@ function fmtCoord(pos) {
     return { sx: pos.x.toFixed(0), sy: pos.y.toFixed(0), sz: pos.z.toFixed(0) };
 }
 
+/** 事件记录统一错误处理 */
+function _eventCatch(eventName, e) {
+    if (e && e.message) logger.warn('[BehaviorLog] ' + eventName + ' 事件记录异常: ' + e.message);
+}
+
 /** 注册所有游戏事件监听器，每个事件记录对应的行为日志 */
 function registerEventListeners() {
     mc.listen("onPreJoin", function(pl) {
         try {
             appendEntry({ action: labelOf('onPreJoin'), dim: '', source: pl.realName, sx: '', sy: '', sz: '', target: '', tx: '', ty: '', tz: '', detail: 'xuid=' + pl.xuid });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch('onPreJoin', e); }
     });
 
     mc.listen("onJoin", function(pl) {
@@ -256,13 +261,13 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             appendEntry({ action: labelOf('onJoin'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: '', tx: '', ty: '', tz: '', detail: 'xuid=' + pl.xuid });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch('onJoin', e); }
     });
 
     mc.listen("onLeft", function(pl) {
         try {
             appendEntry({ action: labelOf('onLeft'), dim: '', source: pl.realName, sx: '', sy: '', sz: '', target: '', tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onPlayerDie", function(pl) {
@@ -271,7 +276,7 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             appendEntry({ action: labelOf('onPlayerDie'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: '', tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onPlayerCmd", function(pl, cmd) {
@@ -280,7 +285,7 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             appendEntry({ action: labelOf('onPlayerCmd'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: cmd, tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onChat", function(pl, msg) {
@@ -289,7 +294,7 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             appendEntry({ action: labelOf('onChat'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: msg, tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onUseItem", function(pl, it) {
@@ -298,7 +303,7 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             appendEntry({ action: labelOf('onUseItem'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: it.name, tx: '', ty: '', tz: '', detail: '类型:' + it.type });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onUseItemOn", function(pl, it, bl) {
@@ -309,7 +314,7 @@ function registerEventListeners() {
             let c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onUseItemOn'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '使用物品:' + it.name + ' 类型:' + it.type });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onTakeItem", function(pl, en, it) {
@@ -318,7 +323,7 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             appendEntry({ action: labelOf('onTakeItem'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: it.name, tx: '', ty: '', tz: '', detail: '数量:' + it.count });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onDropItem", function(pl, it) {
@@ -327,7 +332,7 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             appendEntry({ action: labelOf('onDropItem'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: it.name, tx: '', ty: '', tz: '', detail: '数量:' + it.count });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onStartDestroyBlock", function(pl, bl) {
@@ -338,7 +343,7 @@ function registerEventListeners() {
             let c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onStartDestroyBlock'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onDestroyBlock", function(pl, bl) {
@@ -349,7 +354,7 @@ function registerEventListeners() {
             let c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onDestroyBlock'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onPlaceBlock", function(pl, bl) {
@@ -360,7 +365,7 @@ function registerEventListeners() {
             let c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onPlaceBlock'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onOpenContainer", function(pl, bl) {
@@ -371,7 +376,7 @@ function registerEventListeners() {
             let c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onOpenContainer'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onCloseContainer", function(pl, bl) {
@@ -382,7 +387,7 @@ function registerEventListeners() {
             const c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onCloseContainer'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     // 物品栏变动：oldItem有/newItem无=取出，oldItem无/newItem有=放入
@@ -393,7 +398,7 @@ function registerEventListeners() {
             } else if (!oldItem && newItem) {
                 appendEntry({ action: labelOf('onInventoryIn'), dim: '', source: pl.realName, sx: '', sy: '', sz: '', target: newItem.name, tx: '', ty: '', tz: '', detail: '数量:' + newItem.count + ' 槽位:' + slotNum });
             }
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     // 容器变动：按方块坐标记录
@@ -406,28 +411,28 @@ function registerEventListeners() {
             } else if (!oldItem && newItem) {
                 appendEntry({ action: labelOf('onContainerIn'), dim: blPos ? String(blPos.dim) : '', source: '', sx: '', sy: '', sz: '', target: newItem.name, tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '数量:' + newItem.count + ' 槽位:' + slotNum });
             }
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onExplode", function(source, pos) {
         try {
             if (!pos) return;
             appendEntry({ action: labelOf('onExplode'), dim: String(pos.dim), source: source || '', sx: pos.x.toFixed(0), sy: pos.y.toFixed(0), sz: pos.z.toFixed(0), target: '', tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onBedExplode", function(pos) {
         try {
             if (!pos) return;
             appendEntry({ action: labelOf('onBedExplode'), dim: String(pos.dim), source: '', sx: pos.x.toFixed(0), sy: pos.y.toFixed(0), sz: pos.z.toFixed(0), target: '', tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onRespawnAnchorExplode", function(pos) {
         try {
             if (!pos) return;
             appendEntry({ action: labelOf('onRespawnAnchorExplode'), dim: String(pos.dim), source: '', sx: pos.x.toFixed(0), sy: pos.y.toFixed(0), sz: pos.z.toFixed(0), target: '', tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 
     mc.listen("onBlockExploded", function(bl, source) {
@@ -435,7 +440,7 @@ function registerEventListeners() {
             const blPos = safeBlockPos(bl);
             const bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onBlockExploded'), dim: blPos ? String(blPos.dim) : '', source: source || '', sx: '', sy: '', sz: '', target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { if (e && e.message) logger.warn('[BehaviorLog] 事件记录异常: ' + e.message); }
+        } catch(e) { _eventCatch("unknown", e); }
     });
 }
 

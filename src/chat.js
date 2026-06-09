@@ -245,7 +245,7 @@ function showSetTitleForm(player) {
  * @returns {number} 纯文本字符数
  */
 function getPlainTextLength(text) {
-    return text.replace(/§[0-9a-vk-or]/gi, '').length;
+    return text.replace(/§[0-9a-fk-or]/gi, '').length;
 }
 
 /**
@@ -254,7 +254,7 @@ function getPlainTextLength(text) {
  * @returns {boolean} 是否包含违禁词
  */
 function isTitleForbidden(title) {
-    var plain = title.replace(/§[0-9a-vk-or]/gi, '');
+    var plain = title.replace(/§[0-9a-fk-or]/gi, '');
     return isBadWord(plain);
 }
 
@@ -297,7 +297,7 @@ function showBuyTitleForm(player) {
 }
 
 /**
- * 显示购买确认表单（二次确认）
+ * 显示购买确认表单（二次确认，使用 SimpleForm 模拟确认/取消）
  * @param {Player} player - 玩家
  * @param {string} titleName - 称号名称
  * @param {number} cost - 费用
@@ -315,19 +315,21 @@ function showBuyConfirmForm(player, titleName, cost, type) {
         return;
     }
 
-    var fm = mc.newModalForm();
+    var insufficient = balance < cost;
+    var fm = mc.newSimpleForm();
     fm.setTitle("§e确认购买");
     fm.setContent(
         "§a称号: §b" + titleName + "\n" +
         "§a费用: §e" + cost + " " + currencyName + "\n" +
         "§a余额: §e" + balance + " " + currencyName + "\n\n" +
-        (balance < cost ? "§c⚠ 余额不足！" : "§a确认购买？")
+        (insufficient ? "§c⚠ 余额不足！" : "§a确认购买？")
     );
-    fm.setConfirmButton("§a确认购买");
-    fm.setCancelButton("§c取消");
+    fm.addButton("§a确认购买", "textures/ui/confirm");
+    fm.addButton("§c取消", "textures/ui/cancel");
 
-    player.sendForm(fm, function(p, result) {
-        if (!result) { showBuyTitleForm(p); return; }
+    player.sendForm(fm, function(p, id) {
+        if (id === null || id === 1) { showBuyTitleForm(p); return; }
+        if (id !== 0) return;
 
         // 再次检查余额
         var bal = 0;
