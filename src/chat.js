@@ -161,13 +161,22 @@ function getPlayerOwnedTitles(xuid) {
     return owned;
 }
 
-/** 为玩家添加称号（管理员/Web API 调用） */
+/** 获取称号最大数量（从配置读取，默认10） */
+function getMaxTitles() {
+    var cfg = getTitleShopConfig();
+    return cfg.maxTitles || 10;
+}
+
+/** 为玩家添加称号（管理员/Web API 调用），上限可配置 */
 function addPlayerTitle(xuid, title) {
     var titles = _getPlayerTitles(xuid);
-    if (titles.owned.indexOf(title) === -1) {
-        titles.owned.push(title);
-    }
+    if (titles.owned.indexOf(title) !== -1) return true; // 已拥有
+    var max = getMaxTitles();
+    var customCount = titles.owned.filter(function(t) { return t !== '萌新'; }).length;
+    if (customCount >= max) return false; // 上限
+    titles.owned.push(title);
     if (_deps.savePlayerData) _deps.savePlayerData();
+    return true;
 }
 
 /** 设置玩家当前称号（"无称号"始终可选） */
@@ -219,24 +228,73 @@ function showTitleMainForm(player) {
 function showSetTitleForm(player) {
     try {
         var owned = getPlayerOwnedTitles(player.xuid);
-        var current = getPlayerActiveTitle(player.xuid);
+        var current = getPlayerActiveTitle(player.xuid) || '萌新';
+        var max = getMaxTitles();
+        var customCount = owned.filter(function(t) { return t !== '萌新' && t !== '无称号'; }).length;
         var fm = mc.newSimpleForm();
         fm.setTitle("§l§e设置称号");
-        fm.setContent("§a当前称号: §b" + current + "\n§a点击选择要使用的称号：");
+        fm.setContent(
+            "§a当前称号: §b" + current + "\n" +
+            "§a已拥有: §e" + customCount + "§7/§e" + max + " §7(不含默认称号)\n" +
+            "§a点击称号可佩戴或删除（默认称号仅可佩戴）"
+        );
         owned.forEach(function(t) {
             fm.addButton((t === current ? "§b★ " : "") + t);
         });
         player.sendForm(fm, function(p, id) {
-            if (id == null) { showTitleMainForm(p); return; }
+            if (id === null || id === undefined) return;
             var selected = owned[id];
-            if (selected) {
+            if (!selected) return;
+            // 默认称号直接佩戴
+            if (selected === '萌新' || selected === '无称号') {
                 setActiveTitle(p.xuid, selected);
                 p.tell("§e[称号] §a称号已设置为: §b" + selected);
+                return;
             }
+            // 非默认称号：弹出佩戴/删除选择
+            showTitleActionForm(p, selected);
         });
     } catch (e) {
         logger.error('[Chat/Title] showSetTitleForm 错误: ' + e.message);
     }
+}
+
+/** 显示称号操作表单（佩戴/删除） */
+function showTitleActionForm(player, titleName) {
+    var current = getPlayerActiveTitle(player.xuid) || '萌新';
+    var isEquipped = (current === titleName);
+    var fm = mc.newSimpleForm();
+    fm.setTitle("§e" + titleName);
+    fm.setContent("§a当前称号: §b" + current);
+    fm.addButton((isEquipped ? "§b★ " : "§a") + "佩戴称号", "textures/ui/confirm");
+    fm.addButton("§c删除称号", "textures/ui/cancel");
+    fm.addButton("返回", "textures/ui/arrow_left");
+    player.sendForm(fm, function(p, id) {
+        if (id === null || id === 2) { showSetTitleForm(p); return; }
+        if (id === 0) {
+            setActiveTitle(p.xuid, titleName);
+            p.tell("§e[称号] §a称号已设置为: §b" + titleName);
+        } else if (id === 1) {
+            showDeleteConfirmForm(p, titleName);
+        }
+    });
+}
+
+/** 删除称号二次确认 */
+function showDeleteConfirmForm(player, titleName) {
+    var fm = mc.newSimpleForm();
+    fm.setTitle("§c确认删除");
+    fm.setContent("§c确定要删除称号「§b" + titleName + "§c」吗？\n§e删除后需要重新购买才能获得。");
+    fm.addButton("§a确认删除", "textures/ui/confirm");
+    fm.addButton("取消", "textures/ui/cancel");
+    player.sendForm(fm, function(p, id) {
+        if (id === null || id === 1) { showSetTitleForm(p); return; }
+        if (id === 0) {
+            removePlayerTitle(p.xuid, titleName);
+            p.tell("§e[称号] §a已删除称号: §b" + titleName);
+            showSetTitleForm(p);
+        }
+    });
 }
 
 /**
@@ -273,11 +331,11 @@ function showBuyTitleForm(player) {
 
         var fm = mc.newSimpleForm();
         fm.setTitle("§l§a购买称号");
-        fm.setContent("§a余额: §e" + balance + " " + currencyName + "\n§7选择预设称号或自定义称号");
+        fm.setContent("§a余额: §e" + balance + " " + currencyName + "\n选择预设称号或自定义称号");
         available.forEach(function(item) {
             fm.addButton("§b" + item.name + " §e- " + item.cost + " " + currencyName);
         });
-        fm.addButton("§a✦ §l自定义称号 §7(§e" + shopConfig.perCharCost + " " + currencyName + "/字§7)");
+        fm.addButton("§a✦ §l自定义称号 (§e" + shopConfig.perCharCost + " " + currencyName + "/字)");
 
         player.sendForm(fm, function(p, id) {
             if (id === null) { showTitleMainForm(p); return; }
@@ -312,6 +370,14 @@ function showBuyConfirmForm(player, titleName, cost, type) {
     var currentOwned = getPlayerOwnedTitles(player.xuid);
     if (currentOwned.indexOf(titleName) !== -1) {
         player.tell("§e[称号] §c你已经拥有该称号！");
+        return;
+    }
+
+    // 称号上限检查（排除默认称号）
+    var max = getMaxTitles();
+    var customCount = currentOwned.filter(function(t) { return t !== '萌新' && t !== '无称号'; }).length;
+    if (customCount >= max) {
+        player.tell("§e[称号] §c称号数量已达上限（" + max + "个），请先删除不需要的称号");
         return;
     }
 
@@ -371,10 +437,10 @@ function showCustomTitleForm(player) {
     fm.setTitle("§l§a自定义称号");
     fm.addLabel(
         "§a规则说明:\n" +
-        "§7- 最多 §e" + maxChars + " §7个字符（不含颜色代码）\n" +
-        "§7- 每字 §e" + perCharCost + " " + currencyName + "\n" +
-        "§7- 支持颜色代码: §1§2§3§4§5§6§7§8§9§a§b§c§d§e§f\n" +
-        "§7- 不得包含违禁词"
+        "- 最多 §e" + maxChars + " 个字符（不含颜色代码）\n" +
+        "- 每字 §e" + perCharCost + " " + currencyName + "\n" +
+        "- 支持颜色代码: §1§2§3§4§5§6§8§9§a§b§c§d§e§f\n" +
+        "- 不得包含违禁词"
     );
     fm.addInput("称号内容", "输入称号，可用§加颜色代码", "");
 

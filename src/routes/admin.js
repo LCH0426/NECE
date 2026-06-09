@@ -465,6 +465,11 @@ function registerRoutes(router, d) {
             var pageSize = Math.min(parseInt(req.query.pageSize) || 50, 200);
             var date = req.query.date || ''; // 可选日期筛选 YYYY-MM-DD
 
+            // 验证日期格式，防止路径穿越
+            if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                return res.status(400).json({ code: 400, msg: '日期格式无效，需为 YYYY-MM-DD' });
+            }
+
             var logDir = d.pathModule.join(__dirname, '..', '..', 'logs', 'economy');
             if (!d.fs.existsSync(logDir)) {
                 return res.json({ code: 200, data: { logs: [], total: 0, page: page, pageSize: pageSize } });

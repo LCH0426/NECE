@@ -449,10 +449,9 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 			}
 
 			const xuid = p.xuid;
-			const reduceSuccess = deps.money.reduce(xuid, cost);
+			const reduceSuccess = deps.reducePlayerMoney(p, cost, "购买经验");
 
 			if (reduceSuccess) {
-				deps.notifyEconomyChange(p, -cost, "购买经验");
 				const addXPSuccess = p.addExperience(xpAmount);
 
 				if (addXPSuccess) {

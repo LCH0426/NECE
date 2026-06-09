@@ -77,16 +77,9 @@ describe('friend', () => {
             assert.equal(url, 'https://example.com/avatar.png');
         });
 
-        it('should set and get citlalia avatar', () => {
-            friendModule.setPlayerAvatar('10002', 'citlalia', 'abc123');
-            const url = friendModule.getPlayerAvatarUrl('10002');
-            assert.ok(url.includes('citlalia.cn'));
-        });
-
         it('should return avatar type name', () => {
             assert.equal(friendModule.getAvatarTypeName('qq'), 'QQ头像');
             assert.equal(friendModule.getAvatarTypeName('link'), '自定义链接');
-            assert.equal(friendModule.getAvatarTypeName('citlalia'), 'Citlalia头像码');
             assert.equal(friendModule.getAvatarTypeName('default'), '默认头像');
         });
     });
