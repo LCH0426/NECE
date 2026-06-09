@@ -318,16 +318,28 @@ function isTitleForbidden(title) {
 
 /**
  * 检查称号是否为特殊保留称号（英文不区分大小写）
+ * 同时检查违禁词和商店预设称号
  * @param {string} title - 称号文本
  * @returns {boolean} 是否为保留称号
  */
 function isReservedTitle(title) {
     var plain = title.replace(/§[0-9a-fk-or]/gi, '').toLowerCase();
     var cfg = getTitleShopConfig();
+
+    // 检查违禁词列表
     var forbidden = cfg.forbiddenTitles || ['辅助', '腐竹', '服主', '管理员', 'OP', 'admin', 'owner', 'console', 'system', '服务器'];
     for (var i = 0; i < forbidden.length; i++) {
         if (plain === forbidden[i].toLowerCase()) return true;
     }
+
+    // 检查商店预设称号（不允许自定义称号与商店在售称号重复）
+    var shop = cfg.shop || [];
+    for (var j = 0; j < shop.length; j++) {
+        if (shop[j].name && plain === shop[j].name.replace(/§[0-9a-fk-or]/gi, '').toLowerCase()) {
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -455,7 +467,8 @@ function showCustomTitleForm(player) {
         "- 最多 §e" + maxChars + " 个字符（不含颜色代码）\n" +
         "- 每字 §e" + perCharCost + " " + currencyName + "\n" +
         "- 支持颜色代码: §1§2§3§4§5§6§8§9§a§b§c§d§e§f\n" +
-        "- 不得包含违禁词"
+        "- 不得包含违禁词\n" +
+        "- 不能与商店在售称号相同"
     );
     fm.addInput("称号内容", "输入称号，可用§加颜色代码", "");
 
@@ -489,9 +502,9 @@ function showCustomTitleForm(player) {
             return;
         }
 
-        // 特殊保留称号检测
+        // 特殊保留称号检测（包含违禁词和商店预设称号）
         if (isReservedTitle(input)) {
-            p.tell("§e[称号] §c该称号为保留称号，不可使用");
+            p.tell("§e[称号] §c该称号为保留称号或与商店在售称号重复，不可使用");
             showCustomTitleForm(p);
             return;
         }
