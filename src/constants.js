@@ -196,7 +196,8 @@ const DEFAULT_PLAYER_SETTINGS = {
     enableMessageNotification: true,
     enableFriendRequestNotification: true,
     enableMailNotification: true,
-    enableTpaRejectMode: false
+    enableTpaRejectMode: false,
+    enableChain: true
 };
 
 /** 设置界面表单描述：type=label 为分组标题，type 未指定为可切换的布尔设置项 */

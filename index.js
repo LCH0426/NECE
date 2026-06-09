@@ -46,6 +46,8 @@ const personalCenter = require('./src/personalCenter');
 const guildModule = require('./src/guild');
 const motdModule = require('./src/motd');
 const clearLagModule = require('./src/clearLag');
+const chainModule = require('./src/chain');
+const lightModule = require('./src/light');
 
 
 // ============ 插件注册 ============
@@ -545,13 +547,19 @@ JsonConfigFileAdapter.prototype.delete = function(name) {
 	return false;
 };
 
-/** 从磁盘重新加载配置（不丢失内存中已有但磁盘上没有的key） */
+/** 从磁盘重新加载配置（合并磁盘内容到内存，不丢失内存中已有但磁盘上没有的key） */
 JsonConfigFileAdapter.prototype.reload = function() {
 	try {
 		if (fs.existsSync(this._path)) {
 			const content = fs.readFileSync(this._path, 'utf-8');
 			if (content && content.trim() !== '') {
-				this._data = JSON.parse(content);
+				const diskData = JSON.parse(content);
+				// 合并：磁盘值覆盖内存值，但内存中有的而磁盘没有的保留
+				for (var key in diskData) {
+					if (diskData.hasOwnProperty(key)) {
+						this._data[key] = diskData[key];
+					}
+				}
 			}
 		}
 		return true;
@@ -935,6 +943,17 @@ async function initAllConfigs() {
 	});
 	chatModule.loadChatConfig();
 	chatModule.registerChatListener();
+	chainModule.init(config, {
+		getPlayerData: function() { return playerData; },
+		savePlayerDataNow: savePlayerDataNow,
+	});
+	chainModule.setOnChainComplete(function(player, extraCount) {
+		if (extraCount > 0) personalCenter.bumpStat(player.xuid, 'mining', extraCount);
+	});
+	chainModule.registerChainListener();
+	chainModule.registerChainCommand(registerPlayerCommand);
+	lightModule.init(config, {});
+	lightModule.registerLightListener();
 	initNarConfig();
 	backupModule.init(config.get("backup"));
 
@@ -1495,10 +1514,11 @@ function getVipInfo(player) {
 
 // ============ TPS实时计算 ============
 // 每个游戏刻（tick）计数，累计20个tick后根据实际耗时计算TPS值
+var _tickEnabled = true; // 关服时置 false，阻止 onTick 继续执行
 mc.listen("onTick", () => {
+	if (!_tickEnabled) return;
 	try {
 		if (!_initialized) return;
-		if (debugModule.isUnloading()) return;
 		if (tpsData['tps_Count'] == null) {
 			tpsData['tps_Time_start'] = Date.now();
 			tpsData['tps_Time_end'] = 0;
@@ -2128,6 +2148,7 @@ function showSetPasswordForm(player) {
 // LSE环境下的插件卸载事件，保存所有数据并停止Web服务器
 if (typeof ll !== 'undefined' && ll.onUnload) {
 	ll.onUnload(function() {
+		_tickEnabled = false;
 		_initialized = false;
 		debugModule.setUnloading();
 		flushAllSaves();

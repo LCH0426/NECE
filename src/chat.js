@@ -316,6 +316,21 @@ function isTitleForbidden(title) {
     return isBadWord(plain);
 }
 
+/**
+ * 检查称号是否为特殊保留称号（英文不区分大小写）
+ * @param {string} title - 称号文本
+ * @returns {boolean} 是否为保留称号
+ */
+function isReservedTitle(title) {
+    var plain = title.replace(/§[0-9a-fk-or]/gi, '').toLowerCase();
+    var cfg = getTitleShopConfig();
+    var forbidden = cfg.forbiddenTitles || ['辅助', '腐竹', '服主', '管理员', 'OP', 'admin', 'owner', 'console', 'system', '服务器'];
+    for (var i = 0; i < forbidden.length; i++) {
+        if (plain === forbidden[i].toLowerCase()) return true;
+    }
+    return false;
+}
+
 /** 显示购买称号表单（含预设称号 + 自定义称号入口） */
 function showBuyTitleForm(player) {
     try {
@@ -470,6 +485,13 @@ function showCustomTitleForm(player) {
         // 违禁词检测
         if (isTitleForbidden(input)) {
             p.tell("§e[称号] §c称号包含违禁词，请修改后重试");
+            showCustomTitleForm(p);
+            return;
+        }
+
+        // 特殊保留称号检测
+        if (isReservedTitle(input)) {
+            p.tell("§e[称号] §c该称号为保留称号，不可使用");
             showCustomTitleForm(p);
             return;
         }
