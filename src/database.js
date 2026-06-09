@@ -28,7 +28,7 @@ const crypto = require('crypto');
 const { ensureDir } = require('./utils');
 
 /** 认证数据库路径 */
-const DB_PATH = 'plugins/NECE/data/nlce.db';
+const DB_PATH = 'plugins/NECE/data/nece.db';
 /** 玩家数据数据库路径 */
 const PLAYER_DB_PATH = 'plugins/NECE/data/playerdata.db';
 /** 密码盐值长度（字节），输出为 hex 后长度翻倍 */
@@ -53,8 +53,14 @@ function dbDebugLog() {
     logger.info(args.join(' '));
 }
 
-/** 初始化认证数据库（nlce.db），建表并创建索引，支持从已有文件恢复 */
+/** 初始化认证数据库（nece.db），建表并创建索引，支持从已有文件恢复 */
 async function initDatabase() {
+    // 迁移：旧文件 nlce.db → nece.db
+    var oldPath = 'plugins/NECE/data/nlce.db';
+    if (!fs.existsSync(DB_PATH) && fs.existsSync(oldPath)) {
+        try { fs.renameSync(oldPath, DB_PATH); } catch (e) {}
+    }
+
     ensureDir(DB_PATH);
 
     const SQL = await initSqlJs();
