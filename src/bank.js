@@ -38,6 +38,7 @@ function createBankModule(deps) {
     const getPlayerMoney = deps.getPlayerMoney;
     const reducePlayerMoney = deps.reducePlayerMoney;
     const addPlayerMoney = deps.addPlayerMoney;
+    const confirmPurchase = deps.confirmPurchase || null;
     const getCurrencyName = deps.getCurrencyName;
     const openMainMenu = deps.openMainMenu;
     const U = deps.utils;
@@ -142,6 +143,19 @@ function createBankModule(deps) {
             let playerMoney = getPlayerMoney(player);
             if (playerMoney < amount) {
                 return { success: false, message: "§c余额不足，需要 " + amount + " 点§c" + getCurrencyName() + "§r，当前只有 " + playerMoney + " 点§c" + getCurrencyName() + "§r" };
+            }
+            if (confirmPurchase) {
+                confirmPurchase(player, amount, '银行存款', function(p) {
+                    if (!reducePlayerMoney(p, amount, "银行存款")) {
+                        p.tell("§c存款失败，货币系统异常");
+                        return;
+                    }
+                    account.current.balance += amount;
+                    account.current.balance = Math.floor(account.current.balance);
+                    savePlayerDataNow();
+                    p.tell("§a存款成功！存入 " + amount + " 点§c" + getCurrencyName() + "§r，当前银行余额：" + account.current.balance + " 点§c" + getCurrencyName() + "§r");
+                });
+                return { success: true, message: "§a请确认账单" };
             }
             if (!reducePlayerMoney(player, amount, "银行存款")) {
                 return { success: false, message: "§c存款失败，货币系统异常" };

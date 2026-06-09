@@ -178,8 +178,7 @@ function updatePlayerRewardRecord(xuid, newMaxLevel) {
 function claimLevelReward(player, rewardExp) {
 	if (rewardExp <= 0) return false;
 	try {
-		if (_deps.money.add(player.xuid, rewardExp)) {
-			_deps.notifyEconomyChange(player, rewardExp, "等级奖励");
+		if (_deps.addPlayerMoney(player, rewardExp, "等级奖励领取")) {
 			return true;
 		}
 		return false;

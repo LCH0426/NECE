@@ -175,7 +175,7 @@ function addPlayerTitle(xuid, title) {
     var customCount = titles.owned.filter(function(t) { return t !== '萌新'; }).length;
     if (customCount >= max) return false; // 上限
     titles.owned.push(title);
-    if (_deps.savePlayerData) _deps.savePlayerData();
+    if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
     return true;
 }
 
@@ -184,7 +184,7 @@ function setActiveTitle(xuid, title) {
     var titles = _getPlayerTitles(xuid);
     if (title !== '无称号' && titles.owned.indexOf(title) === -1) return false;
     titles.active = title;
-    if (_deps.savePlayerData) _deps.savePlayerData();
+    if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
     return true;
 }
 
@@ -196,7 +196,7 @@ function removePlayerTitle(xuid, title) {
     if (idx === -1) return false;
     titles.owned.splice(idx, 1);
     if (titles.active === title) titles.active = '萌新';
-    if (_deps.savePlayerData) _deps.savePlayerData();
+    if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
     return true;
 }
 
@@ -235,7 +235,7 @@ function showSetTitleForm(player) {
         fm.setTitle("§l§e设置称号");
         fm.setContent(
             "§a当前称号: §b" + current + "\n" +
-            "§a已拥有: §e" + customCount + "§7/§e" + max + " §7(不含默认称号)\n" +
+            "§a已拥有: §e" + customCount + "/§e" + max + " (不含默认称号)\n" +
             "§a点击称号可佩戴或删除（默认称号仅可佩戴）"
         );
         owned.forEach(function(t) {

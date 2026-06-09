@@ -170,7 +170,7 @@ function writeRecycleLog(player, items, totalValue, before, after) {
 	}
 }
 
-/** 执行一键回收：移除背包中所有可回收物品并发放货币 */
+/** 执行一键回收：确认后移除背包中所有可回收物品并发放货币 */
 function recycleItemsFromInventory(player, recycleConfig, deps) {
 	const result = calculateRecyclableItems(player, recycleConfig);
 	const recyclable = result.recyclable;
@@ -183,25 +183,32 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 		return;
 	}
 
-	const currentBalance = deps.getPlayerMoney(player);
+	// 构造物品摘要
+	var itemNames = Object.keys(recyclable).map(function(type) {
+		return getRecycleName(recycleConfig, type) + "×" + recyclable[type].count;
+	}).join("、");
 
-	const inventory = player.getInventory();
-	for (let i = 0; i < inventory.size; i++) {
-		const item = inventory.getItem(i);
-		if (!item.isNull() && recyclable[item.type]) {
-			inventory.setItem(i, mc.newItem("minecraft:air", 0));
+	economyModule.confirmPurchase(player, -totalValue, "一键回收: " + itemNames, function(p) {
+		const currentBalance = deps.getPlayerMoney(p);
+
+		const inventory = p.getInventory();
+		for (let i = 0; i < inventory.size; i++) {
+			const item = inventory.getItem(i);
+			if (!item.isNull() && recyclable[item.type]) {
+				inventory.setItem(i, mc.newItem("minecraft:air", 0));
+			}
 		}
-	}
-	player.refreshItems();
+		p.refreshItems();
 
-	deps.addPlayerMoney(player, totalValue, "一键回收");
+		deps.addPlayerMoney(p, totalValue, "一键回收");
 
-	const newBalance = deps.getPlayerMoney(player);
+		const newBalance = deps.getPlayerMoney(p);
 
-	writeRecycleLog(player, recyclable, totalValue, currentBalance, newBalance);
+		writeRecycleLog(p, recyclable, totalValue, currentBalance, newBalance);
 
-	player.tell("§e[商店] §a回收成功！");
-	player.tell("§e[商店] §e+" + totalValue + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");
+		p.tell("§e[商店] §a回收成功！");
+		p.tell("§e[商店] §e+" + totalValue + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");
+	});
 }
 
 /** 显示回收确认界面，列出可回收物品及总价值 */

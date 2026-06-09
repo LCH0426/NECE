@@ -35,6 +35,7 @@ let logger = null;
 let getPlayerMoney = null;       // (player) => number
 let addPlayerMoney = null;       // (player, amount) => bool
 let reducePlayerMoney = null;    // (player, amount) => bool
+let confirmPurchase = null;      // (player, cost, onConfirm, onCancel) => void
 let getConfig = null;       // () => guildConfig
 let getCurrencyName = null;
 let getPlayerName = null;   // (xuid) => name
@@ -49,6 +50,7 @@ function init(deps) {
     getPlayerMoney = deps.getPlayerMoney || function() { return 0; };
     addPlayerMoney = deps.addPlayerMoney || function() { return false; };
     reducePlayerMoney = deps.reducePlayerMoney || function() { return false; };
+    confirmPurchase = deps.confirmPurchase || null;
     getConfig = deps.getConfig || function() { return {}; };
     getCurrencyName = deps.getCurrencyName || function() { return '金币'; };
     getPlayerName = deps.getPlayerName || function(xuid) { return xuid; };
@@ -185,13 +187,14 @@ function doCreateGuild(player, name, description) {
     }
 
     var cost = cfg().createCost || 1000;
-    if (cost > 0) {
-        var balance = getPlayerMoney(player);
-        if (balance < cost) {
-            player.tell('§e[公会] §c创建公会需要 ' + cost + ' ' + getCurrencyName() + '，你只有 ' + balance);
-            return;
-        }
-        reducePlayerMoney(player, cost, '创建公会');
+    if (cost > 0 && confirmPurchase) {
+        confirmPurchase(player, cost, '创建公会', function(p) {
+            reducePlayerMoney(p, cost, '创建公会');
+            var maxMembers = cfg().maxMembers || 20;
+            var guildId = database.createGuild(name, description, p.xuid, maxMembers);
+            p.tell('§e[公会] §a公会"' + name + '"创建成功！');
+        });
+        return;
     }
 
     var maxMembers = cfg().maxMembers || 20;
@@ -313,7 +316,7 @@ function showGuildDetail(player, guild) {
     if (!myGuild) {
         fm.addButton('§a申请加入公会', 'textures/ui/color_plus');
     }
-    fm.addButton('§7返回公会列表', 'textures/ui/refresh_light');
+    fm.addButton('返回公会列表', 'textures/ui/refresh_light');
 
     player.sendForm(fm, function(p, id) {
         if (id === null) { doListGuilds(p); return; }
@@ -384,9 +387,14 @@ function doDeposit(player, amount) {
     var guild = database.getGuildByPlayer(xuid);
     if (!guild) { player.tell('§e[公会] §c你没有加入任何公会'); return; }
 
-    var balance = getPlayerMoney(player);
-    if (balance < amount) { player.tell('§e[公会] §c余额不足，当前余额: ' + balance); return; }
-
+    if (confirmPurchase) {
+        confirmPurchase(player, amount, '存入公会资金', function(p) {
+            reducePlayerMoney(p, amount, '存入公会资金');
+            database.updateGuild(guild.id, { fund: guild.fund + amount });
+            p.tell('§e[公会] §a已存入 ' + amount.toFixed(2) + ' ' + getCurrencyName() + ' 到公会资金');
+        });
+        return;
+    }
     reducePlayerMoney(player, amount, '存入公会资金');
     database.updateGuild(guild.id, { fund: guild.fund + amount });
     player.tell('§e[公会] §a已存入 ' + amount.toFixed(2) + ' ' + getCurrencyName() + ' 到公会资金');
@@ -1305,7 +1313,7 @@ function doSubmitJoinRequest(player, guild) {
     var ownerName = getPlayerName(guild.owner);
     player.sendModalForm(
         '§d确认申请加入',
-        '你确定要申请加入公会"' + guild.name + '"吗？\n§7会长: §f' + ownerName + '\n§7成员: §f' + database.getMemberCount(guild.id) + '/' + guild.maxMembers + '\n\n提交后需等待会长/管理员审批',
+        '你确定要申请加入公会"' + guild.name + '"吗？\n会长: §f' + ownerName + '\n成员: §f' + database.getMemberCount(guild.id) + '/' + guild.maxMembers + '\n\n提交后需等待会长/管理员审批',
         '§a确认申请',
         '§c取消',
         function(p, result) {
@@ -1509,7 +1517,7 @@ function showSearchInviteForm(player, guild) {
         var targetName = getPlayerName(targetXuid);
         p.sendModalForm(
             '§d确认邀请',
-            '找到玩家: §a' + targetName + '§f\nXUID: §7' + targetXuid + '\n\n确定要邀请该玩家加入公会"' + guild.name + '"吗？',
+            '找到玩家: §a' + targetName + '§f\nXUID: ' + targetXuid + '\n\n确定要邀请该玩家加入公会"' + guild.name + '"吗？',
             '§a发送邀请',
             '§c取消',
             function(p2, result) {
@@ -1612,7 +1620,7 @@ function showAdminGuildManage(player, guild) {
     fm.addButton('§d邀请玩家', 'textures/ui/color_plus');
     fm.addButton('§e修改公会名称', 'textures/ui/book_edit_default');
     fm.addButton('§c解散公会', 'textures/ui/hammer_l');
-    fm.addButton('§7返回', 'textures/ui/recap_glyph_desaturated');
+    fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
 
     player.sendForm(fm, function(p, id) {
         if (id === null || id === 6) { showAdminPanel(p); return; }
@@ -1840,7 +1848,7 @@ function showAdminSearchInvite(player, guild) {
         var targetName = getPlayerName(targetXuid);
         p.sendModalForm(
             '§d确认邀请',
-            '找到玩家: §a' + targetName + '§f\nXUID: §7' + targetXuid + '\n\n确定要邀请该玩家加入公会"' + guild.name + '"吗？',
+            '找到玩家: §a' + targetName + '§f\nXUID: ' + targetXuid + '\n\n确定要邀请该玩家加入公会"' + guild.name + '"吗？',
             '§a发送邀请',
             '§c取消',
             function(p2, result) {

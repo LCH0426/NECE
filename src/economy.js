@@ -104,10 +104,10 @@ function getPlayerMoney(player) {
  * 扣除玩家货币
  * @param {object} player - 玩家对象
  * @param {number} value - 扣除金额（自动取整）
- * @param {string} source - 扣费来源描述
+ * @param {string} reason - 扣费原因（必填，用于日志和通知）
  * @returns {boolean} 是否扣费成功
  */
-function reducePlayerMoney(player, value, source) {
+function reducePlayerMoney(player, value, reason) {
     try {
         if (typeof money === 'undefined' || money === null) {
             logger.error('money对象不存在，无法减少玩家货币！');
@@ -141,7 +141,17 @@ function reducePlayerMoney(player, value, source) {
         if (_config && _config.get('debug')) logger.info('减少货币后余额：' + afterMoney);
 
         if (success) {
-            notifyEconomyChange(player, -intValue, source || "系统扣费");
+            // 统一日志
+            writeEconomyLog({
+                action: 'reduce',
+                player: player.name || '',
+                xuid: xuid,
+                amount: intValue,
+                balance: afterMoney,
+                reason: reason || '系统扣费'
+            });
+            // 统一通知
+            notifyEconomyChange(player, -intValue, reason || '系统扣费');
             return true;
         } else {
             logger.error('减少玩家 ' + player.name + ' 货币失败！');
@@ -157,13 +167,14 @@ function reducePlayerMoney(player, value, source) {
 }
 
 /**
- * 增加玩家货币
+ * 增加玩家货币（统一收入接口）
+ * 自动写入经济日志 + 发送变动通知
  * @param {object} player - 玩家对象
  * @param {number} value - 增加金额（自动取整）
- * @param {string} source - 收入来源描述
+ * @param {string} reason - 收入原因（必填，用于日志和通知）
  * @returns {boolean} 是否操作成功
  */
-function addPlayerMoney(player, value, source) {
+function addPlayerMoney(player, value, reason) {
     try {
         if (typeof money === 'undefined' || money === null) {
             logger.error('money对象不存在，无法增加玩家货币！');
@@ -188,7 +199,16 @@ function addPlayerMoney(player, value, source) {
         if (_config && _config.get('debug')) logger.info('money.add调用结果：' + success);
 
         if (success) {
-            notifyEconomyChange(player, intValue, source || "系统收入");
+            const afterMoney = money.get(xuid) || 0;
+            writeEconomyLog({
+                action: 'add',
+                player: player.name || '',
+                xuid: xuid,
+                amount: intValue,
+                balance: afterMoney,
+                reason: reason || '系统收入'
+            });
+            notifyEconomyChange(player, intValue, reason || '系统收入');
             return true;
         } else {
             logger.error('增加玩家 ' + player.name + ' 货币失败！');
@@ -326,6 +346,22 @@ function showMoneyMainForm(player) {
     player.sendForm(fm, function(p, id) {
         if (id === null || id === 1) return;
         if (id === 0) showTransferTypeForm(p);
+    });
+}
+
+/** 显示经济面板（转账 + 查看记录入口，/ec 命令调用） */
+function showEconomyPanel(player) {
+    let fm = mc.newSimpleForm();
+    fm.setTitle("§l§e经济面板");
+    let balance = getPlayerMoney(player);
+    fm.setContent("§a余额: §e" + balance + " " + getCurrencyName());
+    fm.addButton("§a转账", "textures/ui/icon_recipe_equipment");
+    fm.addButton("§b查看账单", "textures/ui/icon_book_writable");
+    fm.addButton("关闭", "textures/ui/cancel");
+    player.sendForm(fm, function(p, id) {
+        if (id === null || id === 2) return;
+        if (id === 0) showTransferTypeForm(p);
+        if (id === 1) showEconomyLogForm(p, 1);
     });
 }
 
@@ -534,6 +570,136 @@ function checkPendingTransfers(player) {
     _savePendingTransfers();
 }
 
+/**
+ * 统一账单确认弹窗
+ * @param {Player} player - 玩家对象
+ * @param {number} cost - 消费金额
+ * @param {string} reason - 操作原因（必填，用于日志和通知）
+ * @param {Function} onConfirm - 确认后的回调 (player) => void
+ * @param {Function} [onCancel] - 取消后的回调 (player) => void
+ */
+function confirmPurchase(player, cost, reason, onConfirm, onCancel) {
+    var currencyName = getCurrencyName();
+    var balance = getPlayerMoney(player);
+
+    if (balance < cost) {
+        var fm = mc.newSimpleForm();
+        fm.setTitle("§c余额不足");
+        fm.setContent(
+            "§a操作: §f" + (reason || "未知操作") + "\n" +
+            "§a需要: §e" + cost + " " + currencyName + "\n" +
+            "§a当前余额: §e" + balance + " " + currencyName + "\n\n" +
+            "§c余额不足，无法完成操作"
+        );
+        fm.addButton("关闭");
+        player.sendForm(fm, function(p) { if (onCancel) onCancel(p); });
+        return;
+    }
+
+    var remaining = balance - cost;
+    var fm = mc.newSimpleForm();
+    fm.setTitle("§e确认账单");
+    fm.setContent(
+        "§a操作: §f" + (reason || "未知操作") + "\n" +
+        "§a需要: §e" + cost + " " + currencyName + "\n" +
+        "§a您当前拥有: §e" + balance + " " + currencyName + "\n" +
+        "§a完成后还剩: §e" + remaining + " " + currencyName
+    );
+    fm.addButton("§a确认");
+    fm.addButton("§c取消");
+    player.sendForm(fm, function(p, id) {
+        if (id === null || id === 1) {
+            if (onCancel) onCancel(p);
+            return;
+        }
+        if (id === 0) onConfirm(p);
+    });
+}
+
+/**
+ * 读取指定玩家的经济日志（从 JSONL 文件）
+ * @param {string} playerName - 玩家名称
+ * @param {number} page - 页码（从1开始）
+ * @param {number} pageSize - 每页条数
+ * @returns {{ logs: Array, total: number, page: number, totalPages: number }}
+ */
+function readEconomyLog(playerName, page, pageSize) {
+    page = page || 1;
+    pageSize = pageSize || 10;
+    var logDir = "plugins/NECE/logs/economy";
+    try {
+        if (!fs.existsSync(logDir)) return { logs: [], total: 0, page: page, totalPages: 0 };
+        var files = fs.readdirSync(logDir)
+            .filter(function(f) { return f.endsWith('.jsonl'); })
+            .sort().reverse()
+            .slice(0, 7); // 最多读7天
+        var allLogs = [];
+        files.forEach(function(f) {
+            try {
+                var content = fs.readFileSync(logDir + '/' + f, 'utf-8');
+                content.split('\n').forEach(function(line) {
+                    if (!line.trim()) return;
+                    try {
+                        var entry = JSON.parse(line);
+                        if (entry.player === playerName) allLogs.push(entry);
+                    } catch (e) {}
+                });
+            } catch (e) {}
+        });
+        allLogs.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
+        var total = allLogs.length;
+        var totalPages = Math.ceil(total / pageSize) || 1;
+        var start = (page - 1) * pageSize;
+        return { logs: allLogs.slice(start, start + pageSize), total: total, page: page, totalPages: totalPages };
+    } catch (e) {
+        return { logs: [], total: 0, page: page, totalPages: 0 };
+    }
+}
+
+/**
+ * 显示玩家经济日志表单（/pay 命令调用）
+ * @param {Player} player - 玩家对象
+ * @param {number} page - 页码
+ */
+function showEconomyLogForm(player, page) {
+    page = page || 1;
+    var result = readEconomyLog(player.realName, page, 10);
+    var currencyName = getCurrencyName();
+    var balance = getPlayerMoney(player);
+
+    var content = "§a余额: §e" + balance + " " + currencyName + "\n";
+    content += "第 " + result.page + "/" + result.totalPages + " 页，共 " + result.total + " 条记录\n\n";
+
+    if (result.logs.length === 0) {
+        content += "暂无经济操作记录";
+    } else {
+        result.logs.forEach(function(log, i) {
+            var actionIcon = log.action === 'reduce' ? '§c-' : '§a+';
+            var actionText = log.action === 'reduce' ? '支出' : '收入';
+            content += actionIcon + log.amount + " " + actionText + " §f" + (log.reason || '') + " §8" + (log.time || '') + "\n";
+        });
+    }
+
+    var fm = mc.newSimpleForm();
+    fm.setTitle("§l§e经济账单");
+    fm.setContent(content);
+    if (page > 1) fm.addButton("§a上一页");
+    if (page < result.totalPages) fm.addButton("§a下一页");
+    fm.addButton("关闭");
+
+    player.sendForm(fm, function(p, id) {
+        if (id === null) return;
+        var btnIdx = 0;
+        if (page > 1) {
+            if (id === btnIdx) { showEconomyLogForm(p, page - 1); return; }
+            btnIdx++;
+        }
+        if (page < result.totalPages) {
+            if (id === btnIdx) { showEconomyLogForm(p, page + 1); return; }
+        }
+    });
+}
+
 module.exports = {
     init: init,
     getCurrencyName: getCurrencyName,
@@ -544,6 +710,11 @@ module.exports = {
     getPlayerMoneyByXuid: getPlayerMoneyByXuid,
     addPlayerMoneyByXuid: addPlayerMoneyByXuid,
     showMoneyMainForm: showMoneyMainForm,
+    showTransferTypeForm: showTransferTypeForm,
+    showEconomyPanel: showEconomyPanel,
     checkPendingTransfers: checkPendingTransfers,
-    writeEconomyLog: writeEconomyLog
+    writeEconomyLog: writeEconomyLog,
+    readEconomyLog: readEconomyLog,
+    confirmPurchase: confirmPurchase,
+    showEconomyLogForm: showEconomyLogForm
 };

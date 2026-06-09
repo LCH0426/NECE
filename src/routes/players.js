@@ -145,18 +145,24 @@ function registerRoutes(router, d) {
 
             const beforeBalance = d.money.get(xuid) || 0;
             let success = false;
+            const reason = '管理员操作(' + (req.user ? req.user.uid : 'unknown') + ')';
+            const playerName = d.getPlayerName ? d.getPlayerName(xuid) : xuid;
 
             if (action === 'add') {
                 success = d.money.add(xuid, intAmount);
+                if (success && d.writeEconomyLog) d.writeEconomyLog({ action: 'add', player: playerName, xuid: xuid, amount: intAmount, balance: d.money.get(xuid) || 0, reason: reason });
             } else if (action === 'reduce') {
                 success = d.money.reduce(xuid, intAmount);
+                if (success && d.writeEconomyLog) d.writeEconomyLog({ action: 'reduce', player: playerName, xuid: xuid, amount: intAmount, balance: d.money.get(xuid) || 0, reason: reason });
             } else if (action === 'set') {
                 // set操作通过差额计算转为add或reduce
                 const currentBalance = d.money.get(xuid) || 0;
                 if (intAmount >= currentBalance) {
                     success = d.money.add(xuid, intAmount - currentBalance);
+                    if (success && d.writeEconomyLog) d.writeEconomyLog({ action: 'add', player: playerName, xuid: xuid, amount: intAmount - currentBalance, balance: d.money.get(xuid) || 0, reason: reason });
                 } else {
                     success = d.money.reduce(xuid, currentBalance - intAmount);
+                    if (success && d.writeEconomyLog) d.writeEconomyLog({ action: 'reduce', player: playerName, xuid: xuid, amount: currentBalance - intAmount, balance: d.money.get(xuid) || 0, reason: reason });
                 }
             } else {
                 return res.status(400).json({ code: 400, msg: '无效操作，支持: add, reduce, set' });

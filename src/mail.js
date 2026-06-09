@@ -579,9 +579,8 @@ function claimMailAttachments(player, mail) {
 
     // 发放货币奖励
     if (mail.starQian && mail.starQian > 0) {
-        if (_deps.money) {
-            _deps.money.add(xuid, mail.starQian);
-            if (_deps.notifyEconomyChange) _deps.notifyEconomyChange(player, mail.starQian, "邮件领取");
+        if (_deps.addPlayerMoney) {
+            _deps.addPlayerMoney(player, mail.starQian, "邮件附件领取");
             player.tell("§e[邮件] §a成功领取 " + mail.starQian + " " + getCurrencyName() + "！");
         } else {
             player.tell("§e[邮件] §c经济系统未启用，无法发放" + getCurrencyName() + "！");
@@ -1259,14 +1258,13 @@ function showPlayerSendMailForm(player) {
         }
 
         // 扣除货币
-        if (_deps.money) {
-            if (!_deps.money.reduce(p.xuid, totalCost)) {
+        if (_deps.reducePlayerMoney) {
+            if (!_deps.reducePlayerMoney(p, totalCost, "发送邮件附件")) {
                 p.tell("§e[邮件] §c扣除" + getCurrencyName() + "失败！");
                 showPlayerSendMailForm(p);
                 return;
             }
         }
-        if (_deps.notifyEconomyChange) _deps.notifyEconomyChange(p, -totalCost, "发送邮件");
 
         const itemsFormatted = selectedItems.map(function(item) {
             return {
