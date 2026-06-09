@@ -1,5 +1,6 @@
 {
   "name": "nece",
+  "version": "1.9.13",
   "description": "NECE",
   "main": "index.js",
   "scripts": {

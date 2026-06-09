@@ -16,19 +16,6 @@
       { "name": "服务器元老", "cost": 5000 }
     ]
   },
-  "light": {
-    "enabled": true,
-    "items": [
-      "minecraft:torch",
-      "minecraft:lantern",
-      "minecraft:glowstone",
-      "minecraft:sea_lantern",
-      "minecraft:shroomlight",
-      "minecraft:soul_torch",
-      "minecraft:campfire",
-      "minecraft:soul_campfire"
-    ]
-  },
   "chain": {
     "enabled": true,
     "maxBlocks": 64,

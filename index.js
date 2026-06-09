@@ -47,7 +47,6 @@ const guildModule = require('./src/guild');
 const motdModule = require('./src/motd');
 const clearLagModule = require('./src/clearLag');
 const chainModule = require('./src/chain');
-const lightModule = require('./src/light');
 
 
 // ============ 插件注册 ============
@@ -952,8 +951,6 @@ async function initAllConfigs() {
 	});
 	chainModule.registerChainListener();
 	chainModule.registerChainCommand(registerPlayerCommand);
-	lightModule.init(config, {});
-	lightModule.registerLightListener();
 	initNarConfig();
 	backupModule.init(config.get("backup"));
 
