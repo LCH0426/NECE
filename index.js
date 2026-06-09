@@ -1506,7 +1506,8 @@ function getVipInfo(player) {
 // 每个游戏刻（tick）计数，累计20个tick后根据实际耗时计算TPS值
 var _tickEnabled = true; // 关服时置 false，阻止 onTick 继续执行
 mc.listen("onTick", () => {
-	if (!_tickEnabled) return;
+	// 双重检查：_tickEnabled 和 debugModule.isUnloading()
+	if (!_tickEnabled || debugModule.isUnloading()) return;
 	try {
 		if (!_initialized) return;
 		if (tpsData['tps_Count'] == null) {
