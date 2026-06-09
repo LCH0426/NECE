@@ -407,26 +407,27 @@ function initLevelExpTable() {
 /**
  * JSON配置文件适配器：提供init/get/set/delete等标准接口
  * 用于config.json等需要按key存取的配置文件（不同于DataManager的全量读写）
+ * @throws {Error} 当配置文件存在但JSON解析失败时抛出错误（不覆盖原文件）
  */
 function JsonConfigFileAdapter(filePath, defaultContent) {
 	this._path = filePath;
 	this._data = {};
-	try {
-		U.ensureDir(filePath);
-		if (fs.existsSync(filePath)) {
-			let content = fs.readFileSync(filePath, 'utf-8');
-			if (content && content.trim() !== '') {
+	U.ensureDir(filePath);
+	if (fs.existsSync(filePath)) {
+		let content = fs.readFileSync(filePath, 'utf-8');
+		if (content && content.trim() !== '') {
+			try {
 				this._data = JSON.parse(content);
-			}
-		} else {
-			if (defaultContent) {
-				const defaultData = JSON.parse(defaultContent);
-				this._data = defaultData;
-				fs.writeFileSync(filePath, defaultContent, 'utf-8');
+			} catch (parseErr) {
+				// JSON解析失败，抛出错误阻止插件加载，不覆盖原文件
+				throw new Error('配置文件JSON格式错误[' + filePath + ']：' + parseErr.message);
 			}
 		}
-	} catch (e) {
-		logger.error('JsonConfigFileAdapter加载失败[' + filePath + ']：' + e.message);
+	} else if (defaultContent) {
+		// 文件不存在时才创建默认配置
+		const defaultData = JSON.parse(defaultContent);
+		this._data = defaultData;
+		fs.writeFileSync(filePath, defaultContent, 'utf-8');
 	}
 }
 
@@ -546,19 +547,17 @@ JsonConfigFileAdapter.prototype.delete = function(name) {
 	return false;
 };
 
-/** 从磁盘重新加载配置（合并磁盘内容到内存，不丢失内存中已有但磁盘上没有的key） */
+/**
+ * 从磁盘重新加载配置（完全替换内存中的配置）
+ * 使用覆盖策略确保磁盘上的修改（包括删除）能正确生效
+ */
 JsonConfigFileAdapter.prototype.reload = function() {
 	try {
 		if (fs.existsSync(this._path)) {
 			const content = fs.readFileSync(this._path, 'utf-8');
 			if (content && content.trim() !== '') {
-				const diskData = JSON.parse(content);
-				// 合并：磁盘值覆盖内存值，但内存中有的而磁盘没有的保留
-				for (var key in diskData) {
-					if (diskData.hasOwnProperty(key)) {
-						this._data[key] = diskData[key];
-					}
-				}
+				// 完全替换：用磁盘内容覆盖内存，确保删除操作也能生效
+				this._data = JSON.parse(content);
 			}
 		}
 		return true;
@@ -617,76 +616,70 @@ JsonConfigFileAdapter.prototype.flush = function() {
 	}
 };
 
-/** 初始化主配置文件，注册所有默认配置项（功能开关、传送参数、Web设置等） */
+/**
+ * 初始化主配置文件，注册所有默认配置项（功能开关、传送参数、Web设置等）
+ * @throws {Error} 当配置文件JSON格式错误时抛出，阻止插件继续加载
+ */
 function initRankConfig() {
-	try {
-		config = new JsonConfigFileAdapter(CONFIG_PATH);
-		config.init("debug", false);
-		_debugMode = config.get("debug", false);
-		debugModule.setDebugMode(_debugMode);
-		config.init("currencyName", "星茜");
-		config.init("sidebarCompact", false);
-		// 功能开关：统一嵌套到各自模块的 enabled 字段
-		config.init("shop", { "enabled": true, "enableRecycle": true, "enableXpShop": true });
-		config.init("rank", { "enabled": true });
-		config.init("cdk", { "enabled": true });
-		config.init("bank", { "enabled": true });
-		config.init("vip", { "enabled": true });
-		config.init("friend", { "enabled": true });
-		config.init("messageBoard", { "enabled": true });
-		config.init("mail", { "enabled": true });
-		config.init("level", { "enabled": true });
-		config.init("back", { "enabled": true });
-		config.init("guild", {
-			"enabled": true,
-			"createCost": 1000,
-			"maxMembers": 20,
-			"maxTeleports": 5,
-			"maxAdmins": 3,
-			"depositCost": 0,
-			"withdrawAdminOnly": false,
-			"teleportCooldown": 10
-		});
-		config.init("teleport", {
-			"enabled": true,
-			"enableHome": true,
-			"enableWarp": true,
-			"enableTpa": true,
-			"homeLimit": 10,
-			"homeCooldown": 10,
-			"tpaCooldown": 30,
-			"tpaTimeout": 30,
-			"tpaCost": 0,
-			"warpCost": 0
-		});
-		config.init("backup", {
-			"compressionLevel": 5,
-			"interval": 0,
-			"maxAgeDays": 0,
-			"maxCount": 0
-		});
-		config.init("web", {
-			"enabled": true,
-			"enableFrontend": true,
-			"port": 8080,
-			"host": "0.0.0.0",
-			"jwtSecret": "NECE_Default_Secret_Change_Me",
-			"jwtExpire": "15m",
-			"jwtRefreshSecret": "NECE_Default_Refresh_Secret_Change_Me",
-			"jwtRefreshExpire": "7d"
-		});
-		// 旧键迁移：将旧格式的 enable* 标志和 *Config 键迁移到新的嵌套结构
-		_migrateOldConfigKeys();
-	} catch (error) {
-		// 配置加载失败时使用全通过的降级配置，避免插件完全无法启动
-		config = {
-			get: (key) => true,
-			set: () => true,
-			init: () => {},
-			reload: () => {}
-		};
-		logger.error(`排行榜配置初始化失败！错误：${error.message}`);
-	}
+	// JsonConfigFileAdapter 构造函数在JSON解析失败时会抛出错误
+	// 此处不捕获，让错误向上传播，阻止插件继续加载
+	config = new JsonConfigFileAdapter(CONFIG_PATH);
+	config.init("debug", false);
+	_debugMode = config.get("debug", false);
+	debugModule.setDebugMode(_debugMode);
+	config.init("currencyName", "星茜");
+	config.init("sidebarCompact", false);
+	// 功能开关：统一嵌套到各自模块的 enabled 字段
+	config.init("shop", { "enabled": true, "enableRecycle": true, "enableXpShop": true });
+	config.init("rank", { "enabled": true });
+	config.init("cdk", { "enabled": true });
+	config.init("bank", { "enabled": true });
+	config.init("vip", { "enabled": true });
+	config.init("friend", { "enabled": true });
+	config.init("messageBoard", { "enabled": true });
+	config.init("mail", { "enabled": true });
+	config.init("level", { "enabled": true });
+	config.init("back", { "enabled": true });
+	config.init("guild", {
+		"enabled": true,
+		"createCost": 1000,
+		"maxMembers": 20,
+		"maxTeleports": 5,
+		"maxAdmins": 3,
+		"depositCost": 0,
+		"withdrawAdminOnly": false,
+		"teleportCooldown": 10
+	});
+	config.init("teleport", {
+		"enabled": true,
+		"enableHome": true,
+		"enableWarp": true,
+		"enableTpa": true,
+		"homeLimit": 10,
+		"homeCooldown": 10,
+		"tpaCooldown": 30,
+		"tpaTimeout": 30,
+		"tpaCost": 0,
+		"warpCost": 0
+	});
+	config.init("backup", {
+		"compressionLevel": 5,
+		"interval": 0,
+		"maxAgeDays": 0,
+		"maxCount": 0
+	});
+	config.init("web", {
+		"enabled": true,
+		"enableFrontend": true,
+		"port": 8080,
+		"host": "0.0.0.0",
+		"jwtSecret": "NECE_Default_Secret_Change_Me",
+		"jwtExpire": "15m",
+		"jwtRefreshSecret": "NECE_Default_Refresh_Secret_Change_Me",
+		"jwtRefreshExpire": "7d"
+	});
+	// 旧键迁移：将旧格式的 enable* 标志和 *Config 键迁移到新的嵌套结构
+	_migrateOldConfigKeys();
 }
 
 /** 一次性迁移旧格式配置键到新的嵌套结构 */
@@ -1535,7 +1528,14 @@ mc.listen("onTick", () => {
 
 // ============ 服务器启动完成事件 ============
 mc.listen("onServerStarted", async () => {
-	await initAllConfigs();
+	try {
+		await initAllConfigs();
+	} catch (error) {
+		logger.error('插件加载失败：' + error.message);
+		logger.error('请检查 config.json 文件格式是否正确，然后重启服务器');
+		logger.error('插件已停止加载，原配置文件未被覆盖');
+		return; // 停止加载插件，不覆盖配置文件
+	}
 	registerAllCommands();
 	// /org 命令：打开公会系统GUI
 	if (config.get("guild.enabled")) {
