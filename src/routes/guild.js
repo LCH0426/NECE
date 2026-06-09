@@ -456,8 +456,11 @@ function registerRoutes(router, d) {
                 return;
             }
 
+            var playerName = d.getPlayerName ? d.getPlayerName(xuid) : xuid;
             d.money.reduce(xuid, amount);
             database.updateGuild(guild.id, { fund: guild.fund + amount });
+            // 写入经济日志
+            if (d.writeEconomyLog) d.writeEconomyLog({ action: 'reduce', player: playerName, xuid: xuid, amount: amount, balance: d.money.get(xuid) || 0, reason: 'Web存入公会资金' });
 
             res.json({ code: 200, msg: '存入成功', data: { newFund: guild.fund + amount } });
         } catch (e) {
@@ -505,6 +508,8 @@ function registerRoutes(router, d) {
 
             database.updateGuild(guild.id, { fund: guild.fund - amount });
             d.money.add(xuid, amount);
+            var playerName2 = d.getPlayerName ? d.getPlayerName(xuid) : xuid;
+            if (d.writeEconomyLog) d.writeEconomyLog({ action: 'add', player: playerName2, xuid: xuid, amount: amount, balance: d.money.get(xuid) || 0, reason: 'Web取出公会资金' });
 
             res.json({ code: 200, msg: '取出成功', data: { newFund: guild.fund - amount } });
         } catch (e) {

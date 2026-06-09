@@ -915,6 +915,8 @@ async function initAllConfigs() {
 	mailModule.init(mailDM, {
 		U: U,
 		money: money,
+		addPlayerMoney: addPlayerMoney,
+		reducePlayerMoney: reducePlayerMoney,
 		getCurrencyName: getCurrencyName,
 		getPlayerSetting: getPlayerSetting,
 		getPlayerAvatarUrl: getPlayerAvatarUrl,
@@ -927,6 +929,7 @@ async function initAllConfigs() {
 	menuModule.loadConfig();
 	chatModule.init({ fs: fs, U: U, badWordsPath: BAD_WORDS_PATH, webServer: webServer,
 		getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData,
+		savePlayerDataNow: savePlayerDataNow,
 		getPlayerMoney: getPlayerMoney, reducePlayerMoney: reducePlayerMoney,
 		getCurrencyName: getCurrencyName, getConfig: function() { return config._data || {}; }
 	});
@@ -940,6 +943,7 @@ async function initAllConfigs() {
 		getPlayerMoney: getPlayerMoney,
 		addPlayerMoney: addPlayerMoney,
 		reducePlayerMoney: reducePlayerMoney,
+		confirmPurchase: economyModule.confirmPurchase,
 		getConfig: function() { return config.get('guild'); },
 		getCurrencyName: getCurrencyName,
 		getPlayerName: function(xuid) {
@@ -1033,6 +1037,7 @@ async function initAllConfigs() {
 		getPlayerMoney: getPlayerMoney,
 		reducePlayerMoney: reducePlayerMoney,
 		addPlayerMoney: addPlayerMoney,
+		confirmPurchase: economyModule.confirmPurchase,
 		getCurrencyName: getCurrencyName,
 		openMainMenu: personalCenter.openMainMenu,
 		utils: U
@@ -1524,7 +1529,7 @@ mc.listen("onServerStarted", async () => {
 				var player = origin.player;
 				if (!player) { output.error('§c此命令仅玩家可在游戏内执行！'); return; }
 				if (!config.get("guild.enabled")) { player.tell('§c公会系统当前已关闭！'); return; }
-				guildModule.showGuildMainForm(player);
+				guildModule.showMainMenu(player);
 			});
 			orgCmd.setup();
 		} catch (e) { logger.error('/org 命令注册出错！错误：' + e); }
@@ -1611,7 +1616,8 @@ function registerAllCommands() {
 		["shop", "商店系统", function(p) { shopModule.showShopMainForm(p, commonDeps); }, "shop.enabled"],
 		["rank", "排行榜", function(p) { commonDeps.rankModule.showRankMainForm(p); }, "rank.enabled"],
 		["cdk", "CDK兑换", function(p) { commonDeps.cdkModule.showCdkRedeemForm(p); }, "cdk.enabled"],
-		["pay", "经济系统", function(p) { economyModule.showMoneyMainForm(p); }],
+		["pay", "转账", function(p) { economyModule.showTransferTypeForm(p); }],
+		["ec", "经济面板", function(p) { economyModule.showEconomyPanel(p); }],
 		["mb", "打开留言板", function(p) { messageBoardModule.showMainForm(p); }, "messageBoard.enabled"],
 		["vip", "VIP系统", function(p) { commonDeps.vipModule.showVipMenu(p); }, "vip.enabled"],
 		["bank", "银行系统", function(p) { commonDeps.bankModule.showBankMainForm(p); }, "bank.enabled"],
@@ -1865,7 +1871,7 @@ function initWebServer() {
 		});
 		webServer.setPlayerDataRef(playerData);
 		webServer.setConfigRef(config);
-		webServer.setHasWish(hasWish, hasWish ? wishModule : null);
+		webServer.setHasWish(hasWish, hasWish ? wishModule : null, economyModule.writeEconomyLog);
 		// JWT 密钥管理：优先从 data/.jwt_secret 读取，不存在则自动生成
 		(function loadOrGenerateJwtSecrets() {
 			var crypto = require('crypto');
@@ -2114,7 +2120,7 @@ function showSetPasswordForm(player) {
 		const uid = playerInfo ? String(playerInfo.uid) : player.xuid;
 		database.setPassword(uid, pwd1);
 		player.tell('§aWeb登录密码设置成功！你的UID为: §e' + uid);
-		player.tell('§7请使用UID和密码登录Web管理面板');
+		player.tell('请使用UID和密码登录Web管理面板');
 	});
 }
 

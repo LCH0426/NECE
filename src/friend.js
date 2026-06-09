@@ -1023,7 +1023,7 @@ function getPlayerAvatarData(xuid) {
     if (!p) return { type: "default", value: "" };
     if (!p.avatar) {
         p.avatar = { type: "default", value: "" };
-        if (_deps.savePlayerData) _deps.savePlayerData();
+        if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
     }
     return p.avatar;
 }
@@ -1055,7 +1055,7 @@ function setPlayerAvatar(xuid, type, value) {
     const p = _deps.getPlayerData ? _deps.getPlayerData().players[xuid] : null;
     if (!p) return;
     p.avatar = { type: type, value: value };
-    if (_deps.savePlayerData) _deps.savePlayerData();
+    if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
 }
 
 /**

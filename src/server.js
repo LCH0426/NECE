@@ -111,6 +111,7 @@ let _playerDataRef = null;  // 内存中的 playerData 对象引用，由 index.
 let _configRef = null;      // 内存中的 config 对象引用，由 index.js 注入
 let _hasWish = false;       // 是否加载了祈愿模块（由 index.js 注入）
 let _wishModuleRef = null;  // 祈愿模块引用（由 index.js 注入）
+let _writeEconomyLog = null; // 经济日志写入函数（由 index.js 注入）
 let _webConfig = null;      // web配置引用（由 startServer 设置）
 
 // 从 manifest.json 读取版本号
@@ -131,9 +132,10 @@ function setConfigRef(ref) {
 }
 
 /** 注入祈愿模块加载状态和模块引用，用于版本API标识和赞助路由注册 */
-function setHasWish(val, wishModule) {
+function setHasWish(val, wishModule, economyWriteLog) {
     _hasWish = !!val;
     _wishModuleRef = wishModule || null;
+    _writeEconomyLog = economyWriteLog || null;
 }
 
 let chatHistory = [];              // 服务端聊天记录缓冲，供 Web 面板实时查看
@@ -467,7 +469,7 @@ function createV1Routes(webConfig) {
     const routeDeps = {
         auth, adminAuth, webConfig, jwt, svgCaptcha,
         database, monitoring, adminLog, behaviorLog,
-        chatModule, mailApi, messageBoard,
+        chatModule, mailApi, messageBoard, writeEconomyLog: _writeEconomyLog,
         backupModule, banModule, clearLagModule,
         getPlayerData, getPlayerName, getXuidByUid, getPlayerNameByUid,
         getCurrencyName, getItemsMap, getItemName, getItemTexture, invalidateItemsCache,

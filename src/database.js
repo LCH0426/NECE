@@ -411,11 +411,13 @@ async function initPlayerDatabase() {
         rw TEXT, tax_data TEXT DEFAULT '{}', bank_data TEXT DEFAULT '{}',
         quick_menu TEXT DEFAULT '{}', vip_data TEXT DEFAULT '{}',
         avatar TEXT DEFAULT '{}', count TEXT DEFAULT '{}',
+        titles TEXT DEFAULT '{}',
         last_ip TEXT DEFAULT '', platform TEXT DEFAULT ''
     )`);
     // 兼容已有数据库：添加缺失列（已存在则忽略）
     try { playerDb.run("ALTER TABLE player_data ADD COLUMN last_ip TEXT DEFAULT ''"); } catch (e) {}
     try { playerDb.run("ALTER TABLE player_data ADD COLUMN platform TEXT DEFAULT ''"); } catch (e) {}
+    try { playerDb.run("ALTER TABLE player_data ADD COLUMN titles TEXT DEFAULT '{}'"); } catch (e) {}
     playerDb.run('CREATE TABLE IF NOT EXISTS player_settings (xuid TEXT, key TEXT, value TEXT, PRIMARY KEY (xuid, key))');
     playerDb.run('CREATE TABLE IF NOT EXISTS death_points (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, data TEXT)');
     playerDb.run('CREATE TABLE IF NOT EXISTS friends (xuid TEXT, friend_xuid TEXT, friend_name TEXT, add_time TEXT, PRIMARY KEY (xuid, friend_xuid))');
@@ -487,7 +489,7 @@ function cancelPendingSave() {}
 function getPlayerDataSQL(xuid) {
     if (!playerDb) return null;
     let result = playerDb.exec(
-        'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform FROM player_data WHERE xuid = ?',
+        'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform FROM player_data WHERE xuid = ?',
         [xuid]
     );
     if (result.length === 0 || result[0].values.length === 0) return null;
@@ -506,8 +508,9 @@ function getPlayerDataSQL(xuid) {
         vipdata: JSON.parse(row[10] || '{}'),
         avatar: JSON.parse(row[11] || '{}'),
         count: JSON.parse(row[12] || '{}'),
-        lastIp: row[13] || '',
-        platform: row[14] || ''
+        titles: JSON.parse(row[13] || '{}'),
+        lastIp: row[14] || '',
+        platform: row[15] || ''
     };
 }
 
@@ -521,13 +524,14 @@ function setPlayerDataSQL(xuid, data) {
     markPlayerDbDirty();
     playerDb.run(
         `INSERT OR REPLACE INTO player_data
-         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [xuid, data.uid, data.name, data.uuid, data.registerTime,
          String(data.leavetime || ''), data.healthBonus || 0, data.rw,
          JSON.stringify(data.taxdata || {}), JSON.stringify(data.bankdata || {}),
          JSON.stringify(data.quickmenu || {}), JSON.stringify(data.vipdata || {}),
          JSON.stringify(data.avatar || {}), JSON.stringify(data.count || {}),
+         JSON.stringify(data.titles || {}),
          data.lastIp || '', data.platform || '']
     );
 }
@@ -563,7 +567,7 @@ function getAllPlayerDataSQL() {
     if (!playerDb) return {};
     dbDebugLog('getAllPlayerDataSQL: 查询所有玩家数据');
     let result = playerDb.exec(
-        'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, last_ip, platform FROM player_data'
+        'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform FROM player_data'
     );
     const players = {};
     if (result.length === 0) return players;
@@ -587,6 +591,7 @@ function getAllPlayerDataSQL() {
             vipdata: JSON.parse(obj.vip_data || '{}'),
             avatar: JSON.parse(obj.avatar || '{}'),
             count: JSON.parse(obj.count || '{}'),
+            titles: JSON.parse(obj.titles || '{}'),
             lastIp: obj.last_ip || '',
             platform: obj.platform || ''
         };

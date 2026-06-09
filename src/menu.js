@@ -192,7 +192,7 @@ function setPlayerQuickMenu(xuid, slots) {
         p.quickmenu = { slots: [] };
     }
     p.quickmenu.slots = slots;
-    _deps.savePlayerData();
+    if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
 }
 
 /** 显示快捷菜单表单 */
