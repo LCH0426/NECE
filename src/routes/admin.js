@@ -454,6 +454,75 @@ function registerRoutes(router, d) {
             res.status(500).json({ code: 500, msg: '删除称号失败: ' + e.message });
         }
     });
+
+    // ===== 经济日志查询 =====
+
+    // 查询指定玩家的经济日志（购买/出售/回收/转账）
+    router.get('/economy/log/:playerName', d.adminAuth, function(req, res) {
+        try {
+            var playerName = req.params.playerName;
+            var page = parseInt(req.query.page) || 1;
+            var pageSize = Math.min(parseInt(req.query.pageSize) || 50, 200);
+            var date = req.query.date || ''; // 可选日期筛选 YYYY-MM-DD
+
+            var logDir = d.pathModule.join(__dirname, '..', '..', 'logs', 'economy');
+            if (!d.fs.existsSync(logDir)) {
+                return res.json({ code: 200, data: { logs: [], total: 0, page: page, pageSize: pageSize } });
+            }
+
+            // 确定要读取的日志文件
+            var files = [];
+            if (date) {
+                files = [logDir + '/economy-' + date + '.jsonl'];
+            } else {
+                try {
+                    files = d.fs.readdirSync(logDir)
+                        .filter(function(f) { return f.endsWith('.jsonl'); })
+                        .sort().reverse() // 最新在前
+                        .slice(0, 7) // 最多读7天
+                        .map(function(f) { return logDir + '/' + f; });
+                } catch (e) { files = []; }
+            }
+
+            // 读取并筛选指定玩家的日志
+            var allLogs = [];
+            files.forEach(function(filePath) {
+                try {
+                    if (!d.fs.existsSync(filePath)) return;
+                    var content = d.fs.readFileSync(filePath, 'utf-8');
+                    var lines = content.split('\n').filter(function(l) { return l.trim(); });
+                    lines.forEach(function(line) {
+                        try {
+                            var entry = JSON.parse(line);
+                            if (entry.player === playerName || entry.target === playerName) {
+                                allLogs.push(entry);
+                            }
+                        } catch (e) { /* 跳过无效行 */ }
+                    });
+                } catch (e) { /* 跳过无法读取的文件 */ }
+            });
+
+            // 按时间倒序排列
+            allLogs.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
+
+            var total = allLogs.length;
+            var start = (page - 1) * pageSize;
+            var paged = allLogs.slice(start, start + pageSize);
+
+            res.json({
+                code: 200,
+                data: {
+                    logs: paged,
+                    total: total,
+                    page: page,
+                    pageSize: pageSize,
+                    totalPages: Math.ceil(total / pageSize)
+                }
+            });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '查询经济日志失败: ' + e.message });
+        }
+    });
 }
 
 module.exports = { registerRoutes };

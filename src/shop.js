@@ -23,11 +23,12 @@
 
 const fs = require('fs');
 const U = require('./utils');
+const economyModule = require('./economy');
 
 const RECYCLE_PAGE_SIZE = 10; // 回收物品列表每页显示数量
 
 /**
- * 写入购买日志到 logs/shop.log
+ * 写入购买日志（JSONL 格式，统一输出到 economy 日志）
  * @param {object} player - 玩家对象
  * @param {string} itemName - 物品名称
  * @param {number} count - 购买数量
@@ -36,33 +37,36 @@ const RECYCLE_PAGE_SIZE = 10; // 回收物品列表每页显示数量
  */
 function writeShopLog(player, itemName, count, cost, balance) {
 	try {
-		const logDir = "plugins/NECE/logs";
-		const logPath = logDir + "/shop.log";
-		if (!fs.existsSync(logDir)) {
-			fs.mkdirSync(logDir, { recursive: true });
-		}
-		const timeStr = new Date().toLocaleString();
-		const entry = timeStr + " | " + player.name + "买了" + count + "个" + itemName + " 花费" + cost + " 余额" + balance + "\n";
-		fs.appendFile(logPath, entry, 'utf-8', function(e) {
-			if (e) logger.error("写入商店日志失败: " + e.message);
+		economyModule.writeEconomyLog({
+			action: 'buy',
+			player: player.name,
+			item: itemName,
+			count: count,
+			price: cost,
+			balance: balance
 		});
 	} catch (e) {
 		logger.error("写入商店日志失败: " + e.message);
 	}
 }
 
-/** 写入出售/回收日志到 logs/shop.log */
+/**
+ * 写入出售/回收日志（JSONL 格式，统一输出到 economy 日志）
+ * @param {object} player - 玩家对象
+ * @param {string} itemName - 物品名称
+ * @param {number} count - 数量
+ * @param {number} income - 收入
+ * @param {number} balance - 出售后余额
+ */
 function writeShopSellLog(player, itemName, count, income, balance) {
 	try {
-		const logDir = "plugins/NECE/logs";
-		const logPath = logDir + "/shop.log";
-		if (!fs.existsSync(logDir)) {
-			fs.mkdirSync(logDir, { recursive: true });
-		}
-		const timeStr = new Date().toLocaleString();
-		const entry = timeStr + " | " + player.name + "卖了" + count + "个" + itemName + " 获得" + income + " 余额" + balance + "\n";
-		fs.appendFile(logPath, entry, 'utf-8', function(e) {
-			if (e) logger.error("写入商店日志失败: " + e.message);
+		economyModule.writeEconomyLog({
+			action: 'sell',
+			player: player.name,
+			item: itemName,
+			count: count,
+			price: income,
+			balance: balance
 		});
 	} catch (e) {
 		logger.error("写入商店日志失败: " + e.message);
@@ -148,21 +152,21 @@ function calculateRecyclableItems(player, recycleConfig) {
 	};
 }
 
-/** 写入回收日志（按玩家名分文件存储） */
-function writeRecycleLog(player, items, totalValue, before, after, RECYCLE_LOG_DIR) {
+/** 写入回收日志（统一输出到 economy JSONL） */
+function writeRecycleLog(player, items, totalValue, before, after) {
 	try {
-		const logPath = RECYCLE_LOG_DIR + "/" + player.name + ".log";
-		const timeStr = new Date().toLocaleString();
-		const itemsStr = Object.entries(items)
+		var itemsStr = Object.entries(items)
 			.map(function(entry) { return entry[0].replace('minecraft:', '') + '×' + entry[1].count; })
 			.join(", ");
-		const logEntry = timeStr + " | 回收: " + itemsStr + " | 获得: " + totalValue + " | 余额: " + before + " → " + after + "\n";
-		U.ensureDir(logPath);
-		fs.appendFile(logPath, logEntry, 'utf-8', function(e) {
-			if (e) logger.error("写入回收日志失败：" + e.message);
+		economyModule.writeEconomyLog({
+			action: 'recycle',
+			player: player.name,
+			price: totalValue,
+			balance: after,
+			detail: itemsStr
 		});
-	} catch (error) {
-		logger.error("写入回收日志失败：" + error.message);
+	} catch (e) {
+		logger.error("写入回收日志失败：" + e.message);
 	}
 }
 
@@ -194,7 +198,7 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 
 	const newBalance = deps.getPlayerMoney(player);
 
-	writeRecycleLog(player, recyclable, totalValue, currentBalance, newBalance, deps.RECYCLE_LOG_DIR);
+	writeRecycleLog(player, recyclable, totalValue, currentBalance, newBalance);
 
 	player.tell("§e[商店] §a回收成功！");
 	player.tell("§e[商店] §e+" + totalValue + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");

@@ -277,28 +277,42 @@ function _savePendingTransfers() {
 }
 
 /**
- * 写入转账日志到文件
- * @param {string} senderName - 发送者名称
- * @param {string} targetName - 接收者名称
- * @param {number} amount - 转账金额
- * @param {number} senderBalance - 发送者转账后余额
- * @param {number} targetBalance - 接收者转账后余额
+ * 写入统一经济日志（JSONL 格式，按日期分文件）
+ * @param {object} entry - 日志条目 { action, player?, target?, amount?, balance?, item?, count?, price?, detail? }
  */
-function _writeTransferLog(senderName, targetName, amount, senderBalance, targetBalance) {
+function writeEconomyLog(entry) {
     try {
-        const logDir = "plugins/NECE/logs";
-        const logPath = logDir + "/shop.log";
+        const logDir = "plugins/NECE/logs/economy";
         if (!fs.existsSync(logDir)) {
             fs.mkdirSync(logDir, { recursive: true });
         }
-        const timeStr = new Date().toLocaleString();
-        const entry = timeStr + " | " + senderName + "向" + targetName + "转账" + amount + " 余额" + senderBalance + " 对方余额" + targetBalance + "\n";
-        fs.appendFile(logPath, entry, 'utf-8', function(e) {
-            if (e) logger.error("写入转账日志失败: " + e.message);
+        const now = new Date();
+        const dateStr = now.getFullYear() + '-' +
+            String(now.getMonth() + 1).padStart(2, '0') + '-' +
+            String(now.getDate()).padStart(2, '0');
+        const logPath = logDir + "/economy-" + dateStr + ".jsonl";
+        entry.time = now.toLocaleString();
+        const line = JSON.stringify(entry) + '\n';
+        fs.appendFile(logPath, line, 'utf-8', function(e) {
+            if (e) logger.error("[EconomyLog] 写入日志失败: " + e.message);
         });
     } catch (e) {
-        logger.error("写入转账日志失败: " + e.message);
+        logger.error("[EconomyLog] 写入日志失败: " + e.message);
     }
+}
+
+/**
+ * 写入转账日志（兼容旧接口，内部调用 writeEconomyLog）
+ */
+function _writeTransferLog(senderName, targetName, amount, senderBalance, targetBalance) {
+    writeEconomyLog({
+        action: 'transfer',
+        player: senderName,
+        target: targetName,
+        amount: amount,
+        balance: senderBalance,
+        detail: '对方余额 ' + targetBalance
+    });
 }
 
 /** 显示经济系统主界面（余额 + 转账入口） */
@@ -530,5 +544,6 @@ module.exports = {
     getPlayerMoneyByXuid: getPlayerMoneyByXuid,
     addPlayerMoneyByXuid: addPlayerMoneyByXuid,
     showMoneyMainForm: showMoneyMainForm,
-    checkPendingTransfers: checkPendingTransfers
+    checkPendingTransfers: checkPendingTransfers,
+    writeEconomyLog: writeEconomyLog
 };
