@@ -222,9 +222,12 @@ function showQuickMenu(player) {
         const slots = playerMenu.slots || [];
         if (id < slots.length) {
             const slotIndex = slots[id];
-            const item = quickMenuConfig.items[slotIndex];
-            if (item) {
+            const item = quickMenuConfig.items ? quickMenuConfig.items[slotIndex] : null;
+            if (item && item.comm) {
                 p.runcmd(item.comm);
+            } else {
+                // 索引无效或命令为空，显示编辑菜单
+                showEditQuickMenu(p);
             }
         } else {
             showEditQuickMenu(p);
@@ -238,11 +241,19 @@ function showEditQuickMenu(player) {
     const playerMenu = getPlayerQuickMenu(xuid);
     const currentSlots = playerMenu.slots || [];
 
+    // 检查快捷菜单配置是否有效
+    const items = quickMenuConfig.items || [];
+    if (items.length === 0) {
+        player.tell("§e[菜单] §c快捷菜单配置为空，请联系管理员");
+        showQuickMenu(player);
+        return;
+    }
+
     const gui = mc.newCustomForm();
     gui.setTitle("§l§e编辑快捷菜单");
     gui.addLabel("§a请选择最多5个快捷功能（重复选择会忽略）：");
 
-    const options = quickMenuConfig.items.map(function(item) { return item.name; });
+    const options = items.map(function(item) { return item.name; });
     options.unshift("§c不选择");
 
     for (let i = 0; i < 5; i++) {
