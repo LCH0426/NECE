@@ -97,7 +97,7 @@ function countOwnedItems(player, itemId) {
 	return total;
 }
 
-/** 获取指定物品的回收价格（支持对象和数值两种配置格式） */
+/** 获取指定物品的回收价格 */
 function getRecyclePrice(recycleConfig, itemType) {
 	const recycleItems = recycleConfig.recycleItems || {};
 	const entry = recycleItems[itemType];
@@ -152,7 +152,7 @@ function calculateRecyclableItems(player, recycleConfig) {
 	};
 }
 
-/** 写入回收日志（统一输出到 economy JSONL） */
+/** 写入回收日志 */
 function writeRecycleLog(player, items, totalValue, before, after) {
 	try {
 		var itemsStr = Object.entries(items)
@@ -353,7 +353,7 @@ function calculateTotalXP(currentL, currentXP, upgradeN) {
 	return totalXP;
 }
 
-/** 显示经验购买表单（选择升级等级数或手动输入经验量），兑换比例 1XP = 10货币 */
+/** 显示经验购买表单 */
 function showXPBuyForm(player, deps) {
 	const currentLevel = player.getLevel();
 	const currentXPInLevel = player.getCurrentExperience();
@@ -501,7 +501,7 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 	);
 }
 
-/** 显示商店主界面（物品购买/物品回收入口） */
+/** 显示商店主界面 */
 function showShopMainForm(player, deps) {
 	const fm = mc.newSimpleForm();
 	fm.setTitle("商店");
@@ -516,7 +516,7 @@ function showShopMainForm(player, deps) {
 	});
 }
 
-/** 显示购买分类菜单（搜索 + 各商品分组） */
+/** 显示购买分类菜单 */
 function showBuyMenu(player, deps) {
 	const fm = mc.newSimpleForm();
 	fm.setTitle("物品购买");
@@ -696,7 +696,7 @@ function executePurchase(player, item, count, unitPrice, totalCost, hasVip, orig
 	});
 }
 
-/** 显示出售/回收菜单（搜索回收、一键回收、各回收分组） */
+/** 显示出售/回收菜单 */
 function showSellMenu(player, deps) {
 	const fm = mc.newSimpleForm();
 	fm.setTitle("物品回收");

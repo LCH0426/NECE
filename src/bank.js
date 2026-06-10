@@ -345,7 +345,7 @@ function createBankModule(deps) {
         });
     }
 
-    /** 显示玩家所有定期存款列表（带到期/未到期状态图标） */
+    /** 显示玩家所有定期存款列表 */
     function showFixedDepositDetailForm(player) {
         const xuid = player.xuid;
         const account = getPlayerBankAccount(xuid);
@@ -371,7 +371,7 @@ function createBankModule(deps) {
         });
     }
 
-    /** 显示单笔定期存款详情，支持到期取出和提前取出（扣违约金） */
+    /** 显示单笔定期存款详情 */
     function showSingleFixedDepositForm(player, deposit) {
         let gui = mc.newSimpleForm();
         gui.setTitle("§l§b定期存款详情");
@@ -427,7 +427,7 @@ function createBankModule(deps) {
         });
     }
 
-    /** 显示定期存款存入表单（输入金额 + 选择期限） */
+    /** 显示定期存款存入表单 */
     function showFixedDepositForm(player) {
         const gui = mc.newCustomForm();
         gui.setTitle("§l§b存入定期");

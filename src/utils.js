@@ -54,7 +54,7 @@ function formatTime(totalSeconds) {
     return result;
 }
 
-/** 获取当前时间的点分隔字符串（如 "2026.05.27.14.30.00"） */
+/** 获取当前时间的点分隔字符串 */
 function getCurrentTimeString() {
     const now = new Date();
     const year = now.getFullYear();
@@ -66,7 +66,7 @@ function getCurrentTimeString() {
     return year + "." + month + "." + day + "." + hour + "." + minute + "." + second;
 }
 
-/** 判断字符串是否为正整数（不含前导零） */
+/** 判断字符串是否为正整数 */
 function isInteger(num) {
     return /^[0-9]*[1-9][0-9]*$/.test(num);
 }
@@ -127,7 +127,7 @@ function getNetworkType(ip) {
     return "公网IPv4";
 }
 
-/** 移除 Minecraft 格式化代码（§ 开头的颜色/样式标记） */
+/** 移除 Minecraft 格式化代码 */
 function cleanFormatting(text) {
     return text.replace(/\u00A7[0-9a-fk-or]/g, "");
 }
@@ -154,7 +154,7 @@ function copyDirSync(src, dest) {
     }
 }
 
-/** 递归删除目录及其所有内容（类似 rm -rf） */
+/** 递归删除目录及其所有内容 */
 function rmrf(dirPath) {
     if (!fs.existsSync(dirPath)) return;
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });

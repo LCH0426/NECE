@@ -17,8 +17,7 @@
 
 /**
  * NECE 配置路由模块
- * 祈愿配置的Web管理API路由
- * 祈愿配置独立存储在wish_config.json中，修改后触发热重载
+ * 祈愿配置管理API，修改后触发热重载
  */
 
 function registerRoutes(router, d) {

@@ -110,7 +110,7 @@ function formatMailTime() {
     return year + '.' + month + '.' + day + '.' + hour + '.' + minute + '.' + second;
 }
 
-/** 获取货币显示名称（默认"星茜"） */
+/** 获取货币显示名称 */
 function getCurrencyName() {
     return _deps.getCurrencyName ? _deps.getCurrencyName() : '星茜';
 }

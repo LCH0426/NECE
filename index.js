@@ -139,7 +139,7 @@ function debouncedSave(key, saveFn, delay) {
 	}, delay);
 }
 
-/** 立即执行指定key的待写入保存（用于关服等关键操作） */
+/** 立即执行指定key的待写入保存 */
 function flushSave(key) {
 	if (_saveTimers[key] !== undefined) {
 		_saveTimers[key] = -1;
@@ -151,7 +151,7 @@ function flushSave(key) {
 	}
 }
 
-/** 立即执行所有待写入保存（关服前调用，防止数据丢失） */
+/** 立即执行所有待写入保存 */
 function flushAllSaves() {
 	Object.keys(_saveTimers).forEach(flushSave);
 }
@@ -178,7 +178,7 @@ function DataManager(path, defaultData, options) {
 	this._dirtyKeys = {};
 }
 
-/** 加载数据：优先SQL（若配置了sqlPrefix且数据库就绪），否则从JSON文件读取 */
+/** 加载数据：优先SQL，否则从JSON文件读取 */
 DataManager.prototype.load = function() {
 	// SQL 模式：按sqlPrefix分发到对应的专用加载函数
 	if (this.sqlPrefix && database.isPlayerDbReady()) {
@@ -433,7 +433,15 @@ function JsonConfigFileAdapter(filePath, defaultContent) {
 
 /** 内部辅助：检查路径片段是否包含原型污染关键字 */
 var _PROTO_KEYS = { '__proto__': true, 'constructor': true, 'prototype': true };
-function _isUnsafeKey(key) { return !!_PROTO_KEYS[key]; }
+function _isUnsafeKey(key) {
+	if (!key || typeof key !== 'string') return true;
+	return !!_PROTO_KEYS[key];
+}
+
+/** 内部辅助：安全地创建对象，避免原型污染 */
+function _safeCreateObject() {
+	return Object.create(null);
+}
 
 /** 内部辅助：按点号路径解析嵌套对象，返回 { obj, key } 或 null */
 JsonConfigFileAdapter.prototype._resolve = function(path) {
@@ -446,6 +454,8 @@ JsonConfigFileAdapter.prototype._resolve = function(path) {
 	for (var i = 0; i < parts.length - 1; i++) {
 		if (_isUnsafeKey(parts[i])) return null;
 		if (current === null || current === undefined || typeof current !== 'object') return null;
+		// 安全访问：使用 hasOwnProperty 检查，避免原型链查找
+		if (!Object.prototype.hasOwnProperty.call(current, parts[i])) return null;
 		current = current[parts[i]];
 	}
 	if (current === null || current === undefined || typeof current !== 'object') return null;
@@ -453,7 +463,7 @@ JsonConfigFileAdapter.prototype._resolve = function(path) {
 	return { obj: current, key: parts[parts.length - 1] };
 };
 
-/** 初始化配置项：不存在时写入默认值并保存（支持点号路径） */
+/** 初始化配置项：不存在时写入默认值并保存 */
 JsonConfigFileAdapter.prototype.init = function(name, defaultValue) {
 	if (_isUnsafeKey(name)) return defaultValue;
 	var resolved = this._resolve(name);
@@ -465,7 +475,7 @@ JsonConfigFileAdapter.prototype.init = function(name, defaultValue) {
 			for (var i = 0; i < parts.length - 1; i++) {
 				if (_isUnsafeKey(parts[i])) return defaultValue;
 				if (current[parts[i]] === undefined || current[parts[i]] === null || typeof current[parts[i]] !== 'object') {
-					current[parts[i]] = {};
+					current[parts[i]] = _safeCreateObject();
 				}
 				current = current[parts[i]];
 			}
@@ -487,7 +497,7 @@ JsonConfigFileAdapter.prototype.init = function(name, defaultValue) {
 	return resolved.obj[resolved.key];
 };
 
-/** 获取配置项，可指定默认值（支持点号路径如 'shop.enabled'） */
+/** 获取配置项，可指定默认值 */
 JsonConfigFileAdapter.prototype.get = function(name, defaultValue) {
 	if (name.indexOf('.') === -1) {
 		if (this._data[name] !== undefined) return this._data[name];
@@ -498,7 +508,7 @@ JsonConfigFileAdapter.prototype.get = function(name, defaultValue) {
 	return defaultValue !== undefined ? defaultValue : null;
 };
 
-/** 设置配置项并立即保存（支持点号路径） */
+/** 设置配置项并立即保存 */
 JsonConfigFileAdapter.prototype.set = function(name, value) {
 	if (_isUnsafeKey(name)) return false;
 	if (name.indexOf('.') === -1) {
@@ -514,7 +524,7 @@ JsonConfigFileAdapter.prototype.set = function(name, value) {
 		for (var i = 0; i < parts.length - 1; i++) {
 			if (_isUnsafeKey(parts[i])) return false;
 			if (current[parts[i]] === undefined || current[parts[i]] === null || typeof current[parts[i]] !== 'object') {
-				current[parts[i]] = {};
+				current[parts[i]] = _safeCreateObject();
 			}
 			current = current[parts[i]];
 		}
@@ -528,7 +538,7 @@ JsonConfigFileAdapter.prototype.set = function(name, value) {
 	return true;
 };
 
-/** 删除配置项并立即保存（支持点号路径） */
+/** 删除配置项并立即保存 */
 JsonConfigFileAdapter.prototype.delete = function(name) {
 	if (name.indexOf('.') === -1) {
 		if (this._data[name] !== undefined) {
@@ -587,7 +597,7 @@ JsonConfigFileAdapter.prototype.write = function(content) {
 	}
 };
 
-/** 内部保存：将_data序列化写入磁盘（防抖模式，50ms内多次调用只写一次） */
+/** 内部保存：将_data序列化写入磁盘，防抖模式 */
 JsonConfigFileAdapter.prototype._save = function() {
 	var self = this;
 	if (self._saveTimer) clearTimeout(self._saveTimer);
@@ -602,7 +612,7 @@ JsonConfigFileAdapter.prototype._save = function() {
 	}, 50);
 };
 
-/** 立即写入磁盘（用于关服等关键操作，取消防抖直接写） */
+/** 立即写入磁盘，取消防抖 */
 JsonConfigFileAdapter.prototype.flush = function() {
 	if (this._saveTimer) {
 		clearTimeout(this._saveTimer);
@@ -617,8 +627,8 @@ JsonConfigFileAdapter.prototype.flush = function() {
 };
 
 /**
- * 初始化主配置文件，注册所有默认配置项（功能开关、传送参数、Web设置等）
- * @throws {Error} 当配置文件JSON格式错误时抛出，阻止插件继续加载
+ * 初始化主配置文件，注册所有默认配置项
+ * @throws {Error} 配置文件JSON格式错误时抛出
  */
 function initRankConfig() {
 	// JsonConfigFileAdapter 构造函数在JSON解析失败时会抛出错误
@@ -867,8 +877,7 @@ function initDeathPointData() {
 // ============ 模块初始化 ============
 
 /**
- * 主初始化函数：按顺序加载所有配置、初始化数据库、创建并注入模块依赖
- * 调用时机：onServerStarted
+ * 主初始化函数：加载配置、初始化数据库、注入模块依赖
  */
 async function initAllConfigs() {
 	initLevelExpTable();
@@ -938,6 +947,7 @@ async function initAllConfigs() {
 	chainModule.init(config, {
 		getPlayerData: function() { return playerData; },
 		savePlayerDataNow: savePlayerDataNow,
+		saveSinglePlayerData: saveSinglePlayerData,
 	});
 	chainModule.setOnChainComplete(function(player, extraCount) {
 		if (extraCount > 0) personalCenter.bumpStat(player.xuid, 'mining', extraCount);
@@ -1090,8 +1100,7 @@ async function initAllConfigs() {
 // ============ 核心事件监听 ============
 
 /**
- * 玩家加入事件：创建新玩家数据或更新老玩家信息，记录在线状态，发送欢迎消息
- * 同时处理：IP检测、银行定期到期检查、未读消息提醒、入服物品发放
+ * 玩家加入事件：创建或更新玩家数据，发送欢迎消息
  */
 mc.listen("onJoin", (player) => {
 	if (!_initialized) return; // 防止插件重载时模块未初始化完毕
@@ -1260,9 +1269,7 @@ mc.listen("onJoin", (player) => {
 	}
 });
 
-/**
- * 玩家离开事件：累计在线时长，清除在线状态和缓存，记录离开时间
- */
+/** 玩家离开事件：累计在线时长，清除状态 */
 mc.listen("onLeft", (player) => {
 	if (!_initialized) return;
 	const xuid = player.xuid;
@@ -1321,7 +1328,7 @@ mc.listen("onLeft", (player) => {
 	} catch (e) { logger.warn('保存背包快照失败: ' + e.message); }
 });
 
-/** 注册游戏行为统计监听（挖掘、放置、击杀、死亡）和死亡点记录 */
+/** 注册游戏行为统计监听和死亡点记录 */
 // 热路径缓存：避免每次事件都走 config.get 的 dot-path 解析
 var _rankEnabled = true;
 var _backEnabled = true;
@@ -1398,7 +1405,7 @@ function initStatTrackers() {
 
 initStatTrackers();
 
-/** 定时（约59秒）累计在线玩家的游戏时长到统计数据，只保存有变化的玩家 */
+/** 定时累计在线玩家的游戏时长 */
 function tickOnlineDurations() {
 	if (!_rankEnabled) return;
 	let now = Date.now();
@@ -1459,12 +1466,7 @@ const addPlayerMoney = economyModule.addPlayerMoney;
 const getPlayerMoneyByXuid = economyModule.getPlayerMoneyByXuid;
 const addPlayerMoneyByXuid = economyModule.addPlayerMoneyByXuid;
 
-/**
- * 给玩家发放物品，自动处理可堆叠物品的分批（64个一组）
- * @param {Player} player - 目标玩家
- * @param {string|Object} itemData - 物品ID字符串或{id, aux}对象
- * @param {number} count - 数量
- */
+/** 给玩家发放物品，自动处理可堆叠物品的分批 */
 function giveItem(player, itemData, count) {
 	let id = typeof itemData === 'string' ? itemData : itemData.id;
 	const aux = typeof itemData === 'string' ? 0 : (itemData.aux || 0);
@@ -1582,14 +1584,7 @@ mc.listen("onPreJoin", function(pl) {
 
 // ============ 命令注册 ============
 
-/**
- * 注册一个简单的玩家命令（无参数，仅玩家可用）
- * @param {string} name - 命令名
- * @param {string} desc - 命令描述
- * @param {Function} handler - 处理函数(player)
- * @param {string|Function} configCheck - 配置项名或返回bool的函数，用于跳过禁用功能的命令
- * @param {number} permission - 权限等级（默认PermType.Any）
- */
+/** 注册一个简单的玩家命令 */
 function registerPlayerCommand(name, desc, handler, configCheck, permission) {
 	try {
 		if (configCheck) {
@@ -1623,7 +1618,7 @@ function registerPlayerCommand(name, desc, handler, configCheck, permission) {
 	}
 }
 
-/** 批量注册所有游戏内命令（商店/排行榜/传送/好友等），根据配置开关决定是否注册 */
+/** 批量注册所有游戏内命令 */
 function registerAllCommands() {
 	const tpCfg = teleportModule.tpsConfig();
 	const tpEnabled = function() { return teleportModule.tpsConfig().enabled; };
@@ -1675,12 +1670,7 @@ const showAvatarSettingsForm = friendModule.showAvatarSettingsForm;
 
 // ============ 玩家搜索与工具 ============
 
-/**
- * 按名字或UID搜索玩家
- * @param {string} keyword - 搜索关键词
- * @param {number} searchType - 0按名字模糊匹配，其他按UID精确匹配
- * @returns {Array} 匹配的玩家信息数组（含xuid字段）
- */
+/** 按名字或UID搜索玩家 */
 function searchPlayers(keyword, searchType) {
 	const results = [];
 	const players = playerData.players;
@@ -1745,7 +1735,7 @@ function checkUnreadMessagesAndMails(player) {
 	}
 }
 
-/** 入服发放菜单钟和快捷菜单指南针（需背包中不存在才发放，根据玩家设置控制） */
+/** 入服发放菜单钟和快捷菜单指南针 */
 function giveJoinItems(player) {
 	const xuid = player.xuid;
 
@@ -1799,7 +1789,7 @@ function giveJoinItems(player) {
 
 // ============================== NPC攻击响应系统 ==============================
 
-/** 加载NPC攻击响应配置（narConfig），确保npc_actions字段存在 */
+/** 加载NPC攻击响应配置 */
 function initNarConfig() {
 	narConfig = narConfigDM.load();
 	if (!narConfig.npc_actions) narConfig.npc_actions = {};
@@ -1842,9 +1832,7 @@ mc.listen("onAttackEntity", function(player, entity) {
 
 // ============ Web API系统 ============
 
-/**
- * 初始化Web管理面板：读取配置，初始化认证数据库，注册重载钩子，启动Express服务器
- */
+/** 初始化Web管理面板 */
 function initWebServer() {
 	let webConfig = config.get('web');
 	if (!webConfig || typeof webConfig === 'string') {
@@ -1930,7 +1918,7 @@ function initWebServer() {
 	});
 }
 
-/** 注册Web相关的游戏命令和控制台命令（passwd/admin/backup/debug） */
+/** 注册Web相关的游戏命令和控制台命令 */
 function registerWebCommands() {
 	// passwd命令：游戏内无参数打开表单，控制台带参数直接设置密码
 	try {
@@ -2089,7 +2077,7 @@ function registerWebCommands() {
 	}
 }
 
-/** 显示Web密码管理表单（游戏内GUI入口） */
+/** 显示Web密码管理表单 */
 function showPasswdForm(player) {
 	const xuid = player.xuid;
 	const playerInfo = playerData.players[xuid];

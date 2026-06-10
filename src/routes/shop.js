@@ -17,8 +17,7 @@
 
 /**
  * NECE 商店路由模块
- * 回收商店和商店CRUD路由（从server.js提取）
- * 商店分Buy/Sell两大组，每组下有多个分组，分组下有物品列表
+ * 商店、回收、CDK管理接口
  */
 
 function registerRoutes(router, d) {
