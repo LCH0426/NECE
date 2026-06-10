@@ -19,25 +19,24 @@
   "chain": {
     "enabled": true,
     "maxBlocks": 64,
-    "allowedBlocks": [
-      "minecraft:oak_log", "minecraft:spruce_log", "minecraft:birch_log",
-      "minecraft:jungle_log", "minecraftz:z:acacia_log", "minecraft:dark_oak_log",
-      "minecraft:mangrove_log", "minecraft:cherry_log", "minecraft:stone",
-      "minecraft:cobblestone", "minecraft:iron_ore", "minecraft:gold_ore",
-      "minecraft:diamond_ore", "minecraft:emerald_ore", "minecraft:coal_ore",
-      "minecraft:copper_ore", "minecraft:lapis_ore", "minecraft:redstone_ore",
+    "pickaxe": [
+      "minecraft:stone", "minecraft:cobblestone", "minecraft:deepslate",
+      "minecraft:iron_ore", "minecraft:gold_ore", "minecraft:diamond_ore",
+      "minecraft:emerald_ore", "minecraft:coal_ore", "minecraft:copper_ore",
+      "minecraft:lapis_ore", "minecraft:redstone_ore",
       "minecraft:nether_gold_ore", "minecraft:nether_quartz_ore",
       "minecraft:deepslate_iron_ore", "minecraft:deepslate_gold_ore",
       "minecraft:deepslate_diamond_ore", "minecraft:deepslate_emerald_ore",
       "minecraft:deepslate_coal_ore", "minecraft:deepslate_copper_ore",
       "minecraft:deepslate_lapis_ore", "minecraft:deepslate_redstone_ore"
     ],
-    "allowedTools": ["minecraft:diamond_axe", "minecraft:diamond_pickaxe", "minecraft:diamond_hoe",
-                     "minecraft:netherite_axe", "minecraft:netherite_pickaxe", "minecraft:netherite_hoe",
-                     "minecraft:iron_axe", "minecraft:iron_pickaxe", "minecraft:iron_hoe",
-                     "minecraft:golden_axe", "minecraft:golden_pickaxe", "minecraft:golden_hoe",
-                     "minecraft:stone_axe", "minecraft:stone_pickaxe", "minecraft:stone_hoe",
-                     "minecraft:wooden_axe", "minecraft:wooden_pickaxe", "minecraft:wooden_hoe"]
+    "axe": [
+      "minecraft:oak_log", "minecraft:spruce_log", "minecraft:birch_log",
+      "minecraft:jungle_log", "minecraft:acacia_log", "minecraft:dark_oak_log",
+      "minecraft:mangrove_log", "minecraft:cherry_log"
+    ],
+    "shovel": [],
+    "hoe": []
   },
   "chat": {
     "enabled": true,

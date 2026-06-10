@@ -418,6 +418,7 @@ async function initPlayerDatabase() {
     try { playerDb.run("ALTER TABLE player_data ADD COLUMN last_ip TEXT DEFAULT ''"); } catch (e) {}
     try { playerDb.run("ALTER TABLE player_data ADD COLUMN platform TEXT DEFAULT ''"); } catch (e) {}
     try { playerDb.run("ALTER TABLE player_data ADD COLUMN titles TEXT DEFAULT '{}'"); } catch (e) {}
+    try { playerDb.run("ALTER TABLE player_data ADD COLUMN chain TEXT DEFAULT '{}'"); } catch (e) {}
     playerDb.run('CREATE TABLE IF NOT EXISTS player_settings (xuid TEXT, key TEXT, value TEXT, PRIMARY KEY (xuid, key))');
     playerDb.run('CREATE TABLE IF NOT EXISTS death_points (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, data TEXT)');
     playerDb.run('CREATE TABLE IF NOT EXISTS friends (xuid TEXT, friend_xuid TEXT, friend_name TEXT, add_time TEXT, PRIMARY KEY (xuid, friend_xuid))');
@@ -489,7 +490,7 @@ function cancelPendingSave() {}
 function getPlayerDataSQL(xuid) {
     if (!playerDb) return null;
     let result = playerDb.exec(
-        'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform FROM player_data WHERE xuid = ?',
+        'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain FROM player_data WHERE xuid = ?',
         [xuid]
     );
     if (result.length === 0 || result[0].values.length === 0) return null;
@@ -510,7 +511,8 @@ function getPlayerDataSQL(xuid) {
         count: JSON.parse(row[12] || '{}'),
         titles: JSON.parse(row[13] || '{}'),
         lastIp: row[14] || '',
-        platform: row[15] || ''
+        platform: row[15] || '',
+        chain: JSON.parse(row[16] || '{}')
     };
 }
 
@@ -524,15 +526,16 @@ function setPlayerDataSQL(xuid, data) {
     markPlayerDbDirty();
     playerDb.run(
         `INSERT OR REPLACE INTO player_data
-         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [xuid, data.uid, data.name, data.uuid, data.registerTime,
          String(data.leavetime || ''), data.healthBonus || 0, data.rw,
          JSON.stringify(data.taxdata || {}), JSON.stringify(data.bankdata || {}),
          JSON.stringify(data.quickmenu || {}), JSON.stringify(data.vipdata || {}),
          JSON.stringify(data.avatar || {}), JSON.stringify(data.count || {}),
          JSON.stringify(data.titles || {}),
-         data.lastIp || '', data.platform || '']
+         data.lastIp || '', data.platform || '',
+         JSON.stringify(data.chain || {})]
     );
 }
 

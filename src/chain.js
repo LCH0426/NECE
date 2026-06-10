@@ -18,8 +18,8 @@
 /**
  * NECE 连锁挖矿模块
  * 使用指定工具挖掘方块时，自动连锁破坏相邻同类方块
- * 支持斧子（原木）、镐子（矿石）、锄头（干草块等）
- * 玩家通过 /chain 命令配置个人连锁开关和方块偏好
+ * 按工具类型配置可连锁的方块类型，通过手持物品命名空间自动识别工具类型
+ * 新版本工具无需手动添加，自动支持所有 *_pickaxe、*_axe、*_shovel、*_hoe
  */
 
 let _config = null;
@@ -42,15 +42,66 @@ function getChainConfig() {
     return _config ? _config.get('chain', {}) : {};
 }
 
+/**
+ * 根据手持物品ID判断工具类型
+ * 通过命名空间后缀判断，支持所有材质（木/石/铁/金/钻/下界合金）
+ * @param {string} itemId - 物品ID，如 minecraft:diamond_pickaxe
+ * @returns {string|null} 工具类型：pickaxe/axe/shovel/hoe，或 null
+ */
+function getToolType(itemId) {
+    if (!itemId) return null;
+    var id = itemId.toLowerCase();
+    if (id.endsWith('_pickaxe')) return 'pickaxe';
+    if (id.endsWith('_axe')) return 'axe';
+    if (id.endsWith('_shovel')) return 'shovel';
+    if (id.endsWith('_hoe')) return 'hoe';
+    return null;
+}
+
+/**
+ * 检查指定工具类型是否可以连锁指定方块
+ * @param {string} toolType - 工具类型
+ * @param {string} blockType - 方块类型
+ * @returns {boolean}
+ */
+function canToolMineBlock(toolType, blockType) {
+    var cfg = getChainConfig();
+    var blocks = cfg[toolType] || [];
+    for (var i = 0; i < blocks.length; i++) {
+        if (blocks[i] === blockType) return true;
+    }
+    return false;
+}
+
+/**
+ * 获取所有可连锁的方块列表（合并所有工具类型）
+ * @returns {string[]}
+ */
+function getAllAllowedBlocks() {
+    var cfg = getChainConfig();
+    var allBlocks = [];
+    var types = ['pickaxe', 'axe', 'shovel', 'hoe'];
+    for (var i = 0; i < types.length; i++) {
+        var blocks = cfg[types[i]] || [];
+        for (var j = 0; j < blocks.length; j++) {
+            if (allBlocks.indexOf(blocks[j]) === -1) {
+                allBlocks.push(blocks[j]);
+            }
+        }
+    }
+    return allBlocks;
+}
+
 /** 获取玩家连锁个人配置，默认全部启用 */
 function getPlayerChainConfig(xuid) {
     var pd = _deps.getPlayerData ? _deps.getPlayerData() : null;
-    if (!pd || !pd.players || !pd.players[xuid]) return { enabled: true, blocks: {} };
+    if (!pd || !pd.players || !pd.players[xuid]) return { enabled: true, mineAll: false, blocks: {} };
     var p = pd.players[xuid];
     if (!p.chain) {
-        p.chain = { enabled: true, blocks: {} };
+        p.chain = { enabled: true, mineAll: false, blocks: {} };
     }
     if (p.chain.enabled === undefined) p.chain.enabled = true;
+    if (p.chain.mineAll === undefined) p.chain.mineAll = false;
     if (!p.chain.blocks) p.chain.blocks = {};
     return p.chain;
 }
@@ -84,25 +135,46 @@ function getBlockName(blockId) {
 function showChainSettingsForm(player) {
     var cfg = getChainConfig();
     var playerCfg = getPlayerChainConfig(player.xuid);
-    var allowedBlocks = cfg.allowedBlocks || [];
+    var allBlocks = getAllAllowedBlocks();
 
     var fm = mc.newCustomForm();
     fm.setTitle("§l§6连锁挖矿设置");
     fm.addLabel("§a当前状态: " + (playerCfg.enabled ? "§a已启用" : "§c已关闭"));
     fm.addSwitch("§a连锁总开关", playerCfg.enabled);
+    fm.addSwitch("§c无视方块配置（可连锁任意方块）", playerCfg.mineAll);
 
-    for (var i = 0; i < allowedBlocks.length; i++) {
-        var blockId = allowedBlocks[i];
-        var name = getBlockName(blockId);
-        var enabled = playerCfg.blocks[blockId] !== false; // 默认开启
-        fm.addSwitch(name, enabled);
+    // 按工具类型分组显示
+    var toolTypes = [
+        { key: 'pickaxe', name: '§7稿子可连锁方块' },
+        { key: 'axe', name: '§7斧子可连锁方块' },
+        { key: 'shovel', name: '§7铲子可连锁方块' },
+        { key: 'hoe', name: '§7锄头可连锁方块' }
+    ];
+
+    for (var t = 0; t < toolTypes.length; t++) {
+        var tool = toolTypes[t];
+        var blocks = cfg[tool.key] || [];
+        if (blocks.length > 0) {
+            fm.addLabel(tool.name);
+            for (var i = 0; i < blocks.length; i++) {
+                var blockId = blocks[i];
+                var name = getBlockName(blockId);
+                var enabled = playerCfg.blocks[blockId] !== false; // 默认开启
+                fm.addSwitch("  " + name, enabled);
+            }
+        }
     }
 
     player.sendForm(fm, function(p, data) {
         if (data === null || data === undefined) return;
-        var newCfg = { enabled: !!data[1], blocks: {} };
-        for (var i = 0; i < allowedBlocks.length; i++) {
-            newCfg.blocks[allowedBlocks[i]] = !!data[i + 2];
+        var newCfg = { enabled: !!data[1], mineAll: !!data[2], blocks: {} };
+        var idx = 3;
+        for (var t = 0; t < toolTypes.length; t++) {
+            var blocks = cfg[toolTypes[t].key] || [];
+            for (var i = 0; i < blocks.length; i++) {
+                newCfg.blocks[blocks[i]] = !!data[idx];
+                idx++;
+            }
         }
         savePlayerChainConfig(p.xuid, newCfg);
         p.tell("§e[连锁] §a连锁设置已保存！");
@@ -133,28 +205,22 @@ function registerChainListener() {
             if (_chainCooldowns[cooldownKey] && now - _chainCooldowns[cooldownKey] < 500) return;
             _chainCooldowns[cooldownKey] = now;
 
-            // 检查手持工具
+            // 检查手持工具类型（通过命名空间自动识别）
             var item = player.getHand();
             if (!item || item.isNull()) return;
             var toolId = item.type;
-            var allowedTools = cfg.allowedTools || [];
-            var isAllowedTool = false;
-            for (var i = 0; i < allowedTools.length; i++) {
-                if (toolId === allowedTools[i]) { isAllowedTool = true; break; }
-            }
-            if (!isAllowedTool) return;
+            var toolType = getToolType(toolId);
+            if (!toolType) return; // 不是镐子/斧子/铲子/锄头
 
-            // 检查方块类型（全局配置 + 玩家个人开关）
+            // 检查方块类型
             var blockType = block.type;
-            var allowedBlocks = cfg.allowedBlocks || [];
-            var isAllowedBlock = false;
-            for (var j = 0; j < allowedBlocks.length; j++) {
-                if (blockType === allowedBlocks[j]) { isAllowedBlock = true; break; }
+            if (!playerCfg.mineAll) {
+                // 非无视模式：检查该工具类型是否可以连锁此方块
+                if (!canToolMineBlock(toolType, blockType)) return;
+                // 检查玩家是否开启了该方块的连锁
+                if (playerCfg.blocks[blockType] === false) return;
             }
-            if (!isAllowedBlock) return;
-
-            // 检查玩家是否开启了该方块的连锁
-            if (playerCfg.blocks[blockType] === false) return;
+            // mineAll 模式：跳过方块检查，任意方块都可连锁
 
             // 执行连锁
             var maxBlocks = cfg.maxBlocks || 64;
