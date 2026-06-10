@@ -17,7 +17,7 @@
 
 /**
  * NECE 配置路由模块
- * 祈愿配置和功能开关的Web管理API路由
+ * 祈愿配置的Web管理API路由
  * 祈愿配置独立存储在wish_config.json中，修改后触发热重载
  */
 
@@ -361,63 +361,6 @@ function registerRoutes(router, d) {
     });
 
     } // end hasWish
-
-    // 功能开关映射：旧键名 → [新对象路径, 新字段名]
-    var featureMap = [
-        ['enableRank', 'rank', 'enabled'],
-        ['enableShop', 'shop', 'enabled'],
-        ['enableCdk', 'cdk', 'enabled'],
-        ['enableRecycle', 'shop', 'enableRecycle'],
-        ['enableXpShop', 'shop', 'enableXpShop'],
-        ['enableBank', 'bank', 'enabled'],
-        ['enableVip', 'vip', 'enabled'],
-        ['enableFriend', 'friend', 'enabled'],
-        ['enableMessageBoard', 'messageBoard', 'enabled'],
-        ['enableMail', 'mail', 'enabled'],
-        ['enableLevel', 'level', 'enabled'],
-        ['enableBack', 'back', 'enabled'],
-        ['enableGuild', 'guild', 'enabled']
-    ];
-
-    // 获取所有功能开关状态（未设置的功能默认为开启）
-    router.get('/features', d.adminAuth, d.configLimiter, function(req, res) {
-        try {
-            let content = d.fs.readFileSync(MAIN_CONFIG_PATH, 'utf-8');
-            let cfg = JSON.parse(content);
-            const features = {};
-            featureMap.forEach(function(item) {
-                var oldKey = item[0], objKey = item[1], field = item[2];
-                var val = (cfg[objKey] && cfg[objKey][field] !== undefined) ? cfg[objKey][field] : true;
-                features[oldKey] = val;
-            });
-            res.json({ code: 200, data: features });
-        } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取功能开关失败: ' + e.message });
-        }
-    });
-
-    // 批量修改功能开关（只更新请求中包含的字段），触发配置热重载
-    router.put('/features', d.adminAuth, d.configLimiter, function(req, res) {
-        try {
-            let content = d.fs.readFileSync(MAIN_CONFIG_PATH, 'utf-8');
-            let cfg = JSON.parse(content);
-            const updated = {};
-            featureMap.forEach(function(item) {
-                var oldKey = item[0], objKey = item[1], field = item[2];
-                if (req.body[oldKey] !== undefined) {
-                    if (!cfg[objKey] || typeof cfg[objKey] !== 'object') cfg[objKey] = {};
-                    cfg[objKey][field] = !!req.body[oldKey];
-                    updated[oldKey] = cfg[objKey][field];
-                }
-            });
-            d.fs.writeFileSync(MAIN_CONFIG_PATH, JSON.stringify(cfg, null, 4), 'utf-8');
-            d.triggerReload('config');
-            d.adminLog.log(req.user.uid, '修改功能开关', JSON.stringify(updated));
-            res.json({ code: 200, msg: '修改成功', data: updated });
-        } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改功能开关失败: ' + e.message });
-        }
-    });
 }
 
 module.exports = { registerRoutes };
