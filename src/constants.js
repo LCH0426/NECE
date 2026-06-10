@@ -21,7 +21,7 @@
  */
 
 
-/** 所有数据文件路径配置（JSON 数据、日志目录、配置文件等） */
+/** 所有数据文件路径配置 */
 const PATHS = {
     CONFIG: "plugins/NECE/config.json",
     PLAYER_DATA: "plugins/NECE/data/playerdata.json",
@@ -158,9 +158,9 @@ const SIDEBAR_SETTING_KEYS = [
     'enableActionbarTps', 'enableActionbarSpeed', 'enableActionbarBiome'
 ];
 
-/** 侧边栏信息缓存有效期（毫秒），避免每帧重新计算 */
+/** 侧边栏信息缓存有效期 */
 const SIDEBAR_CACHE_TTL = 5000;
-/** 余额缓存有效期（毫秒），余额变化频率低可适当延长 */
+/** 余额缓存有效期 */
 const SIDEBAR_MONEY_CACHE_TTL = 3000;
 
 /** 击杀特效附带的药水效果参数 */
@@ -277,7 +277,7 @@ const DEFAULT_ENCHANT_BOOK_CONFIG = {
     }
 };
 
-/** 每级升级所需经验值阶梯，索引为等级（从第1级开始） */
+/** 每级升级所需经验值阶梯 */
 const LEVEL_EXP_STEPS = [
     375, 500, 625, 725, 850, 950, 1075, 1200, 1300, 1425,
     1525, 1650, 1775, 1875, 2000, 2375, 2500, 2625, 2775, 2825,

@@ -17,8 +17,7 @@
 
 /**
  * NECE 服务器监控模块
- * 游戏性能统计（TPS、全服余额、经济排行）+ 系统资源监控（CPU、内存、磁盘、网络）
- * 合并了原 serverStats 和 systemMonitor 两个模块的功能
+ * TPS、全服余额、经济排行、系统资源监控
  */
 
 
@@ -514,7 +513,7 @@ function memPoll() {
     cachedStats.memory = getMemoryInfo();
 }
 
-/** 磁盘和网络轮询回调（并发采集） */
+/** 磁盘和网络轮询回调 */
 async function diskPoll() {
     await Promise.all([collectNetworkInfo(), collectDiskInfo()]);
 }

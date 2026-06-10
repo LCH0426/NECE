@@ -17,9 +17,7 @@
 
 /**
  * NECE 个人中心模块
- * 核心功能：个人中心UI面板、冒险等级系统（经验值/升级/奖励）、数据统计、UID搜索
- * 扩展功能：在 LLSE_Player 原型上注入 uid 和 adventureLevelInfo 访问器
- * 入口：通过命令进入各子面板，或由 menu.js 钟表右键打开
+ * 个人设置、冒险等级、数据统计、UID搜索
  */
 
 const U = require('./utils');

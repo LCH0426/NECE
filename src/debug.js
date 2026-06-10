@@ -49,7 +49,7 @@ function isDebug() {
     return _debugMode;
 }
 
-/** 调试日志输出，仅在调试模式下生效（info 级别） */
+/** 调试日志输出，仅在调试模式下生效 */
 function debugLog() {
     if (!_debugMode) return;
     let args = ['[DEBUG]'];
@@ -57,7 +57,7 @@ function debugLog() {
     logger.info(args.join(' '));
 }
 
-/** 调试警告输出，仅在调试模式下生效（warn 级别） */
+/** 调试警告输出，仅在调试模式下生效 */
 function debugWarn() {
     if (!_debugMode) return;
     let args = ['[DEBUG WARN]'];

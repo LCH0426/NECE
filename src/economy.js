@@ -17,7 +17,7 @@
 
 /**
  * NECE 经济系统
- * 封装 llmoney 经济操作，提供余额查询、增减、通知、转账等功能
+ * 余额查询、增减、转账、经济日志
  */
 
 const fs = require('fs');
@@ -39,7 +39,7 @@ function init(deps) {
     _loadPendingTransfers();
 }
 
-/** 获取货币名称（带缓存），默认返回"星茜" */
+/** 获取货币名称 */
 function getCurrencyName() {
     if (_currencyNameCache !== null) return _currencyNameCache;
     _currencyNameCache = _config.get("currencyName") || "星茜";
@@ -282,7 +282,7 @@ function _loadPendingTransfers() {
     }
 }
 
-/** 将待领取转账记录持久化到磁盘（防抖，500ms） */
+/** 将待领取转账记录持久化到磁盘 */
 let _savePendingTimer = null;
 function _savePendingTransfers() {
     if (_savePendingTimer) clearTimeout(_savePendingTimer);
@@ -335,7 +335,7 @@ function _writeTransferLog(senderName, targetName, amount, senderBalance, target
     });
 }
 
-/** 显示经济系统主界面（余额 + 转账入口） */
+/** 显示经济系统主界面 */
 function showMoneyMainForm(player) {
     let fm = mc.newSimpleForm();
     fm.setTitle("经济系统");
@@ -349,7 +349,7 @@ function showMoneyMainForm(player) {
     });
 }
 
-/** 显示经济面板（转账 + 查看记录入口，/ec 命令调用） */
+/** 显示经济面板 */
 function showEconomyPanel(player) {
     let fm = mc.newSimpleForm();
     fm.setTitle("§l§e经济面板");
@@ -365,7 +365,7 @@ function showEconomyPanel(player) {
     });
 }
 
-/** 显示转账对象类型选择（在线/离线） */
+/** 显示转账对象类型选择 */
 function showTransferTypeForm(player) {
     let fm = mc.newSimpleForm();
     fm.setTitle("转账");
@@ -380,7 +380,7 @@ function showTransferTypeForm(player) {
     });
 }
 
-/** 显示在线玩家转账表单（下拉选择目标玩家 + 输入金额） */
+/** 显示在线玩家转账表单 */
 function showTransferOnlineForm(player) {
     const onlineList = mc.getOnlinePlayers();
     const names = [];
@@ -430,7 +430,7 @@ function showTransferOnlineForm(player) {
     });
 }
 
-/** 显示离线玩家转账表单（通过名称或UID搜索） */
+/** 显示离线玩家转账表单 */
 function showTransferOfflineForm(player) {
     let fm = mc.newCustomForm();
     fm.setTitle("转账给离线玩家");

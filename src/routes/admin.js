@@ -16,9 +16,8 @@
  */
 
 /**
- * NECE Web路由 - 管理面板
- * 处理备份管理和封禁管理相关路由
- * 备份使用7z压缩，封禁支持按XUID或IP识别
+ * NECE 管理面板路由
+ * 备份、封禁、清理、称号、经济日志等管理接口
  */
 
 function registerRoutes(router, d) {
@@ -482,7 +481,12 @@ function registerRoutes(router, d) {
                 return res.status(400).json({ code: 400, msg: '日期格式无效，需为 YYYY-MM-DD' });
             }
 
-            var logDir = d.pathModule.join(__dirname, '..', '..', 'logs', 'economy');
+            // 验证玩家名称，只允许字母数字和下划线
+            if (playerName && !/^[a-zA-Z0-9_一-龥]{1,32}$/.test(playerName)) {
+                return res.status(400).json({ code: 400, msg: '玩家名称格式无效' });
+            }
+
+            var logDir = d.pathModule.resolve(__dirname, '..', '..', 'logs', 'economy');
             if (!d.fs.existsSync(logDir)) {
                 return res.json({ code: 200, data: { logs: [], total: 0, page: page, pageSize: pageSize } });
             }
@@ -490,7 +494,12 @@ function registerRoutes(router, d) {
             // 确定要读取的日志文件
             var files = [];
             if (date) {
-                files = [logDir + '/economy-' + date + '.jsonl'];
+                var targetFile = d.pathModule.join(logDir, 'economy-' + date + '.jsonl');
+                // 验证最终路径在预期目录内
+                if (!targetFile.startsWith(logDir)) {
+                    return res.status(400).json({ code: 400, msg: '非法路径' });
+                }
+                files = [targetFile];
             } else {
                 try {
                     files = d.fs.readdirSync(logDir)

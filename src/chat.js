@@ -17,8 +17,7 @@
 
 /**
  * NECE 聊天系统
- * 聊天配置、敏感词过滤、消息格式化、onChat事件监听、聊天记录日志
- * 日志以 JSONL 格式按日期分文件存储，支持关键词/发送者过滤查询
+ * 聊天格式化、敏感词过滤、称号系统、聊天日志
  */
 
 let _deps = {};
@@ -115,12 +114,12 @@ function resolveOrgName(xuid) {
     return '§c无§r';
 }
 
-/** 清除指定玩家的公会名缓存（退出/被踢时调用） */
+/** 清除指定玩家的公会名缓存 */
 function clearOrgNameCache(xuid) {
     delete _orgNameCache[xuid];
 }
 
-/** 清除所有公会名缓存（公会改名/解散时调用） */
+/** 清除所有公会名缓存 */
 function clearAllOrgNameCache() {
     _orgNameCache = {};
 }
@@ -144,14 +143,14 @@ function _getPlayerTitles(xuid) {
     return p.titles;
 }
 
-/** 获取玩家当前称号（用于聊天格式），默认返回"萌新"，"无称号"时返回空字符串 */
+/** 获取玩家当前称号，默认返回"萌新" */
 function getPlayerActiveTitle(xuid) {
     var titles = _getPlayerTitles(xuid);
     if (titles.active === '无称号') return '';
     return titles.active || '萌新';
 }
 
-/** 获取玩家拥有的所有称号（始终包含"无称号"选项） */
+/** 获取玩家拥有的所有称号 */
 function getPlayerOwnedTitles(xuid) {
     var owned = _getPlayerTitles(xuid).owned || ['萌新'];
     // 确保"无称号"始终在列表首位
@@ -161,13 +160,13 @@ function getPlayerOwnedTitles(xuid) {
     return owned;
 }
 
-/** 获取称号最大数量（从配置读取，默认10） */
+/** 获取称号最大数量 */
 function getMaxTitles() {
     var cfg = getTitleShopConfig();
     return cfg.maxTitles || 10;
 }
 
-/** 为玩家添加称号（管理员/Web API 调用），上限可配置 */
+/** 为玩家添加称号 */
 function addPlayerTitle(xuid, title) {
     var titles = _getPlayerTitles(xuid);
     if (titles.owned.indexOf(title) !== -1) return true; // 已拥有
@@ -179,7 +178,7 @@ function addPlayerTitle(xuid, title) {
     return true;
 }
 
-/** 设置玩家当前称号（"无称号"始终可选） */
+/** 设置玩家当前称号 */
 function setActiveTitle(xuid, title) {
     var titles = _getPlayerTitles(xuid);
     if (title !== '无称号' && titles.owned.indexOf(title) === -1) return false;
@@ -224,7 +223,7 @@ function showTitleMainForm(player) {
     }
 }
 
-/** 显示设置称号表单（选择已拥有的称号） */
+/** 显示设置称号表单 */
 function showSetTitleForm(player) {
     try {
         var owned = getPlayerOwnedTitles(player.xuid);
@@ -259,7 +258,7 @@ function showSetTitleForm(player) {
     }
 }
 
-/** 显示称号操作表单（佩戴/删除） */
+/** 显示称号操作表单 */
 function showTitleActionForm(player, titleName) {
     var current = getPlayerActiveTitle(player.xuid) || '萌新';
     var isEquipped = (current === titleName);
@@ -343,7 +342,7 @@ function isReservedTitle(title) {
     return false;
 }
 
-/** 显示购买称号表单（含预设称号 + 自定义称号入口） */
+/** 显示购买称号表单 */
 function showBuyTitleForm(player) {
     try {
         var shopConfig = getTitleShopConfig();

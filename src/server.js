@@ -165,7 +165,7 @@ function getCurrencyName() {
     return _currencyNameCache;
 }
 
-/** 重置货币名称缓存（配置重载时调用） */
+/** 重置货币名称缓存 */
 function invalidateCurrencyNameCache() {
     _currencyNameCache = null;
 }

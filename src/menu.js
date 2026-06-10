@@ -16,16 +16,8 @@
  */
 
 /**
- * NECE 菜单系统（合并自 menu + quickMenu）
- * - 主菜单：右键钟表打开，支持多级页面导航
- * - 快捷菜单：右键指南针打开，每个玩家可自定义最多5个快捷入口
- *
- * 主菜单配置（config.json 的 menu 节）：
- *   { "main": { "title", "content", "items": [{ name, img, comm, opcomm, from, opfrom, type }] } }
- *
- * 快捷菜单配置（config.json 的 quickMenu 节）：
- *   { "items": [{ name, img, comm }] }
- *   玩家选择存储在 playerData.players[xuid].quickmenu.slots
+ * NECE 菜单系统
+ * 主菜单和快捷菜单，支持多级页面导航
  */
 
 let _deps = {};

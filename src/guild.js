@@ -17,7 +17,7 @@
 
 /**
  * NECE 公会系统
- * 公会创建/解散、成员管理、传送点、总部、公会金库、申请加入/邀请
+ * 公会创建解散、成员管理、传送点、金库
  */
 
 const database = require('./database');
@@ -140,7 +140,7 @@ function checkCooldown(xuid) {
     return 0;
 }
 
-/** 检查玩家是否为服务器管理员（OP） */
+/** 检查玩家是否为服务器管理员 */
 function isServerAdmin(player) {
     try {
         return player.isOP() || player.permLevel >= 1;
@@ -203,7 +203,7 @@ function doCreateGuild(player, name, description) {
     logger.info('[Guild] 玩家 ' + player.name + ' 创建公会: ' + name + ' (ID:' + guildId + ')');
 }
 
-/** 解散公会（确认弹窗） */
+/** 解散公会 */
 function doDisbandGuild(player) {
     var xuid = String(player.xuid);
     var guild = database.getGuildByPlayer(xuid);
@@ -285,7 +285,7 @@ function doListGuilds(player) {
     });
 }
 
-/** 显示公会详情（从公会列表点击进入） */
+/** 显示公会详情 */
 function showGuildDetail(player, guild) {
     var members = database.getGuildMembers(guild.id);
     var tps = database.getGuildTeleports(guild.id);
@@ -367,7 +367,7 @@ function doTeleportHQ(player) {
     }
 }
 
-/** 设置公会总部（会长/管理员） */
+/** 设置公会总部 */
 function doSetHQ(player) {
     var xuid = String(player.xuid);
     var guild = database.getGuildByPlayer(xuid);
@@ -848,7 +848,7 @@ function showGuildInfoPanel(player) {
     });
 }
 
-/** 修改公会名称表单（会长/管理员） */
+/** 修改公会名称表单 */
 function showChangeGuildNameForm(player, guild) {
     var role = getEffectiveRole(player, guild);
     if (role !== 'owner' && role !== 'admin') { player.tell('§e[公会] §c只有会长或管理员才能修改公会名称'); return; }
@@ -1180,7 +1180,7 @@ function doLeaveGuild(player) {
 
 // ==================== 申请加入 / 邀请系统 ====================
 
-/** 查看公会邀请面板（无公会玩家） */
+/** 查看公会邀请面板 */
 function showPendingInvitesPanel(player) {
     var xuid = String(player.xuid);
     if (database.getGuildByPlayer(xuid)) { player.tell('§e[公会] §c你已在公会中'); return; }
@@ -1294,7 +1294,7 @@ function showJoinGuildPanel(player) {
     });
 }
 
-/** 提交加入申请（带确认弹窗 + 通知会长/管理员） */
+/** 提交加入申请 */
 function doSubmitJoinRequest(player, guild) {
     var xuid = String(player.xuid);
 
@@ -1344,7 +1344,7 @@ function doSubmitJoinRequest(player, guild) {
     );
 }
 
-/** 处理加入申请面板（会长/管理员） */
+/** 处理加入申请面板 */
 function showJoinRequestsPanel(player) {
     var xuid = String(player.xuid);
     var guild = database.getGuildByPlayer(xuid);
@@ -1674,7 +1674,7 @@ function showAdminChangeGuildName(player, guild) {
     });
 }
 
-/** 管理员 - 成员管理（下拉菜单选择成员和操作） */
+/** 管理员 - 成员管理 */
 function showAdminMemberManage(player, guild) {
     var members = database.getGuildMembers(guild.id);
 
@@ -1769,7 +1769,7 @@ function showAdminMemberManage(player, guild) {
     });
 }
 
-/** 管理员 - 邀请玩家（两个按钮：选择在线玩家 / 搜索玩家） */
+/** 管理员 - 邀请玩家 */
 function showAdminInviteForm(player, guild) {
     var fm = mc.newSimpleForm();
     fm.setTitle('§l§d邀请玩家 - ' + guild.name);
@@ -1967,7 +1967,7 @@ function showAdminAddTeleportForm(player, guild) {
     });
 }
 
-/** 管理员 - 删除传送点（下拉菜单） */
+/** 管理员 - 删除传送点 */
 function showAdminDelTeleportForm(player, guild) {
     var tps = database.getGuildTeleports(guild.id);
     if (tps.length === 0) { player.tell('§e[公会] §e暂无传送点'); showAdminTeleportManage(player, guild); return; }
@@ -1992,7 +1992,7 @@ function showAdminDelTeleportForm(player, guild) {
     });
 }
 
-/** 管理员 - 资金管理（下拉菜单选择操作） */
+/** 管理员 - 资金管理 */
 function showAdminTreasuryPanel(player, guild) {
     var fm = mc.newCustomForm();
     fm.setTitle('§l§6管理资金 - ' + guild.name);

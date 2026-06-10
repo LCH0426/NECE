@@ -17,8 +17,7 @@
 
 /**
  * NECE 公会路由模块
- * 公会系统的Web管理API路由
- * 分为管理员接口（可管理所有公会）和玩家接口（仅可管理自己的公会）
+ * 公会管理接口
  */
 
 function registerRoutes(router, d) {

@@ -17,7 +17,7 @@
 
 /**
  * NECE SQLite数据库管理
- * 管理认证数据（用户/管理员/JWT令牌）和玩家数据（核心/设置/好友/消息/家园等）的SQL存储
+ * 认证数据和玩家数据的SQL存储
  */
 
 
@@ -31,11 +31,11 @@ const { ensureDir } = require('./utils');
 const DB_PATH = 'plugins/NECE/data/nece.db';
 /** 玩家数据数据库路径 */
 const PLAYER_DB_PATH = 'plugins/NECE/data/playerdata.db';
-/** 密码盐值长度（字节），输出为 hex 后长度翻倍 */
+/** 密码盐值长度 */
 const SALT_LENGTH = 32;
 /** PBKDF2 迭代次数 */
 const HASH_ITERATIONS = 10000;
-/** PBKDF2 哈希输出长度（字节） */
+/** PBKDF2 哈希输出长度 */
 const HASH_LENGTH = 64;
 
 let db = null;           // 认证数据库实例
@@ -53,7 +53,7 @@ function dbDebugLog() {
     logger.info(args.join(' '));
 }
 
-/** 初始化认证数据库（nece.db），建表并创建索引，支持从已有文件恢复 */
+/** 初始化认证数据库，建表并创建索引 */
 async function initDatabase() {
     // 迁移：旧文件 nlce.db → nece.db
     var oldPath = 'plugins/NECE/data/nlce.db';
@@ -147,10 +147,10 @@ function requestSaveAuthDb() {
     saveDatabase();
 }
 
-/** 兼容性空操作（无防抖，无需取消） */
+/** 兼容性空操作 */
 function cancelPendingAuthSave() {}
 
-/** 清理过期的验证码（5分钟）、刷新令牌和黑名单条目 */
+/** 清理过期的验证码、刷新令牌和黑名单条目 */
 function cleanExpiredData() {
     if (!db) return;
     try {
@@ -169,7 +169,7 @@ function hashPassword(password, salt) {
     return crypto.pbkdf2Sync(password, salt, HASH_ITERATIONS, HASH_LENGTH, 'sha512').toString('hex');
 }
 
-/** 生成随机盐值（hex 编码） */
+/** 生成随机盐值 */
 function generateSalt() {
     return crypto.randomBytes(SALT_LENGTH).toString('hex');
 }
@@ -292,7 +292,7 @@ function verifyCaptcha(captchaId, input) {
     return code.toLowerCase() === input.toLowerCase();
 }
 
-/** 清除所有过期（超过5分钟）的验证码记录 */
+/** 清除所有过期的验证码记录 */
 function cleanExpiredCaptchas() {
     const expireTime = Date.now() - 5 * 60 * 1000;
     db.run('DELETE FROM captcha WHERE created_at < ?', [expireTime]);
@@ -345,7 +345,7 @@ function revokeRefreshToken(jti) {
     requestSaveAuthDb();
 }
 
-/** 吊销同一家族下的所有刷新令牌（用于令牌轮换安全检测） */
+/** 吊销同一家族下的所有刷新令牌 */
 function revokeFamilyTokens(familyId) {
     db.run('UPDATE refresh_tokens SET is_revoked = 1 WHERE family_id = ?', [familyId]);
     requestSaveAuthDb();
@@ -364,7 +364,7 @@ function cleanExpiredRefreshTokens() {
     requestSaveAuthDb();
 }
 
-/** 将访问令牌加入黑名单（用户登出时调用） */
+/** 将访问令牌加入黑名单 */
 function blacklistAccessToken(jti, expiresAt) {
     db.run(
         'INSERT OR IGNORE INTO access_token_blacklist (jti, expires_at) VALUES (?, ?)',
@@ -477,7 +477,7 @@ function requestSavePlayerDb() {
     savePlayerDatabase();
 }
 
-/** 兼容性空操作（无防抖，无需取消） */
+/** 兼容性空操作 */
 function cancelPendingSave() {}
 
 // --- 玩家核心数据 ---
@@ -602,7 +602,7 @@ function getAllPlayerDataSQL() {
     return players;
 }
 
-/** 获取下一个可用的玩家 UID（自增逻辑，起始值 10000） */
+/** 获取下一个可用的玩家 UID */
 function getNextUidSQL() {
     if (!playerDb) return 10000;
     let result = playerDb.exec('SELECT MAX(uid) FROM player_data');
@@ -651,7 +651,7 @@ function setPlayerSettingSQL(xuid, key, value) {
 
 // --- 死亡点 ---
 
-/** 获取玩家的所有死亡点记录（按 ID 排序） */
+/** 获取玩家的所有死亡点记录 */
 function getDeathPointsSQL(xuid) {
     if (!playerDb) return [];
     let result = playerDb.exec('SELECT data FROM death_points WHERE xuid = ? ORDER BY id', [xuid]);
@@ -672,7 +672,7 @@ function getAllDeathPointsSQL() {
     return all;
 }
 
-/** 设置玩家死亡点（先删后插，使用 prepared statement 批量写入） */
+/** 设置玩家死亡点 */
 function setDeathPointsSQL(xuid, points) {
     if (!playerDb) return;
     markPlayerDbDirty();
@@ -713,7 +713,7 @@ function getFriendsSQL(xuid) {
     return { friends: friends, requests: requests, sentRequests: sentRequests };
 }
 
-/** 获取所有有好友或好友请求的玩家数据（批量查询，避免N+1） */
+/** 获取所有有好友或好友请求的玩家数据 */
 function getAllFriendsSQL() {
     if (!playerDb) return {};
     let all = {};
@@ -743,7 +743,7 @@ function getAllFriendsSQL() {
     return all;
 }
 
-/** 添加好友关系（INSERT OR REPLACE 防重复） */
+/** 添加好友关系 */
 function addFriendSQL(xuid, friendXuid, friendName, addTime) {
     if (!playerDb) return;
     markPlayerDbDirty();
@@ -771,7 +771,7 @@ function addFriendRequestSQL(xuid, fromXuid, fromName, message, time, isSent) {
         [xuid, fromXuid, fromName, message, time, isSent ? 1 : 0]);
 }
 
-/** 标记好友请求为已处理（接受或拒绝） */
+/** 标记好友请求为已处理 */
 function handleFriendRequestSQL(xuid, fromXuid, rejected) {
     if (!playerDb) return;
     markPlayerDbDirty();
@@ -795,7 +795,7 @@ function clearFriendRequestsSQL(xuid) {
 
 // --- 私信消息 ---
 
-/** 获取玩家的私信记录（按 ID 排序） */
+/** 获取玩家的私信记录 */
 function getMessagesSQL(xuid) {
     if (!playerDb) return [];
     let result = playerDb.exec('SELECT from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages WHERE xuid = ? ORDER BY id', [xuid]);
@@ -805,7 +805,7 @@ function getMessagesSQL(xuid) {
     });
 }
 
-/** 获取所有有私信记录的玩家数据（批量查询，避免N+1） */
+/** 获取所有有私信记录的玩家数据 */
 function getAllMessagesSQL() {
     if (!playerDb) return {};
     let result = playerDb.exec('SELECT xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages ORDER BY xuid, id');
@@ -861,7 +861,7 @@ function getHomesSQL(xuid) {
     });
 }
 
-/** 获取所有有家园传送点的玩家数据（批量查询，避免N+1） */
+/** 获取所有有家园传送点的玩家数据 */
 function getAllHomesSQL() {
     if (!playerDb) return {};
     let result = playerDb.exec('SELECT xuid, name, x, y, z, dim, last_use FROM homes');
@@ -874,7 +874,7 @@ function getAllHomesSQL() {
     return all;
 }
 
-/** 设置玩家所有家园传送点（先删后插，使用 prepared statement） */
+/** 设置玩家所有家园传送点 */
 function setHomesSQL(xuid, homes) {
     if (!playerDb) return;
     markPlayerDbDirty();
@@ -945,7 +945,7 @@ function getPlayerInventorySQL(xuid) {
 
 // ===================== 公会系统 SQL 方法 =====================
 
-/** 创建公会相关三张表（guilds / guild_members / guild_teleports） */
+/** 创建公会相关表 */
 function createGuildTables() {
     if (!playerDb) return;
     playerDb.run(`CREATE TABLE IF NOT EXISTS guilds (
@@ -1083,7 +1083,7 @@ function getGuildByName(name) {
     };
 }
 
-/** 根据玩家 XUID 获取其所在公会信息（单公会制） */
+/** 根据玩家XUID获取其所在公会信息 */
 function getGuildByPlayer(xuid) {
     if (!playerDb) return null;
     const result = playerDb.exec(
@@ -1119,7 +1119,7 @@ function getAllGuilds() {
     });
 }
 
-/** 删除公会（CASCADE 自动清理成员和传送点） */
+/** 删除公会 */
 function deleteGuild(guildId) {
     if (!playerDb) return;
     markPlayerDbDirty();
@@ -1128,7 +1128,7 @@ function deleteGuild(guildId) {
     playerDb.run('DELETE FROM guilds WHERE id = ?', [guildId]);
 }
 
-/** 更新公会字段（动态拼接 SET 子句） */
+/** 更新公会字段 */
 function updateGuild(guildId, fields) {
     if (!playerDb || !fields) return;
     markPlayerDbDirty();
@@ -1150,7 +1150,7 @@ function updateGuild(guildId, fields) {
     playerDb.run('UPDATE guilds SET ' + sets.join(', ') + ' WHERE id = ?', vals);
 }
 
-/** 添加公会成员（INSERT OR REPLACE，单公会制下 xuid 是主键） */
+/** 添加公会成员 */
 function addGuildMember(xuid, guildId, role) {
     if (!playerDb) return;
     markPlayerDbDirty();
@@ -1167,7 +1167,7 @@ function removeGuildMember(xuid) {
     playerDb.run('DELETE FROM guild_members WHERE xuid = ?', [xuid]);
 }
 
-/** 获取公会所有成员信息（含玩家名，从 player_data 关联） */
+/** 获取公会所有成员信息 */
 function getGuildMembers(guildId) {
     if (!playerDb) return [];
     const result = playerDb.exec(
@@ -1298,7 +1298,7 @@ function sqlGetAll(prefix) {
     }
 }
 
-/** 通用写入：设置某模块的玩家数据（INSERT OR REPLACE） */
+/** 通用写入：设置某模块的玩家数据 */
 function sqlSet(prefix, xuid, data) {
     if (!playerDb) return;
     markPlayerDbDirty();

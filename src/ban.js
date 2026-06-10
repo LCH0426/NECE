@@ -404,7 +404,7 @@ function registerConsoleCommands() {
     }
 }
 
-/** 注册游戏内命令：/ban、/unban、/banlist（需要GameMasters权限） */
+/** 注册游戏内命令：/ban、/unban、/banlist */
 function registerGameCommands() {
     try {
         const banCmd = mc.newCommand('ban', '封禁玩家', PermType.GameMasters);

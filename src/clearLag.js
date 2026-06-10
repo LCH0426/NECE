@@ -16,20 +16,9 @@
  */
 
 /**
- * NECE 定时实体清理模块（ClearLag）
- * 定时清理服务器中多余的敌对生物，防止卡顿
- * 采用黑名单模式：cleanTypes 列出需要清理的实体类型，未列出的实体全部保护
- *
- * 配置（config.json 的 clearLag 字段）：
- * {
- *   "enabled": true,
- *   "interval": 600,              // 清理间隔，单位秒（最小60）
- *   "reminderSeconds": 60,        // 清理前多少秒发送提醒（0=不提醒）
- *   "message": "§e[清理] §6即将清理...",
- *   "cleanMessage": "§e[清理] §a已清理...",
- *   "cleanTypes": ["minecraft:zombie", ...],  // 黑名单：需要清理的实体类型
- *   "maxEntitiesPerType": 50      // 每种类型最大保留数量
- * }
+ * NECE 定时实体清理模块
+ * 定时清理多余生物和掉落物，防止卡顿
+ * 采用黑名单模式，提醒和完成消息使用 tell 发送
  */
 
 var _config = null;
