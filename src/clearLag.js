@@ -96,14 +96,19 @@ function scheduleReminder(interval, reminderMs) {
 }
 
 /**
- * 发送清理提醒
+ * 发送清理提醒（使用 tell，位置为音乐盒）
  */
 function sendReminder() {
     try {
         var cfg = getClearLagConfig();
         if (!cfg) return;
         var msg = cfg.message || '§e[清理] §6即将清理服务器掉落物和多余生物，请注意！';
-        mc.broadcast(msg);
+        var players = mc.getOnlinePlayers();
+        for (var i = 0; i < players.length; i++) {
+            try {
+                players[i].tell(msg);
+            } catch (e) {}
+        }
     } catch (e) {
         // 静默处理
     }
@@ -133,11 +138,11 @@ function reload() {
 
 /**
  * 执行实体清理
- * @returns {{killed: number, total: number, byType: object}} 清理结果
+ * @returns {{killedMobs: number, killedItems: number, total: number, byType: object}} 清理结果
  */
 function executeCleanup() {
     var cfg = getClearLagConfig();
-    if (!cfg) return { killed: 0, total: 0, protectedCount: 0, byType: {} };
+    if (!cfg) return { killedMobs: 0, killedItems: 0, total: 0, protectedCount: 0, byType: {} };
 
     var cleanTypes = cfg.cleanTypes || [
         'minecraft:zombie',
@@ -186,19 +191,25 @@ function executeCleanup() {
     try {
         entities = mc.getAllEntities();
     } catch (e) {
-        return { killed: 0, total: 0, protectedCount: 0, byType: {} };
+        return { killedMobs: 0, killedItems: 0, total: 0, protectedCount: 0, byType: {} };
     }
 
-    if (!entities || entities.length === 0) return { killed: 0, total: 0, protectedCount: 0, byType: {} };
+    if (!entities || entities.length === 0) return { killedMobs: 0, killedItems: 0, total: 0, protectedCount: 0, byType: {} };
 
-    // 按类型分组（仅处理黑名单中的类型，其余全部保护）
+    // 按类型分组（仅处理黑名单中的类型和掉落物，其余全部保护）
     var typeGroups = {};
     var protectedCount = 0;
+    var itemCount = 0;
     for (var j = 0; j < entities.length; j++) {
         var entity = entities[j];
         if (!entity) continue;
         var type = '';
         try { type = entity.type || ''; } catch (e) { continue; }
+        // 统计掉落物
+        if (type === 'minecraft:item') {
+            itemCount++;
+            continue;
+        }
         if (!cleanSet[type]) {
             protectedCount++;
             continue;
@@ -208,7 +219,7 @@ function executeCleanup() {
     }
 
     // 清理超出限制的实体
-    var killedCount = 0;
+    var killedMobs = 0;
     var byType = {};
     for (var entityType in typeGroups) {
         var group = typeGroups[entityType];
@@ -219,7 +230,7 @@ function executeCleanup() {
             for (var k = maxPerType; k < group.length; k++) {
                 try {
                     group[k].kill();
-                    killedCount++;
+                    killedMobs++;
                 } catch (e) {
                     // 实体可能已经不存在
                 }
@@ -227,16 +238,38 @@ function executeCleanup() {
         }
     }
 
-    // 广播清理完成消息
-    if (killedCount > 0) {
+    // 清理掉落物
+    var killedItems = 0;
+    try {
+        var itemEntities = mc.getAllEntities();
+        for (var m = 0; m < itemEntities.length; m++) {
+            var itemEntity = itemEntities[m];
+            if (itemEntity && itemEntity.type === 'minecraft:item') {
+                try {
+                    itemEntity.kill();
+                    killedItems++;
+                } catch (e) {}
+            }
+        }
+    } catch (e) {}
+
+    // 广播清理完成消息（使用 tell）
+    if (killedMobs > 0 || killedItems > 0) {
         try {
-            var cleanMsg = cfg.cleanMessage || '§e[清理] §a已清理服务器掉落物和多余生物！';
-            mc.broadcast(cleanMsg.replace('{count}', String(killedCount)));
+            var cleanMsg = cfg.cleanMessage || '§e[清理] §a已清理完成！';
+            cleanMsg = cleanMsg.replace('{count}', String(killedMobs + killedItems));
+            var players = mc.getOnlinePlayers();
+            for (var n = 0; n < players.length; n++) {
+                try {
+                    players[n].tell(cleanMsg);
+                } catch (e) {}
+            }
         } catch (e) {}
     }
 
     return {
-        killed: killedCount,
+        killedMobs: killedMobs,
+        killedItems: killedItems,
         total: entities.length,
         protectedCount: protectedCount,
         byType: byType

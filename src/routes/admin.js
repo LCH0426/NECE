@@ -345,8 +345,20 @@ function registerRoutes(router, d) {
     router.post('/clearlag/execute', d.adminAuth, function(req, res) {
         try {
             let result = d.clearLagModule.executeCleanup();
-            d.adminLog.log(req.user.uid, '手动触发清理', '清理了' + result.killed + '个实体');
-            res.json({ code: 200, msg: '清理完成', data: result });
+            let totalKilled = result.killedMobs + result.killedItems;
+            d.adminLog.log(req.user.uid, '手动触发清理', '生物:' + result.killedMobs + ' 掉落物:' + result.killedItems);
+            res.json({
+                code: 200,
+                msg: '清理完成，共清理 ' + totalKilled + ' 个实体',
+                data: {
+                    killedMobs: result.killedMobs,
+                    killedItems: result.killedItems,
+                    totalKilled: totalKilled,
+                    totalEntities: result.total,
+                    protectedCount: result.protectedCount,
+                    byType: result.byType
+                }
+            });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '执行清理失败: ' + e.message });
         }

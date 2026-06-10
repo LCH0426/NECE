@@ -213,7 +213,7 @@ function showTitleMainForm(player) {
         fm.setTitle("§l§b称号系统");
         fm.setContent("§a当前称号: §b" + getPlayerActiveTitle(player.xuid));
         fm.addButton("§e设置称号", "textures/ui/icon_setting");
-        fm.addButton("§a购买称号", "textures/ui/marketplace");
+        fm.addButton("§a购买称号", "textures/ui/anvil-plus");
         player.sendForm(fm, function(p, id) {
             if (id === null) return;
             if (id === 0) showSetTitleForm(p);
