@@ -22,7 +22,7 @@
 
 function registerRoutes(router, d) {
 
-    // 获取备份统计信息（为每个备份文件附加下载URL）
+    // 获取备份统计信息
     router.get('/backup/stats', d.adminAuth, function(req, res) {
         try {
             const stats = d.backupModule.getBackupStats();
@@ -37,7 +37,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取备份文件列表（含下载链接）
+    // 获取备份文件列表
     router.get('/backup/list', d.adminAuth, function(req, res) {
         try {
             const backups = d.backupModule.getBackupList();
@@ -50,7 +50,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 手动触发备份（异步执行，通过回调返回结果）
+    // 手动触发备份
     router.post('/backup/execute', d.adminAuth, function(req, res) {
         try {
             // 防止并发备份
@@ -95,11 +95,11 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 下载备份文件（校验文件名防路径穿越，仅允许.7z文件）
+    // 下载备份文件
     router.get('/backup/download/:filename', d.adminAuth, d.backupDownloadLimiter, function(req, res) {
         try {
             const filename = req.params.filename;
-            // 防止路径穿越攻击（含 null 字节注入）
+            // 防止路径穿越攻击
             if (filename.includes('..') || filename.includes('/') || filename.includes('\\') || filename.includes('\0')) {
                 return res.status(400).json({ code: 400, msg: '非法文件名' });
             }
@@ -117,7 +117,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取备份配置（压缩等级、定时间隔、保留天数、最大数量）
+    // 获取备份配置
     router.get('/backup/config', d.adminAuth, function(req, res) {
         try {
             let cfg = d.backupModule.getConfig();
@@ -127,7 +127,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 更新备份配置（数值边界限制后写入config.json并重载备份模块）
+    // 更新备份配置
     router.put('/backup/config', d.adminAuth, d.configLimiter, function(req, res) {
         try {
             const cfg = d.backupModule.getConfig();
@@ -169,7 +169,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取封禁列表（含封禁原因和操作人）
+    // 获取封禁列表
     router.get('/ban/list', d.adminAuth, function(req, res) {
         try {
             const list = d.banModule.apiGetBanList();
@@ -179,7 +179,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 封禁玩家（统一使用 XUID 标识）
+    // 封禁玩家
     router.post('/ban', d.adminAuth, function(req, res) {
         try {
             let xuid = (req.body.xuid || '').trim();
@@ -201,7 +201,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 解封玩家（统一使用 XUID 标识）
+    // 解封玩家
     router.post('/unban', d.adminAuth, function(req, res) {
         try {
             const xuid = (req.body.xuid || '').trim();
@@ -220,7 +220,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 查询指定玩家是否被封禁（可同时传入XUID和IP进行联合判断）
+    // 查询指定玩家是否被封禁
     router.get('/ban/check', d.adminAuth, function(req, res) {
         try {
             const xuid = (req.query.xuid || '').trim();
@@ -246,7 +246,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 查询玩家人数趋势（预设时间范围）
+    // 查询玩家人数趋势
     router.get('/server/playerCount/trend', d.adminAuth, function(req, res) {
         try {
             const range = (req.query.range || '24h').toLowerCase();
@@ -290,7 +290,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 修改清理配置（部分更新）
+    // 修改清理配置
     router.put('/clearlag/config', d.adminAuth, d.configLimiter, function(req, res) {
         try {
             let CONFIG_PATH = d.pathModule.join(__dirname, '..', '..', 'config.json');
@@ -363,7 +363,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 查询玩家人数历史（自定义时间段）
+    // 查询玩家人数历史
     router.get('/server/playerCount/history', d.adminAuth, function(req, res) {
         try {
             var startTime = parseInt(req.query.start);
@@ -468,7 +468,7 @@ function registerRoutes(router, d) {
 
     // ===== 经济日志查询 =====
 
-    // 查询指定玩家的经济日志（购买/出售/回收/转账）
+    // 查询指定玩家的经济日志
     router.get('/economy/log/:playerName', d.adminAuth, function(req, res) {
         try {
             var playerName = req.params.playerName;

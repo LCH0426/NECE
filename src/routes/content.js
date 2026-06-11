@@ -23,7 +23,7 @@
 
 function registerRoutes(router, d) {
 
-    // 获取留言板列表（普通用户仅看自己的，管理员可看全部含已删除）
+    // 获取留言板列表
     router.get('/messages', d.auth, function(req, res) {
         try {
             let userXuid = d.getXuidByUid(req.user.uid) || req.user.uid;
@@ -46,7 +46,7 @@ function registerRoutes(router, d) {
 
             let result = d.messageBoard.getMessages(options);
 
-            // 标记当前用户是否有权删除每条留言（自己的或管理员可删）
+            // 标记当前用户是否有权删除每条留言
             result.messages = result.messages.map(function(m) {
                 let msg = Object.assign({}, m);
                 msg.canDelete = isAdminUser || m.xuid === userXuid;
@@ -59,7 +59,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 管理员专用：获取全部留言列表（含所有筛选条件和已删除留言）
+    // 管理员专用：获取全部留言列表
     router.get('/messages/all', d.adminAuth, function(req, res) {
         try {
             const options = {
@@ -85,7 +85,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取留言详情（仅本人或管理员可查看）
+    // 获取留言详情
     router.get('/messages/:id', d.auth, function(req, res) {
         try {
             let msgId = parseInt(req.params.id);
@@ -106,7 +106,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 发布留言（支持心情标签，限制500字符，标记来源为Web）
+    // 发布留言
     router.post('/messages', d.auth, function(req, res) {
         try {
             let content = req.body.content;
@@ -147,7 +147,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 删除留言（软删除，仅本人或管理员可操作，管理员删他人留言记录日志）
+    // 删除留言
     router.delete('/messages/:id', d.auth, function(req, res) {
         try {
             const msgId = parseInt(req.params.id);

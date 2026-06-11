@@ -352,7 +352,7 @@ function executeBackup(callback) {
  * @param {Function} callback - executeBackup 的回调
  */
 function finishBackup(results, startTime, onlinePlayers, callback) {
-    // 恢复世界写入（如果尚未恢复，比如直接压缩模式）
+    // 恢复世界写入
     try {
         var resumeResult = mc.runcmdEx('save resume');
         if (resumeResult && resumeResult.output && resumeResult.output.indexOf('are resumed') === -1) {

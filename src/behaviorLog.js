@@ -65,7 +65,7 @@ const ACTION_LABELS = {
     onBlockExploded: '方块被爆炸破坏'
 };
 
-// CSV 文件 BOM 头 + 中文列名表头（Excel 兼容）
+// CSV 文件 BOM 头 + 中文列名表头
 const _CSV_BOM = '﻿时间,维度,来源,X,Y,Z,事件,目标,x,y,z,附加信息';
 
 // 写入缓冲区，累积多条记录后批量刷盘
@@ -526,7 +526,7 @@ function queryLogs(options) {
         fs.createReadStream(logPath, { encoding: 'utf-8' })
             .pipe(csv({ headers: headers, skipLines: 1, separator: ',' }))
             .on('data', function(row) {
-                // 玩家名模糊匹配（来源和目标字段）
+                // 玩家名模糊匹配
                 if (player) {
                     const source = (row['来源'] || '').toLowerCase();
                     const target = (row['目标'] || '').toLowerCase();

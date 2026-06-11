@@ -211,7 +211,7 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
         return false;
     }
 
-    // 接收方消息记录（标记未读）
+    // 接收方消息记录
     const targetMessages = getPlayerMessageData(toXuid);
     targetMessages.messages.push({
         fromXuid: fromXuid,
@@ -226,7 +226,7 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
     const toPlayer = mc.getPlayer(toXuid);
     const toName = toPlayer ? toPlayer.name : (_deps.getPlayerInfoByXuid ? (_deps.getPlayerInfoByXuid(toXuid) || {}).name : null) || "未知玩家";
 
-    // 发送方消息记录（标记已读）
+    // 发送方消息记录
     const senderMessages = getPlayerMessageData(fromXuid);
     senderMessages.messages.push({
         fromXuid: fromXuid,
@@ -1010,7 +1010,7 @@ function getUnreadMessageCount(xuid) {
     return msgData.messages.filter(function(m) { return !m.read; }).length;
 }
 
-// ============ 头像系统（合并自 avatar.js） ============
+// ============ 头像系统 ============
 
 /**
  * 获取玩家头像数据，首次访问时自动初始化为默认头像

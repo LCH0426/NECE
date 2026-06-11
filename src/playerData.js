@@ -87,7 +87,7 @@ function savePlayerData() {
 function savePlayerDataNow() {
     const playerData = _getPlayerData();
     const ops = [];
-    // 关服时保存所有玩家（含脏标记的 + 尚未标记但在线的）
+    // 关服时保存所有玩家
     for (let xuid in playerData.players) {
         if (!playerData.players.hasOwnProperty(xuid)) continue;
         (function(xuid, data) {

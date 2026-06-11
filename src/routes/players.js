@@ -38,7 +38,7 @@ function registerRoutes(router, d) {
         return items;
     }
 
-    // 获取当前在线玩家列表（含余额、设备信息、位置等实时数据）
+    // 获取当前在线玩家列表
     router.get('/players/online', d.adminAuth, function(req, res) {
         try {
             let onlinePlayers = d.mc.getOnlinePlayers();
@@ -58,7 +58,7 @@ function registerRoutes(router, d) {
                     }
                 } catch (e) {}
 
-                // 从持久化数据获取上次记录的IP（离线后仍可查询）
+                // 从持久化数据获取上次记录的IP
                 let lastIp = '';
                 try {
                     const pd = d.getPlayerData();
@@ -96,7 +96,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 踢出指定玩家（需在线），记录操作日志
+    // 踢出指定玩家
     router.post('/players/kick', d.adminAuth, function(req, res) {
         let xuid = req.body.xuid;
         let reason = req.body.reason || '';
@@ -201,7 +201,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 向指定在线玩家发送弹窗消息（SimpleForm，仅一个关闭按钮）
+    // 向指定在线玩家发送弹窗消息
     router.post('/players/popup', d.adminAuth, function(req, res) {
         let xuid = req.body.xuid;
         let content = req.body.content;
@@ -240,7 +240,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取全量玩家列表（支持搜索和分页），按UID升序排列
+    // 获取全量玩家列表
     router.get('/players', d.adminAuth, function(req, res) {
         try {
             let playerData = d.getPlayerData();
@@ -255,7 +255,7 @@ function registerRoutes(router, d) {
             let playerList = [];
             let players = playerData.players;
 
-            // 按名称、UID或XUID模糊匹配搜索（先不加载余额，分页后再批量获取）
+            // 按名称、UID或XUID模糊匹配搜索
             Object.keys(players).forEach(function(xuid) {
                 let p = players[xuid];
                 const matchSearch = !search ||
@@ -305,7 +305,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 玩家UID排行（支持升序/降序），用于查看注册顺序
+    // 玩家UID排行
     router.get('/players/rank/uid', d.adminAuth, function(req, res) {
         try {
             let playerData = d.getPlayerData();
@@ -362,7 +362,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 玩家在线时间排行（默认降序，活跃玩家在前）
+    // 玩家在线时间排行
     router.get('/players/rank/playtime', d.adminAuth, function(req, res) {
         try {
             let playerData = d.getPlayerData();
@@ -419,7 +419,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 玩家余额排行（默认降序，土豪在前）
+    // 玩家余额排行
     router.get('/players/rank/balance', d.adminAuth, function(req, res) {
         try {
             let playerData = d.getPlayerData();
@@ -431,7 +431,7 @@ function registerRoutes(router, d) {
             let pageSize = parseInt(req.query.pageSize) || 20;
             let order = (req.query.order || 'desc').toLowerCase();
 
-            // 复用 monitoring 模块的余额排行缓存（5分钟TTL），避免每次请求遍历所有玩家
+            // 复用 monitoring 模块的余额排行缓存
             const cachedList = d.monitoring.getFullBalanceRank(order);
             const players = playerData.players;
 
@@ -472,7 +472,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取指定玩家详情（含在线状态、设备信息、完整玩家数据）
+    // 获取指定玩家详情
     router.get('/players/:xuid', d.adminAuth, function(req, res) {
         try {
             let xuid = req.params.xuid;
@@ -544,7 +544,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 修改在线玩家游戏模式（通过执行gamemode命令），支持多种模式别名
+    // 修改在线玩家游戏模式
     router.put('/players/:xuid/gamemode', d.adminAuth, function(req, res) {
         try {
             let xuid = req.params.xuid;
@@ -600,7 +600,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取服务器系统统计信息（CPU、内存、磁盘等，按需采集）
+    // 获取服务器系统统计信息
     router.get('/system/stats', d.adminAuth, async function(req, res) {
         try {
             await d.monitoring.refreshStats();
@@ -611,7 +611,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取服务器货币名称（用于前端显示）
+    // 获取服务器货币名称
     router.get('/currency-name', d.adminAuth, function(req, res) {
         res.json({ code: 200, data: { name: d.getCurrencyName() } });
     });
@@ -626,7 +626,7 @@ function registerRoutes(router, d) {
         res.json({ code: 200, data: { id: itemId, name: name, image: image } });
     });
 
-    // 获取服务器TPS（每秒刻数，衡量服务器负载）
+    // 获取服务器TPS
     router.get('/tps', d.adminAuth, function(req, res) {
         try {
             let data = d.monitoring.getTps();
@@ -646,7 +646,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取经济排行数据（Top N富有的玩家）
+    // 获取经济排行数据
     router.get('/economy/rank', d.adminAuth, function(req, res) {
         try {
             let data = d.monitoring.getEconomyRank();
@@ -655,7 +655,7 @@ function registerRoutes(router, d) {
             res.status(500).json({ code: 500, msg: '获取经济排行失败: ' + e.message });
         }
     });
-    // 获取单个玩家背包（在线玩家实时查询，离线玩家返回缓存数据）
+    // 获取单个玩家背包
     router.get('/players/:xuid/inventory', d.adminAuth, function(req, res) {
         try {
             let xuid = req.params.xuid;
@@ -707,7 +707,7 @@ function registerRoutes(router, d) {
                     }
                 } catch (e) {}
 
-                // 副手物品（getOffHand返回Item对象，非Container）
+                // 副手物品
                 try {
                     const offhandItem = onlinePlayer.getOffHand();
                     if (offhandItem && offhandItem.type && offhandItem.type !== '' && offhandItem.type !== 'minecraft:air') {
@@ -747,7 +747,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取所有在线玩家背包（实时查询，含装备栏和副手）
+    // 获取所有在线玩家背包
     router.get('/inventory/online', d.adminAuth, function(req, res) {
         try {
             let onlinePlayers = [];

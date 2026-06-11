@@ -38,7 +38,7 @@ function registerRoutes(router, d) {
             return res.status(400).json({ code: 400, msg: '验证码不能为空' });
         }
 
-        // 验证码校验（一次性，验证后自动失效）
+        // 验证码校验
         if (!d.database.verifyCaptcha(captchaId, captchaCode)) {
             return res.status(400).json({ code: 400, msg: '验证码错误或已过期' });
         }
@@ -63,7 +63,7 @@ function registerRoutes(router, d) {
         });
     });
 
-    // Token续签：使用Refresh Token获取新的Token对，实现旋转刷新（旧Token立即失效）
+    // Token续签
     router.post('/auth/refresh', d.refreshLimiter, function(req, res) {
         let cookies = d.parseCookies(req);
         let refreshToken = cookies.refresh_token;
@@ -127,10 +127,10 @@ function registerRoutes(router, d) {
         const authHeader = req.headers['authorization'];
         const accessToken = authHeader && authHeader.split(' ')[1];
 
-        // 将Access Token加入黑名单（保留至原过期时间自动清理）
+        // 将Access Token加入黑名单
         if (accessToken) {
             try {
-                // 用 verify 验证签名（忽略过期），防止伪造 jti 黑名单他人 token
+                // 用 verify 验证签名，防止伪造 jti 黑名单他人 token
                 const decoded = d.jwt.verify(accessToken, d.getJwtSecret(), { ignoreExpiration: true });
                 if (decoded && decoded.jti && decoded.exp) {
                     d.database.blacklistAccessToken(decoded.jti, decoded.exp * 1000);
@@ -156,7 +156,7 @@ function registerRoutes(router, d) {
         res.json({ code: 200, msg: '已退出登录' });
     });
 
-    // 验证当前Token是否有效（需携带有效Access Token）
+    // 验证当前Token是否有效
     router.get('/auth/verify', d.auth, function(req, res) {
         res.json({
             code: 200,

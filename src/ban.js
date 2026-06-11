@@ -75,7 +75,7 @@ function resolvePlayer(identifier) {
         };
     }
 
-    // 遍历玩家数据，按名称或UID匹配（不区分大小写）
+    // 遍历玩家数据，按名称或UID匹配
     for (let xuid in players) {
         if (!players.hasOwnProperty(xuid)) continue;
         const info = players[xuid];
@@ -139,7 +139,7 @@ function banPlayer(identifier, reason, operator) {
         return { success: false, message: '玩家 ' + playerInfo.name + ' 已在封禁列表中' };
     }
 
-    // 尝试获取IP（离线玩家可能没有）
+    // 尝试获取IP
     let ip = playerInfo.ip;
     if (!ip) {
         let onlinePlayer = mc.getPlayer(xuid);

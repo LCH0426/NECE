@@ -185,7 +185,7 @@ function executeCleanup() {
 
     if (!entities || entities.length === 0) return { killedMobs: 0, killedItems: 0, total: 0, protectedCount: 0, byType: {} };
 
-    // 按类型分组（仅处理黑名单中的类型和掉落物，其余全部保护）
+    // 按类型分组，仅处理黑名单中的类型和掉落物
     var typeGroups = {};
     var protectedCount = 0;
     var itemCount = 0;
@@ -242,7 +242,7 @@ function executeCleanup() {
         }
     } catch (e) {}
 
-    // 广播清理完成消息（使用 tell）
+    // 广播清理完成消息
     if (killedMobs > 0 || killedItems > 0) {
         try {
             var cleanMsg = cfg.cleanMessage || '§e[清理] §a已清理完成！';

@@ -27,7 +27,7 @@ const fs = require('fs');
 const pathModule = require('path');
 const si = require('systeminformation');
 
-// ============ 游戏统计（原 serverStats） ============
+// ============ 游戏统计 ============
 
 let tpsDataRef = null;   // TPS数据引用，由index.js传入
 let moneyRef = null;     // 经济模块引用，提供get(xuid)接口
@@ -160,7 +160,7 @@ function getEconomyRank() {
             balanceList.push({ name: name, xuid: xuid, balance: bal });
         }
 
-        // 累计银行存款（活期+定期）
+        // 累计银行存款
         if (p.bankdata) {
             const currentBalance = (p.bankdata.current && typeof p.bankdata.current.balance === 'number') ? p.bankdata.current.balance : 0;
             totalBankCurrent += currentBalance;
@@ -196,7 +196,7 @@ function getEconomyRank() {
         return { name: item.name, bankTotal: item.bankTotal, current: item.current, fixed: item.fixed };
     });
 
-    // 更新缓存（含完整余额排行，供分页接口使用）
+    // 更新缓存
     economyRankCache.topBalances = topBalances;
     economyRankCache.fullBalanceList = balanceList;
     economyRankCache.totalBankCurrent = totalBankCurrent;
@@ -311,7 +311,7 @@ function getPlayerCountStats() {
     return result;
 }
 
-// ============ 系统资源监控（原 systemMonitor） ============
+// ============ 系统资源监控 ============
 
 // 静态系统信息，运行期间不会变化，只读取一次
 const STATIC_SYSINFO = {
@@ -551,7 +551,7 @@ function stopPolling() {
     if (worldSizePollTimer) { clearInterval(worldSizePollTimer); worldSizePollTimer = null; }
 }
 
-// ============ 按需刷新（替代持续轮询） ============
+// ============ 按需刷新 ============
 
 let lastOnDemandRefresh = 0;
 let lastDiskNetworkPoll = 0;
@@ -623,7 +623,7 @@ function getFullBalanceRank(order) {
 }
 
 module.exports = {
-    // 游戏统计（原 serverStats）
+    // 游戏统计
     init: init,
     getTps: getTps,
     getAllMoney: getAllMoney,
@@ -634,7 +634,7 @@ module.exports = {
     stopPlayerCountSampling: stopPlayerCountSampling,
     getPlayerCountTrend: getPlayerCountTrend,
     getPlayerCountStats: getPlayerCountStats,
-    // 系统监控（原 systemMonitor）
+    // 系统监控
     startPolling: startPolling,
     stopPolling: stopPolling,
     refreshStats: refreshStats,

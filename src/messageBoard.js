@@ -31,7 +31,7 @@ let messageBoardData = {
     messages: [],
     nextId: 1
 };
-// 数据保存后的回调列表（Web 面板等模块注册刷新逻辑）
+// 数据保存后的回调列表
 const _onSaveCallbacks = [];
 
 /**
@@ -44,7 +44,7 @@ function init(dm) {
     messageBoardData = messageBoardDM.load();
     if (!Array.isArray(messageBoardData.messages)) messageBoardData.messages = [];
     if (typeof messageBoardData.nextId !== 'number') messageBoardData.nextId = 1;
-    // 修复旧数据中缺少的字段（兼容迁移）
+    // 修复旧数据中缺少的字段
     let needFix = false;
     messageBoardData.messages.forEach(function(msg) {
         if (typeof msg.isDeleted === 'undefined') {
@@ -159,7 +159,7 @@ function createAddMessageForm(player) {
 function createMyMessagesForm(player, page) {
     let xuid = player.xuid;
     let pageSize = 10;
-    // 按时间降序排列（最新在前）
+    // 按时间降序排列
     const myMessages = messageBoardData.messages.filter(function(m) { return m.xuid === xuid && !m.isDeleted; }).reverse();
     let totalPages = Math.ceil(myMessages.length / pageSize) || 1;
     let startIndex = (page - 1) * pageSize;

@@ -23,7 +23,7 @@
 
 function registerRoutes(router, d) {
 
-    // 获取邮件列表（支持按类型/关键词筛选，分页返回，含已读/已领统计）
+    // 获取邮件列表
     router.get('/mails', d.adminAuth, function(req, res) {
         try {
             const mailData = d.mailApi.getData();
@@ -53,7 +53,7 @@ function registerRoutes(router, d) {
                 return true;
             });
 
-            // 按ID降序排列（最新的在前）
+            // 按ID降序排列
             mailList.sort(function(a, b) { return b.id - a.id; });
 
             const total = mailList.length;
@@ -116,7 +116,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取邮件详情（含已读玩家列表、已领取玩家列表）
+    // 获取邮件详情
     router.get('/mails/:id', d.adminAuth, function(req, res) {
         try {
             let mailId = parseInt(req.params.id);
@@ -186,7 +186,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 发送邮件（支持个人/全体/定时，附件支持物品和星签货币奖励）
+    // 发送邮件
     router.post('/mails/send', d.adminAuth, function(req, res) {
         let toXuid = req.body.toXuid;
         let content = req.body.content;
@@ -243,7 +243,7 @@ function registerRoutes(router, d) {
             }
         }
 
-        // 定时邮件：校验时间格式（2026.05.12.18.00）并确保晚于当前时间
+        // 定时邮件：校验时间格式并确保晚于当前时间
         if (scheduledTime) {
             if (!/^\d{4}\.\d{2}\.\d{2}\.\d{2}(\.\d{2})?$/.test(scheduledTime)) {
                 return res.status(400).json({ code: 400, msg: '定时时间格式不正确，正确格式：2026.05.12.18.00' });
@@ -274,7 +274,7 @@ function registerRoutes(router, d) {
                 read: false,
                 starQian: intStarQian,
                 items: validatedItems,
-                // 全局邮件的claimed为对象（记录每个玩家领取状态），个人邮件为布尔值
+                // 全局邮件的claimed为对象，个人邮件为布尔值
                 claimed: toXuid === 'all' ? {} : false
             };
 
@@ -321,7 +321,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 删除指定邮件（记录操作日志含邮件内容摘要）
+    // 删除指定邮件
     router.delete('/mails/:id', d.adminAuth, function(req, res) {
         try {
             const mailId = parseInt(req.params.id);
