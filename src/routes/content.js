@@ -75,7 +75,7 @@ function registerRoutes(router, d) {
             // 标记当前用户是否有权删除每条留言
             result.messages = result.messages.map(function(m) {
                 let msg = Object.assign({}, m);
-                msg.canDelete = isAdminUser || m.xuid === userXuid;
+                msg.canDelete = isAdminUser || String(m.xuid) === String(userXuid);
                 return msg;
             });
 
@@ -121,8 +121,13 @@ function registerRoutes(router, d) {
                 return res.status(404).json({ code: 404, msg: '留言不存在' });
             }
 
+            // 已删除的留言只有管理员可以查看
+            if (msg.isDeleted && !d.database.isAdmin(req.user.uid)) {
+                return res.status(404).json({ code: 404, msg: '留言不存在' });
+            }
+
             let userXuid = d.getXuidByUid(req.user.uid) || req.user.uid;
-            if (!d.database.isAdmin(req.user.uid) && msg.xuid !== userXuid) {
+            if (!d.database.isAdmin(req.user.uid) && String(msg.xuid) !== String(userXuid)) {
                 return res.status(403).json({ code: 403, msg: '无权查看此留言' });
             }
 
@@ -183,13 +188,16 @@ function registerRoutes(router, d) {
                 return res.status(404).json({ code: 404, msg: '留言不存在' });
             }
 
-            const userXuid = d.getXuidByUid(req.user.uid) || req.user.uid;
-            if (!d.database.isAdmin(req.user.uid) && msg.xuid !== userXuid) {
-                return res.status(403).json({ code: 403, msg: '无权删除此留言' });
-            }
-
             if (msg.isDeleted) {
                 return res.status(400).json({ code: 400, msg: '留言已被删除' });
+            }
+
+            const userXuid = d.getXuidByUid(req.user.uid) || req.user.uid;
+            const isAdminUser = d.database.isAdmin(req.user.uid);
+            
+            // 权限检查：管理员可以删除任何留言，普通用户只能删除自己的留言
+            if (!isAdminUser && String(msg.xuid) !== String(userXuid)) {
+                return res.status(403).json({ code: 403, msg: '无权删除此留言' });
             }
 
             if (!d.messageBoard.deleteMessage(msgId)) {
@@ -197,7 +205,7 @@ function registerRoutes(router, d) {
             }
 
             // 仅管理员删他人留言时记录操作日志
-            if (d.database.isAdmin(req.user.uid) && msg.xuid !== userXuid) {
+            if (isAdminUser && String(msg.xuid) !== String(userXuid)) {
                 d.adminLog.log(req.user.uid, '删除留言', 'ID:' + msgId, '作者: ' + msg.playerName + ' 内容: ' + (msg.msg || '').substring(0, 100));
             }
 

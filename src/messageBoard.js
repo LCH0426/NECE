@@ -189,7 +189,9 @@ function createMyMessagesForm(player, page) {
     const lang = getLocale(xuid);
     let pageSize = 10;
     // 按时间降序排列
-    const myMessages = messageBoardData.messages.filter(function(m) { return m.xuid === xuid && !m.isDeleted; }).reverse();
+    const myMessages = messageBoardData.messages.filter(function(m) { return m.xuid === xuid && !m.isDeleted; });
+    // 按 ID 降序排列
+    myMessages.sort(function(a, b) { return b.id - a.id; });
     let totalPages = Math.ceil(myMessages.length / pageSize) || 1;
     let startIndex = (page - 1) * pageSize;
     let pageMessages = myMessages.slice(startIndex, startIndex + pageSize);
@@ -240,7 +242,9 @@ function createMyMessagesForm(player, page) {
 function createAllMessagesForm(player, page) {
     const lang = getLocale(player.xuid);
     let pageSize = 10;
-    const allMessages = messageBoardData.messages.filter(function(m) { return !m.isDeleted; }).reverse();
+    const allMessages = messageBoardData.messages.filter(function(m) { return !m.isDeleted; });
+    // 按 ID 降序排列
+    allMessages.sort(function(a, b) { return b.id - a.id; });
     let totalPages = Math.ceil(allMessages.length / pageSize) || 1;
     const startIndex = (page - 1) * pageSize;
     const pageMessages = allMessages.slice(startIndex, startIndex + pageSize);
@@ -442,11 +446,13 @@ function getMessages(options) {
         return true;
     });
 
+    // 按 ID 降序排列（大的在前面）
+    filtered.sort(function(a, b) { return b.id - a.id; });
+
     const total = filtered.length;
     const totalPages = Math.ceil(total / pageSize) || 1;
     const start = (page - 1) * pageSize;
-    // 结果按时间降序返回
-    const paged = filtered.slice(start, start + pageSize).reverse();
+    const paged = filtered.slice(start, start + pageSize);
 
     return { messages: paged, total: total, page: page, pageSize: pageSize, totalPages: totalPages };
 }

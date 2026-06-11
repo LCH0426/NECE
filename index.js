@@ -937,6 +937,7 @@ async function initAllConfigs() {
 		notifyEconomyChange: notifyEconomyChange,
 		logger: logger,
 		showPersonalCenterForm: personalCenter.showPersonalCenterForm,
+		openMainMenu: personalCenter.openMainMenu,
 		t: i18n.t,
 		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});

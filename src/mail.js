@@ -376,7 +376,7 @@ function showMailSystemForm(player) {
     gui.addButton(t(lang, 'mail.btn_send_global'), "textures/ui/icon_book_writable");
     gui.addButton(t(lang, 'mail.btn_send_single'), "textures/ui/icon_book_writable");
     gui.addButton(t(lang, 'mail.btn_manage_scheduled'), "textures/ui/icon_setting");
-    gui.addButton(t(lang, 'mail.btn_back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'mail.btn_close'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -389,8 +389,6 @@ function showMailSystemForm(player) {
             showSearchPlayerForMailForm(p);
         } else if (id === 3) {
             showScheduledMailManagerForm(p);
-        } else {
-            if (_deps.showPersonalCenterForm) _deps.showPersonalCenterForm(p);
         }
     });
 }
@@ -1417,7 +1415,7 @@ function showPlayerMailSystemForm(player) {
     gui.setContent(content);
     gui.addButton(t(lang, 'mail.btn_view_mail'), "textures/ui/mail_icon");
     gui.addButton(t(lang, 'mail.btn_send_mail'), "textures/ui/icon_book_writable");
-    gui.addButton(t(lang, 'mail.btn_back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'mail.btn_close'), "textures/ui/cancel");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -1426,8 +1424,6 @@ function showPlayerMailSystemForm(player) {
             showMailListForm(p);
         } else if (id === 1) {
             showPlayerSendMailForm(p);
-        } else if (id === 2) {
-            if (_deps.showPersonalCenterForm) _deps.showPersonalCenterForm(p);
         }
     });
 }
