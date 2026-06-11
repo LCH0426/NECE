@@ -20,11 +20,11 @@
  * 提供活期存款和定期存款功能，自动计算利息收益
  */
 
-// 定期存款期限配置：天数 -> { 利率(单期), 名称 }
+// 定期存款期限配置：天数 -> { 利率(单期), nameKey }
 const FIXED_DEPOSIT_CONFIG = {
-    7: { rate: 0.001, name: "周" },
-    30: { rate: 0.0099, name: "月" },
-    90: { rate: 0.044, name: "季" }
+    7: { rate: 0.001, nameKey: "bank.period_week" },
+    30: { rate: 0.0099, nameKey: "bank.period_month" },
+    90: { rate: 0.044, nameKey: "bank.period_season" }
 };
 
 /**
@@ -42,6 +42,17 @@ function createBankModule(deps) {
     const getCurrencyName = deps.getCurrencyName;
     const openMainMenu = deps.openMainMenu;
     const U = deps.utils;
+    const t = deps.t;
+    const getPlayerSetting = deps.getPlayerSetting;
+
+    /**
+     * 获取玩家语言设置
+     * @param {string} xuid
+     * @returns {string}
+     */
+    function getLocale(xuid) {
+        return getPlayerSetting ? getPlayerSetting(xuid, 'locale') : 'zh_CN';
+    }
 
     /**
      * 获取玩家银行账户，不存在则初始化默认结构并立即保存
@@ -74,7 +85,7 @@ function createBankModule(deps) {
         const parts = timeStr.split('.');
         if (parts.length !== 6) return 0;
         const year = parseInt(parts[0]);
-        const month = parseInt(parts[1]) - 1; // JS Date月份从0开始
+        const month = parseInt(parts[1]) - 1;
         const day = parseInt(parts[2]);
         const hour = parseInt(parts[3]);
         const minute = parseInt(parts[4]);
@@ -84,7 +95,6 @@ function createBankModule(deps) {
 
     /**
      * 计算并发放活期利息（单利，日利率0.02%）
-     * 基于上次计息时间到当前的时间差按天折算
      * @param {object} account - 银行账户数据
      * @returns {number} 本次计算的利息金额
      */
@@ -93,9 +103,9 @@ function createBankModule(deps) {
         let lastTimeStr = account.current.lastInterestTime;
         const lastTime = typeof lastTimeStr === 'string' ? timeStringToTimestamp(lastTimeStr) : lastTimeStr;
         const timeDiff = now - lastTime;
-        if (timeDiff < 1000) return 0; // 间隔不足1秒不计息
+        if (timeDiff < 1000) return 0;
         let days = timeDiff / (1000 * 60 * 60 * 24);
-        const dailyRate = 0.0002; // 日利率 0.02%
+        const dailyRate = 0.0002;
         let interest = account.current.balance * dailyRate * days;
         if (interest > 0) {
             account.current.balance = Math.floor(account.current.balance + interest);
@@ -124,8 +134,8 @@ function createBankModule(deps) {
     }
 
     /** 获取定期存款状态描述文字 */
-    function getFixedDepositStatus(deposit) {
-        return isFixedDepositMature(deposit) ? "已到期" : "收益正在路上";
+    function getFixedDepositStatus(deposit, lang) {
+        return isFixedDepositMature(deposit) ? t(lang, 'bank.fixed_status_mature') : t(lang, 'bank.fixed_status_active');
     }
 
     /**
@@ -137,51 +147,53 @@ function createBankModule(deps) {
     function performCurrentOperation(player, amount) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
+        let lang = getLocale(xuid);
+        let currency = getCurrencyName();
         calculateCurrentInterest(account);
 
         if (amount > 0) {
             let playerMoney = getPlayerMoney(player);
             if (playerMoney < amount) {
-                return { success: false, message: "§c余额不足，需要 " + amount + " 点§c" + getCurrencyName() + "§r，当前只有 " + playerMoney + " 点§c" + getCurrencyName() + "§r" };
+                return { success: false, message: t(lang, 'bank.err_insufficient_balance', amount, currency, playerMoney) };
             }
             if (confirmPurchase) {
-                confirmPurchase(player, amount, '银行存款', function(p) {
-                    if (!reducePlayerMoney(p, amount, "银行存款")) {
-                        p.tell("§c存款失败，货币系统异常");
+                confirmPurchase(player, amount, t(lang, 'bank.reason_deposit'), function(p) {
+                    if (!reducePlayerMoney(p, amount, t(lang, 'bank.reason_deposit'))) {
+                        p.tell(t(lang, 'bank.err_deposit_failed'));
                         return;
                     }
                     account.current.balance += amount;
                     account.current.balance = Math.floor(account.current.balance);
                     savePlayerDataNow();
-                    p.tell("§a存款成功！存入 " + amount + " 点§c" + getCurrencyName() + "§r，当前银行余额：" + account.current.balance + " 点§c" + getCurrencyName() + "§r");
+                    p.tell(t(lang, 'bank.deposit_success', amount, currency, account.current.balance));
                 });
-                return { success: true, message: "§a请确认账单" };
+                return { success: true, message: t(lang, 'bank.confirm_bill') };
             }
-            if (!reducePlayerMoney(player, amount, "银行存款")) {
-                return { success: false, message: "§c存款失败，货币系统异常" };
+            if (!reducePlayerMoney(player, amount, t(lang, 'bank.reason_deposit'))) {
+                return { success: false, message: t(lang, 'bank.err_deposit_failed') };
             }
             account.current.balance += amount;
             account.current.balance = Math.floor(account.current.balance);
             savePlayerDataNow();
-            return { success: true, message: "§a存款成功！存入 " + amount + " 点§c" + getCurrencyName() + "§r，当前银行余额：" + account.current.balance + " 点§c" + getCurrencyName() + "§r" };
+            return { success: true, message: t(lang, 'bank.deposit_success', amount, currency, account.current.balance) };
         } else if (amount < 0) {
             const withdrawAmount = Math.abs(amount);
             if (account.current.balance < withdrawAmount) {
-                return { success: false, message: "§c银行余额不足，需要 " + withdrawAmount + " 点§c" + getCurrencyName() + "§r，当前银行余额：" + Math.floor(account.current.balance) + " 点§c" + getCurrencyName() + "§r" };
+                return { success: false, message: t(lang, 'bank.err_bank_insufficient', withdrawAmount, currency, Math.floor(account.current.balance)) };
             }
             account.current.balance -= withdrawAmount;
             account.current.balance = Math.floor(account.current.balance);
             savePlayerDataNow();
-            if (!addPlayerMoney(player, withdrawAmount, "银行取款")) {
-                return { success: false, message: "§c取款失败，货币系统异常" };
+            if (!addPlayerMoney(player, withdrawAmount, t(lang, 'bank.reason_withdraw'))) {
+                return { success: false, message: t(lang, 'bank.err_withdraw_failed') };
             }
-            return { success: true, message: "§a取款成功！取出 " + withdrawAmount + " 点§c" + getCurrencyName() + "§r，当前银行余额：" + account.current.balance + " 点§c" + getCurrencyName() + "§r" };
+            return { success: true, message: t(lang, 'bank.withdraw_success_msg', withdrawAmount, currency, account.current.balance) };
         }
-        return { success: false, message: "§c请输入有效的金额" };
+        return { success: false, message: t(lang, 'bank.err_invalid_amount') };
     }
 
     /**
-     * 办理定期存款，从玩家余额扣除本金并创建定期记录
+     * 办理定期存款
      * @param {object} player - 玩家对象
      * @param {number} amount - 存款金额
      * @param {number} days - 存款期限（7/30/90）
@@ -190,11 +202,13 @@ function createBankModule(deps) {
     function depositFixed(player, amount, days) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
-        if (amount <= 0) return { success: false, message: "§c请输入有效的存款金额" };
+        let lang = getLocale(xuid);
+        let currency = getCurrencyName();
+        if (amount <= 0) return { success: false, message: t(lang, 'bank.err_invalid_deposit_amount') };
         const playerMoney = getPlayerMoney(player);
-        if (playerMoney < amount) return { success: false, message: "§c余额不足，需要 " + amount + " 点§c" + getCurrencyName() + "§r，当前只有 " + playerMoney + " 点§c" + getCurrencyName() + "§r" };
-        if (!FIXED_DEPOSIT_CONFIG[days]) return { success: false, message: "§c无效的存款期限" };
-        if (!reducePlayerMoney(player, amount, "定期存款")) return { success: false, message: "§c存款失败，货币系统异常" };
+        if (playerMoney < amount) return { success: false, message: t(lang, 'bank.err_insufficient_balance', amount, currency, playerMoney) };
+        if (!FIXED_DEPOSIT_CONFIG[days]) return { success: false, message: t(lang, 'bank.err_invalid_duration') };
+        if (!reducePlayerMoney(player, amount, t(lang, 'bank.reason_fixed_deposit'))) return { success: false, message: t(lang, 'bank.err_deposit_failed') };
 
         const config = FIXED_DEPOSIT_CONFIG[days];
         const now = new Date();
@@ -214,11 +228,11 @@ function createBankModule(deps) {
 
         account.fixed.push(deposit);
         savePlayerDataNow();
-        return { success: true, message: "§a定期存款成功！存入 " + amount + " 点§c" + getCurrencyName() + "§r，期限 " + days + " 天，总利率百分之 " + (config.rate * 100).toFixed(config.rate < 0.01 ? 2 : 1) };
+        return { success: true, message: t(lang, 'bank.deposit_fixed_success', amount, currency, days, (config.rate * 100).toFixed(config.rate < 0.01 ? 2 : 1)) };
     }
 
     /**
-     * 取出定期存款。到期返还本金+利息；提前取出扣除2%违约金，不给利息
+     * 取出定期存款
      * @param {object} player - 玩家对象
      * @param {number} depositId - 定期存款ID（时间戳）
      * @returns {{ success: boolean, message: string }}
@@ -226,65 +240,70 @@ function createBankModule(deps) {
     function withdrawFixed(player, depositId) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
+        let lang = getLocale(xuid);
+        let currency = getCurrencyName();
         let depositIndex = account.fixed.findIndex(function(d) { return d.id === depositId; });
-        if (depositIndex === -1) return { success: false, message: "§c未找到该定期存款" };
+        if (depositIndex === -1) return { success: false, message: t(lang, 'bank.err_fixed_not_found') };
 
         let deposit = account.fixed[depositIndex];
         if (isFixedDepositMature(deposit)) {
             let interest = Math.floor(calculateFixedInterest(deposit.principal, deposit.rate, deposit.days));
             let totalAmount = Math.floor(deposit.principal + interest);
-            if (!addPlayerMoney(player, totalAmount, "定期到期取出")) return { success: false, message: "§c取款失败，货币系统异常" };
+            if (!addPlayerMoney(player, totalAmount, t(lang, 'bank.reason_fixed_mature'))) return { success: false, message: t(lang, 'bank.err_withdraw_failed') };
             account.fixed.splice(depositIndex, 1);
             savePlayerDataNow();
-            return { success: true, message: "§a定期存款取出成功！本金 " + deposit.principal + " 点§c" + getCurrencyName() + "§r，利息 " + interest + " 点§c" + getCurrencyName() + "§r，总计 " + totalAmount + " 点§c" + getCurrencyName() + "§r" };
+            return { success: true, message: t(lang, 'bank.withdraw_fixed_success', deposit.principal, currency, interest, totalAmount) };
         } else {
             const penalty = Math.floor(deposit.principal * 0.02);
             const refundAmount = deposit.principal - penalty;
-            if (!addPlayerMoney(player, refundAmount, "定期提前取出")) return { success: false, message: "§c取款失败，货币系统异常" };
+            if (!addPlayerMoney(player, refundAmount, t(lang, 'bank.reason_fixed_early'))) return { success: false, message: t(lang, 'bank.err_withdraw_failed') };
             account.fixed.splice(depositIndex, 1);
             savePlayerDataNow();
-            return { success: true, message: "§a定期存款提前取出成功！本金 " + deposit.principal + " 点§c" + getCurrencyName() + "§r，扣除违约金 " + penalty + " 点§c" + getCurrencyName() + "§r，实际取回 " + refundAmount + " 点§c" + getCurrencyName() + "§r" };
+            return { success: true, message: t(lang, 'bank.early_withdraw_success', deposit.principal, currency, penalty, refundAmount) };
         }
     }
 
     /**
-     * 玩家上线时检查定期存款是否到期，并发送提醒（需玩家开启银行通知设置）
+     * 玩家上线时检查定期存款是否到期
      * @param {object} player - 玩家对象
-     * @param {function} getPlayerSetting - 获取玩家设置的函数
+     * @param {function} getPlayerSettingFn - 获取玩家设置的函数
      */
-    function checkFixedDepositMaturity(player, getPlayerSetting) {
+    function checkFixedDepositMaturity(player, getPlayerSettingFn) {
         let xuid = player.xuid;
-        if (!getPlayerSetting(xuid, "enableBankNotice")) return;
+        if (!getPlayerSettingFn(xuid, "enableBankNotice")) return;
         let account = getPlayerBankAccount(xuid);
+        let lang = getLocale(xuid);
         account.fixed.forEach(function(deposit) {
             if (isFixedDepositMature(deposit)) {
                 let datePart = deposit.matureTime.split('.').slice(0, 3).join('.');
-                player.tell("§b[" + getCurrencyName() + "储所] §a您于 " + datePart + " 为期" + deposit.days + "天的定期存款已到期，可以取出了！");
+                player.tell(t(lang, 'bank.maturity_notice', getCurrencyName(), datePart, deposit.days));
             }
         });
     }
 
-    /** 显示银行主界面：活期余额、累计利息、利率说明 */
+    /** 显示银行主界面 */
     function showBankMainForm(player) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
+        let lang = getLocale(xuid);
+        let currency = getCurrencyName();
         calculateCurrentInterest(account);
 
         let gui = mc.newSimpleForm();
-        gui.setTitle("§l§b" + getCurrencyName() + "储所");
+        gui.setTitle(t(lang, 'bank.title', currency));
 
         let content = "-------------------------\n";
-        content += "§a活期余额：§f" + Math.floor(account.current.balance) + " 点§c" + getCurrencyName() + "§r\n";
-        content += "§a累计利息：§f" + Math.floor(account.current.totalInterest) + " 点§c" + getCurrencyName() + "§r\n";
-        content += "§a活期利率：§f0.02%%天\n";
-        content += "§a定期利率：\n§f周(7日) 0.11%%/期 \n月（30日） 0.99%%/期 \n季（90日） 4.4%%/期\n\n";
+        content += t(lang, 'bank.balance', Math.floor(account.current.balance), currency) + "\n";
+        content += t(lang, 'bank.total_interest', Math.floor(account.current.totalInterest), currency) + "\n";
+        content += t(lang, 'bank.current_rate') + "\n";
+        content += t(lang, 'bank.fixed_rates') + "\n";
         content += "-------------------------\n";
-        content += "§6说明:活期存款采用单利计息，日利率固定为§a0.02%%§6，利息基于本金计算，支持随时存取；定期存款提供7、30、90天固定期限，到期时本金与利息一并返还，但若提前取出则只能取回本金并§m扣除§6本金§a2%%§6的手续费，利息全部扣除\n";
+        content += t(lang, 'bank.description');
 
         gui.setContent(content);
-        gui.addButton("§a活期存取", "textures/ui/huoqi");
-        gui.addButton("§b定期存款", "textures/ui/dq");
-        gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+        gui.addButton(t(lang, 'bank.current_op'), "textures/ui/huoqi");
+        gui.addButton(t(lang, 'bank.fixed_deposit'), "textures/ui/dq");
+        gui.addButton(t(lang, 'bank.back'), "textures/ui/recap_glyph_desaturated");
 
         player.sendForm(gui, function(p, id) {
             if (id === null) return;
@@ -294,48 +313,52 @@ function createBankModule(deps) {
         });
     }
 
-    /** 显示活期存取表单：正数存款，负数取款 */
+    /** 显示活期存取表单 */
     function showCurrentOperationForm(player) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
+        let lang = getLocale(xuid);
+        let currency = getCurrencyName();
         calculateCurrentInterest(account);
 
         let gui = mc.newCustomForm();
-        gui.setTitle("§l§a活期存取");
-        gui.addLabel("§a当前银行余额：" + Math.floor(account.current.balance) + " 点§c" + getCurrencyName() + "§r\n§a当前持有余额：" + getPlayerMoney(player) + " 点§c" + getCurrencyName() + "§r\n§a提示：输入正数为存款，负数为取款");
-        gui.addInput("输入金额", "例如：100 或 -50", "");
+        gui.setTitle(t(lang, 'bank.current_op_title'));
+        gui.addLabel(t(lang, 'bank.current_balance', Math.floor(account.current.balance), currency) + "\n" + t(lang, 'bank.current_held', getPlayerMoney(player), currency) + "\n" + t(lang, 'bank.current_hint'));
+        gui.addInput(t(lang, 'bank.input_amount'), t(lang, 'bank.input_placeholder'), "");
 
         player.sendForm(gui, function(p, data) {
             if (data == null || typeof data !== "object" || data.length < 2) { showBankMainForm(p); return; }
             let amountStr = (data[1] || "").trim();
             let amount = parseFloat(amountStr);
-            if (isNaN(amount)) { p.tell("§c请输入有效的金额"); showCurrentOperationForm(p); return; }
+            if (isNaN(amount)) { p.tell(t(lang, 'bank.err_invalid_amount')); showCurrentOperationForm(p); return; }
             let result = performCurrentOperation(p, amount);
             p.tell("" + result.message);
-            p.sendModalForm(result.success ? "§a操作成功" : "§c操作失败", result.message, "§a返回", "§c关闭", function(player) { showBankMainForm(player); });
+            p.sendModalForm(result.success ? t(lang, 'bank.op_success') : t(lang, 'bank.op_failed'), result.message, t(lang, 'bank.back'), t(lang, 'bank.cancel'), function(player) { showBankMainForm(player); });
         });
     }
 
-    /** 显示定期存款主界面：利率信息、我的定期入口、存入定期入口 */
+    /** 显示定期存款主界面 */
     function showFixedDepositMainForm(player) {
         let xuid = player.xuid;
         let account = getPlayerBankAccount(xuid);
+        let lang = getLocale(xuid);
+        let currency = getCurrencyName();
         let gui = mc.newSimpleForm();
-        gui.setTitle("§l§b定期存款");
+        gui.setTitle(t(lang, 'bank.fixed_title'));
 
         let content = "-------------------------\n";
-        content += "§a当前持有余额：§f" + getPlayerMoney(player) + " 点§c" + getCurrencyName() + "§r\n";
-        content += "§a定期存款数：§f" + account.fixed.length + " 个\n";
+        content += t(lang, 'bank.current_held', getPlayerMoney(player), currency) + "\n";
+        content += t(lang, 'bank.fixed_count', account.fixed.length);
         content += "-------------------------\n";
-        content += "§e定期存款利率：\n";
-        content += "§f周存（7天）：" + (FIXED_DEPOSIT_CONFIG[7].rate * 100).toFixed(1) + "%%/期\n";
-        content += "§f月存（30天）：" + (FIXED_DEPOSIT_CONFIG[30].rate * 100).toFixed(2) + "%%/期\n";
-        content += "§f季存（90天）：" + (FIXED_DEPOSIT_CONFIG[90].rate * 100).toFixed(1) + "%%/期\n";
+        content += t(lang, 'bank.fixed_rates_title');
+        content += t(lang, 'bank.fixed_rate_week', (FIXED_DEPOSIT_CONFIG[7].rate * 100).toFixed(1));
+        content += t(lang, 'bank.fixed_rate_month', (FIXED_DEPOSIT_CONFIG[30].rate * 100).toFixed(2));
+        content += t(lang, 'bank.fixed_rate_season', (FIXED_DEPOSIT_CONFIG[90].rate * 100).toFixed(1));
 
         gui.setContent(content);
-        gui.addButton("§a我的定期", "textures/ui/achievements_pause_menu_icon");
-        gui.addButton("§b存入定期", "textures/ui/backup_replace");
-        gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+        gui.addButton(t(lang, 'bank.my_fixed'), "textures/ui/achievements_pause_menu_icon");
+        gui.addButton(t(lang, 'bank.deposit_fixed'), "textures/ui/backup_replace");
+        gui.addButton(t(lang, 'bank.back'), "textures/ui/recap_glyph_desaturated");
 
         player.sendForm(gui, function(p, id) {
             if (id === null) return;
@@ -349,21 +372,22 @@ function createBankModule(deps) {
     function showFixedDepositDetailForm(player) {
         const xuid = player.xuid;
         const account = getPlayerBankAccount(xuid);
+        let lang = getLocale(xuid);
         if (account.fixed.length === 0) {
-            player.sendModalForm("§c无定期存款", "§a您当前没有定期存款", "§a返回", "§c关闭", function(player) { showFixedDepositMainForm(player); });
+            player.sendModalForm(t(lang, 'bank.no_fixed'), t(lang, 'bank.no_fixed_msg'), t(lang, 'bank.back'), t(lang, 'bank.cancel'), function(player) { showFixedDepositMainForm(player); });
             return;
         }
         let gui = mc.newSimpleForm();
-        gui.setTitle("§l§b定期存款详情");
+        gui.setTitle(t(lang, 'bank.fixed_detail_title'));
         account.fixed.forEach(function(deposit) {
-            let status = getFixedDepositStatus(deposit);
+            let status = getFixedDepositStatus(deposit, lang);
             let isMature = isFixedDepositMature(deposit);
             const datePart = deposit.matureTime.split('.').slice(0, 3).join('.');
-            const buttonText = "§a" + datePart + " 为期" + deposit.days + "天的存款\n§e状态：" + status;
+            const buttonText = t(lang, 'bank.fixed_item_text', datePart, deposit.days, status);
             const icon = isMature ? "textures/ui/daole" : "textures/ui/meidao";
             gui.addButton(buttonText, icon);
         });
-        gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+        gui.addButton(t(lang, 'bank.back'), "textures/ui/recap_glyph_desaturated");
         player.sendForm(gui, function(p, id) {
             if (id === null) return;
             if (id === account.fixed.length) { showFixedDepositMainForm(p); }
@@ -373,50 +397,45 @@ function createBankModule(deps) {
 
     /** 显示单笔定期存款详情 */
     function showSingleFixedDepositForm(player, deposit) {
+        let lang = getLocale(player.xuid);
+        let currency = getCurrencyName();
         let gui = mc.newSimpleForm();
-        gui.setTitle("§l§b定期存款详情");
-        const status = getFixedDepositStatus(deposit);
+        gui.setTitle(t(lang, 'bank.fixed_detail_title'));
+        const status = getFixedDepositStatus(deposit, lang);
         const isMature = isFixedDepositMature(deposit);
         let content = "-------------------------\n";
-        content += "§a存款金额：§f" + deposit.principal + " 点§c" + getCurrencyName() + "§r\n";
-        content += "§a存款期限：§f" + deposit.days + " 天（" + FIXED_DEPOSIT_CONFIG[deposit.days].name + "）\n";
-        content += "§a存款利率：§f" + (deposit.rate * 100).toFixed(deposit.rate < 0.01 ? 2 : 1) + "%%/期\n";
-        content += "§a存款时间：§f" + deposit.startTime + "\n";
-        content += "§a到期时间：§f" + deposit.matureTime + "\n";
-        content += "§a当前状态：§f" + status + "\n";
+        content += t(lang, 'bank.principal', deposit.principal, currency);
+        content += t(lang, 'bank.duration', deposit.days, t(lang, FIXED_DEPOSIT_CONFIG[deposit.days].nameKey));
+        content += t(lang, 'bank.rate', (deposit.rate * 100).toFixed(deposit.rate < 0.01 ? 2 : 1));
+        content += t(lang, 'bank.start_time', deposit.startTime);
+        content += t(lang, 'bank.mature_time', deposit.matureTime);
+        content += t(lang, 'bank.status', status);
         if (isMature) {
             const interest = Math.floor(calculateFixedInterest(deposit.principal, deposit.rate, deposit.days));
             const totalAmount = Math.floor(deposit.principal + interest);
-            content += "§a到期收益：§f" + interest + " 点§c" + getCurrencyName() + "§r\n";
-            content += "§a总计金额：§f" + totalAmount + " 点§c" + getCurrencyName() + "§r\n";
+            content += t(lang, 'bank.mature_income', interest, currency);
+            content += t(lang, 'bank.total_amount', totalAmount, currency);
         }
         content += "-------------------------\n";
         gui.setContent(content);
-        gui.addButton("§a取出", "textures/ui/backup_replace");
-        gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+        gui.addButton(t(lang, 'bank.withdraw'), "textures/ui/backup_replace");
+        gui.addButton(t(lang, 'bank.back'), "textures/ui/recap_glyph_desaturated");
         player.sendForm(gui, function(p, id) {
             if (id === null) return;
             if (id === 0) {
                 if (isMature) {
                     let result = withdrawFixed(p, deposit.id);
                     p.tell("" + result.message);
-                    p.sendModalForm("§a取出成功", result.message, "§a返回", "§c关闭", function(player) { showFixedDepositMainForm(player); });
+                    p.sendModalForm(t(lang, 'bank.withdraw_success'), result.message, t(lang, 'bank.back'), t(lang, 'bank.cancel'), function(player) { showFixedDepositMainForm(player); });
                 } else {
-                    p.sendModalForm("§c警告",
-                        "-------------------------\n" +
-                        "§c定期存款尚未到期\n" +
-                        "§a取出将扣除本金百分之2的违约金\n" +
-                        "§a本金：" + deposit.principal + " 点§c" + getCurrencyName() + "§r\n" +
-                        "§c违约金：" + Math.floor(deposit.principal * 0.02) + " 点§c" + getCurrencyName() + "§r\n" +
-                        "§a实际取回：" + (deposit.principal - Math.floor(deposit.principal * 0.02)) + " 点§c" + getCurrencyName() + "§r\n" +
-                        "-------------------------\n" +
-                        "§e确认是否取出？",
-                        "§a确认取出", "§c取消",
+                    p.sendModalForm(t(lang, 'bank.early_withdraw_warn'),
+                        t(lang, 'bank.early_withdraw_msg', deposit.principal, currency, Math.floor(deposit.principal * 0.02), deposit.principal - Math.floor(deposit.principal * 0.02)),
+                        t(lang, 'bank.confirm_withdraw'), t(lang, 'bank.cancel'),
                         function(player, res) {
                             if (res) {
                                 let result = withdrawFixed(player, deposit.id);
                                 player.tell("" + result.message);
-                                player.sendModalForm("§a取出成功", result.message, "§a返回", "§c关闭", function(player) { showFixedDepositMainForm(player); });
+                                player.sendModalForm(t(lang, 'bank.withdraw_success'), result.message, t(lang, 'bank.back'), t(lang, 'bank.cancel'), function(player) { showFixedDepositMainForm(player); });
                             } else {
                                 showSingleFixedDepositForm(player, deposit);
                             }
@@ -429,24 +448,25 @@ function createBankModule(deps) {
 
     /** 显示定期存款存入表单 */
     function showFixedDepositForm(player) {
+        let lang = getLocale(player.xuid);
+        let currency = getCurrencyName();
         const gui = mc.newCustomForm();
-        gui.setTitle("§l§b存入定期");
-        gui.addInput("输入存款金额", "例如：1000", "");
-        gui.addDropdown("选择存款期限", ["7天（周）", "30天（月）", "90天（季）"], 0, "选择定期存款的期限");
+        gui.setTitle(t(lang, 'bank.deposit_input_title'));
+        gui.addInput(t(lang, 'bank.deposit_input_amount'), t(lang, 'bank.deposit_input_placeholder'), "");
+        gui.addDropdown(t(lang, 'bank.deposit_duration_select'), [t(lang, 'bank.deposit_duration_week'), t(lang, 'bank.deposit_duration_month'), t(lang, 'bank.deposit_duration_season')], 0);
         player.sendForm(gui, function(p, data) {
             if (data == null || typeof data !== "object" || data.length < 2) { showFixedDepositMainForm(p); return; }
             const amountStr = (data[0] || "").trim();
             const amount = parseFloat(amountStr);
             const durationIndex = data[1];
-            if (isNaN(amount) || amount <= 0) { p.tell("§c请输入有效的存款金额"); showFixedDepositForm(p); return; }
+            if (isNaN(amount) || amount <= 0) { p.tell(t(lang, 'bank.err_invalid_deposit_amount')); showFixedDepositForm(p); return; }
             const days = [7, 30, 90][durationIndex];
             const result = depositFixed(p, amount, days);
             p.tell("" + result.message);
-            p.sendModalForm(result.success ? "§a操作成功" : "§c操作失败", result.message, "§a返回", "§c关闭", function(player) { showFixedDepositMainForm(player); });
+            p.sendModalForm(result.success ? t(lang, 'bank.op_success') : t(lang, 'bank.op_failed'), result.message, t(lang, 'bank.back'), t(lang, 'bank.cancel'), function(player) { showFixedDepositMainForm(player); });
         });
     }
 
-    // 导出银行模块公开API
     return {
         getPlayerBankAccount: getPlayerBankAccount,
         calculateCurrentInterest: calculateCurrentInterest,

@@ -47,6 +47,7 @@ const guildModule = require('./src/guild');
 const motdModule = require('./src/motd');
 const clearLagModule = require('./src/clearLag');
 const chainModule = require('./src/chain');
+const i18n = require('./src/i18n');
 
 
 // ============ 插件注册 ============
@@ -932,7 +933,8 @@ async function initAllConfigs() {
 		searchPlayers: searchPlayers,
 		notifyEconomyChange: notifyEconomyChange,
 		logger: logger,
-		showPersonalCenterForm: personalCenter.showPersonalCenterForm
+		showPersonalCenterForm: personalCenter.showPersonalCenterForm,
+		t: i18n.t
 	});
 	menuModule.init({ config: config, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData });
 	menuModule.loadConfig();
@@ -1059,7 +1061,9 @@ async function initAllConfigs() {
 		confirmPurchase: economyModule.confirmPurchase,
 		getCurrencyName: getCurrencyName,
 		openMainMenu: personalCenter.openMainMenu,
-		utils: U
+		utils: U,
+		t: i18n.t,
+		getPlayerSetting: playerDataModule.getPlayerSetting
 	});
 	commonDeps.bankModule = bankModule;
 

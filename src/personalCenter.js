@@ -757,12 +757,24 @@ function showPlayerSettingsForm(player) {
 	const settingsForm = mc.newCustomForm();
 	settingsForm.setTitle('§6个人设置');
 	const switchIndices = [];  // 记录每个开关在表单数据中的索引及其对应key
+	const dropdownIndices = []; // 记录每个下拉菜单在表单数据中的索引及其对应key
 	let dataIdx = 0;
 	const schema = C.PLAYER_SETTINGS_SCHEMA;
 	for (let i = 0; i < schema.length; i++) {
 		const item = schema[i];
 		if (item.type === 'label') {
 			settingsForm.addLabel(item.text);
+			dataIdx++;
+		} else if (item.type === 'dropdown') {
+			const currentVal = _deps.getPlayerSetting(xuid, item.key);
+			const currentIdx = item.options.indexOf(currentVal);
+			settingsForm.addDropdown(item.label, item.optionLabels || item.options, currentIdx >= 0 ? currentIdx : 0);
+			dropdownIndices.push({
+				idx: dataIdx,
+				key: item.key,
+				label: item.label,
+				options: item.options
+			});
 			dataIdx++;
 		} else {
 			settingsForm.addSwitch(item.label, _deps.getPlayerSetting(xuid, item.key));
@@ -793,6 +805,17 @@ function showPlayerSettingsForm(player) {
 				_deps.setPlayerSetting(xuid, si.key, newVal);
 				// 去掉Minecraft颜色代码后通知玩家
 				p.tell('§e[个人] §a' + si.label.replace(/§./g, '') + '已' + (newVal ? '开启' : '关闭') + '！');
+				changed = true;
+			}
+		}
+		for (let k = 0; k < dropdownIndices.length; k++) {
+			const di = dropdownIndices[k];
+			const selectedIdx = data[di.idx];
+			const newVal = di.options[selectedIdx];
+			const oldVal = _deps.getPlayerSetting(xuid, di.key);
+			if (newVal !== oldVal && newVal !== undefined) {
+				_deps.setPlayerSetting(xuid, di.key, newVal);
+				p.tell('§e[个人] §a' + di.label.replace(/§./g, '') + '已修改为：' + (di.options[selectedIdx]) + '！');
 				changed = true;
 			}
 		}

@@ -197,7 +197,8 @@ const DEFAULT_PLAYER_SETTINGS = {
     enableFriendRequestNotification: true,
     enableMailNotification: true,
     enableTpaRejectMode: false,
-    enableChain: true
+    enableChain: true,
+    locale: "zh_CN"
 };
 
 /** 设置界面表单描述：type=label 为分组标题，type 未指定为可切换的布尔设置项 */
@@ -226,7 +227,9 @@ const PLAYER_SETTINGS_SCHEMA = [
     { key: 'enableFriendRequestNotification', label: '§e好友请求提醒' },
     { key: 'enableMailNotification', label: '§e新邮件提醒' },
     { type: 'label', text: '§b传送设置' },
-    { key: 'enableTpaRejectMode', label: '§c拒绝所有传送请求' }
+    { key: 'enableTpaRejectMode', label: '§c拒绝所有传送请求' },
+    { type: 'label', text: '§b语言设置' },
+    { type: 'dropdown', key: 'locale', label: '§e语言', options: ['zh_CN'], optionLabels: ['简体中文'] }
 ];
 
 /** 附魔书商店默认配置：附魔ID -> { 中文名, 最大等级, 每级花费 } */
