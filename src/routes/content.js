@@ -23,6 +23,34 @@
 
 function registerRoutes(router, d) {
 
+    // 获取当前用户的留言列表
+    router.get('/messages/my', d.auth, function(req, res) {
+        try {
+            let userXuid = d.getXuidByUid(req.user.uid) || req.user.uid;
+            let options = {
+                page: req.query.page,
+                pageSize: req.query.pageSize,
+                search: req.query.search,
+                mood: req.query.mood,
+                xuid: userXuid,
+                includeDeleted: req.query.includeDeleted === 'true'
+            };
+
+            let result = d.messageBoard.getMessages(options);
+
+            // 标记当前用户可以删除自己的留言
+            result.messages = result.messages.map(function(m) {
+                let msg = Object.assign({}, m);
+                msg.canDelete = true;
+                return msg;
+            });
+
+            res.json({ code: 200, data: result });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '获取我的留言列表失败: ' + e.message });
+        }
+    });
+
     // 获取留言板列表
     router.get('/messages', d.auth, function(req, res) {
         try {
@@ -37,11 +65,9 @@ function registerRoutes(router, d) {
                 includeDeleted: false
             };
 
-            // 管理员可查看已删除留言和全部玩家留言
+            // 管理员可查看已删除留言
             if (isAdminUser) {
                 options.includeDeleted = req.query.includeDeleted === 'true';
-            } else {
-                options.xuid = userXuid;
             }
 
             let result = d.messageBoard.getMessages(options);

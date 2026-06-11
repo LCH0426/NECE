@@ -31,16 +31,21 @@ let messageBoardData = {
     messages: [],
     nextId: 1
 };
+let _deps = {};
+let t = null;
 // 数据保存后的回调列表
 const _onSaveCallbacks = [];
 
 /**
  * 初始化留言板模块，加载数据并修复缺失字段
  * @param {DataManager} dm - 留言板数据的 DataManager 实例
+ * @param {Object} deps - 依赖对象
  */
-function init(dm) {
+function init(dm, deps) {
 	D.debugLogModule('messageBoard')('init: 初始化完成');
     messageBoardDM = dm;
+    _deps = deps || {};
+    t = _deps.t;
     messageBoardData = messageBoardDM.load();
     if (!Array.isArray(messageBoardData.messages)) messageBoardData.messages = [];
     if (typeof messageBoardData.nextId !== 'number') messageBoardData.nextId = 1;
@@ -57,6 +62,27 @@ function init(dm) {
         }
     });
     if (needFix) saveData();
+}
+
+/**
+ * 获取玩家语言设置
+ * @param {string} xuid
+ * @returns {string}
+ */
+function getLocale(xuid) {
+    if (_deps.getPlayerSetting) {
+        var locale = _deps.getPlayerSetting(xuid, 'locale');
+        if (locale) return locale;
+    }
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+}
+
+/**
+ * 获取系统默认语言
+ * @returns {string}
+ */
+function getSystemLang() {
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
 }
 
 /**
@@ -82,18 +108,19 @@ function getData() {
 function showMainForm(player) {
     let xuid = player.xuid;
     const playerName = player.realName;
+    const lang = getLocale(xuid);
     let validMessages = (messageBoardData.messages || []).filter(function(m) { return !m.isDeleted; });
     let myMessages = validMessages.filter(function(m) { return m.xuid === xuid; });
 
     let fm = mc.newSimpleForm();
-    fm.setTitle("§a留言板");
-    fm.setContent("§6——————————————\n§f玩家ID：§a" + playerName + "\n§f服务器总留言数：§a" + messageBoardData.messages.length + " §f条（有效：§a" + validMessages.length + "§f条）\n§f我的有效留言数：§a" + myMessages.length + " §f条\n§6——————————————");
+    fm.setTitle(t(lang, 'mb.title'));
+    fm.setContent(t(lang, 'mb.main_content', playerName, messageBoardData.messages.length, validMessages.length, myMessages.length));
 
-    fm.addButton("§a新增留言", "textures/ui/book_edit_hover.png");
-    fm.addButton("§6我的留言", "textures/ui/comment");
-    fm.addButton("§d所有留言", "textures/ui/world_glyph_color_2x");
-    fm.addButton("§b随机留言", "textures/ui/recap_glyph_desaturated");
-    fm.addButton("§c搜索留言", "textures/ui/magnifyingGlass");
+    fm.addButton(t(lang, 'mb.btn_add'), "textures/ui/book_edit_hover.png");
+    fm.addButton(t(lang, 'mb.btn_my'), "textures/ui/comment");
+    fm.addButton(t(lang, 'mb.btn_all'), "textures/ui/world_glyph_color_2x");
+    fm.addButton(t(lang, 'mb.btn_random'), "textures/ui/recap_glyph_desaturated");
+    fm.addButton(t(lang, 'mb.btn_search'), "textures/ui/magnifyingGlass");
 
     player.sendForm(fm, function(pl, id) {
         if (id === null) return;
@@ -113,10 +140,11 @@ function showMainForm(player) {
  * @param {Player} player
  */
 function createAddMessageForm(player) {
+    const lang = getLocale(player.xuid);
     let fm = mc.newCustomForm();
-    fm.setTitle("§6新增留言");
-    fm.addInput("§f请输入留言内容（最多200字符）", "string", "");
-    fm.addDropdown("§f选择心情", C.MOOD_OPTIONS, 0);
+    fm.setTitle(t(lang, 'mb.add_title'));
+    fm.addInput(t(lang, 'mb.add_content_label'), "string", "");
+    fm.addDropdown(t(lang, 'mb.mood_label'), C.MOOD_OPTIONS, 0);
 
     player.sendForm(fm, function(pl, data) {
         if (data == null || !Array.isArray(data)) {
@@ -126,12 +154,12 @@ function createAddMessageForm(player) {
         let msg = String(data[0] || "").trim();
         const moodIndex = typeof data[1] === 'number' ? data[1] : 2;
         if (!msg || msg.length > 200) {
-            pl.tell("§c[留言板] 留言内容不能为空且不能超过200字符！");
+            pl.tell(t(lang, 'mb.err_content'));
             createAddMessageForm(pl);
             return;
         }
         const device = pl.getDevice();
-        const client = device ? device.os : "未知";
+        const client = device ? device.os : t(lang, 'mb.unknown_device');
         const newMessage = {
             id: messageBoardData.nextId,
             xuid: pl.xuid,
@@ -145,7 +173,7 @@ function createAddMessageForm(player) {
         messageBoardData.messages.push(newMessage);
         messageBoardData.nextId++;
         if (saveData()) {
-            pl.tell("§a[留言板] 留言发布成功！");
+            pl.tell(t(lang, 'mb.add_success'));
         }
         showMainForm(pl);
     });
@@ -158,6 +186,7 @@ function createAddMessageForm(player) {
  */
 function createMyMessagesForm(player, page) {
     let xuid = player.xuid;
+    const lang = getLocale(xuid);
     let pageSize = 10;
     // 按时间降序排列
     const myMessages = messageBoardData.messages.filter(function(m) { return m.xuid === xuid && !m.isDeleted; }).reverse();
@@ -166,28 +195,24 @@ function createMyMessagesForm(player, page) {
     let pageMessages = myMessages.slice(startIndex, startIndex + pageSize);
 
     let fm = mc.newSimpleForm();
-    fm.setTitle("§6我的留言");
+    fm.setTitle(t(lang, 'mb.my_title'));
 
-    let content = "§f当前页：§a第 " + page + "/" + totalPages + " 页（每页" + pageSize + "条）\n";
+    let content = t(lang, 'mb.page_info', page, totalPages, pageSize);
     content += "§6——————————————\n";
 
     if (pageMessages.length === 0) {
-        content += "§c你还没有发布任何留言～\n§a点击下方按钮发布第一条留言吧！";
+        content += t(lang, 'mb.no_messages');
     } else {
         pageMessages.forEach(function(msg) {
-            content += "§6留言 #" + msg.id + "\n";
-            content += "  §f心情：§a" + msg.mood + "\n";
-            content += "  §f发布时间：§b" + msg.time + "\n";
-            content += "  §f内容：" + msg.msg + "\n";
-            content += "§6——————————————\n";
+            content += t(lang, 'mb.message_item', msg.id, msg.mood, msg.time, msg.msg);
         });
     }
 
     fm.setContent(content);
-    fm.addButton("§a新增留言", "textures/ui/book_edit_hover.png");
-    if (page > 1) fm.addButton("§a上一页", "textures/ui/arrow_left");
-    if (page < totalPages) fm.addButton("§a下一页", "textures/ui/arrow_right");
-    fm.addButton("§c返回主表单", "textures/ui/recap_glyph_desaturated");
+    fm.addButton(t(lang, 'mb.btn_add'), "textures/ui/book_edit_hover.png");
+    if (page > 1) fm.addButton(t(lang, 'mb.btn_prev'), "textures/ui/arrow_left");
+    if (page < totalPages) fm.addButton(t(lang, 'mb.btn_next'), "textures/ui/arrow_right");
+    fm.addButton(t(lang, 'mb.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(fm, function(pl, id) {
         if (id === null) return;
@@ -213,6 +238,7 @@ function createMyMessagesForm(player, page) {
  * @param {number} page - 页码（从1开始）
  */
 function createAllMessagesForm(player, page) {
+    const lang = getLocale(player.xuid);
     let pageSize = 10;
     const allMessages = messageBoardData.messages.filter(function(m) { return !m.isDeleted; }).reverse();
     let totalPages = Math.ceil(allMessages.length / pageSize) || 1;
@@ -222,29 +248,24 @@ function createAllMessagesForm(player, page) {
     const activeCount = allMessages.length;
 
     let fm = mc.newSimpleForm();
-    fm.setTitle("§d所有留言");
+    fm.setTitle(t(lang, 'mb.all_title'));
 
-    let content = "§f总留言数：§a" + totalCount + " 条（有效：§a" + activeCount + " 条）\n";
-    content += "§f当前页：§a第 " + page + "/" + totalPages + " 页（每页" + pageSize + "条）\n";
+    let content = t(lang, 'mb.all_stats', totalCount, activeCount);
+    content += t(lang, 'mb.page_info', page, totalPages, pageSize);
     content += "§6——————————————\n";
 
     if (pageMessages.length === 0) {
-        content += "§c当前页暂无留言\n";
+        content += t(lang, 'mb.no_messages_page');
     } else {
         pageMessages.forEach(function(msg) {
-            content += "§6留言 #" + msg.id + "\n";
-            content += "  §f作者：§a" + msg.playerName + " §f| 心情：§a" + msg.mood + "\n";
-            content += "  §f来自 §b" + msg.client + " §f客户端\n";
-            content += "  §f发布时间：§b" + msg.time + "\n";
-            content += "  §f内容：" + msg.msg + "\n";
-            content += "§6——————————————\n";
+            content += t(lang, 'mb.all_message_item', msg.id, msg.playerName, msg.mood, msg.client, msg.time, msg.msg);
         });
     }
 
     fm.setContent(content);
-    if (page > 1) fm.addButton("§a上一页", "textures/ui/arrow_left");
-    if (page < totalPages) fm.addButton("§a下一页", "textures/ui/arrow_right");
-    fm.addButton("§c返回主表单", "textures/ui/recap_glyph_desaturated");
+    if (page > 1) fm.addButton(t(lang, 'mb.btn_prev'), "textures/ui/arrow_left");
+    if (page < totalPages) fm.addButton(t(lang, 'mb.btn_next'), "textures/ui/arrow_right");
+    fm.addButton(t(lang, 'mb.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(fm, function(pl, id) {
         if (id === null) return;
@@ -267,47 +288,48 @@ function createAllMessagesForm(player, page) {
  * @param {Object} message - 留言对象
  */
 function showMessageDetail(player, message) {
+    const lang = getLocale(player.xuid);
     const isOwnMessage = message.xuid === player.xuid;
     let content = "§6——————————————\n";
-    content += "§f留言ID：§a" + message.id + "\n";
-    content += "§f作者：§a" + message.playerName + "\n";
-    content += "§f心情：§a" + message.mood + "\n";
-    content += "§f发布时间：§b" + message.time + "\n";
-    content += "§f客户端：§b" + message.client + "\n";
+    content += t(lang, 'mb.detail_id', message.id);
+    content += t(lang, 'mb.detail_author', message.playerName);
+    content += t(lang, 'mb.detail_mood', message.mood);
+    content += t(lang, 'mb.detail_time', message.time);
+    content += t(lang, 'mb.detail_client', message.client);
     content += "§6——————————————\n";
-    content += "§f留言内容：\n§e" + message.msg + "\n";
+    content += t(lang, 'mb.detail_content', message.msg);
 
     if (message.isDeleted) {
         content += "\n§6——————————————\n";
-        content += "§c此留言已被删除\n";
-        content += "§f删除前发布于：§b" + message.time + "\n";
-        content += "§f删除前客户端：§b" + message.client + "\n";
+        content += t(lang, 'mb.detail_deleted');
+        content += t(lang, 'mb.detail_deleted_time', message.time);
+        content += t(lang, 'mb.detail_deleted_client', message.client);
     }
 
     let fm = mc.newSimpleForm();
-    fm.setTitle("§b留言详情 #" + message.id);
+    fm.setTitle(t(lang, 'mb.detail_title', message.id));
     fm.setContent(content);
     // 仅作者可见删除按钮
     if (isOwnMessage && !message.isDeleted) {
-        fm.addButton("§c删除这条留言", "textures/ui/trash_default");
+        fm.addButton(t(lang, 'mb.btn_delete'), "textures/ui/trash_default");
     }
-    fm.addButton("§a返回主表单", "textures/ui/recap_glyph_desaturated");
+    fm.addButton(t(lang, 'mb.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(fm, function(pl, id) {
         if (id === null) return;
         if (id === 0 && isOwnMessage && !message.isDeleted) {
             pl.sendModalForm(
-                "§c确认删除",
-                "§f确定要删除留言 #" + message.id + " 吗？\n§f删除后将无法恢复！",
-                "§c删除",
-                "§a取消", function(p, result) {
+                t(lang, 'mb.delete_confirm_title'),
+                t(lang, 'mb.delete_confirm_content', message.id),
+                t(lang, 'mb.btn_delete'),
+                t(lang, 'mb.btn_cancel'), function(p, result) {
                     if (result === true) {
                         // 软删除：标记 isDeleted 而非从数组移除
                         const msgIndex = messageBoardData.messages.findIndex(function(m) { return m.id === message.id; });
                         if (msgIndex !== -1) {
                             messageBoardData.messages[msgIndex].isDeleted = true;
                             if (saveData()) {
-                                p.tell("§a[留言板] 留言 #" + message.id + " 已删除！");
+                                p.tell(t(lang, 'mb.delete_success', message.id));
                             }
                         }
                     }
@@ -324,9 +346,10 @@ function showMessageDetail(player, message) {
  * @param {Player} player
  */
 function showRandomMessage(player) {
+    const lang = getLocale(player.xuid);
     const validMessages = messageBoardData.messages.filter(function(m) { return !m.isDeleted; });
     if (validMessages.length === 0) {
-        player.tell("§c[留言板] 暂无有效留言！");
+        player.tell(t(lang, 'mb.no_valid_messages'));
         showMainForm(player);
         return;
     }
@@ -334,20 +357,20 @@ function showRandomMessage(player) {
     const randomMessage = validMessages[randomIndex];
 
     let fm = mc.newSimpleForm();
-    fm.setTitle("§b随机留言 #" + randomMessage.id);
+    fm.setTitle(t(lang, 'mb.random_title', randomMessage.id));
 
     let content = "§6——————————————\n";
-    content += "§f留言ID：§a" + randomMessage.id + "\n";
-    content += "§f作者：§a" + randomMessage.playerName + "\n";
-    content += "§f心情：§a" + randomMessage.mood + "\n";
-    content += "§f发布时间：§b" + randomMessage.time + "\n";
-    content += "§f来自 §b" + randomMessage.client + "\n";
+    content += t(lang, 'mb.detail_id', randomMessage.id);
+    content += t(lang, 'mb.detail_author', randomMessage.playerName);
+    content += t(lang, 'mb.detail_mood', randomMessage.mood);
+    content += t(lang, 'mb.detail_time', randomMessage.time);
+    content += t(lang, 'mb.detail_from', randomMessage.client);
     content += "§6——————————————\n";
-    content += "§f留言内容：\n§e" + randomMessage.msg + "\n";
+    content += t(lang, 'mb.detail_content', randomMessage.msg);
 
     fm.setContent(content);
-    fm.addButton("§a再随机一条");
-    fm.addButton("§c返回主表单", "textures/ui/recap_glyph_desaturated");
+    fm.addButton(t(lang, 'mb.btn_random_again'));
+    fm.addButton(t(lang, 'mb.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(fm, function(pl, id) {
         if (id === null) return;
@@ -361,9 +384,10 @@ function showRandomMessage(player) {
  * @param {Player} player
  */
 function createSearchMessageForm(player) {
+    const lang = getLocale(player.xuid);
     const fm = mc.newCustomForm();
-    fm.setTitle("§c搜索留言");
-    fm.addInput("§f请输入留言ID（数字）", "ID", "");
+    fm.setTitle(t(lang, 'mb.search_title'));
+    fm.addInput(t(lang, 'mb.search_input'), "ID", "");
 
     player.sendForm(fm, function(pl, data) {
         if (data == null) {
@@ -374,13 +398,13 @@ function createSearchMessageForm(player) {
         if (input === "") return;
         const messageId = parseInt(input);
         if (isNaN(messageId) || messageId <= 0) {
-            pl.tell("§c[留言板] 输入错误！请输入有效的数字ID！");
+            pl.tell(t(lang, 'mb.err_invalid_id'));
             createSearchMessageForm(pl);
             return;
         }
         const message = messageBoardData.messages.find(function(m) { return m.id === messageId; });
         if (!message) {
-            pl.tell("§c[留言板] 未找到留言 #" + messageId + "！");
+            pl.tell(t(lang, 'mb.err_not_found', messageId));
             createSearchMessageForm(pl);
             return;
         }

@@ -1,6 +1,6 @@
 {
   "debug": false,
-  "currencyName": "星茜",
+  "language": "zh_CN",
   "sidebarCompact": false,
   "titles": {
     "defaultTitle": "萌新",
@@ -320,9 +320,7 @@
   "clearLag": {
     "enabled": true,
     "interval": 600,
-    "reminderSeconds": 60,
-    "message": "§e[清理] §6即将清理服务器多余怪物，请注意！",
-    "cleanMessage": "§e[清理] §a已清理 {count} 个多余怪物！",
+    "reminderSeconds": 0,
     "cleanTypes": [
       "minecraft:zombie",
       "minecraft:zombie_villager",

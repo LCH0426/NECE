@@ -33,6 +33,22 @@ function createVipModule(deps) {
     const addPlayerMoney = deps.addPlayerMoney;
     const getCurrencyName = deps.getCurrencyName;
     const openMainMenu = deps.openMainMenu;
+    const t = deps.t;
+    const getPlayerSetting = deps.getPlayerSetting;
+    const getSystemLanguage = deps.getSystemLanguage;
+
+    /**
+     * 获取玩家语言设置
+     * @param {string} xuid
+     * @returns {string}
+     */
+    function getLocale(xuid) {
+        if (getPlayerSetting) {
+            var locale = getPlayerSetting(xuid, 'locale');
+            if (locale) return locale;
+        }
+        return getSystemLanguage ? getSystemLanguage() : 'zh_CN';
+    }
 
     /** 检查玩家是否拥有月光祝福 */
     function checkPlayerHasMoonlightBlessing(xuid) {
@@ -91,36 +107,37 @@ function createVipModule(deps) {
 
     /** 显示月光祝福主界面 */
     function showVipMenu(player) {
+        const lang = getLocale(player.xuid);
         let vipInfo = getVipInfo(player);
         let fm = mc.newSimpleForm();
-        fm.setTitle("§l§b月光祝福");
+        fm.setTitle(t(lang, 'vip.title'));
 
         let content = "";
         if (vipInfo.hasVip) {
-            content += "§a当前状态：§e已拥有\n";
+            content += t(lang, 'vip.status_owned');
             if (vipInfo.permanent) {
-                content += "§a到期时间：§f永不过期\n";
-                content += "§a剩余天数：§f永久\n";
+                content += t(lang, 'vip.expire_permanent');
+                content += t(lang, 'vip.remaining_permanent');
             } else {
                 let expireDate = new Date(vipInfo.expireTime);
                 let remainingDays = Math.ceil((vipInfo.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
-                content += "§a到期时间：§f" + expireDate.getFullYear() + "年" + (expireDate.getMonth() + 1) + "月" + expireDate.getDate() + "日\n";
-                content += "§a剩余天数：§f" + remainingDays + "天\n";
+                content += t(lang, 'vip.expire_date', expireDate.getFullYear(), expireDate.getMonth() + 1, expireDate.getDate());
+                content += t(lang, 'vip.remaining_days', remainingDays);
             }
-            content += "§a已节约：§f" + vipInfo.totalSaved + " 点§c" + getCurrencyName() + "§r\n";
+            content += t(lang, 'vip.total_saved', vipInfo.totalSaved, getCurrencyName());
             content += "-------------------------\n";
-            content += "§e拥有月光祝福的玩家将可享受商城85%%折扣！";
-            fm.addButton("§l§a守望月光的祝福", "textures/ui/manmoon");
+            content += t(lang, 'vip.discount_info');
+            fm.addButton(t(lang, 'vip.btn_guardian'), "textures/ui/manmoon");
         } else {
-            content += "§a当前状态：§c未拥有\n";
-            content += "§a已节约：§f" + vipInfo.totalSaved + " 点§c" + getCurrencyName() + "§r\n";
+            content += t(lang, 'vip.status_none');
+            content += t(lang, 'vip.total_saved', vipInfo.totalSaved, getCurrencyName());
             content += "-------------------------\n";
-            content += "§e拥有月光祝福的玩家将可享受商城85%%折扣！";
-            fm.addButton("§l§a缔结月光的祝福", "textures/ui/manmoon");
+            content += t(lang, 'vip.discount_info');
+            fm.addButton(t(lang, 'vip.btn_contract'), "textures/ui/manmoon");
         }
 
         fm.setContent(content);
-        fm.addButton("§c返回商城", "textures/ui/recap_glyph_desaturated");
+        fm.addButton(t(lang, 'vip.btn_back_shop'), "textures/ui/recap_glyph_desaturated");
 
         player.sendForm(fm, function(p, id) {
             if (id === null || id === undefined || typeof id !== 'number') {
@@ -132,13 +149,10 @@ function createVipModule(deps) {
             } else if (id === 0) {
                 if (vipInfo.permanent) {
                     p.sendModalForm(
-                        "§l§b月光的祝福",
-                        "-------------------------\n" +
-                        "§e月光的祝福如永恒光环般环绕着你，永不消散。\n" +
-                        "-------------------------\n" +
-                        "§e你已拥有永久的月光祝福，将永享商城折扣！",
-                        "§a确定",
-                        "§c返回",
+                        t(lang, 'vip.permanent_title'),
+                        t(lang, 'vip.permanent_content'),
+                        t(lang, 'vip.btn_confirm'),
+                        t(lang, 'vip.btn_back'),
                         function(player, result) {
                             showVipMenu(player);
                         }
@@ -152,38 +166,44 @@ function createVipModule(deps) {
 
     /** 显示VIP购买/续费表单 */
     function showVipPurchaseForm(player) {
+        const lang = getLocale(player.xuid);
         const vipInfo = getVipInfo(player);
         const fm = mc.newCustomForm();
-        fm.setTitle("§l§b月光祝福");
+        fm.setTitle(t(lang, 'vip.title'));
 
         let content = "";
         if (vipInfo.hasVip) {
             if (vipInfo.permanent) {
-                content += "§a当前状态：§e已拥有\n";
-                content += "§a到期时间：§f永不过期\n";
-                content += "§a剩余天数：§f永久\n";
-                content += "§a已节约：§f" + vipInfo.totalSaved + " 点§c" + getCurrencyName() + "§r\n";
+                content += t(lang, 'vip.status_owned');
+                content += t(lang, 'vip.expire_permanent');
+                content += t(lang, 'vip.remaining_permanent');
+                content += t(lang, 'vip.total_saved', vipInfo.totalSaved, getCurrencyName());
                 content += "-------------------------\n";
-                content += "§e拥有月光祝福的玩家将可享受商城85%%折扣！";
+                content += t(lang, 'vip.discount_info');
             } else {
                 let expireDate = new Date(vipInfo.expireTime);
                 let remainingDays = Math.ceil((vipInfo.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
-                content += "§a当前状态：§e已拥有\n";
-                content += "§a到期时间：§f" + expireDate.getFullYear() + "年" + (expireDate.getMonth() + 1) + "月" + expireDate.getDate() + "日\n";
-                content += "§a剩余天数：§f" + remainingDays + "天\n";
-                content += "§a已节约：§f" + vipInfo.totalSaved + " 点§c" + getCurrencyName() + "§r\n";
+                content += t(lang, 'vip.status_owned');
+                content += t(lang, 'vip.expire_date', expireDate.getFullYear(), expireDate.getMonth() + 1, expireDate.getDate());
+                content += t(lang, 'vip.remaining_days', remainingDays);
+                content += t(lang, 'vip.total_saved', vipInfo.totalSaved, getCurrencyName());
                 content += "-------------------------\n";
-                content += "§e拥有月光祝福的玩家将可享受商城85%%折扣！";
+                content += t(lang, 'vip.discount_info');
             }
         } else {
-            content += "§a当前状态：§c未拥有\n";
-            content += "§a已节约：§f" + vipInfo.totalSaved + " 点§c" + getCurrencyName() + "§r\n";
+            content += t(lang, 'vip.status_none');
+            content += t(lang, 'vip.total_saved', vipInfo.totalSaved, getCurrencyName());
             content += "-------------------------\n";
-            content += "§e拥有月光祝福的玩家将可享受商城85%%折扣！";
+            content += t(lang, 'vip.discount_info');
         }
 
         fm.addLabel(content);
-        fm.addDropdown("选择时长", ["天卡 (800点§c" + getCurrencyName() + "§r)", "周卡 (4800点§c" + getCurrencyName() + "§r)", "月卡 (16800点§c" + getCurrencyName() + "§r)", "季卡 (48000点§c" + getCurrencyName() + "§r)"], 0, "选择月光祝福的时长");
+        fm.addDropdown(t(lang, 'vip.select_duration'), [
+            t(lang, 'vip.duration_day', getCurrencyName()),
+            t(lang, 'vip.duration_week', getCurrencyName()),
+            t(lang, 'vip.duration_month', getCurrencyName()),
+            t(lang, 'vip.duration_season', getCurrencyName())
+        ], 0);
 
         player.sendForm(fm, function(p, data) {
             if (data == null || data === undefined) {
@@ -191,7 +211,7 @@ function createVipModule(deps) {
             }
 
             if (typeof data !== "object" || !Array.isArray(data) || data.length < 2) {
-                p.tell("§c选择无效，请重新选择");
+                p.tell(t(lang, 'vip.err_invalid_selection'));
                 showVipMenu(p);
                 return;
             }
@@ -200,30 +220,23 @@ function createVipModule(deps) {
 
             const prices = [800, 4800, 16800, 48000];
             const durations = [1, 7, 30, 90];
-            const durationNames = ["天", "周", "月", "季"];
 
             if (typeof selection !== 'number' || isNaN(selection) || selection < 0 || selection >= prices.length) {
-                p.tell("§c选择无效，请重新选择");
+                p.tell(t(lang, 'vip.err_invalid_selection'));
                 showVipPurchaseForm(p);
                 return;
             }
 
             const selectedPrice = prices[selection];
             let selectedDuration = durations[selection];
-            const durationName = durationNames[selection];
 
             const playerMoney = getPlayerMoney(p);
             if (playerMoney < selectedPrice) {
                 p.sendModalForm(
-                    "§c购买失败",
-                    "-------------------------\n" +
-                    "§c购买失败！\n" +
-                    "§c余额不足\n" +
-                    "§a需要：§f" + selectedPrice + " 点§c" + getCurrencyName() + "§r\n" +
-                    "§a当前余额：§f" + playerMoney + " 点§c" + getCurrencyName() + "§r\n" +
-                    "-------------------------",
-                    "§a返回购买",
-                    "§c关闭",
+                    t(lang, 'vip.purchase_failed'),
+                    t(lang, 'vip.insufficient_balance', selectedPrice, getCurrencyName(), playerMoney, getCurrencyName()),
+                    t(lang, 'vip.btn_back_purchase'),
+                    t(lang, 'vip.btn_close'),
                     function(player, result) {
                         if (result === true) {
                             showVipPurchaseForm(player);
@@ -233,16 +246,13 @@ function createVipModule(deps) {
                 return;
             }
 
-            const reduceSuccess = reducePlayerMoney(p, selectedPrice, "月光祝福");
+            const reduceSuccess = reducePlayerMoney(p, selectedPrice, t(lang, 'vip.purchase_reason'));
             if (!reduceSuccess) {
                 p.sendModalForm(
-                    "§c购买失败",
-                    "-------------------------\n" +
-                    "§c购买失败！\n" +
-                    "§c货币系统异常，请稍后重试\n" +
-                    "-------------------------",
-                    "§a返回",
-                    "§c关闭",
+                    t(lang, 'vip.purchase_failed'),
+                    t(lang, 'vip.system_error'),
+                    t(lang, 'vip.btn_back'),
+                    t(lang, 'vip.btn_close'),
                     function(player, result) {
                         if (result === true) {
                             showVipMenu(player);
@@ -267,14 +277,7 @@ function createVipModule(deps) {
                     delete playerData.players[xuid].vipdata.expireTime;
                 }
 
-                successMessage = "-------------------------\n" +
-                    "§a购买成功！\n" +
-                    "§a花费：§f" + selectedPrice + " 点§c" + getCurrencyName() + "§r\n" +
-                    "§a剩余余额：§f" + getPlayerMoney(p) + " 点§c" + getCurrencyName() + "§r\n" +
-                    "§a剩余时间：§f永久\n" +
-                    "§a到期时间：§f永不过期\n" +
-                    "-------------------------\n" +
-                    "§e拥有月光祝福的玩家将可享受商城85%%折扣！";
+                successMessage = t(lang, 'vip.purchase_success_permanent', selectedPrice, getCurrencyName(), getPlayerMoney(p), getCurrencyName());
             } else {
                 let expireTime = vipInfo.hasVip && vipInfo.expireTime ? Math.max(vipInfo.expireTime, now) : now;
                 const newExpireTime = expireTime + (selectedDuration * 24 * 60 * 60 * 1000);
@@ -292,23 +295,16 @@ function createVipModule(deps) {
                 const afterMoney = getPlayerMoney(p);
                 const remainingDays = Math.ceil((newExpireTime - Date.now()) / (1000 * 60 * 60 * 24));
 
-                successMessage = "-------------------------\n" +
-                    "§a购买成功！\n" +
-                    "§a花费：§f" + selectedPrice + " 点§c" + getCurrencyName() + "§r\n" +
-                    "§a剩余余额：§f" + afterMoney + " 点§c" + getCurrencyName() + "§r\n" +
-                    "§a剩余时间：§f" + remainingDays + "天\n" +
-                    "§a到期时间：§f" + expireDate.getFullYear() + "年" + (expireDate.getMonth() + 1) + "月" + expireDate.getDate() + "日\n" +
-                    "-------------------------\n" +
-                    "§e拥有月光祝福的玩家将可享受商城85%%折扣！";
+                successMessage = t(lang, 'vip.purchase_success', selectedPrice, getCurrencyName(), afterMoney, getCurrencyName(), remainingDays, expireDate.getFullYear(), expireDate.getMonth() + 1, expireDate.getDate());
             }
 
             savePlayerDataNow();
 
             p.sendModalForm(
-                "§a购买成功",
+                t(lang, 'vip.purchase_success_title'),
                 successMessage,
-                "§a确定",
-                "§c返回",
+                t(lang, 'vip.btn_confirm'),
+                t(lang, 'vip.btn_back'),
                 function(player, result) {
                     showVipMenu(player);
                 }

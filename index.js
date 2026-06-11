@@ -59,8 +59,6 @@ ll.registerPlugin(PLUGIN_NAME, DESIGNATION_NAME, [1, 9, 9], { Author: PLUGIN_AUT
 
 // ============ 全局路径常量 ============
 const CONFIG_PATH = C.PATHS.CONFIG;
-const PLAYER_DATA_PATH = C.PATHS.PLAYER_DATA;
-const PLAYER_SETTINGS_PATH = C.PATHS.PLAYER_SETTINGS;
 const SHOP_DATA_PATH = C.PATHS.SHOP_DATA;
 const CDK_DATA_PATH = C.PATHS.CDK_DATA;
 const RECYCLE_DATA_PATH = C.PATHS.RECYCLE_DATA;
@@ -69,17 +67,12 @@ const MESSAGEBOARD_DATA_PATH = C.PATHS.MESSAGEBOARD_DATA;
 const WISH_DATA_PATH = C.PATHS.WISH_DATA;
 const ENCHANT_BOOK_SHOP_PATH = C.PATHS.ENCHANT_BOOK_SHOP;
 const SPAWN_EGG_SHOP_PATH = C.PATHS.SPAWN_EGG_SHOP;
-const DEATH_POINT_DATA_PATH = C.PATHS.DEATH_POINT_DATA;
-const FRIEND_DATA_PATH = C.PATHS.FRIEND_DATA;
-const MESSAGE_DATA_PATH = C.PATHS.MESSAGE_DATA;
 const BAN_DATA_PATH = C.PATHS.BAN_DATA;
 const MAIL_DATA_PATH = C.PATHS.MAIL_DATA;
 const NAR_CONFIG_PATH = C.PATHS.NAR_CONFIG;
 const ITEMS_DATA_PATH = C.PATHS.ITEMS_DATA;
-const HOMES_DATA_PATH = C.PATHS.HOMES_DATA;
 const WARPS_DATA_PATH = C.PATHS.WARPS_DATA;
 const BAD_WORDS_PATH = C.PATHS.BAD_WORDS;
-const GUILD_DATA_PATH = C.PATHS.GUILD_DATA;
 
 // ============ 全局运行时状态 ============
 let config;                                            // 主配置（JsonConfigFileAdapter）
@@ -820,13 +813,13 @@ const setPlayerSetting = playerDataModule.setPlayerSetting;
 const wishDM = registerDataManager('wish', WISH_DATA_PATH, {
 	players: {}
 });
-const deathPointDM = registerDataManager('deathPoint', DEATH_POINT_DATA_PATH, {}, {
+const deathPointDM = registerDataManager('deathPoint', '', {}, {
 	sqlPrefix: 'deathPoints'
 });
-const friendDM = registerDataManager('friend', FRIEND_DATA_PATH, {}, {
+const friendDM = registerDataManager('friend', '', {}, {
 	sqlPrefix: 'friends'
 });
-const messageDM = registerDataManager('message', MESSAGE_DATA_PATH, {}, {
+const messageDM = registerDataManager('message', '', {}, {
 	sqlPrefix: 'messages'
 });
 const banDM = registerDataManager('ban', BAN_DATA_PATH, {
@@ -840,14 +833,14 @@ const messageBoardDM = registerDataManager('messageBoard', MESSAGEBOARD_DATA_PAT
 	messages: [],
 	nextId: 1
 });
-const playerSettingsDM = registerDataManager('playerSettings', PLAYER_SETTINGS_PATH, {}, {
+const playerSettingsDM = registerDataManager('playerSettings', '', {}, {
 	pretty: false,
 	sqlPrefix: 'settings'
 });
 const narConfigDM = registerDataManager('narConfig', NAR_CONFIG_PATH, {
 	npc_actions: {}
 });
-const homesDM = registerDataManager('homes', HOMES_DATA_PATH, {}, {
+const homesDM = registerDataManager('homes', '', {}, {
 	sqlPrefix: 'homes'
 });
 const warpsDM = registerDataManager('warps', WARPS_DATA_PATH, {});
@@ -884,7 +877,13 @@ async function initAllConfigs() {
 	initLevelExpTable();
 	initRankConfig();
 	// 经济模块和玩家数据模块需要最先初始化
-	economyModule.init({ config: config, getPlayerData: function() { return playerData; }, getPlayerAvatarUrl: getPlayerAvatarUrl });
+	economyModule.init({
+		config: config,
+		getPlayerData: function() { return playerData; },
+		getPlayerAvatarUrl: getPlayerAvatarUrl,
+		loadLocale: i18n.loadLocale,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+	});
 	playerDataModule.init({ database: database, config: config, constants: C, fs: fs, itemsDataPath: ITEMS_DATA_PATH,
 		getPlayerData: function() { return playerData; },
 		getPlayerSettings: function() { return playerSettings; },
@@ -904,7 +903,11 @@ async function initAllConfigs() {
 	loadItemsDataMap();
 	initRecycleConfig();
 	debugLog("initAllConfigs: 商店/CDK/物品/回收配置加载完成");
-	messageBoardModule.init(messageBoardDM);
+	messageBoardModule.init(messageBoardDM, {
+		t: i18n.t,
+		getPlayerSetting: getPlayerSetting,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+	});
 	spawnEggShopConfig = spawnEggShopDM.load();
 	initDeathPointData();
 	debugLog('friendModule.init: 好友模块初始化, playerData.players 条目=' + Object.keys(playerData.players || {}).length);
@@ -934,7 +937,8 @@ async function initAllConfigs() {
 		notifyEconomyChange: notifyEconomyChange,
 		logger: logger,
 		showPersonalCenterForm: personalCenter.showPersonalCenterForm,
-		t: i18n.t
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
 	menuModule.init({ config: config, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData });
 	menuModule.loadConfig();
@@ -1015,7 +1019,10 @@ async function initAllConfigs() {
 		reducePlayerMoney: reducePlayerMoney,
 		addPlayerMoney: addPlayerMoney,
 		getCurrencyName: getCurrencyName,
-		openMainMenu: personalCenter.openMainMenu
+		openMainMenu: personalCenter.openMainMenu,
+		t: i18n.t,
+		getPlayerSetting: getPlayerSetting,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
 	commonDeps.vipModule = vipModule;
 
@@ -1085,7 +1092,10 @@ async function initAllConfigs() {
 		messageBoardModule: messageBoardModule,
 		teleportModule: teleportModule,
 		menuModule: menuModule,
-		commonDeps: commonDeps
+		commonDeps: commonDeps,
+		getSupportedLocales: i18n.getSupportedLocales,
+		loadLocale: i18n.loadLocale,
+		t: i18n.t
 	});
 	personalCenter.setLevelUpExp(levelUpExp);
 	personalCenter.installPrototypeExtensions();
@@ -1095,7 +1105,10 @@ async function initAllConfigs() {
 	motdModule.start();
 
 	// 定时实体清理模块
-	clearLagModule.init(config);
+	clearLagModule.init(config, {
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+	});
 	clearLagModule.start();
 
 	_initialized = true;
