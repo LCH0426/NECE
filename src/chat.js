@@ -331,7 +331,7 @@ function isReservedTitle(title) {
         if (plain === forbidden[i].toLowerCase()) return true;
     }
 
-    // 检查商店预设称号（不允许自定义称号与商店在售称号重复）
+    // 检查商店预设称号，不允许重复
     var shop = cfg.shop || [];
     for (var j = 0; j < shop.length; j++) {
         if (shop[j].name && plain === shop[j].name.replace(/§[0-9a-fk-or]/gi, '').toLowerCase()) {
@@ -399,7 +399,7 @@ function showBuyConfirmForm(player, titleName, cost, type) {
         return;
     }
 
-    // 称号上限检查（排除默认称号）
+    // 称号上限检查
     var max = getMaxTitles();
     var customCount = currentOwned.filter(function(t) { return t !== '萌新' && t !== '无称号'; }).length;
     if (customCount >= max) {
@@ -501,7 +501,7 @@ function showCustomTitleForm(player) {
             return;
         }
 
-        // 特殊保留称号检测（包含违禁词和商店预设称号）
+        // 特殊保留称号检测
         if (isReservedTitle(input)) {
             p.tell("§e[称号] §c该称号为保留称号或与商店在售称号重复，不可使用");
             showCustomTitleForm(p);

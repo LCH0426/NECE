@@ -103,7 +103,7 @@ function createCdkModule(deps) {
         // 构建奖励列表：优先使用rewards数组，兼容旧版单奖励格式
         let rewards = cdkInfo.rewards;
         if (!rewards || !rewards.length) {
-            // 兼容旧版CDK数据格式（type/itemId/amount等直接在cdkInfo上）
+            // 兼容旧版CDK数据格式
             if (cdkInfo.type) {
                 rewards = [{ type: cdkInfo.type }];
                 if (cdkInfo.type === "item") { rewards[0].itemId = cdkInfo.itemId; rewards[0].itemName = cdkInfo.itemName; rewards[0].count = cdkInfo.count; }

@@ -24,7 +24,7 @@ function registerRoutes(router, d) {
 
     var database = d.database;
 
-    // ==================== 管理员接口（可管理所有公会） ====================
+    // ==================== 管理员接口 ====================
 
     // 获取所有公会列表
     router.get('/admin/guild/list', d.adminAuth, function(req, res) {
@@ -57,7 +57,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取公会详情（含成员和传送点）
+    // 获取公会详情
     router.get('/admin/guild/:id', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
@@ -95,7 +95,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 删除公会（管理员可删除任意公会）
+    // 删除公会
     router.delete('/admin/guild/:id', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
@@ -111,7 +111,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 更新公会信息（管理员可修改任意公会的所有字段）
+    // 更新公会信息
     router.put('/admin/guild/:id', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
@@ -159,7 +159,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 添加公会传送点（管理员）
+    // 添加公会传送点
     router.post('/admin/guild/:id/teleports', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
@@ -183,7 +183,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 删除公会传送点（管理员）
+    // 删除公会传送点
     router.delete('/admin/guild/:id/teleports/:tpId', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
@@ -197,7 +197,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 更新公会资金（管理员直接设置）
+    // 更新公会资金
     router.put('/admin/guild/:id/fund', d.adminAuth, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
@@ -219,9 +219,9 @@ function registerRoutes(router, d) {
         }
     });
 
-    // ==================== 玩家接口（仅可管理自己的公会） ====================
+    // ==================== 玩家接口 ====================
 
-    // 创建公会（需要认证玩家身份）
+    // 创建公会
     router.post('/guild/create', d.auth, function(req, res) {
         try {
             var body = req.body || {};
@@ -301,7 +301,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 更新自己的公会信息（仅会长可修改描述）
+    // 更新自己的公会信息
     router.put('/guild/my', d.auth, function(req, res) {
         try {
             var xuid = d.getXuidByUid(req.user.uid);
@@ -332,7 +332,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 解散自己的公会（仅会长）
+    // 解散自己的公会
     router.delete('/guild/my', d.auth, function(req, res) {
         try {
             var xuid = d.getXuidByUid(req.user.uid);
@@ -369,7 +369,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 添加公会传送点（会长/管理员）
+    // 添加公会传送点
     router.post('/guild/my/teleports', d.auth, function(req, res) {
         try {
             var xuid = d.getXuidByUid(req.user.uid);
@@ -403,7 +403,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 删除公会传送点（会长/管理员）
+    // 删除公会传送点
     router.delete('/guild/my/teleports/:tpId', d.auth, function(req, res) {
         try {
             var xuid = d.getXuidByUid(req.user.uid);
@@ -432,7 +432,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 存入公会资金（任何成员）
+    // 存入公会资金
     router.post('/guild/my/deposit', d.auth, function(req, res) {
         try {
             var xuid = d.getXuidByUid(req.user.uid);
@@ -467,7 +467,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 取出公会资金（仅会长/管理员，根据配置）
+    // 取出公会资金
     router.post('/guild/my/withdraw', d.auth, function(req, res) {
         try {
             var xuid = d.getXuidByUid(req.user.uid);
@@ -516,7 +516,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 踢出成员（会长/管理员）
+    // 踢出成员
     router.post('/guild/my/kick', d.auth, function(req, res) {
         try {
             var xuid = d.getXuidByUid(req.user.uid);
@@ -566,7 +566,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 提升成员为管理员（仅会长）
+    // 提升成员为管理员
     router.post('/guild/my/promote', d.auth, function(req, res) {
         try {
             var xuid = d.getXuidByUid(req.user.uid);
@@ -618,7 +618,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 降级管理员为普通成员（仅会长）
+    // 降级管理员为普通成员
     router.post('/guild/my/demote', d.auth, function(req, res) {
         try {
             var xuid = d.getXuidByUid(req.user.uid);
@@ -656,7 +656,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 转让会长（仅会长）
+    // 转让会长
     router.post('/guild/my/transfer', d.auth, function(req, res) {
         try {
             var xuid = d.getXuidByUid(req.user.uid);
@@ -695,7 +695,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取所有公会列表（公开，用于玩家浏览）
+    // 获取所有公会列表
     router.get('/guild/list', d.auth, function(req, res) {
         try {
             var guilds = database.getAllGuilds();

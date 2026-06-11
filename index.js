@@ -120,12 +120,17 @@ let _saveTimerSeq = 0;    // 全局递增序号，确保旧定时器被新调用
 
 /**
  * 防抖保存：同一key的多次调用只执行最后一次，中间的被跳过
+ * delay=0 时立即执行
  * @param {string} key - 保存标识（通常用文件路径）
  * @param {Function} saveFn - 实际写入函数
- * @param {number} delay - 延迟毫秒数（默认5000）
+ * @param {number} delay - 延迟毫秒数（默认0，立即执行）
  */
 function debouncedSave(key, saveFn, delay) {
-	delay = delay || 5000;
+	delay = delay || 0;
+	if (delay <= 0) {
+		saveFn();
+		return;
+	}
 	_saveFns[key] = saveFn;
 	_saveTimerSeq++;
 	const seq = _saveTimerSeq;
@@ -171,7 +176,7 @@ function DataManager(path, defaultData, options) {
 	this.data = null;
 	this.defaultData = defaultData;
 	this.pretty = options.pretty !== false;
-	this.saveDelay = options.saveDelay || 5000;
+	this.saveDelay = options.saveDelay || 0;
 	this.saveKey = path;
 	this.sqlPrefix = options.sqlPrefix || null;
 	this.useSQL = false;
@@ -338,7 +343,7 @@ DataManager.prototype.save = function(immediate) {
 			doSQLSave();
 			database.savePlayerDatabase();
 		} else {
-			// 防抖写入SQL，随后触发2秒防抖写磁盘（requestSavePlayerDb自带2秒防抖）
+			// 防抖写入SQL，随后触发写磁盘
 			debouncedSave(this.saveKey, function() {
 				doSQLSave();
 				database.requestSavePlayerDb();
@@ -597,19 +602,14 @@ JsonConfigFileAdapter.prototype.write = function(content) {
 	}
 };
 
-/** 内部保存：将_data序列化写入磁盘，防抖模式 */
+/** 内部保存：将_data序列化写入磁盘，立即写入 */
 JsonConfigFileAdapter.prototype._save = function() {
-	var self = this;
-	if (self._saveTimer) clearTimeout(self._saveTimer);
-	self._saveTimer = setTimeout(function() {
-		self._saveTimer = null;
-		try {
-			U.ensureDir(self._path);
-			fs.writeFileSync(self._path, JSON.stringify(self._data, null, 2), 'utf-8');
-		} catch (e) {
-			logger.error('JsonConfigFileAdapter保存失败[' + self._path + ']：' + e.message);
-		}
-	}, 50);
+	try {
+		U.ensureDir(this._path);
+		fs.writeFileSync(this._path, JSON.stringify(this._data, null, 2), 'utf-8');
+	} catch (e) {
+		logger.error('JsonConfigFileAdapter保存失败[' + this._path + ']：' + e.message);
+	}
 };
 
 /** 立即写入磁盘，取消防抖 */
@@ -723,7 +723,7 @@ function _migrateOldConfigKeys() {
 		}
 	}
 
-	// *Config 键重命名（去掉 Config 后缀）
+	// *Config 键重命名
 	var _renameMap = {
 		'wishConfig': 'wish',
 		'guildConfig': 'guild',
@@ -737,7 +737,7 @@ function _migrateOldConfigKeys() {
 			if (_data[newName] === undefined || typeof _data[newName] !== 'object') {
 				_data[newName] = {};
 			}
-			// 合并旧值到新键（保留新键中已有的字段）
+			// 合并旧值到新键
 			var oldVal = _data[oldName];
 			if (typeof oldVal === 'object' && oldVal !== null) {
 				for (var k in oldVal) {
@@ -751,7 +751,7 @@ function _migrateOldConfigKeys() {
 		}
 	}
 
-	// 删除冗余的 enableMotd（已有 motd.enabled）
+	// 删除冗余的 enableMotd
 	if (_data['enableMotd'] !== undefined) {
 		delete _data['enableMotd'];
 		_changed = true;
@@ -778,7 +778,7 @@ function initPlayerData() {
 	if (!playerData.nextUid) playerData.nextUid = 10000;
 }
 
-// 从playerDataModule获取玩家数据保存函数（防抖/立即/单玩家）
+// 从playerDataModule获取玩家数据保存函数
 const savePlayerData = playerDataModule.savePlayerData;
 const savePlayerDataNow = playerDataModule.savePlayerDataNow;
 const saveSinglePlayerData = playerDataModule.saveSinglePlayerData;
@@ -882,7 +882,7 @@ function initDeathPointData() {
 async function initAllConfigs() {
 	initLevelExpTable();
 	initRankConfig();
-	// 经济模块和玩家数据模块需要最先初始化（其他模块依赖它们）
+	// 经济模块和玩家数据模块需要最先初始化
 	economyModule.init({ config: config, getPlayerData: function() { return playerData; }, getPlayerAvatarUrl: getPlayerAvatarUrl });
 	playerDataModule.init({ database: database, config: config, constants: C, fs: fs, itemsDataPath: ITEMS_DATA_PATH,
 		getPlayerData: function() { return playerData; },
@@ -1005,7 +1005,7 @@ async function initAllConfigs() {
 
 	teleportModule.init(config, homesDM, warpsDM, commonDeps);
 
-	// 使用工厂模式创建的模块（vip/cdk/rank/bank），创建后挂到commonDeps上
+	// 工厂模式创建的模块，创建后挂到commonDeps上
 	let vipModule = vipModuleCreator.create({
 		playerData: playerData,
 		savePlayerDataNow: savePlayerDataNow,
@@ -1063,7 +1063,7 @@ async function initAllConfigs() {
 	});
 	commonDeps.bankModule = bankModule;
 
-	// 个人中心模块初始化（必须在所有模块之后，因为它依赖其他模块的引用）
+	// 个人中心模块初始化，依赖其他模块
 	personalCenter.init({
 		getPlayerData: function() { return playerData; },
 		savePlayerDataNow: savePlayerDataNow,
@@ -1200,12 +1200,12 @@ mc.listen("onJoin", (player) => {
 		}
 	}
 
-	// 统一保存一次（合并了之前分散的两次 saveSinglePlayerData 调用）
+	// 统一保存一次
 	saveSinglePlayerData(playerXUID);
 
 	// 检查并通知玩家的待处理经济转账
 	economyModule.checkPendingTransfers(player);
-	// ipDetector功能：网络协议检测（根据玩家设置）
+	// 网络协议检测
 	if (getPlayerSetting(xuid, "enableIpDetector")) {
 		try {
 			const device = player.getDevice();
@@ -1224,7 +1224,7 @@ mc.listen("onJoin", (player) => {
 		}
 	}
 
-	// Debug 模式弹窗（首次进服提示，使用独立JSON记录已关闭的玩家）
+	// Debug 模式弹窗
 	if (_debugMode) {
 		try {
 			const debugDismissedPath = C.PATHS.DEBUG_DISMISSED;
@@ -1259,7 +1259,7 @@ mc.listen("onJoin", (player) => {
 		logger.error(`检查未读消息时出错：${error.message}`);
 	}
 
-	// 入服给钟和指南针功能（根据玩家设置，默认开启）
+	// 入服给钟和指南针
 	try {
 		setTimeout(() => {
 			giveJoinItems(player);
@@ -1290,7 +1290,7 @@ mc.listen("onLeft", (player) => {
 		playerDataModule.markPlayerDirty(xuidStr);
 	}
 	saveSinglePlayerData(xuidStr);
-	// 保存背包快照到数据库（供API查询离线玩家背包）
+	// 保存背包快照到数据库
 	try {
 		if (!player || !_initialized) return;
 		const inv = player.getInventory();
@@ -1421,8 +1421,7 @@ function tickOnlineDurations() {
 
 setInterval(tickOnlineDurations, 58848);
 
-// 定时（30秒）清理已离线但未触发 onLeft 的残留条目（崩溃等异常情况）
-// 使用 mc.getOnlinePlayers() 单次原生调用替代 N 次 mc.getPlayer()
+// 定时清理已离线但未触发 onLeft 的残留条目
 var _leavetimeWriteTick = 0;
 setInterval(() => {
 	const now = Date.now();
@@ -1440,7 +1439,7 @@ setInterval(() => {
 			sidebarModule.clearPlayerCache(xuid);
 		}
 	});
-	// leavetime 仅每5个周期（约2.5分钟）写入一次，降低 SQLite 写入频率
+	// leavetime 仅每5个周期写入一次
 	_leavetimeWriteTick++;
 	if (_leavetimeWriteTick >= 5) {
 		_leavetimeWriteTick = 0;
@@ -1457,7 +1456,7 @@ setInterval(() => {
 
 // ============ 经济系统代理 ============
 
-// 从economyModule导出常用经济操作函数（通过闭包代理到模块内部实现）
+// 从economyModule导出常用经济操作函数
 const getCurrencyName = economyModule.getCurrencyName;
 const notifyEconomyChange = economyModule.notifyEconomyChange;
 const getPlayerMoney = economyModule.getPlayerMoney;
@@ -1505,7 +1504,7 @@ function getVipInfo(player) {
 
 
 // ============ TPS实时计算 ============
-// 每个游戏刻（tick）计数，累计20个tick后根据实际耗时计算TPS值
+// 每个游戏刻计数，累计20个tick后根据实际耗时计算TPS值
 var _tickEnabled = true; // 关服时置 false，阻止 onTick 继续执行
 mc.listen("onTick", () => {
 	// 双重检查：_tickEnabled 和 debugModule.isUnloading()
@@ -1662,7 +1661,7 @@ function registerAllCommands() {
 }
 
 
-// ============ 头像系统代理（已合并到好友模块） ============
+// ============ 头像系统代理 ============
 
 const getPlayerAvatarUrl = friendModule.getPlayerAvatarUrl;
 const showAvatarSettingsForm = friendModule.showAvatarSettingsForm;
@@ -1698,7 +1697,7 @@ function checkUnreadMessagesAndMails(player) {
 	let msg = "§e[提醒] ";
 	let hasUnread = false;
 
-	// 获取未读消息数量（只在开启私信提醒时显示）
+	// 获取未读消息数量
 	if (getPlayerSetting(xuid, "enableMessageNotification")) {
 		const unreadMsgCount = friendModule.getUnreadMessageCount(xuid);
 		if (unreadMsgCount > 0) {
@@ -1739,11 +1738,11 @@ function checkUnreadMessagesAndMails(player) {
 function giveJoinItems(player) {
 	const xuid = player.xuid;
 
-	// 获取玩家设置，默认为true（开启）
+	// 获取玩家设置
 	const enableGiveClock = getPlayerSetting(xuid, "enableGiveClock");
 	const enableGiveCompass = getPlayerSetting(xuid, "enableGiveCompass");
 
-	// 给钟（菜单）
+	// 给钟
 	if (enableGiveClock !== false) {
 		try {
 			// 检查背包中是否已有名为"菜单"的钟
@@ -1764,7 +1763,7 @@ function giveJoinItems(player) {
 		}
 	}
 
-	// 给指南针（快捷菜单）
+	// 给指南针
 	if (enableGiveCompass !== false) {
 		try {
 			// 检查背包中是否已有名为"快捷菜单"的指南针
@@ -1806,7 +1805,7 @@ mc.listen("onAttackEntity", function(player, entity) {
 			for (let i = 0; i < actions[entityType].length; i++) {
 				let action = actions[entityType][i];
 				if (U.cleanFormatting(action.name) === entityName) {
-					// @s占位符替换为玩家名字（过滤命令注入字符）
+					// @s占位符替换为玩家名字
 					const safeName = player.name.replace(/[;&|`$(){}[\]<>!#]/g, '');
 					const cmd = action.command.replace(/@s/g, safeName);
 
@@ -1847,7 +1846,7 @@ function initWebServer() {
 		const monitoring = require('./src/monitoring');
 		monitoring.init(tpsData, money, playerData, database);
 		monitoring.startPlayerCountSampling(600000); // 10分钟记录一次玩家人数
-		// 注册Web面板的热重载回调（修改数据后可通过Web触发重新加载）
+		// 注册Web面板的热重载回调
 		webServer.onReload('recycle', function() {
 			recycleConfig = recycleConfigDM.load();
 			if (commonDeps) commonDeps.recycleConfig = recycleConfig;
@@ -1905,7 +1904,7 @@ function initWebServer() {
 				}
 			}
 		})();
-		// 移除 config.json 中残留的默认密钥（密钥已由 data/.jwt_secret 管理）
+		// 移除 config.json 中残留的默认密钥
 		if (webConfig.jwtSecret === 'NECE_Default_Secret_Change_Me' || webConfig.jwtRefreshSecret === 'NECE_Default_Refresh_Secret_Change_Me') {
 			delete webConfig.jwtSecret;
 			delete webConfig.jwtRefreshSecret;
@@ -1953,7 +1952,7 @@ function registerWebCommands() {
 		logger.error('/passwd 命令注册出错！错误：' + error);
 	}
 
-	// admin控制台命令：添加/移除Web面板管理员（支持UID或玩家名）
+	// admin控制台命令
 	try {
 		const adminCmd = mc.newCommand('admin', '管理员管理 (add/del <uid|玩家名>) [仅控制台]', PermType.GameMasters);
 		adminCmd.mandatory('action', ParamType.String);

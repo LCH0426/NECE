@@ -402,7 +402,7 @@ function showMailListForm(player, page) {
     } else {
         gui.setContent("§a您共有 " + myMails.length + " 封邮件：\n§e当前页：" + (currentPage + 1) + "/" + totalPages);
         pageMails.forEach(function(mail) {
-            // isUnread 用 let 声明以便后续修改（原代码用 const 导致赋值无效，此处保留原逻辑）
+            // isUnread 用 let 声明以便后续修改
             let isUnread = false;
             if (mail.toXuid === "all") {
                 if (!mail.read || !mail.read[xuid]) {
@@ -870,7 +870,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     });
     save();
 
-    // 通知所有在线玩家（除发送者外）
+    // 通知所有在线玩家
     const onlinePlayers = mc.getOnlinePlayers();
     onlinePlayers.forEach(function(onlinePlayer) {
         if (onlinePlayer.xuid !== player.xuid) {

@@ -613,7 +613,7 @@ function findPlayerXuid(query) {
         // 按xuid精确匹配
         if (pd.players[q]) return q;
 
-        // 按uid精确匹配（数字）
+        // 按uid精确匹配
         if (!isNaN(qNum)) {
             for (var i = 0; i < allXuids.length; i++) {
                 var p = pd.players[allXuids[i]];
@@ -633,7 +633,7 @@ function findPlayerXuid(query) {
             }
         } catch (e2) { logger.warn('[Guild][Search] 在线搜索异常: ' + e2.message); }
 
-        // 按玩家名精确匹配（不区分大小写）
+        // 按玩家名精确匹配
         var qLower = q.toLowerCase();
         for (var j = 0; j < allXuids.length; j++) {
             var p2 = pd.players[allXuids[j]];
@@ -1235,7 +1235,7 @@ function showPendingInvitesPanel(player) {
             _guildInvites[xuid] = []; // 清空所有邀请
             p.tell('§e[公会] §a你已加入公会"' + guild.name + '"');
             logger.info('[Guild] ' + p.name + ' 接受邀请加入公会: ' + guild.name);
-            // 通知邀请人（邮件 + 在线消息）
+            // 通知邀请人
             if (inv.inviterXuid) {
                 sendSystemMail(inv.inviterXuid, '§a玩家§e' + p.name + '§a已接受你的公会邀请，加入了§6' + guild.name + '§a公会');
             }
@@ -1318,7 +1318,7 @@ function doSubmitJoinRequest(player, guild) {
         '§c取消',
         function(p, result) {
             if (!result) { showMainMenu(p); return; }
-            // 再次检查（弹窗期间状态可能变化）
+            // 再次检查状态
             if (database.getGuildByPlayer(String(p.xuid))) { p.tell('§e[公会] §c你已在公会中'); return; }
             if (database.getMemberCount(guild.id) >= guild.maxMembers) { p.tell('§e[公会] §c该公会成员已满'); return; }
 
@@ -1385,7 +1385,7 @@ function showJoinRequestsPanel(player) {
             function(p2, result) {
                 if (!result) { showJoinRequestsPanel(p2); return; }
 
-                // 重新获取申请列表（弹窗期间可能变化）
+                // 重新获取申请列表
                 var freshReqs = _joinRequests[guild.id] || [];
                 var freshReq = null;
                 var freshIdx = -1;

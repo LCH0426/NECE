@@ -26,7 +26,7 @@ function registerRoutes(router, d) {
     const SHOP_DATA_PATH_API = d.pathModule.join(__dirname, '..', '..', 'data', 'shopdata.json');
     const ITEMS_PATH = d.pathModule.join(__dirname, '..', '..', 'public', 'textures', 'items.json');
 
-    // 加载物品贴图映射表（id -> {name, texture}），带60秒缓存避免每次请求读磁盘
+    // 加载物品贴图映射表
     var _itemsMapCache = null;
     var _itemsMapCacheTime = 0;
     var ITEMS_MAP_CACHE_TTL = 60000;
@@ -72,7 +72,7 @@ function registerRoutes(router, d) {
         d.triggerReload('recycle');
     }
 
-    // 合并回收配置和物品映射数据，兼容旧格式（价格为数字）和新格式（对象含name/image/price）
+    // 合并回收配置和物品映射数据
     function getRecycleItemInfo(id, recycleItems, itemsMap) {
         let cleanId = id.replace(/^minecraft:/, '');
         let entry = recycleItems[id];
@@ -96,7 +96,7 @@ function registerRoutes(router, d) {
         return { id: id, name: name, image: image, price: price };
     }
 
-    // 获取回收物品列表（含物品名称、贴图和回收价格）
+    // 获取回收物品列表
     router.get('/recycle', d.adminAuth, function(req, res) {
         try {
             let config = loadRecycleConfig();
@@ -112,7 +112,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 添加回收物品（需验证物品ID有效性）
+    // 添加回收物品
     router.post('/recycle', d.adminAuth, function(req, res) {
         try {
             let rawId = req.body.id;
@@ -135,7 +135,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 修改回收物品价格（URL中的ID需encodeURIComponent编码）
+    // 修改回收物品价格
     router.put('/recycle/:id', d.adminAuth, function(req, res) {
         try {
             let rawId = decodeURIComponent(req.params.id);
@@ -190,7 +190,7 @@ function registerRoutes(router, d) {
         d.triggerReload('shop');
     }
 
-    // 获取商店数据（可选按Buy/Sell分组过滤）
+    // 获取商店数据
     router.get('/shop', d.adminAuth, function(req, res) {
         try {
             let data = loadShopData();
@@ -205,7 +205,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取指定大组（Buy/Sell）下的分组列表（含每个分组的物品数量）
+    // 获取指定大组下的分组列表
     router.get('/shop/groups', d.adminAuth, function(req, res) {
         try {
             let data = loadShopData();
@@ -222,7 +222,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 添加商店分组（到Buy或Sell大组下）
+    // 添加商店分组
     router.post('/shop/group', d.adminAuth, function(req, res) {
         try {
             let group = req.body.group;
@@ -246,7 +246,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 修改商店分组名称和图标（按索引定位）
+    // 修改商店分组名称和图标
     router.put('/shop/group/:groupIdx', d.adminAuth, function(req, res) {
         try {
             let group = req.body.group;
@@ -270,7 +270,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 删除商店分组（同时删除分组内所有物品）
+    // 删除商店分组
     router.delete('/shop/group/:groupIdx', d.adminAuth, function(req, res) {
         try {
             let group = req.query.group;
@@ -293,7 +293,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取指定分组下的物品列表（从items.json补充物品名称和贴图）
+    // 获取指定分组下的物品列表
     router.get('/shop/items', d.adminAuth, function(req, res) {
         try {
             let group = req.query.group;
@@ -325,7 +325,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 添加商店物品到指定分组（需验证物品ID有效性）
+    // 添加商店物品到指定分组
     router.post('/shop/item', d.adminAuth, function(req, res) {
         try {
             let group = req.body.group;
@@ -404,7 +404,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 删除商店指定分组中的指定物品（通过query参数定位大组和分组）
+    // 删除商店指定分组中的指定物品
     router.delete('/shop/item/:itemIdx', d.adminAuth, function(req, res) {
         try {
             const group = req.query.group;

@@ -48,7 +48,7 @@ function registerRoutes(router, d) {
     // ===== 以下祈愿相关接口仅在 wish 模块存在时注册 =====
     if (d.hasWish) {
 
-    // 获取祈愿配置（管理员接口）
+    // 获取祈愿配置
     router.get('/wish', d.adminAuth, function(req, res) {
         try {
             let config = loadWishConfig();
@@ -71,7 +71,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 添加四星奖励物品（name为显示名，snbt为物品NBT数据）
+    // 添加四星奖励物品
     router.post('/wish/fourStar', d.adminAuth, function(req, res) {
         try {
             let name = req.body.name;
@@ -191,7 +191,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 添加核心兑换商店物品（需指定兑换花费的尘核数量）
+    // 添加核心兑换商店物品
     router.post('/wish/coreShop', d.adminAuth, function(req, res) {
         try {
             let name = req.body.name;
@@ -254,7 +254,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 修改三星（普通）物品的尘核掉落范围（minDust ~ maxDust）
+    // 修改三星物品的尘核掉落范围
     router.put('/wish/threeStar', d.adminAuth, function(req, res) {
         try {
             let cfg = loadWishConfig();
@@ -281,7 +281,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 修改祈愿概率配置（含软保底、硬保底、四星保底次数）
+    // 修改祈愿概率配置
     router.put('/wish/rates', d.adminAuth, function(req, res) {
         try {
             let cfg = loadWishConfig();
@@ -321,7 +321,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 修改祈愿花费配置（单抽和十连的价格）
+    // 修改祈愿花费配置
     router.put('/wish/cost', d.adminAuth, function(req, res) {
         try {
             let cfg = loadWishConfig();
@@ -344,7 +344,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 修改祈愿系统说明文本（展示在前端祈愿页面）
+    // 修改祈愿系统说明文本
     router.put('/wish/description', d.adminAuth, function(req, res) {
         try {
             let cfg = loadWishConfig();

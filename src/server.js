@@ -82,9 +82,9 @@ const refreshLimiter = createRateLimiter(60000, 20);
 const captchaLimiter = createRateLimiter(60000, 15);
 // 备份下载限流：每IP每分钟最多5次
 const backupDownloadLimiter = createRateLimiter(60000, 5);
-// 全局API限流：每IP每分钟最多300次（防御暴力扫描和DoS，正常面板使用不会触发）
+// 全局API限流：每IP每分钟最多300次
 const globalApiLimiter = createRateLimiter(60000, 300);
-// 配置修改限流：每IP每分钟最多10次（防御配置刷写）
+// 配置修改限流：每IP每分钟最多10次
 const configLimiter = createRateLimiter(60000, 10);
 
 /** 定期清理过期的限流记录，防止内存泄漏 */
@@ -483,7 +483,7 @@ function createV1Routes(webConfig) {
         hasWish: _hasWish
     };
 
-    // 版本信息接口（无需认证）
+    // 版本信息接口
     router.get('/version', function(req, res) {
         try {
             var serverVersion = mc.getBDSVersion();
@@ -548,7 +548,7 @@ function startServer(webConfig) {
     // 启动限流记录定期清理
     startRateLimitCleanup();
 
-    // 每 60 秒清理过期数据（统一调用，只触发一次写盘）
+    // 每 60 秒清理过期数据
     cleanupTimer = setInterval(() => {
         database.cleanExpiredData();
     }, 60000);

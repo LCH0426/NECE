@@ -38,13 +38,13 @@ const BIOME_CACHE_TTL = 1000;    // 生物群系缓存1秒
 
 // 上次渲染的侧边栏内容，内容不变时跳过重复渲染；xuid -> string
 let _lastRenderedSidebar = {};
-// 上次渲染的时间行（非紧凑模式下检测时间变化）；xuid -> string
+// 上次渲染的时间行；xuid -> string
 let _lastRenderedTime = {};
 
 // 分层渲染计数器：每秒+1，满5时执行全量重建
 let _renderTick = 0;
 
-// 缓存非时间数据的侧边栏行（避免每秒重建）；xuid -> { sidebarData, compactLines, isCompact, sidebarSettings }
+// 缓存非时间数据的侧边栏行；xuid -> { sidebarData, compactLines, isCompact, sidebarSettings }
 let _sidebarDataCache = {};
 
 /**
@@ -128,7 +128,7 @@ function startRenderLoop() {
 				try {
 					const isCompact = _deps.config.get("sidebarCompact");
 
-					// 全量更新（每5秒）：重建余额、延迟、TPS、速度、群系等数据
+					// 全量更新：重建余额、延迟、TPS、速度、群系等数据
 					if (isFullUpdate || !_sidebarDataCache[xuid]) {
 						const sidebarData = {};
 						let sidebarScore = 100;
@@ -215,7 +215,7 @@ function startRenderLoop() {
 						_sidebarDataCache[xuid] = { sidebarData: sidebarData, compactLines: compactLines, isCompact: isCompact };
 					}
 
-					// 每秒更新：重建完整 sidebarData（复用缓存的非时间数据 + 新时间行）
+					// 每秒更新：重建完整 sidebarData
 					const cachedData = _sidebarDataCache[xuid];
 					const sidebarData = {};
 					for (const k in cachedData.sidebarData) {
@@ -223,7 +223,7 @@ function startRenderLoop() {
 					}
 					const compactLines = cachedData.compactLines.slice();
 
-					// 当前时间行（每秒更新）
+					// 当前时间行
 					if (sidebarSettings.enableActionbarTime) {
 						const timeNow = new Date();
 						const h = timeNow.getHours();
@@ -241,7 +241,7 @@ function startRenderLoop() {
 					// 内容不变时跳过重复渲染
 					let sidebarKey = "";
 					if (isCompact) {
-						// 紧凑模式：只比较非时间的 compactLines 内容（时间每秒变化但不影响数据）
+						// 紧凑模式：只比较非时间的 compactLines 内容
 						sidebarKey = compactLines.join("|");
 					} else {
 						for (const k in sidebarData) {

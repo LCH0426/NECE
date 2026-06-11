@@ -51,7 +51,7 @@ function registerRoutes(router, d) {
         d.fs.writeFileSync(CDK_DATA_PATH, JSON.stringify(data, null, '\t'), 'utf-8');
     }
 
-    // 获取CDK兑换码列表（兼容旧格式：单奖励type/itemId和新格式：rewards数组）
+    // 获取CDK兑换码列表
     router.get('/cdk/list', d.adminAuth, function(req, res) {
         try {
             let data = loadCdkData();
@@ -76,7 +76,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 添加CDK兑换码（支持rewards数组或旧版type字段，奖励类型：item/snbt/money）
+    // 添加CDK兑换码
     router.post('/cdk/add', d.adminAuth, function(req, res) {
         try {
             let body = req.body;
@@ -161,7 +161,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 修改CDK兑换码（更新maxUses和/或rewards，自动清除旧格式字段）
+    // 修改CDK兑换码
     router.post('/cdk/modify', d.adminAuth, function(req, res) {
         try {
             let body = req.body;
@@ -208,7 +208,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // BDS白名单文件路径（位于服务器根目录）
+    // BDS白名单文件路径
     const ALLOWLIST_PATH = d.pathModule.join(process.cwd(), 'allowlist.json');
 
     function readAllowlist() {
@@ -236,7 +236,7 @@ function registerRoutes(router, d) {
         }
     }
 
-    // 获取白名单列表（支持按名称/XUID搜索和分页）
+    // 获取白名单列表
     router.get('/allowlist', d.adminAuth, function(req, res) {
         try {
             let list = readAllowlist();
@@ -271,7 +271,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 添加白名单（通过BDS allowlist add命令，同时写入allowlist.json）
+    // 添加白名单
     router.post('/allowlist', d.adminAuth, function(req, res) {
         try {
             let name = (req.body.name || '').trim();
@@ -301,7 +301,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 删除白名单（通过BDS allowlist remove命令）
+    // 删除白名单
     router.delete('/allowlist', d.adminAuth, function(req, res) {
         try {
             let name = (req.body.name || '').trim();
@@ -331,7 +331,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取内存中的最近聊天记录（支持时间范围过滤，最大500条）
+    // 获取内存中的最近聊天记录
     router.get('/chat/history', d.adminAuth, function(req, res) {
         try {
             let limit = parseInt(req.query.limit) || 100;
@@ -365,7 +365,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 查询持久化聊天日志（按日期、发送者、关键词过滤，分页返回）
+    // 查询持久化聊天日志
     router.get('/chat/log', d.adminAuth, function(req, res) {
         let options = {
             date: req.query.date || '',
@@ -382,7 +382,7 @@ function registerRoutes(router, d) {
         });
     });
 
-    // 获取有聊天记录的日期列表（用于前端日期选择器）
+    // 获取有聊天记录的日期列表
     router.get('/chat/log/dates', d.adminAuth, function(req, res) {
         try {
             let dates = d.chatModule.getAvailableDates();
@@ -426,7 +426,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 查询管理员操作日志（按日期分页）
+    // 查询管理员操作日志
     router.get('/logs', d.adminAuth, function(req, res) {
         try {
             const date = req.query.date || '';
@@ -460,7 +460,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 获取行为日志支持的事件类型列表（用于前端筛选）
+    // 获取行为日志支持的事件类型列表
     router.get('/behavior/events', d.adminAuth, function(req, res) {
         try {
             const events = d.behaviorLog.actionTypes();
@@ -470,7 +470,7 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 查询玩家行为日志（支持按日期、玩家名、事件类型过滤）
+    // 查询玩家行为日志
     router.get('/behavior/logs', d.adminAuth, function(req, res) {
         let options = {
             date: req.query.date || '',
@@ -487,7 +487,7 @@ function registerRoutes(router, d) {
         });
     });
 
-    // 物品搜索：按ID或名称模糊匹配，返回物品列表（含贴图）
+    // 物品搜索
     router.get('/items/search', d.adminAuth, function(req, res) {
         try {
             const keyword = (req.query.keyword || '').trim().toLowerCase();
