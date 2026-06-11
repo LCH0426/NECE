@@ -404,7 +404,7 @@ async function initPlayerDatabase() {
     playerDb.run("PRAGMA synchronous=NORMAL");
     playerDb.run("PRAGMA cache_size=-64000");
 
-    // 创建所有玩家数据表（IF NOT EXISTS 确保幂等）
+    // 创建所有玩家数据表
     playerDb.run(`CREATE TABLE IF NOT EXISTS player_data (
         xuid TEXT PRIMARY KEY, uid INTEGER, name TEXT, uuid TEXT,
         register_time TEXT, leave_time TEXT, health_bonus INTEGER DEFAULT 0,
@@ -414,11 +414,30 @@ async function initPlayerDatabase() {
         titles TEXT DEFAULT '{}',
         last_ip TEXT DEFAULT '', platform TEXT DEFAULT ''
     )`);
-    // 兼容已有数据库：添加缺失列（已存在则忽略）
-    try { playerDb.run("ALTER TABLE player_data ADD COLUMN last_ip TEXT DEFAULT ''"); } catch (e) {}
-    try { playerDb.run("ALTER TABLE player_data ADD COLUMN platform TEXT DEFAULT ''"); } catch (e) {}
-    try { playerDb.run("ALTER TABLE player_data ADD COLUMN titles TEXT DEFAULT '{}'"); } catch (e) {}
-    try { playerDb.run("ALTER TABLE player_data ADD COLUMN chain TEXT DEFAULT '{}'"); } catch (e) {}
+    // 兼容已有数据库：检查缺失列并添加
+    var existingCols = {};
+    try {
+        var colResult = playerDb.exec("PRAGMA table_info(player_data)");
+        if (colResult.length > 0) {
+            colResult[0].values.forEach(function(row) { existingCols[row[1]] = true; });
+        }
+    } catch (e) {}
+    var colsToAdd = [
+        ['last_ip', "TEXT DEFAULT ''"],
+        ['platform', "TEXT DEFAULT ''"],
+        ['titles', "TEXT DEFAULT '{}'"],
+        ['chain', "TEXT DEFAULT '{}'"]
+    ];
+    colsToAdd.forEach(function(col) {
+        if (!existingCols[col[0]]) {
+            try {
+                playerDb.run("ALTER TABLE player_data ADD COLUMN " + col[0] + " " + col[1]);
+                dbDebugLog('initPlayerDatabase: 添加缺失列 ' + col[0]);
+            } catch (e) {
+                logger.error('[DB] 添加列 ' + col[0] + ' 失败: ' + e.message);
+            }
+        }
+    });
     playerDb.run('CREATE TABLE IF NOT EXISTS player_settings (xuid TEXT, key TEXT, value TEXT, PRIMARY KEY (xuid, key))');
     playerDb.run('CREATE TABLE IF NOT EXISTS death_points (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, data TEXT)');
     playerDb.run('CREATE TABLE IF NOT EXISTS friends (xuid TEXT, friend_xuid TEXT, friend_name TEXT, add_time TEXT, PRIMARY KEY (xuid, friend_xuid))');
@@ -426,8 +445,24 @@ async function initPlayerDatabase() {
     playerDb.run('CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, to_xuid TEXT, to_name TEXT, content TEXT, time TEXT, is_read INTEGER DEFAULT 0)');
     playerDb.run('CREATE TABLE IF NOT EXISTS homes (xuid TEXT, name TEXT, x REAL, y REAL, z REAL, dim INTEGER, last_use TEXT, PRIMARY KEY (xuid, name))');
     playerDb.run('CREATE TABLE IF NOT EXISTS player_inventory (xuid TEXT PRIMARY KEY, items TEXT DEFAULT \'[]\', armor TEXT DEFAULT \'[]\', offhand TEXT DEFAULT \'[]\', save_time TEXT)');
-    try { playerDb.run('ALTER TABLE player_inventory ADD COLUMN armor TEXT DEFAULT \'[]\''); } catch (e) {}
-    try { playerDb.run('ALTER TABLE player_inventory ADD COLUMN offhand TEXT DEFAULT \'[]\''); } catch (e) {}
+    // 兼容已有数据库：检查缺失列并添加
+    var invCols = {};
+    try {
+        var invResult = playerDb.exec("PRAGMA table_info(player_inventory)");
+        if (invResult.length > 0) {
+            invResult[0].values.forEach(function(row) { invCols[row[1]] = true; });
+        }
+    } catch (e) {}
+    if (!invCols['armor']) {
+        try { playerDb.run("ALTER TABLE player_inventory ADD COLUMN armor TEXT DEFAULT '[]'"); } catch (e) {
+            logger.error('[DB] 添加列 armor 失败: ' + e.message);
+        }
+    }
+    if (!invCols['offhand']) {
+        try { playerDb.run("ALTER TABLE player_inventory ADD COLUMN offhand TEXT DEFAULT '[]'"); } catch (e) {
+            logger.error('[DB] 添加列 offhand 失败: ' + e.message);
+        }
+    }
 
     // 公会系统表
     createGuildTables();
@@ -570,7 +605,7 @@ function getAllPlayerDataSQL() {
     if (!playerDb) return {};
     dbDebugLog('getAllPlayerDataSQL: 查询所有玩家数据');
     let result = playerDb.exec(
-        'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform FROM player_data'
+        'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain FROM player_data'
     );
     const players = {};
     if (result.length === 0) return players;
@@ -596,7 +631,8 @@ function getAllPlayerDataSQL() {
             count: JSON.parse(obj.count || '{}'),
             titles: JSON.parse(obj.titles || '{}'),
             lastIp: obj.last_ip || '',
-            platform: obj.platform || ''
+            platform: obj.platform || '',
+            chain: JSON.parse(obj.chain || '{}')
         };
     });
     return players;
