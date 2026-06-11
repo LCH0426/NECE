@@ -78,7 +78,6 @@ function getDurability(player) {
         var maxDur = item.maxDamage || 0;
         if (maxDur <= 0) return 0;
         var damage = item.damage || 0;
-        // 剩余耐久 = 最大耐久 - 已损坏值
         return maxDur - damage;
     } catch (e) {
         return 0;
@@ -86,42 +85,81 @@ function getDurability(player) {
 }
 
 /**
- * 设置玩家手持工具耐久度
- * 通过克隆+NBT修改+物品替换实现
- * @param {Player} player
- * @param {number} damage - 已损坏值
- * @returns {boolean}
+ * 获取耐久附魔等级
+ * BDS使用tag.ench，附魔ID为数字格式
+ * @param {Item} item
+ * @returns {number} 附魔等级，无附魔返回0
  */
-function setDurability(player, damage) {
+function getUnbreakingLevel(item) {
     try {
-        var item = player.getHand();
-        if (!item || item.isNull()) return false;
-        var maxDur = item.maxDamage || 0;
-        if (damage >= maxDur) {
-            damage = maxDur - 1;
-        }
-        // 克隆物品并修改 NBT
-        var newItem = item.clone();
-        var nbt = newItem.getNbt();
+        var nbt = item.getNbt();
+        if (!nbt) return 0;
+
+        // BDS: tag.ench 是 NbtList of NbtCompound
         var tag = nbt.getTag('tag');
-        if (!tag) {
-            tag = new NbtCompound();
-            nbt.setTag('tag', tag);
+        if (!tag) return 0;
+        var ench = tag.getTag('ench');
+        if (!ench) return 0;
+
+        // 转换为数组读取
+        var enchArray = ench.toArray();
+        for (var i = 0; i < enchArray.length; i++) {
+            var e = enchArray[i];
+            // BDS附魔: {id: 17, lvl: 3}
+            if (e.id === 17) {
+                return e.lvl || 0;
+            }
         }
-        tag.setInt('Damage', damage);
-        newItem.setNbt(nbt);
-        // 通过背包替换主手物品
-        player.getInventory().setItem(0, newItem);
-        if (_debug) {
-            logger.info('[Chain] 设置耐久: damage=' + damage + '/' + maxDur);
-        }
-        return true;
+        return 0;
     } catch (e) {
         if (_debug) {
-            logger.info('[Chain] setDurability 异常: ' + e.message);
+            logger.info('[Chain] getUnbreakingLevel 异常: ' + e.message);
         }
-        return false;
+        return 0;
     }
+}
+
+/**
+ * 设置玩家手持工具耐久度
+ * 延迟执行以确保游戏自身耐久扣除已完成
+ * 考虑耐久附魔：每次消耗概率为 1/(等级+1)
+ * @param {Player} player
+ * @param {number} chainCount - 连锁破坏的方块数
+ * @param {number} unbreakingLevel - 耐久附魔等级
+ */
+function applyChainDurability(player, chainCount, unbreakingLevel) {
+    setTimeout(function() {
+        try {
+            var item = player.getHand();
+            if (!item || item.isNull()) return;
+            var maxDur = item.maxDamage || 0;
+            if (maxDur <= 0) return;
+
+            // 按概率计算实际消耗的耐久
+            var actualDamage = 0;
+            var chance = 1 / (unbreakingLevel + 1);
+            for (var i = 0; i < chainCount; i++) {
+                if (Math.random() < chance) {
+                    actualDamage++;
+                }
+            }
+
+            var currentDamage = item.damage || 0;
+            var newDamage = currentDamage + actualDamage;
+            if (newDamage >= maxDur) {
+                newDamage = maxDur - 1;
+            }
+            item.setDamage(newDamage);
+            player.refreshItems();
+            if (_debug) {
+                logger.info('[Chain] 延迟设置耐久: currentDamage=' + currentDamage + ' chainCount=' + chainCount + ' actualDamage=' + actualDamage + ' newDamage=' + newDamage + ' maxDur=' + maxDur + ' unbreaking=' + unbreakingLevel);
+            }
+        } catch (e) {
+            if (_debug) {
+                logger.info('[Chain] applyChainDurability 异常: ' + e.message);
+            }
+        }
+    }, 50);
 }
 
 /**
@@ -198,7 +236,7 @@ function savePlayerChainConfig(xuid, cfg) {
     // 获取当前配置中的所有方块
     var allBlocks = getAllAllowedBlocks();
 
-    // 只保存被禁用的方块（黑名单模式）
+    // 只保存被禁用的方块
     var disabledBlocks = {};
     for (var i = 0; i < allBlocks.length; i++) {
         var blockId = allBlocks[i];
@@ -344,18 +382,20 @@ function registerChainListener() {
                 if (playerCfg.blocks[blockType] === false) return;
             }
 
-            // 获取当前工具耐久（手动挖第一个方块时系统已扣1点）
+            // 获取当前工具耐久和附魔
             var maxDurability = getMaxDurability(player);
             var currentDurability = getDurability(player);
+            var unbreakingLevel = getUnbreakingLevel(item);
             if (_debug) {
                 logger.info('[Chain] 工具=' + toolId + ' 类型=' + toolType + ' 方块=' + blockType);
-                logger.info('[Chain] 最大耐久=' + maxDurability + ' 当前耐久=' + currentDurability);
+                logger.info('[Chain] 最大耐久=' + maxDurability + ' 当前耐久=' + currentDurability + ' 耐久附魔=' + unbreakingLevel);
             }
             if (currentDurability <= 0) return;
 
-            // 连锁上限：取配置值和当前耐久的较小值
+            // 连锁上限：考虑耐久附魔，实际可挖方块 = 剩余耐久 * (等级+1)
             var cfgMaxBlocks = cfg.maxBlocks || 64;
-            var maxBlocks = Math.min(cfgMaxBlocks, currentDurability);
+            var effectiveDurability = currentDurability * (unbreakingLevel + 1);
+            var maxBlocks = Math.min(cfgMaxBlocks, effectiveDurability);
 
             // 执行连锁
             var startTime = Date.now();
@@ -363,16 +403,10 @@ function registerChainListener() {
             var elapsed = Date.now() - startTime;
 
             if (result.count > 0) {
-                // 扣除工具耐久：连锁破坏的方块数
-                try {
-                    var currentDamage = maxDurability - currentDurability; // 当前已损坏值
-                    var newDamage = currentDamage + result.count; // 新的已损坏值
-                    setDurability(player, newDamage);
-                    if (_debug) {
-                        logger.info('[Chain] 扣除耐久: 当前损坏=' + currentDamage + ' 扣除=' + result.count + ' 新损坏=' + newDamage);
-                    }
-                } catch (e) {
-                    if (_debug) logger.info('[Chain] 扣除耐久失败: ' + e.message);
+                // 延迟扣除工具耐久，按概率计算实际消耗
+                applyChainDurability(player, result.count, unbreakingLevel);
+                if (_debug) {
+                    logger.info('[Chain] 连锁方块数=' + result.count + '，延迟扣除耐久');
                 }
 
                 player.sendText("§e[连锁] §a共连锁 " + result.count + " 个方块，耗时 " + elapsed + "ms", 4);
@@ -401,7 +435,7 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
     var encode = function(x, y, z) { return x * 1000000 + y * 1000 + z; };
     visited.add(encode(startPos.x, startPos.y, startPos.z));
 
-    // BFS 遍历相邻方块（不包括起始方块，因为已经被玩家挖掉了）
+    // BFS 遍历相邻方块，不包括起始方块
     while (queueIdx < queue.length && count < maxBlocks) {
         var qx = queue[queueIdx], qy = queue[queueIdx+1], qz = queue[queueIdx+2];
         queueIdx += 3;
