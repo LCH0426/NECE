@@ -3,6 +3,10 @@
   "version": "2.0.0",
   "description": "NECE",
   "main": "index.js",
+  "contributors": [
+    "LCH0426 <https://github.com/LCH0426>",
+    "Claude <https://claude.ai>"
+  ],
   "scripts": {
     "test": "node --test --test-force-exit test/unit/*.test.js",
     "test:verbose": "node --test --test-force-exit --test-reporter spec test/unit/*.test.js"
