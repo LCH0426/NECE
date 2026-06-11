@@ -26,6 +26,7 @@ const D = require('./debug');
 let mailDM = null;
 let mailData = null;
 let _deps = {};
+let t = null;
 
 /**
  * 初始化邮件模块，加载邮件数据并确保数据结构完整
@@ -36,6 +37,7 @@ function init(dm, deps) {
 	D.debugLogModule('mail')('init: 初始化完成');
     mailDM = dm;
     _deps = deps || {};
+    t = _deps.t;
     mailData = mailDM.load();
     if (!mailData.mails) mailData.mails = [];
     if (!mailData.nextId) mailData.nextId = 1;
@@ -116,6 +118,15 @@ function getCurrencyName() {
 }
 
 /**
+ * 获取玩家语言设置
+ * @param {string} xuid
+ * @returns {string}
+ */
+function getLocale(xuid) {
+    return _deps.getPlayerSetting ? _deps.getPlayerSetting(xuid, 'locale') : 'zh_CN';
+}
+
+/**
  * 获取玩家未读邮件数量（不含定时邮件）
  * 群发邮件的 read 字段是对象，按 xuid 索引判断已读状态
  * @param {string} xuid
@@ -187,12 +198,13 @@ function checkScheduledMails() {
             const onlinePlayers = mc.getOnlinePlayers();
             onlinePlayers.forEach(function(onlinePlayer) {
                 const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(onlinePlayer.xuid, "enableMailNotification") : true;
+                const lang = getLocale(onlinePlayer.xuid);
                 if (hasAttachment && playerSetting) {
-                    onlinePlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自 " + mail.fromName + " 的邮件，内含附件奖励");
-                    onlinePlayer.tell("§e[邮件] §a您收到了一封来自 " + mail.fromName + " 的邮件，内含附件奖励，请在邮件系统中领取");
+                    onlinePlayer.sendToast(t(lang, 'mail.notify_title'), t(lang, 'mail.notify_attach_from', mail.fromName));
+                    onlinePlayer.tell(t(lang, 'mail.tell_attach_from', mail.fromName));
                 } else if (playerSetting) {
-                    onlinePlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自 " + mail.fromName + " 的全体邮件");
-                    onlinePlayer.tell("§e[邮件] §a您收到了一封来自 " + mail.fromName + " 的全体邮件，请在邮件系统中查看");
+                    onlinePlayer.sendToast(t(lang, 'mail.notify_title'), t(lang, 'mail.notify_global_from', mail.fromName));
+                    onlinePlayer.tell(t(lang, 'mail.tell_global_from', mail.fromName));
                 }
             });
         }
@@ -209,22 +221,23 @@ function checkScheduledMails() {
  */
 function showScheduledMailManagerForm(player) {
     const scheduledMails = mailData.mails.filter(function(mail) { return mail.scheduledTime; });
+    const lang = getLocale(player.xuid);
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§6定时邮件管理");
+    gui.setTitle(t(lang, 'mail.scheduled_mgr_title'));
 
     if (scheduledMails.length === 0) {
-        gui.setContent("§c暂无定时邮件");
+        gui.setContent(t(lang, 'mail.no_scheduled'));
     } else {
-        gui.setContent("-------------------------\n§a定时邮件数量：§f" + scheduledMails.length + "\n-------------------------\n");
+        gui.setContent("-------------------------\n" + t(lang, 'mail.scheduled_count', scheduledMails.length) + "\n-------------------------\n");
 
         scheduledMails.forEach(function(mail, index) {
             const hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
-            gui.addButton((index + 1) + ". " + mail.fromName + "\n§6定时时间：" + mail.scheduledTime + "\n" + (hasAttachment ? "§a[含附件]" : ""));
+            gui.addButton(t(lang, 'mail.scheduled_item', index + 1, mail.fromName, mail.scheduledTime, hasAttachment ? t(lang, 'mail.has_attach') : ""));
         });
     }
 
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'mail.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -243,23 +256,24 @@ function showScheduledMailManagerForm(player) {
  * @param {Object} mail - 定时邮件对象
  */
 function showScheduledMailDetailForm(player, mail) {
+    const lang = getLocale(player.xuid);
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§6定时邮件详情");
+    gui.setTitle(t(lang, 'mail.scheduled_detail_title'));
 
     const hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
     let content = "------------------------\n";
-    content += "§a发送者：§f" + mail.fromName + "\n";
-    content += "§a定时时间：§f" + mail.scheduledTime + "\n";
-    content += "§a邮件内容：\n§f" + mail.content + "\n";
-    content += "§a" + getCurrencyName() + "奖励：§f" + mail.starQian + " 点\n";
-    content += "§a附件物品：§f" + (mail.items ? mail.items.length : 0) + " 个\n";
-    content += "§a创建时间：§f" + mail.time + "\n";
+    content += t(lang, 'mail.detail_sender', mail.fromName);
+    content += t(lang, 'mail.scheduled_time_label', mail.scheduledTime);
+    content += t(lang, 'mail.detail_content_label', mail.content);
+    content += t(lang, 'mail.detail_currency_reward', getCurrencyName(), mail.starQian);
+    content += t(lang, 'mail.detail_attach_count', mail.items ? mail.items.length : 0);
+    content += t(lang, 'mail.detail_create_time', mail.time);
     content += "------------------------\n";
 
     gui.setContent(content);
-    gui.addButton("§b修改定时时间", "textures/ui/icon_recipe_equipment");
-    gui.addButton("§c删除定时邮件", "textures/ui/cancel");
-    gui.addButton("§a返回列表", "textures/ui/arrow_left");
+    gui.addButton(t(lang, 'mail.btn_modify_scheduled'), "textures/ui/icon_recipe_equipment");
+    gui.addButton(t(lang, 'mail.btn_delete_scheduled'), "textures/ui/cancel");
+    gui.addButton(t(lang, 'mail.btn_back_list'), "textures/ui/arrow_left");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -269,7 +283,7 @@ function showScheduledMailDetailForm(player, mail) {
         } else if (id === 1) {
             mailData.mails = mailData.mails.filter(function(m) { return m.id !== mail.id; });
             save();
-            p.tell("§e[邮件] §a定时邮件删除成功！");
+            p.tell(t(lang, 'mail.scheduled_deleted'));
             showScheduledMailManagerForm(p);
         } else {
             showScheduledMailManagerForm(p);
@@ -283,10 +297,11 @@ function showScheduledMailDetailForm(player, mail) {
  * @param {Object} mail - 定时邮件对象
  */
 function showModifyScheduledTimeForm(player, mail) {
+    const lang = getLocale(player.xuid);
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§6修改定时时间");
-    gui.addLabel("§e请输入新的定时时间");
-    gui.addInput("定时时间", "格式：2026.02.12.00.00（年月日时分）", mail.scheduledTime);
+    gui.setTitle(t(lang, 'mail.modify_scheduled_title'));
+    gui.addLabel(t(lang, 'mail.modify_scheduled_hint'));
+    gui.addInput(t(lang, 'mail.scheduled_time_input'), t(lang, 'mail.scheduled_time_format'), mail.scheduledTime);
 
     player.sendForm(gui, function(p, data) {
         if (data == null) {
@@ -301,7 +316,7 @@ function showModifyScheduledTimeForm(player, mail) {
         const newScheduledTime = (data && data[1]) ? data[1].trim() : '';
         // 校验时间格式：YYYY.MM.DD.HH 或 YYYY.MM.DD.HH.mm
         if (!newScheduledTime || !/^\d{4}\.\d{2}\.\d{2}\.\d{2}(\.\d{2})?$/.test(newScheduledTime)) {
-            p.tell("§e[邮件] §c定时时间格式错误！");
+            p.tell(t(lang, 'mail.err_scheduled_format'));
             showModifyScheduledTimeForm(p, mail);
             return;
         }
@@ -312,14 +327,14 @@ function showModifyScheduledTimeForm(player, mail) {
         const now = new Date();
 
         if (scheduledDate <= now) {
-            p.tell("§e[邮件] §c定时时间必须晚于当前时间！");
+            p.tell(t(lang, 'mail.err_scheduled_past'));
             showModifyScheduledTimeForm(p, mail);
             return;
         }
 
         mail.scheduledTime = newScheduledTime;
         save();
-        p.tell("§e[邮件] §a定时时间修改成功！");
+        p.tell(t(lang, 'mail.scheduled_modified'));
         showScheduledMailDetailForm(p, mail);
     });
 }
@@ -330,6 +345,7 @@ function showModifyScheduledTimeForm(player, mail) {
  */
 function showMailSystemForm(player) {
     const isOp = player.isOP();
+    const lang = getLocale(player.xuid);
 
     if (!isOp) {
         showPlayerMailSystemForm(player);
@@ -337,18 +353,18 @@ function showMailSystemForm(player) {
     }
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§d邮件系统");
+    gui.setTitle(t(lang, 'mail.system_title'));
 
     let content = "-------------------------\n";
-    content += "§e邮件系统功能：\n";
+    content += t(lang, 'mail.system_features');
     content += "-------------------------\n";
 
     gui.setContent(content);
-    gui.addButton("§b查看邮件", "textures/ui/mail_icon");
-    gui.addButton("§a发送全体邮件", "textures/ui/icon_book_writable");
-    gui.addButton("§e发送单独邮件", "textures/ui/icon_book_writable");
-    gui.addButton("§6管理定时邮件", "textures/ui/icon_setting");
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'mail.btn_view_mail'), "textures/ui/mail_icon");
+    gui.addButton(t(lang, 'mail.btn_send_global'), "textures/ui/icon_book_writable");
+    gui.addButton(t(lang, 'mail.btn_send_single'), "textures/ui/icon_book_writable");
+    gui.addButton(t(lang, 'mail.btn_manage_scheduled'), "textures/ui/icon_setting");
+    gui.addButton(t(lang, 'mail.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -376,6 +392,7 @@ function showMailSystemForm(player) {
 function showMailListForm(player, page) {
     page = page || 0;
     const xuid = player.xuid;
+    const lang = getLocale(xuid);
     // 筛选发给自己的邮件和全体邮件，排除定时邮件
     const myMails = mailData.mails.filter(function(m) { return (m.toXuid === xuid || m.toXuid === "all") && !m.scheduledTime; });
 
@@ -388,7 +405,7 @@ function showMailListForm(player, page) {
     });
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b我的邮件");
+    gui.setTitle(t(lang, 'mail.my_mail_title'));
 
     const mailsPerPage = 5;
     const totalPages = Math.ceil(myMails.length / mailsPerPage) || 1;
@@ -398,11 +415,10 @@ function showMailListForm(player, page) {
     const pageMails = myMails.slice(startIndex, endIndex);
 
     if (myMails.length === 0) {
-        gui.setContent("暂无邮件");
+        gui.setContent(t(lang, 'mail.no_mail'));
     } else {
-        gui.setContent("§a您共有 " + myMails.length + " 封邮件：\n§e当前页：" + (currentPage + 1) + "/" + totalPages);
+        gui.setContent(t(lang, 'mail.mail_count', myMails.length) + "\n" + t(lang, 'mail.current_page', currentPage + 1, totalPages));
         pageMails.forEach(function(mail) {
-            // isUnread 用 let 声明以便后续修改
             let isUnread = false;
             if (mail.toXuid === "all") {
                 if (!mail.read || !mail.read[xuid]) {
@@ -413,20 +429,20 @@ function showMailListForm(player, page) {
                     isUnread = true;
                 }
             }
-            const type = mail.toXuid === "all" ? "[全体] " : "";
+            const type = mail.toXuid === "all" ? t(lang, 'mail.type_global') : "";
             const icon = isUnread ? "textures/ui/invite_base" : "textures/ui/New_confirm_Hover";
-            gui.addButton("§b" + type + mail.fromName + "\n" + mail.time, icon);
+            gui.addButton(t(lang, 'mail.mail_item', type, mail.fromName, mail.time), icon);
         });
     }
 
     if (currentPage < totalPages - 1) {
-        gui.addButton("§e下一页", "textures/ui/arrowRight");
+        gui.addButton(t(lang, 'mail.btn_next_page'), "textures/ui/arrowRight");
     }
     if (currentPage > 0) {
-        gui.addButton("§e上一页", "textures/ui/arrowLeft");
+        gui.addButton(t(lang, 'mail.btn_prev_page'), "textures/ui/arrowLeft");
     }
 
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'mail.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -467,6 +483,7 @@ function showMailListForm(player, page) {
  */
 function showMailDetailForm(player, mail) {
     const xuid = player.xuid;
+    const lang = getLocale(xuid);
 
     // 标记已读：群发邮件用对象按 xuid 索引，私信直接布尔值
     if (mail.toXuid === "all") {
@@ -478,11 +495,11 @@ function showMailDetailForm(player, mail) {
     save();
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b邮件详情");
+    gui.setTitle(t(lang, 'mail.detail_title'));
 
     let content = "-------------------------\n";
-    content += "§a发件人：§f" + mail.fromName + "\n";
-    content += "§a时间：§f" + mail.time + "\n";
+    content += t(lang, 'mail.detail_sender', mail.fromName);
+    content += t(lang, 'mail.detail_time', mail.time);
     content += "-------------------------\n";
     content += "§f" + mail.content + "\n";
     content += "-------------------------\n";
@@ -498,27 +515,27 @@ function showMailDetailForm(player, mail) {
     }
 
     if (hasAttachment) {
-        content += "§e附件内容：\n";
+        content += t(lang, 'mail.detail_attach_content');
         if (mail.starQian && mail.starQian > 0) {
-            content += "§a- " + getCurrencyName() + " x" + mail.starQian + "\n";
+            content += t(lang, 'mail.detail_attach_currency', getCurrencyName(), mail.starQian);
         }
         if (mail.items && mail.items.length > 0) {
             mail.items.forEach(function(item, index) {
                 // SNBT 类型物品：从序列化字符串中提取物品名称
                 if (typeof item === 'object' && item.type === 'snbt' && item.snbt) {
                     const nameMatch = item.snbt.match(/"Name"\s*:\s*"([^"]+)"/);
-                    const displayName = nameMatch ? nameMatch[1].replace('minecraft:', '') : 'SNBT物品';
-                    content += "§a- " + displayName + "\n";
+                    const displayName = nameMatch ? nameMatch[1].replace('minecraft:', '') : t(lang, 'mail.snbt_item');
+                    content += t(lang, 'mail.detail_attach_item', displayName);
                 } else if (typeof item === 'object' && item.name) {
-                    content += "§a- " + item.name + " x" + (item.count || 1) + "\n";
+                    content += t(lang, 'mail.detail_attach_item_count', item.name, item.count || 1);
                 } else {
-                    content += "§a- 物品 " + (index + 1) + "\n";
+                    content += t(lang, 'mail.detail_attach_item_index', index + 1);
                 }
             });
         }
         if (isClaimed) {
             content += "-------------------------\n";
-            content += "§a已领取\n";
+            content += t(lang, 'mail.claimed');
         }
         content += "-------------------------\n";
     }
@@ -526,10 +543,10 @@ function showMailDetailForm(player, mail) {
     gui.setContent(content);
 
     if (hasAttachment && !isClaimed) {
-        gui.addButton("§a领取附件", "textures/ui/icon_map");
+        gui.addButton(t(lang, 'mail.btn_claim_attach'), "textures/ui/icon_map");
     }
-    gui.addButton("§c删除", "textures/ui/trash_default");
-    gui.addButton("§6返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'mail.btn_delete'), "textures/ui/trash_default");
+    gui.addButton(t(lang, 'mail.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -546,7 +563,7 @@ function showMailDetailForm(player, mail) {
         if (id === btnIndex) {
             mailData.mails = mailData.mails.filter(function(m) { return m !== mail; });
             save();
-            p.tell("§e[邮件] §c邮件已删除");
+            p.tell(t(lang, 'mail.mail_deleted'));
             showMailListForm(p);
         } else if (id === btnIndex + 1) {
             showMailListForm(p);
@@ -562,6 +579,7 @@ function showMailDetailForm(player, mail) {
  */
 function claimMailAttachments(player, mail) {
     const xuid = player.xuid;
+    const lang = getLocale(xuid);
 
     // 检查是否已领取
     let isClaimed = false;
@@ -572,7 +590,7 @@ function claimMailAttachments(player, mail) {
     }
 
     if (isClaimed) {
-        player.tell("§e[邮件] §c您已经领取过该邮件的附件了！");
+        player.tell(t(lang, 'mail.err_already_claimed'));
         showMailDetailForm(player, mail);
         return;
     }
@@ -580,10 +598,10 @@ function claimMailAttachments(player, mail) {
     // 发放货币奖励
     if (mail.starQian && mail.starQian > 0) {
         if (_deps.addPlayerMoney) {
-            _deps.addPlayerMoney(player, mail.starQian, "邮件附件领取");
-            player.tell("§e[邮件] §a成功领取 " + mail.starQian + " " + getCurrencyName() + "！");
+            _deps.addPlayerMoney(player, mail.starQian, t(lang, 'mail.reason_claim_attach'));
+            player.tell(t(lang, 'mail.claim_currency_success', mail.starQian, getCurrencyName()));
         } else {
-            player.tell("§e[邮件] §c经济系统未启用，无法发放" + getCurrencyName() + "！");
+            player.tell(t(lang, 'mail.err_economy_disabled', getCurrencyName()));
         }
     }
 
@@ -595,7 +613,7 @@ function claimMailAttachments(player, mail) {
                 const rawSnbt = typeof itemData === 'object' ? itemData.snbt : itemData;
                 if (!rawSnbt || typeof rawSnbt !== 'string' || !rawSnbt.trim()) {
                     _deps.logger.error("[邮件] 物品" + (index + 1) + "缺少有效的snbt数据，itemData类型: " + typeof itemData);
-                    player.tell("§e[邮件] §c物品 " + (index + 1) + " 数据无效！");
+                    player.tell(t(lang, 'mail.err_item_invalid', index + 1));
                     allItemsSuccess = false;
                     return;
                 }
@@ -604,10 +622,10 @@ function claimMailAttachments(player, mail) {
                 // 多策略尝试解析 SNBT：处理不同的转义和格式变体
                 let nbt = null;
                 const strategies = [
-                    trimmedSnbt,                                              // 原始 SNBT
-                    trimmedSnbt.replace(/\\"/g, '"'),                        // 转义引号 -> 普通引号
-                    trimmedSnbt.replace(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1:'),  // JSON键 -> 无引号键
-                    trimmedSnbt.replace(/\\"/g, '"').replace(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1:')  // 组合
+                    trimmedSnbt,
+                    trimmedSnbt.replace(/\\"/g, '"'),
+                    trimmedSnbt.replace(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1:'),
+                    trimmedSnbt.replace(/\\"/g, '"').replace(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:/g, '$1:')
                 ];
                 for (let si = 0; si < strategies.length; si++) {
                     nbt = NBT.parseSNBT(strategies[si]);
@@ -629,13 +647,13 @@ function claimMailAttachments(player, mail) {
                                 player.giveItem(fallbackItem);
                             } else {
                                 mc.spawnItem(fallbackItem, player.pos);
-                                player.tell("§e[邮件] §e背包已满，物品已掉落在脚下！");
+                                player.tell(t(lang, 'mail.inventory_full'));
                             }
-                            player.tell("§e[邮件] §a成功领取 " + fallbackItem.name + "！");
+                            player.tell(t(lang, 'mail.claim_item_success', fallbackItem.name));
                             return;
                         }
                     }
-                    player.tell("§e[邮件] §c物品 " + (index + 1) + " SNBT解析失败！");
+                    player.tell(t(lang, 'mail.err_snbt_parse', index + 1));
                     allItemsSuccess = false;
                     return;
                 }
@@ -645,16 +663,16 @@ function claimMailAttachments(player, mail) {
                         player.giveItem(item);
                     } else {
                         mc.spawnItem(item, player.pos);
-                        player.tell("§e[邮件] §e背包已满，物品已掉落在脚下！");
+                        player.tell(t(lang, 'mail.inventory_full'));
                     }
-                    player.tell("§e[邮件] §a成功领取 " + item.name + "！");
+                    player.tell(t(lang, 'mail.claim_item_success', item.name));
                 } else {
-                    player.tell("§e[邮件] §c物品 " + (index + 1) + " 创建失败！");
+                    player.tell(t(lang, 'mail.err_item_create', index + 1));
                     allItemsSuccess = false;
                 }
             } catch (error) {
                 _deps.logger.error("发放邮件物品失败：" + error.message);
-                player.tell("§e[邮件] §c物品 " + (index + 1) + " 发放失败！");
+                player.tell(t(lang, 'mail.err_item_grant', index + 1));
                 allItemsSuccess = false;
             }
         });
@@ -662,7 +680,7 @@ function claimMailAttachments(player, mail) {
 
     // 部分物品发放失败时不标记已领取，允许稍后重试
     if (!allItemsSuccess) {
-        player.tell("§e[邮件] §c部分物品发放失败，请稍后重试！");
+        player.tell(t(lang, 'mail.err_partial_grant'));
         showMailDetailForm(player, mail);
         return;
     }
@@ -676,7 +694,7 @@ function claimMailAttachments(player, mail) {
     }
     save();
 
-    player.tell("§e[邮件] §a附件领取成功！");
+    player.tell(t(lang, 'mail.claim_success'));
     showMailDetailForm(player, mail);
 }
 
@@ -685,14 +703,15 @@ function claimMailAttachments(player, mail) {
  * @param {Player} player - 管理员玩家
  */
 function showSendGlobalMailForm(player) {
+    const lang = getLocale(player.xuid);
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§a发送全体邮件");
-    gui.addLabel("§e此邮件将发送给所有玩家");
-    gui.addSwitch("使用自定义发件人", false);
-    gui.addInput("自定义发件人", "不填则显示系统自动投递", "");
-    gui.addInput("邮件内容", "请输入邮件内容", "");
-    gui.addInput("发放" + getCurrencyName(), "填写数量，为空则不发放", "");
-    gui.addInput("定时发送", "格式：2026.02.12.00（年月日时分），为空则立即发送", "");
+    gui.setTitle(t(lang, 'mail.send_global_title'));
+    gui.addLabel(t(lang, 'mail.send_global_hint'));
+    gui.addSwitch(t(lang, 'mail.use_custom_sender'), false);
+    gui.addInput(t(lang, 'mail.custom_sender'), t(lang, 'mail.custom_sender_placeholder'), "");
+    gui.addInput(t(lang, 'mail.content_label'), t(lang, 'mail.content_placeholder'), "");
+    gui.addInput(t(lang, 'mail.grant_currency', getCurrencyName()), t(lang, 'mail.grant_currency_placeholder'), "");
+    gui.addInput(t(lang, 'mail.scheduled_send'), t(lang, 'mail.scheduled_send_format'), "");
 
     // 枚举背包物品供选择，跳过空槽位
     const allItems = player.getInventory().getAllItems();
@@ -706,7 +725,7 @@ function showSendGlobalMailForm(player) {
         items.push(allItems[key]);
     }
 
-    const itemOptions = ["无"];
+    const itemOptions = [t(lang, 'mail.none')];
     items.forEach(function(item) {
         const Enchanted = '';
         if (item.isEnchanted) {
@@ -715,12 +734,12 @@ function showSendGlobalMailForm(player) {
         itemOptions.push(Enchanted + item.name + " §rx" + item.count);
     });
 
-    gui.addLabel("§e选择附件物品（最多5个）");
-    gui.addDropdown("物品1", itemOptions, 0);
-    gui.addDropdown("物品2", itemOptions, 0);
-    gui.addDropdown("物品3", itemOptions, 0);
-    gui.addDropdown("物品4", itemOptions, 0);
-    gui.addDropdown("物品5", itemOptions, 0);
+    gui.addLabel(t(lang, 'mail.select_attach_max5'));
+    gui.addDropdown(t(lang, 'mail.item_num', 1), itemOptions, 0);
+    gui.addDropdown(t(lang, 'mail.item_num', 2), itemOptions, 0);
+    gui.addDropdown(t(lang, 'mail.item_num', 3), itemOptions, 0);
+    gui.addDropdown(t(lang, 'mail.item_num', 4), itemOptions, 0);
+    gui.addDropdown(t(lang, 'mail.item_num', 5), itemOptions, 0);
 
     player.sendForm(gui, function(p, data) {
         if (data == null || data === undefined || !Array.isArray(data)) {
@@ -733,7 +752,7 @@ function showSendGlobalMailForm(player) {
 
         const content = data[3] ? data[3].trim() : '';
         if (!content) {
-            p.tell("§e[邮件] §c邮件内容不能为空！");
+            p.tell(t(lang, 'mail.err_empty_content'));
             showSendGlobalMailForm(p);
             return;
         }
@@ -763,7 +782,7 @@ function showSendGlobalMailForm(player) {
         }
 
         if (selectedItems.length > 0) {
-            p.tell("§e[邮件] §a已选择 " + selectedItems.length + " 个物品！");
+            p.tell(t(lang, 'mail.items_selected', selectedItems.length));
         }
 
         sendGlobalMail(p, content, starQian, selectedItems, scheduledTime, useCustomSender, customSender);
@@ -783,6 +802,7 @@ function showSendGlobalMailForm(player) {
 function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime, useCustomSender, customSender) {
     useCustomSender = useCustomSender || false;
     customSender = customSender || '';
+    const lang = getLocale(player.xuid);
 
     const items = selectedItems.map(function(item) {
         return {
@@ -799,10 +819,10 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
         if (customSender) {
             fromName = customSender;
         } else {
-            fromName = "系统默认投递";
+            fromName = t(lang, 'mail.default_sender');
         }
     } else {
-        fromName = "管理员" + player.name;
+        fromName = t(lang, 'mail.admin_sender', player.name);
     }
 
     if (scheduledTime) {
@@ -828,14 +848,14 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
                     claimed: {}
                 });
                 save();
-                player.tell("§e[邮件] §a定时邮件设置成功！将在 " + scheduledTime + " 发送" + (hasAttachment ? "（含附件）" : ""));
+                player.tell(t(lang, 'mail.scheduled_set_success', scheduledTime, hasAttachment ? t(lang, 'mail.with_attach') : ""));
 
                 // 显示发送成功确认表单
                 const successForm = mc.newSimpleForm();
-                successForm.setTitle("§l§a邮件发送成功");
-                successForm.setContent("-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n-------------------------\n§e邮件内容：\n" + content + "\n-------------------------\n§a发件人：§e" + fromName + "\n§a" + getCurrencyName() + "奖励：§e" + starQian + " 点\n§a附件物品：§e" + items.length + " 个\n§a定时发送：§e" + scheduledTime + "\n-------------------------\n");
-                successForm.addButton("§b返回邮件系统", "textures/ui/recap_glyph_desaturated");
-                successForm.addButton("§c关闭", "textures/ui/crossout");
+                successForm.setTitle(t(lang, 'mail.send_success_title'));
+                successForm.setContent(t(lang, 'mail.send_success_content', hasAttachment ? t(lang, 'mail.with_attach') : "", content, fromName, getCurrencyName(), starQian, items.length, scheduledTime));
+                successForm.addButton(t(lang, 'mail.btn_back_system'), "textures/ui/recap_glyph_desaturated");
+                successForm.addButton(t(lang, 'mail.btn_close'), "textures/ui/crossout");
 
                 player.sendForm(successForm, function(p, id) {
                     if (id === 0) {
@@ -844,12 +864,12 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
                 });
                 return;
             } else {
-                player.tell("§e[邮件] §c定时时间必须晚于当前时间！");
+                player.tell(t(lang, 'mail.err_scheduled_past'));
                 showSendGlobalMailForm(player);
                 return;
             }
         } else {
-            player.tell("§e[邮件] §c定时时间格式不正确！正确格式：2026.02.12.00");
+            player.tell(t(lang, 'mail.err_scheduled_format_detail'));
             showSendGlobalMailForm(player);
             return;
         }
@@ -875,12 +895,13 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     onlinePlayers.forEach(function(onlinePlayer) {
         if (onlinePlayer.xuid !== player.xuid) {
             const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(onlinePlayer.xuid, "enableMailNotification") : true;
+            const onlineLang = getLocale(onlinePlayer.xuid);
             if (hasAttachment && playerSetting) {
-                onlinePlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自 " + fromName + " 的邮件，内含附件奖励");
-                onlinePlayer.tell("§e[邮件] §a您收到了一封来自 " + fromName + " 的邮件，内含附件奖励，请在邮件系统中领取");
+                onlinePlayer.sendToast(t(onlineLang, 'mail.notify_title'), t(onlineLang, 'mail.notify_attach_from', fromName));
+                onlinePlayer.tell(t(onlineLang, 'mail.tell_attach_from', fromName));
             } else if (playerSetting) {
-                onlinePlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自 " + fromName + " 的全体邮件");
-                onlinePlayer.tell("§e[邮件] §a您收到了一封来自 " + fromName + " 的全体邮件，请在邮件系统中查看");
+                onlinePlayer.sendToast(t(onlineLang, 'mail.notify_title'), t(onlineLang, 'mail.notify_global_from', fromName));
+                onlinePlayer.tell(t(onlineLang, 'mail.tell_global_from', fromName));
             }
         }
     });
@@ -888,10 +909,10 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
     if (!scheduledTime) {
         // 立即发送时显示成功确认表单
         const successForm = mc.newSimpleForm();
-        successForm.setTitle("§l§a邮件发送成功");
-        successForm.setContent("-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n-------------------------\n§e邮件内容：\n" + content + "\n-------------------------\n§a发件人：§e" + fromName + "\n§a" + getCurrencyName() + "奖励：§e" + starQian + " 点\n§a附件物品：§e" + items.length + " 个\n§a发送时间：§e" + (_deps.U ? _deps.U.getCurrentTimeString() : formatMailTime()) + "\n-------------------------\n");
-        successForm.addButton("§b返回邮件系统", "textures/ui/recap_glyph_desaturated");
-        successForm.addButton("§c关闭", "textures/ui/crossout");
+        successForm.setTitle(t(lang, 'mail.send_success_title'));
+        successForm.setContent(t(lang, 'mail.send_success_content', hasAttachment ? t(lang, 'mail.with_attach') : "", content, fromName, getCurrencyName(), starQian, items.length, _deps.U ? _deps.U.getCurrentTimeString() : formatMailTime()));
+        successForm.addButton(t(lang, 'mail.btn_back_system'), "textures/ui/recap_glyph_desaturated");
+        successForm.addButton(t(lang, 'mail.btn_close'), "textures/ui/crossout");
 
         player.sendForm(successForm, function(p, id) {
             if (id === 0) {
@@ -908,10 +929,11 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
  * @param {Player} player
  */
 function showSearchPlayerForMailForm(player) {
+    const lang = getLocale(player.xuid);
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§e选择收件人");
-    gui.addDropdown("搜索方式", ["UID", "玩家名称"], 0);
-    gui.addInput("搜索关键词", "输入UID或玩家名称", "");
+    gui.setTitle(t(lang, 'mail.select_recipient'));
+    gui.addDropdown(t(lang, 'mail.search_type'), [t(lang, 'mail.search_uid'), t(lang, 'mail.search_name')], 0);
+    gui.addInput(t(lang, 'mail.search_keyword'), t(lang, 'mail.search_placeholder'), "");
 
     player.sendForm(gui, function(p, data) {
         if (data == null || data === undefined || !Array.isArray(data)) {
@@ -923,7 +945,7 @@ function showSearchPlayerForMailForm(player) {
         const keyword = data[1] ? data[1].trim() : '';
 
         if (!keyword) {
-            p.tell("§e[邮件] §c请输入搜索关键词！");
+            p.tell(t(lang, 'mail.err_empty_keyword'));
             showSearchPlayerForMailForm(p);
             return;
         }
@@ -931,7 +953,7 @@ function showSearchPlayerForMailForm(player) {
         // 搜索类型与 searchPlayers 参数相反：0=UID -> searchType=1, 1=名称 -> searchType=0
         const results = _deps.searchPlayers ? _deps.searchPlayers(keyword, searchType === 1 ? 0 : 1) : [];
         if (results.length === 0) {
-            p.tell("§e[邮件] §c未找到匹配的玩家！");
+            p.tell(t(lang, 'mail.err_no_player'));
             showSearchPlayerForMailForm(p);
             return;
         }
@@ -950,16 +972,17 @@ function showSearchPlayerForMailForm(player) {
  * @param {Array} results - 搜索结果数组
  */
 function showMailTargetSelectForm(player, results) {
+    const lang = getLocale(player.xuid);
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b选择收件人");
-    gui.setContent("§e找到多个匹配结果，请选择：");
+    gui.setTitle(t(lang, 'mail.select_recipient'));
+    gui.setContent(t(lang, 'mail.multiple_results'));
 
     results.forEach(function(p) {
         const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(p.xuid) : "textures/ui/icon_steve";
-        gui.addButton("§b" + p.name + "\n§6UID: " + p.uid, avatarUrl);
+        gui.addButton(t(lang, 'mail.player_item', p.name, p.uid), avatarUrl);
     });
 
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'mail.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -978,11 +1001,12 @@ function showMailTargetSelectForm(player, results) {
  * @param {Object} target - 收件人信息 {xuid, name}
  */
 function showSendSingleMailForm(player, target) {
+    const lang = getLocale(player.xuid);
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§e发送邮件");
-    gui.addLabel("§e收件人：§b" + target.name);
-    gui.addInput("邮件内容", "请输入邮件内容", "");
-    gui.addInput("发放" + getCurrencyName(), "填写数量，为空则不发放", "");
+    gui.setTitle(t(lang, 'mail.send_single_title'));
+    gui.addLabel(t(lang, 'mail.recipient_label', target.name));
+    gui.addInput(t(lang, 'mail.content_label'), t(lang, 'mail.content_placeholder'), "");
+    gui.addInput(t(lang, 'mail.grant_currency', getCurrencyName()), t(lang, 'mail.grant_currency_placeholder'), "");
 
     // 遍历背包36个槽位，收集有效物品
     const inventory = player.getInventory();
@@ -1012,7 +1036,7 @@ function showSendSingleMailForm(player, target) {
         }
     }
 
-    const itemOptions = ["无"];
+    const itemOptions = [t(lang, 'mail.none')];
     items.forEach(function(item) {
         const Enchanted = '';
         if (item.isEnchanted) {
@@ -1021,12 +1045,12 @@ function showSendSingleMailForm(player, target) {
         itemOptions.push(Enchanted + item.name + " §rx" + item.count);
     });
 
-    gui.addLabel("§e选择附件物品（最多5个）");
-    gui.addDropdown("物品1", itemOptions, 0);
-    gui.addDropdown("物品2", itemOptions, 0);
-    gui.addDropdown("物品3", itemOptions, 0);
-    gui.addDropdown("物品4", itemOptions, 0);
-    gui.addDropdown("物品5", itemOptions, 0);
+    gui.addLabel(t(lang, 'mail.select_attach_max5'));
+    gui.addDropdown(t(lang, 'mail.item_num', 1), itemOptions, 0);
+    gui.addDropdown(t(lang, 'mail.item_num', 2), itemOptions, 0);
+    gui.addDropdown(t(lang, 'mail.item_num', 3), itemOptions, 0);
+    gui.addDropdown(t(lang, 'mail.item_num', 4), itemOptions, 0);
+    gui.addDropdown(t(lang, 'mail.item_num', 5), itemOptions, 0);
 
     player.sendForm(gui, function(p, data) {
         if (data == null || data === undefined || !Array.isArray(data)) {
@@ -1036,7 +1060,7 @@ function showSendSingleMailForm(player, target) {
 
         const content = data[1] ? data[1].trim() : '';
         if (!content) {
-            p.tell("§e[邮件] §c邮件内容不能为空！");
+            p.tell(t(lang, 'mail.err_empty_content'));
             showSendSingleMailForm(p, target);
             return;
         }
@@ -1061,7 +1085,7 @@ function showSendSingleMailForm(player, target) {
         }
 
         if (selectedItems.length > 0) {
-            p.tell("§e[邮件] §a已选择 " + selectedItems.length + " 个物品！");
+            p.tell(t(lang, 'mail.items_selected', selectedItems.length));
         }
 
         sendSingleMail(p, target, content, starQian, selectedItems);
@@ -1077,6 +1101,7 @@ function showSendSingleMailForm(player, target) {
  * @param {Array} selectedItems - 物品附件
  */
 function sendSingleMail(player, target, content, starQian, selectedItems) {
+    const lang = getLocale(player.xuid);
     const items = selectedItems.map(function(item) {
         return {
             snbt: item.snbt,
@@ -1089,7 +1114,7 @@ function sendSingleMail(player, target, content, starQian, selectedItems) {
     mailData.mails.push({
         id: mailData.nextId++,
         fromXuid: player.xuid,
-        fromName: "管理员" + player.name,
+        fromName: t(lang, 'mail.admin_sender', player.name),
         toXuid: target.xuid,
         content: content,
         time: _deps.U ? _deps.U.getCurrentTimeString() : formatMailTime(),
@@ -1104,18 +1129,19 @@ function sendSingleMail(player, target, content, starQian, selectedItems) {
     const targetPlayer = mc.getPlayer(target.xuid);
     if (targetPlayer) {
         const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(target.xuid, "enableMailNotification") : true;
+        const targetLang = getLocale(target.xuid);
         if (playerSetting) {
             if (hasAttachment) {
-                targetPlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自管理员 §b" + player.name + " §a的邮件，内含附件奖励");
-                targetPlayer.tell("§e[邮件] §a您收到了一封来自管理员 §b" + player.name + " §a的邮件，内含附件奖励，请在邮件系统中领取");
+                targetPlayer.sendToast(t(targetLang, 'mail.notify_title'), t(targetLang, 'mail.notify_admin_attach', player.name));
+                targetPlayer.tell(t(targetLang, 'mail.tell_admin_attach', player.name));
             } else {
-                targetPlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自管理员 §b" + player.name + " §a的私信");
-                targetPlayer.tell("§e[邮件] §a您收到了一封来自管理员 §b" + player.name + " §a的私信，请在邮件系统中查看");
+                targetPlayer.sendToast(t(targetLang, 'mail.notify_title'), t(targetLang, 'mail.notify_admin_pm', player.name));
+                targetPlayer.tell(t(targetLang, 'mail.tell_admin_pm', player.name));
             }
         }
     }
 
-    player.tell("§e[邮件] §a邮件已发送给 " + target.name + "！" + (hasAttachment ? "（含附件）" : ""));
+    player.tell(t(lang, 'mail.mail_sent_to', target.name, hasAttachment ? t(lang, 'mail.with_attach') : ""));
     showMailSystemForm(player);
 }
 
@@ -1125,6 +1151,7 @@ function sendSingleMail(player, target, content, starQian, selectedItems) {
  * @param {Player} player - 发送者
  */
 function showPlayerSendMailForm(player) {
+    const lang = getLocale(player.xuid);
     const onlinePlayers = mc.getOnlinePlayers();
     const playerOptions = [];
     const playerList = [];
@@ -1140,21 +1167,21 @@ function showPlayerSendMailForm(player) {
     });
 
     if (playerList.length === 0) {
-        player.sendModalForm("§e发送邮件", "§a当前没有其他在线玩家", "§a返回", "§c关闭", function(p, result) {
+        player.sendModalForm(t(lang, 'mail.send_mail'), t(lang, 'mail.no_other_players'), t(lang, 'mail.btn_back'), t(lang, 'mail.btn_close'), function(p, result) {
             if (result) showMailSystemForm(p);
         });
         return;
     }
 
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§a发送邮件");
-    gui.addLabel("§e发送邮件收费标准：");
-    gui.addLabel("§c基础费用：100" + getCurrencyName());
-    gui.addLabel("§c每添加一个附件：+200" + getCurrencyName());
-    gui.addLabel("§e选择收件人：");
-    gui.addDropdown("收件人", playerOptions, 0);
-    gui.addLabel("§e请输入邮件内容：");
-    gui.addInput("邮件内容", "请输入邮件内容", "");
+    gui.setTitle(t(lang, 'mail.send_mail_title'));
+    gui.addLabel(t(lang, 'mail.fee_title'));
+    gui.addLabel(t(lang, 'mail.fee_base', getCurrencyName()));
+    gui.addLabel(t(lang, 'mail.fee_attach', getCurrencyName()));
+    gui.addLabel(t(lang, 'mail.select_recipient_hint'));
+    gui.addDropdown(t(lang, 'mail.recipient'), playerOptions, 0);
+    gui.addLabel(t(lang, 'mail.content_hint'));
+    gui.addInput(t(lang, 'mail.content_label'), t(lang, 'mail.content_placeholder'), "");
 
     // 枚举背包物品
     const inventory = player.getInventory();
@@ -1184,7 +1211,7 @@ function showPlayerSendMailForm(player) {
         }
     }
 
-    const itemOptions = ["无"];
+    const itemOptions = [t(lang, 'mail.none')];
     items.forEach(function(item) {
         const Enchanted = '';
         if (item.isEnchanted) {
@@ -1193,10 +1220,10 @@ function showPlayerSendMailForm(player) {
         itemOptions.push(Enchanted + item.name + " §rx" + item.count);
     });
 
-    gui.addLabel("§e选择附件物品（最多3个，不能重复选择同一物品）");
-    gui.addDropdown("物品1", itemOptions, 0);
-    gui.addDropdown("物品2", itemOptions, 0);
-    gui.addDropdown("物品3", itemOptions, 0);
+    gui.addLabel(t(lang, 'mail.select_attach_max3'));
+    gui.addDropdown(t(lang, 'mail.item_num', 1), itemOptions, 0);
+    gui.addDropdown(t(lang, 'mail.item_num', 2), itemOptions, 0);
+    gui.addDropdown(t(lang, 'mail.item_num', 3), itemOptions, 0);
 
     player.sendForm(gui, function(p, data) {
         if (data == null || data === undefined || !Array.isArray(data)) {
@@ -1207,14 +1234,14 @@ function showPlayerSendMailForm(player) {
         const targetIndex = data[4];
         const target = playerList[targetIndex];
         if (!target) {
-            p.tell("§e[邮件] §c收件人选择错误！");
+            p.tell(t(lang, 'mail.err_recipient'));
             showPlayerSendMailForm(p);
             return;
         }
 
         const content = data[6] ? data[6].trim() : '';
         if (!content) {
-            p.tell("§e[邮件] §c邮件内容不能为空！");
+            p.tell(t(lang, 'mail.err_empty_content'));
             showPlayerSendMailForm(p);
             return;
         }
@@ -1227,7 +1254,7 @@ function showPlayerSendMailForm(player) {
             const selectedIndex = data[i];
             if (selectedIndex > 0) {
                 if (selectedIndices.has(selectedIndex)) {
-                    p.tell("§e[邮件] §c不能重复选择同一物品作为附件！");
+                    p.tell(t(lang, 'mail.err_duplicate_item'));
                     showPlayerSendMailForm(p);
                     return;
                 }
@@ -1252,15 +1279,15 @@ function showPlayerSendMailForm(player) {
 
         const currentStarQian = _deps.money ? _deps.money.get(p.xuid) || 0 : 0;
         if (currentStarQian < totalCost) {
-            p.tell("§e[邮件] §c" + getCurrencyName() + "不足！发送邮件需要 " + totalCost + " " + getCurrencyName() + "，您当前只有 " + currentStarQian + " " + getCurrencyName());
+            p.tell(t(lang, 'mail.err_insufficient', getCurrencyName(), totalCost, currentStarQian));
             showPlayerSendMailForm(p);
             return;
         }
 
         // 扣除货币
         if (_deps.reducePlayerMoney) {
-            if (!_deps.reducePlayerMoney(p, totalCost, "发送邮件附件")) {
-                p.tell("§e[邮件] §c扣除" + getCurrencyName() + "失败！");
+            if (!_deps.reducePlayerMoney(p, totalCost, t(lang, 'mail.reason_send_attach'))) {
+                p.tell(t(lang, 'mail.err_deduct_failed', getCurrencyName()));
                 showPlayerSendMailForm(p);
                 return;
             }
@@ -1292,13 +1319,14 @@ function showPlayerSendMailForm(player) {
         const targetPlayer = mc.getPlayer(target.xuid);
         if (targetPlayer) {
             const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(target.xuid, "enableMailNotification") : true;
+            const targetLang = getLocale(target.xuid);
             if (playerSetting) {
                 if (selectedItems.length > 0) {
-                    targetPlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自玩家 §b" + p.name + " §a的邮件，内含附件");
-                    targetPlayer.tell("§e[邮件] §a您收到了一封来自玩家 §b" + p.name + " §a的邮件，内含附件，请在邮件系统中领取");
+                    targetPlayer.sendToast(t(targetLang, 'mail.notify_title'), t(targetLang, 'mail.notify_player_attach', p.name));
+                    targetPlayer.tell(t(targetLang, 'mail.tell_player_attach', p.name));
                 } else {
-                    targetPlayer.sendToast("§e新邮件提醒", "§a您收到了一封来自玩家 §b" + p.name + " §a的私信");
-                    targetPlayer.tell("§e[邮件] §a您收到了一封来自玩家 §b" + p.name + " §a的私信，请在邮件系统中查看");
+                    targetPlayer.sendToast(t(targetLang, 'mail.notify_title'), t(targetLang, 'mail.notify_player_pm', p.name));
+                    targetPlayer.tell(t(targetLang, 'mail.tell_player_pm', p.name));
                 }
             }
         }
@@ -1345,10 +1373,10 @@ function showPlayerSendMailForm(player) {
 
         const hasAttachment = selectedItems.length > 0;
         const successForm = mc.newSimpleForm();
-        successForm.setTitle("§l§a邮件发送成功");
-        successForm.setContent("-------------------------\n§a邮件发送成功！" + (hasAttachment ? "（含附件）" : "") + "\n-------------------------\n§e邮件内容：\n" + content + "\n-------------------------\n§a发件人：§e" + p.name + "\n§a收件人：§e" + target.name + "\n§a附件物品：§e" + selectedItems.length + " 个\n§a发送时间：§e" + (_deps.U ? _deps.U.getCurrentTimeString() : formatMailTime()) + "\n-------------------------\n§c扣除" + getCurrencyName() + "：§e" + totalCost + " 点\n-------------------------\n");
-        successForm.addButton("§b返回邮件系统", "textures/ui/recap_glyph_desaturated");
-        successForm.addButton("§c关闭", "textures/ui/crossout");
+        successForm.setTitle(t(lang, 'mail.send_success_title'));
+        successForm.setContent(t(lang, 'mail.player_send_success', hasAttachment ? t(lang, 'mail.with_attach') : "", content, p.name, target.name, selectedItems.length, _deps.U ? _deps.U.getCurrentTimeString() : formatMailTime(), getCurrencyName(), totalCost));
+        successForm.addButton(t(lang, 'mail.btn_back_system'), "textures/ui/recap_glyph_desaturated");
+        successForm.addButton(t(lang, 'mail.btn_close'), "textures/ui/crossout");
 
         player.sendForm(successForm, function(p, id) {
             if (id === null || id === undefined) {
@@ -1366,17 +1394,18 @@ function showPlayerSendMailForm(player) {
  * @param {Player} player
  */
 function showPlayerMailSystemForm(player) {
+    const lang = getLocale(player.xuid);
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§d邮件系统");
+    gui.setTitle(t(lang, 'mail.system_title'));
 
     let content = "-------------------------\n";
-    content += "§e邮件系统功能：\n";
+    content += t(lang, 'mail.system_features');
     content += "-------------------------\n";
 
     gui.setContent(content);
-    gui.addButton("§b查看邮件", "textures/ui/mail_icon");
-    gui.addButton("§a发送邮件", "textures/ui/icon_book_writable");
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'mail.btn_view_mail'), "textures/ui/mail_icon");
+    gui.addButton(t(lang, 'mail.btn_send_mail'), "textures/ui/icon_book_writable");
+    gui.addButton(t(lang, 'mail.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
