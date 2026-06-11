@@ -24,13 +24,37 @@
 var _config = null;
 var _mainTimer = null;
 var _reminderTimer = null;
+var _deps = {};
 
 /**
  * 初始化实体清理模块
  * @param {object} config - 配置对象，需提供 get 方法
+ * @param {object} deps - 依赖对象
  */
-function init(config) {
+function init(config, deps) {
     _config = config;
+    _deps = deps || {};
+}
+
+/**
+ * 获取系统默认语言
+ * @returns {string}
+ */
+function getSystemLang() {
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+}
+
+/**
+ * 翻译函数
+ * @param {string} key - 翻译键
+ * @param {...*} args - 替换参数
+ * @returns {string}
+ */
+function t(key) {
+    if (!_deps.t) return key;
+    var args = Array.prototype.slice.call(arguments);
+    args[0] = getSystemLang();
+    return _deps.t.apply(null, args);
 }
 
 /**
@@ -91,7 +115,7 @@ function sendReminder() {
     try {
         var cfg = getClearLagConfig();
         if (!cfg) return;
-        var msg = cfg.message || '§e[清理] §6即将清理服务器掉落物和多余生物，请注意！';
+        var msg = t('clearlag.reminder');
         var players = mc.getOnlinePlayers();
         for (var i = 0; i < players.length; i++) {
             try {
@@ -245,8 +269,7 @@ function executeCleanup() {
     // 广播清理完成消息
     if (killedMobs > 0 || killedItems > 0) {
         try {
-            var cleanMsg = cfg.cleanMessage || '§e[清理] §a已清理完成！';
-            cleanMsg = cleanMsg.replace('{count}', String(killedMobs + killedItems));
+            var cleanMsg = t('clearlag.clean_complete', String(killedMobs + killedItems));
             var players = mc.getOnlinePlayers();
             for (var n = 0; n < players.length; n++) {
                 try {

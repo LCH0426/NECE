@@ -34,10 +34,10 @@ let t = null;
  * @param {Object} deps - 外部依赖（money、U、getPlayerSetting 等）
  */
 function init(dm, deps) {
-	D.debugLogModule('mail')('init: 初始化完成');
     mailDM = dm;
     _deps = deps || {};
     t = _deps.t;
+    D.debugLogModule('mail')(t(getSystemLang(), 'mail.log_init_complete'));
     mailData = mailDM.load();
     if (!mailData.mails) mailData.mails = [];
     if (!mailData.nextId) mailData.nextId = 1;
@@ -114,7 +114,7 @@ function formatMailTime() {
 
 /** 获取货币显示名称 */
 function getCurrencyName() {
-    return _deps.getCurrencyName ? _deps.getCurrencyName() : '星茜';
+    return _deps.getCurrencyName ? _deps.getCurrencyName() : t(getSystemLang(), 'mail.default_currency');
 }
 
 /**
@@ -123,7 +123,19 @@ function getCurrencyName() {
  * @returns {string}
  */
 function getLocale(xuid) {
-    return _deps.getPlayerSetting ? _deps.getPlayerSetting(xuid, 'locale') : 'zh_CN';
+    if (_deps.getPlayerSetting) {
+        var locale = _deps.getPlayerSetting(xuid, 'locale');
+        if (locale) return locale;
+    }
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+}
+
+/**
+ * 获取系统默认语言
+ * @returns {string}
+ */
+function getSystemLang() {
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
 }
 
 /**
@@ -612,7 +624,7 @@ function claimMailAttachments(player, mail) {
             try {
                 const rawSnbt = typeof itemData === 'object' ? itemData.snbt : itemData;
                 if (!rawSnbt || typeof rawSnbt !== 'string' || !rawSnbt.trim()) {
-                    _deps.logger.error("[邮件] 物品" + (index + 1) + "缺少有效的snbt数据，itemData类型: " + typeof itemData);
+                    _deps.logger.error(t(getSystemLang(), 'mail.log_item_no_snbt', index + 1, typeof itemData));
                     player.tell(t(lang, 'mail.err_item_invalid', index + 1));
                     allItemsSuccess = false;
                     return;
@@ -671,7 +683,7 @@ function claimMailAttachments(player, mail) {
                     allItemsSuccess = false;
                 }
             } catch (error) {
-                _deps.logger.error("发放邮件物品失败：" + error.message);
+                _deps.logger.error(t(getSystemLang(), 'mail.log_grant_item_failed', error.message));
                 player.tell(t(lang, 'mail.err_item_grant', index + 1));
                 allItemsSuccess = false;
             }
@@ -1032,7 +1044,7 @@ function showSendSingleMailForm(player, target) {
                 }
             });
         } catch (error) {
-            _deps.logger.error("[邮件系统] 获取槽位 " + slot + " 物品失败: " + error.message);
+            _deps.logger.error(t(getSystemLang(), 'mail.log_get_slot_failed', slot, error.message));
         }
     }
 
@@ -1207,7 +1219,7 @@ function showPlayerSendMailForm(player) {
                 }
             });
         } catch (error) {
-            _deps.logger.error("[邮件系统] 获取槽位 " + slot + " 物品失败: " + error.message);
+            _deps.logger.error(t(getSystemLang(), 'mail.log_get_slot_failed', slot, error.message));
         }
     }
 
@@ -1350,7 +1362,7 @@ function showPlayerSendMailForm(player) {
                 const currentItem = playerInventory.getItem(slotIndex);
 
                 if (!currentItem || currentItem.type === '' || currentItem.type === 'minecraft:air') {
-                    _deps.logger.warn("[邮件系统] 槽位 " + slotIndex + " 没有物品");
+                    _deps.logger.warn(t(getSystemLang(), 'mail.log_slot_empty', slotIndex));
                     return;
                 }
 
@@ -1367,7 +1379,7 @@ function showPlayerSendMailForm(player) {
                     mc.runcmd(cmd);
                 }
             } catch (error) {
-                _deps.logger.error("[邮件系统] 扣除物品失败：" + error.message);
+                _deps.logger.error(t(getSystemLang(), 'mail.log_deduct_item_failed', error.message));
             }
         });
 

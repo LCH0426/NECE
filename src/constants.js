@@ -24,33 +24,21 @@
 /** 所有数据文件路径配置 */
 const PATHS = {
     CONFIG: "plugins/NECE/config.json",
-    PLAYER_DATA: "plugins/NECE/data/playerdata.json",
-    PLAYER_SETTINGS: "plugins/NECE/data/PlayerSettings.json",
     SHOP_DATA: "plugins/NECE/data/shopdata.json",
     CDK_DATA: "plugins/NECE/data/cdkdata.json",
     RECYCLE_DATA: "plugins/NECE/data/Recycleitems.json",
     RECYCLE_LOG_DIR: "plugins/NECE/logs/rc",
     MESSAGEBOARD_DATA: "plugins/NECE/data/MessageBoardData.json",
     WISH_DATA: "plugins/NECE/data/WishData.json",
-    WISH_CONFIG: "plugins/NECE/data/WishConfig.json",
     ENCHANT_BOOK_SHOP: "plugins/NECE/data/EnchantBookShop.json",
     SPAWN_EGG_SHOP: "plugins/NECE/data/SpawnEggShop.json",
-    WISH_HISTORY_LOG_DIR: "plugins/NECE/logs/wish",
-    DEATH_POINT_DATA: "plugins/NECE/data/DeathPointData.json",
-    FRIEND_DATA: "plugins/NECE/data/FriendData.json",
-    MESSAGE_DATA: "plugins/NECE/data/MessageData.json",
     MAIL_DATA: "plugins/NECE/data/MailData.json",
-    QUICK_MENU_CONFIG: "plugins/NECE/data/QuickMenuConfig.json",
     NAR_CONFIG: "plugins/NECE/data/NARConfig.json",
     ITEMS_DATA: "plugins/NECE/data/items.json",
-    TPS_DATA: "plugins/NECE/data/tps.json",
-    HOMES_DATA: "plugins/NECE/data/homes.json",
     WARPS_DATA: "plugins/NECE/data/warps.json",
-    CHAT_CFG: "./plugins/NECE/data/ChatConfig.json",
     BAD_WORDS: "./plugins/NECE/data/fuckbad.json",
     BAN_DATA: "plugins/NECE/data/BanData.json",
-    DEBUG_DISMISSED: "plugins/NECE/data/debug_dismissed.json",
-    GUILD_DATA: "plugins/NECE/data/guild.json"
+    DEBUG_DISMISSED: "plugins/NECE/data/debug_dismissed.json"
 };
 
 /** IPv4 用户进服时的 IPv6 提示消息 */

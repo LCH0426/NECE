@@ -760,21 +760,63 @@ function showPlayerSettingsForm(player) {
 	const dropdownIndices = []; // 记录每个下拉菜单在表单数据中的索引及其对应key
 	let dataIdx = 0;
 	const schema = C.PLAYER_SETTINGS_SCHEMA;
+
+	// 动态获取支持的语言列表
+	const supportedLocales = _deps.getSupportedLocales ? _deps.getSupportedLocales() : ['zh_CN'];
+	const localeLabels = {
+		'zh_CN': '简体中文',
+		'en_US': 'English',
+		'ja_JP': '日本語',
+		'ko_KR': '한국어'
+	};
+
+	// 获取每个语言文件的作者信息
+	function getLocaleAuthor(locale) {
+		try {
+			if (_deps.t) {
+				// 尝试从语言文件中获取作者信息
+				const langData = _deps.loadLocale ? _deps.loadLocale(locale) : null;
+				if (langData && langData._meta && langData._meta.author) {
+					return langData._meta.author;
+				}
+			}
+		} catch (e) {}
+		return '';
+	}
+
 	for (let i = 0; i < schema.length; i++) {
 		const item = schema[i];
 		if (item.type === 'label') {
 			settingsForm.addLabel(item.text);
 			dataIdx++;
 		} else if (item.type === 'dropdown') {
-			const currentVal = _deps.getPlayerSetting(xuid, item.key);
-			const currentIdx = item.options.indexOf(currentVal);
-			settingsForm.addDropdown(item.label, item.optionLabels || item.options, currentIdx >= 0 ? currentIdx : 0);
-			dropdownIndices.push({
-				idx: dataIdx,
-				key: item.key,
-				label: item.label,
-				options: item.options
-			});
+			// 如果是语言选择下拉菜单，使用动态语言列表
+			if (item.key === 'locale') {
+				const currentVal = _deps.getPlayerSetting(xuid, item.key) || 'zh_CN';
+				const currentIdx = supportedLocales.indexOf(currentVal);
+				const optionLabels = supportedLocales.map(function(locale) {
+					const label = localeLabels[locale] || locale;
+					const author = getLocaleAuthor(locale);
+					return author ? label + ' - ' + author : label;
+				});
+				settingsForm.addDropdown(item.label, optionLabels, currentIdx >= 0 ? currentIdx : 0);
+				dropdownIndices.push({
+					idx: dataIdx,
+					key: item.key,
+					label: item.label,
+					options: supportedLocales
+				});
+			} else {
+				const currentVal = _deps.getPlayerSetting(xuid, item.key);
+				const currentIdx = item.options.indexOf(currentVal);
+				settingsForm.addDropdown(item.label, item.optionLabels || item.options, currentIdx >= 0 ? currentIdx : 0);
+				dropdownIndices.push({
+					idx: dataIdx,
+					key: item.key,
+					label: item.label,
+					options: item.options
+				});
+			}
 			dataIdx++;
 		} else {
 			settingsForm.addSwitch(item.label, _deps.getPlayerSetting(xuid, item.key));

@@ -309,8 +309,6 @@ function registerRoutes(router, d) {
                 if (isNaN(v) || v < 0) return res.status(400).json({ code: 400, msg: 'reminderSeconds必须为非负整数' });
                 clCfg.reminderSeconds = v;
             }
-            if (req.body.message !== undefined) clCfg.message = req.body.message;
-            if (req.body.cleanMessage !== undefined) clCfg.cleanMessage = req.body.cleanMessage;
             if (req.body.cleanTypes !== undefined) {
                 if (!Array.isArray(req.body.cleanTypes)) return res.status(400).json({ code: 400, msg: 'cleanTypes必须为数组' });
                 clCfg.cleanTypes = req.body.cleanTypes;

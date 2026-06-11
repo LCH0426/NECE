@@ -39,10 +39,26 @@ function init(deps) {
     _loadPendingTransfers();
 }
 
+/**
+ * 获取系统默认语言
+ * @returns {string}
+ */
+function getSystemLang() {
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+}
+
 /** 获取货币名称 */
 function getCurrencyName() {
     if (_currencyNameCache !== null) return _currencyNameCache;
-    _currencyNameCache = _config.get("currencyName") || "星茜";
+    // 从语言文件的 _meta.currencyName 读取
+    try {
+        var langData = _deps.loadLocale ? _deps.loadLocale(getSystemLang()) : null;
+        if (langData && langData._meta && langData._meta.currencyName) {
+            _currencyNameCache = langData._meta.currencyName;
+            return _currencyNameCache;
+        }
+    } catch (e) {}
+    _currencyNameCache = "星茜";
     return _currencyNameCache;
 }
 
