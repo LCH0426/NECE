@@ -278,7 +278,8 @@ function doListGuilds(player) {
     fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === guilds.length) { showMainMenu(p); return; }
+        if (id === null) return;
+        if (id === guilds.length) { showMainMenu(p); return; }
         if (id < guilds.length) {
             showGuildDetail(p, guilds[id]);
         }
@@ -319,7 +320,7 @@ function showGuildDetail(player, guild) {
     fm.addButton('返回公会列表', 'textures/ui/refresh_light');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null) { doListGuilds(p); return; }
+        if (id === null) return;
         if (!myGuild && id === 0) {
             doSubmitJoinRequest(p, guild);
             return;
@@ -840,7 +841,7 @@ function showGuildInfoPanel(player) {
     fm.addButton('§a返回', 'textures/ui/recap_glyph_desaturated');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null) { showMainMenu(p); return; }
+        if (id === null) return;
         if (role === 'owner' || role === 'admin') {
             if (id === 0) { showChangeGuildNameForm(p, guild); return; }
         }
@@ -1041,7 +1042,7 @@ function showTeleportPanel(player) {
     fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null) { showMainMenu(p); return; }
+        if (id === null) return;
         if (id < btnOffset) {
             var tp = tps[id];
             var remain = checkCooldown(String(p.xuid));
@@ -1096,7 +1097,8 @@ function showDelTeleportForm(player) {
     fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === tps.length) { showTeleportPanel(p); return; }
+        if (id === null) return;
+        if (id === tps.length) { showTeleportPanel(p); return; }
         if (id < tps.length) {
             database.removeGuildTeleport(tps[id].id, guild.id);
             p.tell('§e[公会] §a传送点"' + tps[id].name + '"已删除');
@@ -1287,7 +1289,8 @@ function showJoinGuildPanel(player) {
     fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === guilds.length) { showMainMenu(p); return; }
+        if (id === null) return;
+        if (id === guilds.length) { showMainMenu(p); return; }
         if (id < guilds.length) {
             doSubmitJoinRequest(p, guilds[id]);
         }
@@ -1445,7 +1448,7 @@ function showInvitePlayerForm(player) {
     fm.addButton('§b搜索玩家', 'textures/ui/magnifyingGlass');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null) { showMainMenu(p); return; }
+        if (id === null) return;
         if (id === 0) { showOnlinePlayerSelectForm(p, guild); }
         else if (id === 1) { showSearchInviteForm(p, guild); }
         else { showMainMenu(p); }
@@ -1479,7 +1482,8 @@ function showOnlinePlayerSelectForm(player, guild) {
         fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
 
         player.sendForm(fm, function(p, id) {
-            if (id === null || id === candidates.length) { showInvitePlayerForm(p); return; }
+            if (id === null) return;
+        if (id === candidates.length) { showInvitePlayerForm(p); return; }
             if (id < candidates.length) {
                 var target = candidates[id];
                 p.sendModalForm(
@@ -1599,7 +1603,8 @@ function showAdminPanel(player) {
     fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === guilds.length) { showMainMenu(p); return; }
+        if (id === null) return;
+        if (id === guilds.length) { showMainMenu(p); return; }
         if (id < guilds.length) {
             showAdminGuildManage(p, guilds[id]);
         }
@@ -1623,7 +1628,8 @@ function showAdminGuildManage(player, guild) {
     fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === 6) { showAdminPanel(p); return; }
+        if (id === null) return;
+        if (id === 6) { showAdminPanel(p); return; }
         switch (id) {
             case 0: showAdminMemberManage(p, guild); break;
             case 1: showAdminTeleportManage(p, guild); break;
@@ -1778,7 +1784,7 @@ function showAdminInviteForm(player, guild) {
     fm.addButton('§b搜索玩家', 'textures/ui/magnifyingGlass');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null) { showAdminGuildManage(p, guild); return; }
+        if (id === null) return;
         if (id === 0) { showAdminOnlinePlayerSelect(p, guild); }
         else if (id === 1) { showAdminSearchInvite(p, guild); }
         else { showAdminGuildManage(p, guild); }
@@ -1810,7 +1816,8 @@ function showAdminOnlinePlayerSelect(player, guild) {
         fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
 
         player.sendForm(fm, function(p, id) {
-            if (id === null || id === candidates.length) { showAdminInviteForm(p, guild); return; }
+            if (id === null) return;
+        if (id === candidates.length) { showAdminInviteForm(p); return; }
             if (id < candidates.length) {
                 var target = candidates[id];
                 p.sendModalForm(
@@ -1921,7 +1928,8 @@ function showAdminTeleportManage(player, guild) {
     fm.addButton('返回', 'textures/ui/recap_glyph_desaturated');
 
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === 3) { showAdminGuildManage(p, guild); return; }
+        if (id === null) return;
+        if (id === 3) { showAdminGuildManage(p); return; }
         switch (id) {
             case 0: showAdminAddTeleportForm(p, guild); break;
             case 1: showAdminDelTeleportForm(p, guild); break;

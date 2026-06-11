@@ -8,7 +8,7 @@
 
 [![许可证](https://img.shields.io/badge/许可证-GPL--3.0-blue.svg)](LICENSE)
 [![平台](https://img.shields.io/badge/平台-Node.js-339933?logo=node.js\&logoColor=white)](https://nodejs.org/)
-[![版本](https://img.shields.io/badge/版本-1.9.x-orange.svg)](https://github.com/LCH0426/NECE)
+[![版本](https://img.shields.io/badge/版本-2.0.0-orange.svg)](https://github.com/LCH0426/NECE)
 [![语言](https://img.shields.io/badge/语言-JavaScript-F7DF1E?logo=javascript\&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 
 </div>

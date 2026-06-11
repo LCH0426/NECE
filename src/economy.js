@@ -390,7 +390,8 @@ function showTransferTypeForm(player) {
     fm.addButton("离线玩家", "textures/ui/offline");
     fm.addButton("返回", "textures/ui/recap_glyph_desaturated");
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === 2) { showMoneyMainForm(p); return; }
+        if (id === null) return;
+        if (id === 2) { showMoneyMainForm(p); return; }
         if (id === 0) showTransferOnlineForm(p);
         else if (id === 1) showTransferOfflineForm(p);
     });
@@ -624,7 +625,8 @@ function confirmPurchase(player, cost, reason, onConfirm, onCancel) {
     fm.addButton("§a确认");
     fm.addButton("§c取消");
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === 1) {
+        if (id === null) return;
+        if (id === 1) {
             if (onCancel) onCancel(p);
             return;
         }

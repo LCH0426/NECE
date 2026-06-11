@@ -269,7 +269,8 @@ function showTitleActionForm(player, titleName) {
     fm.addButton("§c删除称号", "textures/ui/cancel");
     fm.addButton("返回", "textures/ui/arrow_left");
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === 2) { showSetTitleForm(p); return; }
+        if (id === null) return;
+        if (id === 2) { showSetTitleForm(p); return; }
         if (id === 0) {
             setActiveTitle(p.xuid, titleName);
             p.tell("§e[称号] §a称号已设置为: §b" + titleName);
@@ -287,7 +288,8 @@ function showDeleteConfirmForm(player, titleName) {
     fm.addButton("§a确认删除", "textures/ui/confirm");
     fm.addButton("取消", "textures/ui/cancel");
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === 1) { showSetTitleForm(p); return; }
+        if (id === null) return;
+        if (id === 1) { showSetTitleForm(p); return; }
         if (id === 0) {
             removePlayerTitle(p.xuid, titleName);
             p.tell("§e[称号] §a已删除称号: §b" + titleName);
@@ -364,7 +366,7 @@ function showBuyTitleForm(player) {
         fm.addButton("§a✦ §l自定义称号 (§e" + shopConfig.perCharCost + " " + currencyName + "/字)");
 
         player.sendForm(fm, function(p, id) {
-            if (id === null) { showTitleMainForm(p); return; }
+            if (id === null) return;
             if (id < available.length) {
                 // 预设称号 → 二次确认
                 var item = available[id];
@@ -420,7 +422,8 @@ function showBuyConfirmForm(player, titleName, cost, type) {
     fm.addButton("§c取消", "textures/ui/cancel");
 
     player.sendForm(fm, function(p, id) {
-        if (id === null || id === 1) { showBuyTitleForm(p); return; }
+        if (id === null) return;
+        if (id === 1) { showBuyTitleForm(p); return; }
         if (id !== 0) return;
 
         // 再次检查余额
