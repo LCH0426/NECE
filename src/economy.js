@@ -37,6 +37,23 @@ function init(deps) {
     _currencyNameCache = null;
     _deps = deps;
     _loadPendingTransfers();
+
+    // 每5分钟清理超过10分钟的转账去重记录，防止内存泄漏
+    setInterval(function() {
+        var now = Date.now();
+        for (var xuid in _recentTransfers) {
+            if (!_recentTransfers.hasOwnProperty(xuid)) continue;
+            var records = _recentTransfers[xuid];
+            for (var key in records) {
+                if (records.hasOwnProperty(key) && now - records[key] > 600000) {
+                    delete records[key];
+                }
+            }
+            if (Object.keys(records).length === 0) {
+                delete _recentTransfers[xuid];
+            }
+        }
+    }, 300000);
 }
 
 /**
