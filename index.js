@@ -1591,7 +1591,10 @@ mc.listen("onServerStarted", async () => {
 	menuModule.registerClockListener();
 	registerWebCommands();
 	initWebServer();
-	behaviorLog.init();
+	behaviorLog.init({
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+	});
 
 	// 定时检查计划发送的邮件
 	setInterval(function() { mailModule.checkScheduledMails(); }, 30000);

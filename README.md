@@ -211,6 +211,7 @@ NECE 支持多语言界面，语言文件位于 `lang/` 目录。通过 `config.
 | CDK兑换 | `src/cdk.js` | `cdk.*` | 20 | ✅ 已完成 |
 | 连锁计划 | `src/chain.js` | `chain_plan.*` | 24 | ✅ 已完成 |
 | 连锁挖矿 | `src/chain.js` | `chain.*` | 5 | ⏳ 部分完成 |
+| 行为日志 | `src/behaviorLog.js` | `behavior.*` | 23 | ✅ 已完成 |
 | 实体清理 | `src/clearLag.js` | `clearlag.*` | 2 | ⏳ 部分完成 |
 | 公会系统 | `src/guild.js` | `guild.*` | - | ⏳ 待完成 |
 | 好友系统 | `src/friend.js` | `friend.*` | - | ⏳ 待完成 |
