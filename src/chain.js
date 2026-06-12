@@ -214,7 +214,6 @@ function purchasePlan(player, planName) {
 
     // 计算实际价格（如果是升级，补差价）
     var actualPrice = price;
-    var upgradeInfo = '';
 
     if (currentPlan !== 'free' && planData.expireTime > now) {
         // 已有付费计划且未过期，计算差价
@@ -231,7 +230,6 @@ function purchasePlan(player, planName) {
 
         // 差价 = (新计划价格 - 旧计划价格) * 剩余天数 / 7
         actualPrice = Math.ceil(priceDiff * remainingDays / 7);
-        upgradeInfo = '§e升级补差价: §f' + actualPrice + ' ' + currencyName + ' §e(剩余' + remainingDays + '天)\n';
     }
 
     // 检查余额
@@ -371,7 +369,7 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
 
     fm.setContent(content);
     fm.addButton('§a续费计划', "textures/ui/confirm");
-    fm.addButton('§b升级计划', "textures/ui/arrow_up");
+    fm.addButton('§b升级计划', "textures/ui/jump_boost_effect");
     fm.addButton('§c返回', "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(fm, function(p, id) {
@@ -574,7 +572,7 @@ function showPurchaseConfirm(player, planName) {
                     showPlanMenu(p);
                 }
             } else {
-                showPlanMenu(player);
+                showPlanMenu(p);
             }
         }
     );
@@ -610,7 +608,7 @@ function showRenewConfirm(player, weeks) {
                     showPlanMenu(p);
                 }
             } else {
-                showPlanMenu(player);
+                showPlanMenu(p);
             }
         }
     );
@@ -1038,8 +1036,8 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
     var dirs = [1,0,0, -1,0,0, 0,1,0, 0,-1,0, 0,0,1, 0,0,-1];
     var queueIdx = 0;
 
-    // 数字编码坐标，避免字符串拼接
-    var encode = function(x, y, z) { return x * 1000000 + y * 1000 + z; };
+    // 坐标编码（偏移避免负数碰撞）
+    var encode = function(x, y, z) { return (x + 65536) * 4294967296 + (y + 64) * 65536 + (z + 65536); };
     visited.add(encode(startPos.x, startPos.y, startPos.z));
 
     // BFS 遍历相邻方块，不包括起始方块
