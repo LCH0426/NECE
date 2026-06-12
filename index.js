@@ -25,7 +25,7 @@ const C = require('./src/constants');
 const U = require('./src/utils');
 const shopModule = require('./src/shop');
 const teleportModule = require('./src/teleport');
-const vipModuleCreator = require('./src/vip');
+const vipModule = require('./src/vip');
 const cdkModuleCreator = require('./src/cdk');
 const rankModuleCreator = require('./src/rank');
 const bankModuleCreator = require('./src/bank');
@@ -1013,8 +1013,8 @@ async function initAllConfigs() {
 
 	teleportModule.init(config, homesDM, warpsDM, commonDeps);
 
-	// 工厂模式创建的模块，创建后挂到commonDeps上
-	let vipModule = vipModuleCreator.create({
+	// 初始化VIP模块
+	vipModule.init({
 		playerData: playerData,
 		savePlayerDataNow: savePlayerDataNow,
 		getPlayerMoney: getPlayerMoney,
