@@ -465,17 +465,16 @@ function registerRoutes(router, d) {
             }
 
             // 从玩家账户扣除
-            var balance = d.economyFunctions ? d.economyFunctions.getPlayerMoneyByXuid(xuid) : (d.money.get(xuid) || 0);
+            var balance = d.economyFunctions.getPlayerMoneyByXuid(xuid);
             if (balance < amount) {
                 res.status(400).json({ code: 400, msg: '余额不足' });
                 return;
             }
 
             var playerName = d.getPlayerName ? d.getPlayerName(xuid) : xuid;
-            if (d.economyFunctions) {
-                d.economyFunctions.addPlayerMoneyByXuid(xuid, -amount, 'Web存入公会资金');
-            } else {
-                d.money.reduce(xuid, amount);
+            if (!d.economyFunctions.addPlayerMoneyByXuid(xuid, -amount, 'Web存入公会资金')) {
+                res.status(400).json({ code: 400, msg: '扣费失败' });
+                return;
             }
             database.updateGuildFundAdd(guild.id, amount);
 
@@ -522,11 +521,7 @@ function registerRoutes(router, d) {
                 return;
             }
 
-            if (d.economyFunctions) {
-                d.economyFunctions.addPlayerMoneyByXuid(xuid, amount, 'Web取出公会资金');
-            } else {
-                d.money.add(xuid, amount);
-            }
+            d.economyFunctions.addPlayerMoneyByXuid(xuid, amount, 'Web取出公会资金');
 
             res.json({ code: 200, msg: '取出成功', data: { newFund: guild.fund - amount } });
         } catch (e) {
