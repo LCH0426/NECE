@@ -920,7 +920,9 @@ async function initAllConfigs() {
 	});
 	debugLog('banModule.init: 封禁模块初始化完成');
 	banModule.init(banDM, {
-		playerData: playerData.players
+		playerData: playerData.players,
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
 	mailModule.init(mailDM, {
 		U: U,
