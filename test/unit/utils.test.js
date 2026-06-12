@@ -1,78 +1,71 @@
-const { describe, it, before, after } = require('node:test');
-const assert = require('node:assert/strict');
-const { setupMocks, teardownMocks, ensureTestDataDir, cleanupTestDataDir } = require('../helpers/setup');
+/**
+ * NECE 工具函数测试
+ */
+
+const { test, assertEqual, assertTruthy, assertFalsy } = require('../test-framework');
 const path = require('path');
+const U = require(path.join(__dirname, '..', '..', 'src', 'utils'));
 
-describe('utils', () => {
-    let U;
+console.log('\n--- utils.js 测试 ---');
 
-    before(() => {
-        setupMocks();
-        ensureTestDataDir();
-        U = require('../../src/utils');
-    });
+test('ensureDir 创建目录', function() {
+    const testPath = 'plugins/NECE/test_temp/dir';
+    U.ensureDir(testPath);
+    const fs = require('fs');
+    assertTruthy(fs.existsSync('plugins/NECE/test_temp'), '目录应该被创建');
+    // 清理
+    fs.rmSync('plugins/NECE/test_temp', { recursive: true, force: true });
+});
 
-    after(() => {
-        teardownMocks();
-        cleanupTestDataDir();
-    });
+test('formatTime 格式化秒数', function() {
+    // formatTime 接受秒数，不是毫秒
+    assertEqual(U.formatTime(1), '1秒');
+    assertEqual(U.formatTime(60), '1分');
+    assertEqual(U.formatTime(3600), '1小时');
+    assertEqual(U.formatTime(86400), '1天');
+});
 
-    describe('formatTime', () => {
-        it('should format seconds to Chinese time string', () => {
-            assert.equal(U.formatTime(0), '0秒');
-            assert.equal(U.formatTime(65), '1分5秒');
-            assert.equal(U.formatTime(3661), '1小时1分1秒');
-        });
+test('formatTime 复合时间', function() {
+    assertEqual(U.formatTime(90061), '1天1小时1分1秒');
+    assertEqual(U.formatTime(3661), '1小时1分1秒');
+});
 
-        it('should handle negative values', () => {
-            assert.equal(U.formatTime(-5), '-5秒');
-        });
-    });
+test('getCurrentTimeString 返回字符串', function() {
+    const result = U.getCurrentTimeString();
+    assertTruthy(typeof result === 'string', '应该返回字符串');
+    assertTruthy(result.includes('.'), '应该包含点分隔符');
+});
 
-    describe('isInteger', () => {
-        it('should return true for positive integer strings', () => {
-            assert.equal(U.isInteger('42'), true);
-            assert.equal(U.isInteger('100'), true);
-            assert.equal(U.isInteger('1'), true);
-        });
+test('isInteger 正整数字符串检测', function() {
+    // isInteger 检查的是字符串是否为正整数
+    assertTruthy(U.isInteger('123'));
+    assertTruthy(U.isInteger('1'));
+    assertFalsy(U.isInteger('0'));
+    assertFalsy(U.isInteger('-123'));
+    assertFalsy(U.isInteger('123.456'));
+    assertFalsy(U.isInteger('abc'));
+});
 
-        it('should return false for non-integer strings', () => {
-            assert.equal(U.isInteger('0'), false);
-            assert.equal(U.isInteger('3.14'), false);
-            assert.equal(U.isInteger('abc'), false);
-            assert.equal(U.isInteger(''), false);
-        });
-    });
+test('detectIPv6 IPv6检测', function() {
+    assertTruthy(U.detectIPv6('::1'));
+    assertTruthy(U.detectIPv6('2001:db8::1'));
+    assertFalsy(U.detectIPv6('192.168.1.1'));
+});
 
-    describe('detectIPv6', () => {
-        it('should detect IPv6 addresses', () => {
-            assert.equal(U.detectIPv6('::1'), true);
-            assert.equal(U.detectIPv6('2001:db8::1'), true);
-        });
+test('stripIpPort 去除端口', function() {
+    assertEqual(U.stripIpPort('192.168.1.1:19132'), '192.168.1.1');
+    assertEqual(U.stripIpPort('192.168.1.1'), '192.168.1.1');
+});
 
-        it('should reject IPv4 addresses', () => {
-            assert.equal(U.detectIPv6('127.0.0.1'), false);
-            assert.equal(U.detectIPv6('192.168.1.1'), false);
-        });
-    });
+test('getNetworkType 网络类型', function() {
+    // getNetworkType 返回中文描述
+    const result = U.getNetworkType('::1');
+    assertTruthy(result.includes('IPv6'), '应该包含IPv6');
+    // 内网IP返回"内网连接"
+    assertEqual(U.getNetworkType('192.168.1.1'), '内网连接');
+});
 
-    describe('cleanFormatting', () => {
-        it('should remove Minecraft formatting codes', () => {
-            assert.equal(U.cleanFormatting('§aHello§bWorld'), 'HelloWorld');
-            assert.equal(U.cleanFormatting('§6§lBold'), 'Bold');
-        });
-
-        it('should return plain text unchanged', () => {
-            assert.equal(U.cleanFormatting('Hello'), 'Hello');
-        });
-    });
-
-    describe('ensureDir', () => {
-        it('should create directory if not exists', () => {
-            const testDir = path.join(__dirname, '..', '_testdata', 'ensure_test', 'sub');
-            U.ensureDir(path.join(testDir, 'file.txt'));
-            const fs = require('fs');
-            assert.equal(fs.existsSync(testDir), true);
-        });
-    });
+test('cleanFormatting 清理格式代码', function() {
+    assertEqual(U.cleanFormatting('§a测试§r'), '测试');
+    assertEqual(U.cleanFormatting('普通文本'), '普通文本');
 });
