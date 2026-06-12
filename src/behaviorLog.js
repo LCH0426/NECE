@@ -38,35 +38,30 @@ function ensureDir(dir) {
 
 ensureDir(LOG_DIR);
 
-// 事件类型中文标签映射
-const ACTION_LABELS = {
-    onPreJoin: '开始进服',
-    onJoin: '进入服务器',
-    onLeft: '离开服务器',
-    onPlayerDie: '玩家死亡',
-    onPlayerCmd: '玩家执行命令',
-    onChat: '发送对话',
-    onUseItem: '使用物品',
-    onUseItemOn: '使用物品点击方块',
-    onTakeItem: '捡起物品',
-    onDropItem: '丢出物品',
-    onStartDestroyBlock: '开始破坏方块',
-    onDestroyBlock: '破坏方块',
-    onPlaceBlock: '放置方块',
-    onOpenContainer: '打开容器',
-    onCloseContainer: '关闭容器',
-    onInventoryOut: '物品栏 取出物品',
-    onInventoryIn: '物品栏 放入物品',
-    onContainerOut: '容器 取出物品',
-    onContainerIn: '容器 放入物品',
-    onExplode: '爆炸',
-    onBedExplode: '床爆炸',
-    onRespawnAnchorExplode: '重生锚爆炸',
-    onBlockExploded: '方块被爆炸破坏'
-};
+// 事件类型键名列表（标签从语言文件读取）
+const ACTION_KEYS = [
+    'onPreJoin', 'onJoin', 'onLeft', 'onPlayerDie', 'onPlayerCmd', 'onChat',
+    'onUseItem', 'onUseItemOn', 'onTakeItem', 'onDropItem',
+    'onStartDestroyBlock', 'onDestroyBlock', 'onPlaceBlock',
+    'onOpenContainer', 'onCloseContainer',
+    'onInventoryOut', 'onInventoryIn', 'onContainerOut', 'onContainerIn',
+    'onExplode', 'onBedExplode', 'onRespawnAnchorExplode', 'onBlockExploded'
+];
+
+let _deps = {};
+
+/** 获取事件类型的本地化标签 */
+function getActionLabel(eventKey) {
+    if (_deps.t) {
+        var lang = _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+        var label = _deps.t(lang, 'behavior.' + eventKey);
+        if (label !== 'behavior.' + eventKey) return label;
+    }
+    return eventKey;
+}
 
 // CSV 文件 BOM 头 + 中文列名表头
-const _CSV_BOM = '﻿时间,维度,来源,X,Y,Z,事件,目标,x,y,z,附加信息';
+const _CSV_BOM = '时间,维度,来源,X,Y,Z,事件,目标,x,y,z,附加信息';
 
 // 写入缓冲区，累积多条记录后批量刷盘
 const _pendingLines = [];
@@ -178,8 +173,9 @@ function rotateIfNeeded() {
  * 初始化行为日志模块，启动定时刷盘和事件监听
  * 每秒检查日志轮转并刷缓冲区，每30秒强制 fsync 防数据丢失
  */
-function init() {
-	D.debugLogModule('behaviorLog')('init: 初始化完成');
+function init(deps) {
+    _deps = deps || {};
+    D.debugLogModule('behaviorLog')('init: 初始化完成');
     ensureFileOpen();
 
     // 每秒批量写入缓冲区，同时检查跨天轮转
@@ -445,12 +441,12 @@ function registerEventListeners() {
 }
 
 /**
- * 获取事件类型对应的中文标签
+ * 获取事件类型对应的本地化标签
  * @param {string} eventKey - 事件键名，如 "onJoin"
- * @returns {string} 中文标签，如 "进入服务器"
+ * @returns {string} 本地化标签
  */
 function labelOf(eventKey) {
-    return ACTION_LABELS[eventKey] || eventKey;
+    return getActionLabel(eventKey);
 }
 
 /**
@@ -476,8 +472,8 @@ function availableDates() {
  * @returns {Array<{key: string, name: string}>}
  */
 function actionTypes() {
-    return Object.keys(ACTION_LABELS).map(function(key) {
-        return { key: key, name: ACTION_LABELS[key] };
+    return ACTION_KEYS.map(function(key) {
+        return { key: key, name: getActionLabel(key) };
     });
 }
 
