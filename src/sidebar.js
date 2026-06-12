@@ -38,6 +38,39 @@ const BIOME_CACHE_TTL = 1000;    // 生物群系缓存1秒
 
 // 上次渲染的侧边栏内容，内容不变时跳过重复渲染；xuid -> string
 let _lastRenderedSidebar = {};
+
+/** Minecraft 生物群系英文 ID 到中文名称的映射 */
+const BIOME_NAMES = {
+    "ocean": "海洋", "plains": "平原", "desert": "沙漠", "extreme_hills": "风袭丘陵",
+    "forest": "森林", "taiga": "针叶林", "swampland": "沼泽", "river": "河流",
+    "hell": "下界荒地", "the_end": "末地", "legacy_frozen_ocean": "冻洋（旧版）", "frozen_river": "冻河",
+    "ice_plains": "雪原", "ice_mountains": "雪山", "mushroom_island": "蘑菇岛", "mushroom_island_shore": "蘑菇岛岸",
+    "beach": "沙滩", "desert_hills": "沙漠丘陵", "forest_hills": "繁茂的丘陵", "taiga_hills": "针叶林丘陵",
+    "extreme_hills_edge": "山地边缘", "jungle": "丛林", "jungle_hills": "丛林丘陵", "jungle_edge": "稀疏丛林",
+    "deep_ocean": "深海", "stone_beach": "石岸", "cold_beach": "积雪沙滩",
+    "birch_forest": "桦木森林", "birch_forest_hills": "桦木森林丘陵", "roofed_forest": "黑森林",
+    "cold_taiga": "积雪针叶林", "cold_taiga_hills": "积雪的针叶林丘陵",
+    "mega_taiga": "原始松木针叶林", "mega_taiga_hills": "巨型针叶林丘陵",
+    "extreme_hills_plus_trees": "风袭森林", "savanna": "热带草原", "savanna_plateau": "热带高原",
+    "mesa": "恶地", "mesa_plateau_stone": "繁茂的恶地高原", "mesa_plateau": "恶地高原",
+    "warm_ocean": "暖水海洋", "deep_warm_ocean": "暖水深海", "lukewarm_ocean": "温水海洋",
+    "deep_lukewarm_ocean": "温水深海", "cold_ocean": "冷水海洋", "deep_cold_ocean": "冷水深海",
+    "frozen_ocean": "冻洋", "deep_frozen_ocean": "冰冻深海", "bamboo_jungle": "竹林", "bamboo_jungle_hills": "竹林丘陵",
+    "sunflower_plains": "向日葵平原", "desert_mutated": "沙漠湖泊", "extreme_hills_mutated": "风袭沙砾丘陵",
+    "flower_forest": "繁花森林", "taiga_mutated": "针叶林山地", "swampland_mutated": "沼泽丘陵",
+    "ice_plains_spikes": "冰刺之地", "jungle_mutated": "丛林变种", "jungle_edge_mutated": "丛林边缘变种",
+    "birch_forest_mutated": "原始桦木森林", "birch_forest_hills_mutated": "高大桦木丘陵",
+    "roofed_forest_mutated": "黑森林丘陵", "cold_taiga_mutated": "积雪的针叶林山地",
+    "redwood_taiga_mutated": "原始云杉针叶林", "redwood_taiga_hills_mutated": "巨型云杉针叶林丘陵",
+    "extreme_hills_plus_trees_mutated": "沙砾山地+", "savanna_mutated": "风袭热带草原",
+    "savanna_plateau_mutated": "破碎的热带高原", "mesa_bryce": "风蚀恶地",
+    "mesa_plateau_stone_mutated": "繁茂的恶地高原变种", "mesa_plateau_mutated": "恶地高原变种",
+    "soulsand_valley": "灵魂沙峡谷", "crimson_forest": "绯红森林", "warped_forest": "诡异森林",
+    "basalt_deltas": "玄武岩三角洲", "jagged_peaks": "尖峭山峰", "frozen_peaks": "冰封山峰",
+    "snowy_slopes": "积雪山坡", "grove": "雪林", "meadow": "草甸", "lush_caves": "繁茂洞穴",
+    "dripstone_caves": "溶洞", "stony_peaks": "裸岩山峰", "deep_dark": "深暗之域",
+    "mangrove_swamp": "红树林沼泽", "cherry_grove": "樱花树林", "pale_garden": "苍白之园"
+};
 // 上次渲染的时间行；xuid -> string
 let _lastRenderedTime = {};
 
@@ -64,7 +97,6 @@ function startRenderLoop() {
 	const SIDEBAR_SETTING_KEYS = _deps.constants.SIDEBAR_SETTING_KEYS;
 	const SIDEBAR_CACHE_TTL = _deps.constants.SIDEBAR_CACHE_TTL;
 	const SIDEBAR_MONEY_CACHE_TTL = _deps.constants.SIDEBAR_MONEY_CACHE_TTL;
-	const BIOME_NAMES = _deps.constants.BIOME_NAMES;
 
 	setInterval(function() {
 		const onlinePlayers = mc.getOnlinePlayers();
