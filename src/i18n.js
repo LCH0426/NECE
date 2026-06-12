@@ -81,9 +81,9 @@ function t(locale, key) {
         }
         if (value === undefined) return key;
     }
-    // 替换占位符 {0} {1} 等
+    // 替换占位符 {0} {1} 等（使用全局替换，支持同一占位符多次出现）
     for (var i = 2; i < arguments.length; i++) {
-        value = value.replace('{' + (i - 2) + '}', arguments[i]);
+        value = value.split('{' + (i - 2) + '}').join(arguments[i]);
     }
     return value;
 }

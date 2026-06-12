@@ -576,7 +576,6 @@ function createV1Routes(webConfig) {
     require('./routes/content').registerRoutes(router, routeDeps);
     require('./routes/config').registerRoutes(router, routeDeps);
     require('./routes/shop').registerRoutes(router, routeDeps);
-    require('./routes/teleport').registerRoutes(router, routeDeps);
     require('./routes/guild').registerRoutes(router, routeDeps);
     require('./routes/admin').registerRoutes(router, routeDeps);
 
