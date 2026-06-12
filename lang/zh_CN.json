@@ -248,7 +248,13 @@
     "onExplode": "爆炸",
     "onBedExplode": "床爆炸",
     "onRespawnAnchorExplode": "重生锚爆炸",
-    "onBlockExploded": "方块被爆炸破坏"
+    "onBlockExploded": "方块被爆炸破坏",
+    "col_time": "时间",
+    "col_dim": "维度",
+    "col_source": "来源",
+    "col_event": "事件",
+    "col_target": "目标",
+    "col_extra": "附加信息"
   },
   "cdk": {
     "title": "CDK兑换",

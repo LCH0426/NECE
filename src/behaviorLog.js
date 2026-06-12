@@ -60,8 +60,23 @@ function getActionLabel(eventKey) {
     return eventKey;
 }
 
-// CSV 文件 BOM 头 + 中文列名表头
-const _CSV_BOM = '时间,维度,来源,X,Y,Z,事件,目标,x,y,z,附加信息';
+// CSV 列名常量（数据格式固定，不随语言变化）
+const COL_TIME = '时间';
+const COL_DIM = '维度';
+const COL_SOURCE = '来源';
+const COL_X = 'X';
+const COL_Y = 'Y';
+const COL_Z = 'Z';
+const COL_EVENT = '事件';
+const COL_TARGET = '目标';
+const COL_TX = 'x';
+const COL_TY = 'y';
+const COL_TZ = 'z';
+const COL_EXTRA = '附加信息';
+
+// CSV 文件 BOM 头 + 列名表头
+const _CSV_HEADERS = [COL_TIME, COL_DIM, COL_SOURCE, COL_X, COL_Y, COL_Z, COL_EVENT, COL_TARGET, COL_TX, COL_TY, COL_TZ, COL_EXTRA];
+const _CSV_BOM = _CSV_HEADERS.join(',');
 
 // 写入缓冲区，累积多条记录后批量刷盘
 const _pendingLines = [];
@@ -517,15 +532,14 @@ function queryLogs(options) {
         }
 
         const results = [];
-        const headers = ['时间', '维度', '来源', 'X', 'Y', 'Z', '事件', '目标', 'x', 'y', 'z', '附加信息'];
 
         fs.createReadStream(logPath, { encoding: 'utf-8' })
-            .pipe(csv({ headers: headers, skipLines: 1, separator: ',' }))
+            .pipe(csv({ headers: _CSV_HEADERS, skipLines: 1, separator: ',' }))
             .on('data', function(row) {
                 // 玩家名模糊匹配
                 if (player) {
-                    const source = (row['来源'] || '').toLowerCase();
-                    const target = (row['目标'] || '').toLowerCase();
+                    const source = (row[COL_SOURCE] || '').toLowerCase();
+                    const target = (row[COL_TARGET] || '').toLowerCase();
                     if (source.indexOf(player) === -1 && target.indexOf(player) === -1) {
                         return;
                     }
@@ -533,29 +547,28 @@ function queryLogs(options) {
 
                 // 事件类型精确匹配
                 if (eventType) {
-                    const event = row['事件'] || '';
+                    const event = row[COL_EVENT] || '';
                     if (event !== eventType) {
                         return;
                     }
                 }
 
                 results.push({
-                    time: row['时间'] || '',
-                    dim: row['维度'] || '',
-                    source: row['来源'] || '',
-                    x: row['X'] || '',
-                    y: row['Y'] || '',
-                    z: row['Z'] || '',
-                    event: row['事件'] || '',
-                    target: row['目标'] || '',
-                    tx: row['x'] || '',
-                    ty: row['y'] || '',
-                    tz: row['z'] || '',
-                    extra: row['附加信息'] || ''
+                    time: row[COL_TIME] || '',
+                    dim: row[COL_DIM] || '',
+                    source: row[COL_SOURCE] || '',
+                    x: row[COL_X] || '',
+                    y: row[COL_Y] || '',
+                    z: row[COL_Z] || '',
+                    event: row[COL_EVENT] || '',
+                    target: row[COL_TARGET] || '',
+                    tx: row[COL_TX] || '',
+                    ty: row[COL_TY] || '',
+                    tz: row[COL_TZ] || '',
+                    extra: row[COL_EXTRA] || ''
                 });
             })
             .on('end', function() {
-                // 读取完成后按时间降序排列
                 results.reverse();
 
                 const total = results.length;
