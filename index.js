@@ -967,7 +967,10 @@ async function initAllConfigs() {
 	chainModule.registerChainListener();
 	chainModule.registerChainCommand(registerPlayerCommand);
 	initNarConfig();
-	backupModule.init(config.get("backup"));
+	backupModule.init(config.get("backup"), {
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+	});
 	var dataBackupInterval = config.get("backup").dataBackupInterval || 0;
 	if (dataBackupInterval > 0) {
 		backupModule.startDataBackupScheduler(dataBackupInterval * 3600 * 1000);
