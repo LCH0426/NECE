@@ -223,7 +223,6 @@ NECE 支持多语言界面，语言文件位于 `lang/` 目录。通过 `config.
 | 侧边栏 | `src/sidebar.js` | `sidebar.*` | ⏳ 待完成 |
 | 菜单系统 | `src/menu.js` | `menu.*` | ⏳ 待完成 |
 | 个人数据 | `src/playerData.js` | `pd.*` | ⏳ 待完成 |
-| 死亡点 | `src/deathPoint.js` | `death.*` | ⏳ 待完成 |
 | MOTD | `src/motd.js` | `motd.*` | ⏳ 待完成 |
 
 ### 添加新语言
