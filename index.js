@@ -1432,7 +1432,7 @@ function tickOnlineDurations() {
 	});
 }
 
-setInterval(tickOnlineDurations, 58848);
+setInterval(tickOnlineDurations, 60000);
 
 // 定时清理已离线但未触发 onLeft 的残留条目
 var _leavetimeWriteTick = 0;
