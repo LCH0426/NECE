@@ -225,6 +225,28 @@
     "log_init_complete": "初始化完成",
     "default_currency": "星茜"
   },
+  "cdk": {
+    "title": "CDK兑换",
+    "input_code": "请输入兑换码",
+    "input_code_hint": "兑换码",
+    "err_empty_code": "§e[兑换] 兑换码不能为空",
+    "err_not_found_title": "兑换失败",
+    "err_not_found": "兑换码不存在",
+    "err_already_used": "你已经使用过该兑换码",
+    "err_all_used": "该兑换码已被全部使用",
+    "btn_retry": "重新输入",
+    "btn_close": "关闭",
+    "btn_continue": "继续兑换",
+    "snbt_item": "SNBT物品",
+    "reward_reason": "CDK兑换",
+    "partial_success_title": "兑换部分成功",
+    "partial_success_msg": "部分奖励发放失败（背包可能已满）：\n{0}",
+    "partial_success_obtained": "\n\n已获得:\n{0}",
+    "partial_success_retry": "\n\n请腾出背包空间后重新兑换",
+    "success_title": "兑换成功",
+    "success_msg": "获得:\n{0}",
+    "no_reward": "无奖励"
+  },
   "ban": {
     "unknown_player": "未知玩家",
     "default_reason": "管理员封禁",

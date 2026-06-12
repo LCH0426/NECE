@@ -1064,7 +1064,9 @@ async function initAllConfigs() {
 		cdkDataDM: cdkDataDM,
 		addPlayerMoney: addPlayerMoney,
 		getCurrencyName: getCurrencyName,
-		giveItemById: giveItemById
+		giveItemById: giveItemById,
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
 	commonDeps.cdkModule = cdkModule;
 
