@@ -83,21 +83,6 @@ function setTeleportCooldown(xuid, type, seconds) {
  * @param {number} dim - 维度ID
  * @returns {boolean} 是否传送成功
  */
-function safeTeleport(player, x, y, z, dim) {
-	try {
-		player.teleport(new FloatPos(x, y, z, dim));
-		return true;
-	} catch (e) {
-		// API传送失败时回退到执行 /tp 命令
-		try {
-			player.runcmd("tp " + x + " " + y + " " + z);
-			return true;
-		} catch (e2) {
-			return false;
-		}
-	}
-}
-
 /**
  * 获取玩家的家园列表，首次访问时自动初始化为空数组
  * @param {string} xuid - 玩家XUID
@@ -407,12 +392,12 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 	// 根据请求类型执行不同的传送逻辑
 	if (req.type === 'tpa') {
 		const toPos = toPlayer.pos;
-		safeTeleport(fromPlayer, toPos.x, toPos.y, toPos.z, toPos.dim);
+		U.safeTeleport(fromPlayer, toPos.x, toPos.y, toPos.z, toPos.dim);
 		fromPlayer.tell("§e[传送] §a已传送到 " + toPlayer.name + " 的位置");
 		toPlayer.tell("§e[传送] §a" + fromPlayer.name + " 已传送到你的位置");
 	} else if (req.type === 'tpn') {
 		const fromPos = fromPlayer.pos;
-		safeTeleport(toPlayer, fromPos.x, fromPos.y, fromPos.z, fromPos.dim);
+		U.safeTeleport(toPlayer, fromPos.x, fromPos.y, fromPos.z, fromPos.dim);
 		fromPlayer.tell("§e[传送] §a" + toPlayer.name + " 已传送到你的位置");
 		toPlayer.tell("§e[传送] §a已传送到 " + fromPlayer.name + " 的位置");
 	}
@@ -750,7 +735,7 @@ function teleportToHome(player, home) {
 		return;
 	}
 
-	if (safeTeleport(player, home.x, home.y, home.z, home.dim)) {
+	if (U.safeTeleport(player, home.x, home.y, home.z, home.dim)) {
 		home.lastUse = Date.now();
 		saveHomesData();
 		setTeleportCooldown(player.xuid, 'home', tpsConfig.homeCooldown);
@@ -948,7 +933,7 @@ function teleportToWarp(player, warpName, deps) {
 		deps.reducePlayerMoney(player, tpsConfig.warpCost, "地标传送: " + warpName);
 	}
 
-	if (safeTeleport(player, warp.x, warp.y, warp.z, warp.dim)) {
+	if (U.safeTeleport(player, warp.x, warp.y, warp.z, warp.dim)) {
 		player.tell("§e[传送] §a已传送到 §b" + warpName);
 	} else {
 		player.tell("§e[传送] §c传送失败，请稍后再试");
@@ -1303,7 +1288,7 @@ function teleportToDeathPoint(player, index) {
 		const z = point.z || 0;
 		const dimId = point.dimId || 0;
 
-		safeTeleport(player, x + 0.5, y, z + 0.5, dimId);
+		U.safeTeleport(player, x + 0.5, y, z + 0.5, dimId);
 		player.tell("§a已传送到死亡点 [" + dimName + "] (" + x + ", " + y + ", " + z + ")");
 		logger.info("[死亡点] 玩家 " + player.name + " 传送到死亡点：" + dimName + " (" + x + ", " + y + ", " + z + ")");
 	} catch (error) {

@@ -21,6 +21,7 @@
  */
 
 const database = require('./database');
+const U = require('./utils');
 
 // 传送冷却记录 { xuid: expireTimestamp }
 const guildTpCooldowns = {};
@@ -136,20 +137,6 @@ function sendSystemMail(xuid, content) {
 }
 
 /** 安全传送玩家 */
-function safeTeleport(player, x, y, z, dim) {
-    try {
-        player.teleport(new FloatPos(x, y, z, dim));
-        return true;
-    } catch (e) {
-        try {
-            player.runcmd('tp ' + x + ' ' + y + ' ' + z);
-            return true;
-        } catch (e2) {
-            return false;
-        }
-    }
-}
-
 /** 检查并设置传送冷却 */
 function checkCooldown(xuid) {
     var cd = cfg().teleportCooldown || 10;
@@ -362,7 +349,7 @@ function doTeleportTo(player, tpName) {
     var remain = checkCooldown(xuid);
     if (remain > 0) { player.tell('§e[公会] §c传送冷却中，请等待 ' + remain + ' 秒'); return; }
 
-    if (safeTeleport(player, tp.x, tp.y, tp.z, tp.dim)) {
+    if (U.safeTeleport(player, tp.x, tp.y, tp.z, tp.dim)) {
         player.tell('§e[公会] §a已传送到公会传送点: ' + tp.name);
     } else {
         player.tell('§e[公会] §c传送失败');
@@ -382,7 +369,7 @@ function doTeleportHQ(player) {
     var remain = checkCooldown(xuid);
     if (remain > 0) { player.tell('§e[公会] §c传送冷却中，请等待 ' + remain + ' 秒'); return; }
 
-    if (safeTeleport(player, guild.hqX, guild.hqY, guild.hqZ, guild.hqDim)) {
+    if (U.safeTeleport(player, guild.hqX, guild.hqY, guild.hqZ, guild.hqDim)) {
         player.tell('§e[公会] §a已传送到公会总部');
     } else {
         player.tell('§e[公会] §c传送失败');
@@ -1073,7 +1060,7 @@ function showTeleportPanel(player) {
             var tp = tps[id];
             var remain = checkCooldown(String(p.xuid));
             if (remain > 0) { p.tell('§e[公会] §c传送冷却中，请等待 ' + remain + ' 秒'); return; }
-            if (safeTeleport(p, tp.x, tp.y, tp.z, tp.dim)) {
+            if (U.safeTeleport(p, tp.x, tp.y, tp.z, tp.dim)) {
                 p.tell('§e[公会] §a已传送到: ' + tp.name);
             } else {
                 p.tell('§e[公会] §c传送失败');
