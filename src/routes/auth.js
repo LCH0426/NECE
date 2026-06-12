@@ -38,8 +38,8 @@ function registerRoutes(router, d) {
             return res.status(400).json({ code: 400, msg: '验证码不能为空' });
         }
 
-        // 验证码校验
-        if (!d.database.verifyCaptcha(captchaId, captchaCode)) {
+        // 验证码校验（绑定 IP）
+        if (!d.database.verifyCaptcha(captchaId, captchaCode, req.ip)) {
             return res.status(400).json({ code: 400, msg: '验证码错误或已过期' });
         }
 
@@ -182,7 +182,7 @@ function registerRoutes(router, d) {
             fontSize: 36
         });
 
-        const captchaId = d.database.generateCaptcha(captcha.text);
+        const captchaId = d.database.generateCaptcha(captcha.text, req.ip);
 
         res.json({
             code: 200,

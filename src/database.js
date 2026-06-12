@@ -88,8 +88,12 @@ async function initDatabase() {
     db.run(`CREATE TABLE IF NOT EXISTS captcha (
         captcha_id TEXT PRIMARY KEY,
         code TEXT NOT NULL,
+        ip TEXT,
         created_at INTEGER NOT NULL
     )`);
+
+    // 迁移：为旧数据库添加 ip 列
+    try { db.run('ALTER TABLE captcha ADD COLUMN ip TEXT'); } catch (e) {}
 
     db.run(`CREATE TABLE IF NOT EXISTS refresh_tokens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -258,11 +262,17 @@ function getAllAdmins() {
  * @param {string} code - 验证码文本
  * @returns {string} captchaId（hex 编码的 16 字节随机值）
  */
-function generateCaptcha(code) {
+/**
+ * 生成验证码并存储
+ * @param {string} code - 验证码文本
+ * @param {string} [ip] - 请求者 IP
+ * @returns {string} 验证码 ID
+ */
+function generateCaptcha(code, ip) {
     const captchaId = crypto.randomBytes(16).toString('hex');
     const createdAt = Date.now();
 
-    db.run('INSERT INTO captcha (captcha_id, code, created_at) VALUES (?, ?, ?)', [captchaId, code, createdAt]);
+    db.run('INSERT INTO captcha (captcha_id, code, ip, created_at) VALUES (?, ?, ?, ?)', [captchaId, code, ip || null, createdAt]);
     requestSaveAuthDb();
     return captchaId;
 }
@@ -271,16 +281,25 @@ function generateCaptcha(code) {
  * 验证验证码（不区分大小写），验证后无论成功与否均删除记录
  * @param {string} captchaId - 验证码 ID
  * @param {string} input - 用户输入的验证码
+ * @param {string} [ip] - 请求者 IP（绑定 IP 检查）
  * @returns {boolean} 验证码是否匹配且未过期（5分钟有效期）
  */
-function verifyCaptcha(captchaId, input) {
-    const result = db.exec('SELECT code, created_at FROM captcha WHERE captcha_id = ?', [captchaId]);
+function verifyCaptcha(captchaId, input, ip) {
+    const result = db.exec('SELECT code, ip, created_at FROM captcha WHERE captcha_id = ?', [captchaId]);
     if (result.length === 0 || result[0].values.length === 0) return false;
 
     const code = result[0].values[0][0];
-    const createdAt = result[0].values[0][1];
+    const storedIp = result[0].values[0][1];
+    const createdAt = result[0].values[0][2];
 
     if (Date.now() - createdAt > 5 * 60 * 1000) {
+        db.run('DELETE FROM captcha WHERE captcha_id = ?', [captchaId]);
+        requestSaveAuthDb();
+        return false;
+    }
+
+    // IP 绑定检查：如果生成时记录了 IP，验证时必须匹配
+    if (storedIp && ip && storedIp !== ip) {
         db.run('DELETE FROM captcha WHERE captcha_id = ?', [captchaId]);
         requestSaveAuthDb();
         return false;
@@ -1186,6 +1205,35 @@ function updateGuild(guildId, fields) {
     playerDb.run('UPDATE guilds SET ' + sets.join(', ') + ' WHERE id = ?', vals);
 }
 
+/**
+ * 原子扣减公会资金（余额不足返回 false）
+ * @param {number} guildId - 公会 ID
+ * @param {number} amount - 扣减金额（正数）
+ * @returns {boolean} 是否成功
+ */
+function updateGuildFundReduce(guildId, amount) {
+    if (!playerDb || amount <= 0) return false;
+    markPlayerDbDirty();
+    var result = playerDb.run(
+        'UPDATE guilds SET fund = fund - ? WHERE id = ? AND fund >= ?',
+        [amount, guildId, amount]
+    );
+    return result && result.changes > 0;
+}
+
+/**
+ * 原子增加公会资金
+ * @param {number} guildId - 公会 ID
+ * @param {number} amount - 增加金额（正数）
+ * @returns {boolean} 是否成功
+ */
+function updateGuildFundAdd(guildId, amount) {
+    if (!playerDb || amount <= 0) return false;
+    markPlayerDbDirty();
+    playerDb.run('UPDATE guilds SET fund = fund + ? WHERE id = ?', [amount, guildId]);
+    return true;
+}
+
 /** 添加公会成员 */
 function addGuildMember(xuid, guildId, role) {
     if (!playerDb) return;
@@ -1434,6 +1482,8 @@ module.exports = {
     getAllGuilds,
     deleteGuild,
     updateGuild,
+    updateGuildFundReduce,
+    updateGuildFundAdd,
     addGuildMember,
     removeGuildMember,
     getGuildMembers,

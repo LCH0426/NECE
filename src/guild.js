@@ -390,14 +390,18 @@ function doDeposit(player, amount) {
 
     if (confirmPurchase) {
         confirmPurchase(player, amount, '存入公会资金', function(p) {
-            reducePlayerMoney(p, amount, '存入公会资金');
-            database.updateGuild(guild.id, { fund: guild.fund + amount });
+            if (!reducePlayerMoney(p, amount, '存入公会资金')) {
+                p.tell('§e[公会] §c扣费失败'); return;
+            }
+            database.updateGuildFundAdd(guild.id, amount);
             p.tell('§e[公会] §a已存入 ' + amount.toFixed(2) + ' ' + getCurrencyName() + ' 到公会资金');
         });
         return;
     }
-    reducePlayerMoney(player, amount, '存入公会资金');
-    database.updateGuild(guild.id, { fund: guild.fund + amount });
+    if (!reducePlayerMoney(player, amount, '存入公会资金')) {
+        player.tell('§e[公会] §c扣费失败'); return;
+    }
+    database.updateGuildFundAdd(guild.id, amount);
     player.tell('§e[公会] §a已存入 ' + amount.toFixed(2) + ' ' + getCurrencyName() + ' 到公会资金');
     logger.info('[Guild] ' + player.name + ' 存入公会"' + guild.name + '" ' + amount);
 }
@@ -416,10 +420,11 @@ function doWithdraw(player, amount) {
         return;
     }
 
-    if (guild.fund < amount) { player.tell('§e[公会] §c公会资金不足，当前: ' + guild.fund.toFixed(2)); return; }
+    if (!database.updateGuildFundReduce(guild.id, amount)) {
+        player.tell('§e[公会] §c公会资金不足'); return;
+    }
 
     addPlayerMoney(player, amount, '取出公会资金');
-    database.updateGuild(guild.id, { fund: guild.fund - amount });
     player.tell('§e[公会] §a已从公会资金取出 ' + amount.toFixed(2) + ' ' + getCurrencyName());
     logger.info('[Guild] ' + player.name + ' 从公会"' + guild.name + '"取出 ' + amount);
 }
@@ -2028,15 +2033,14 @@ function showAdminTreasuryPanel(player, guild) {
                 logger.info('[Guild] 管理员 ' + p.name + ' 设置公会"' + guild.name + '"资金为 ' + amount);
                 break;
             case 1:
-                database.updateGuild(guild.id, { fund: guild.fund + amount });
+                database.updateGuildFundAdd(guild.id, amount);
                 p.tell('§e[公会] §a已向公会"' + guild.name + '"存入 ' + amount.toFixed(2));
                 logger.info('[Guild] 管理员 ' + p.name + ' 向公会"' + guild.name + '"存入 ' + amount);
                 break;
             case 2:
-                if (guild.fund < amount) {
+                if (!database.updateGuildFundReduce(guild.id, amount)) {
                     p.tell('§e[公会] §c公会资金不足');
                 } else {
-                    database.updateGuild(guild.id, { fund: guild.fund - amount });
                     p.tell('§e[公会] §a已从公会"' + guild.name + '"取出 ' + amount.toFixed(2));
                     logger.info('[Guild] 管理员 ' + p.name + ' 从公会"' + guild.name + '"取出 ' + amount);
                 }

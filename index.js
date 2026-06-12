@@ -1895,6 +1895,13 @@ function initWebServer() {
 		webServer.setPlayerDataRef(playerData);
 		webServer.setConfigRef(config);
 		webServer.setHasWish(hasWish, hasWish ? wishModule : null, economyModule.writeEconomyLog);
+		webServer.setEconomyFunctions({
+			getPlayerMoney: economyModule.getPlayerMoney,
+			reducePlayerMoney: economyModule.reducePlayerMoney,
+			addPlayerMoney: economyModule.addPlayerMoney,
+			addPlayerMoneyByXuid: economyModule.addPlayerMoneyByXuid,
+			getPlayerMoneyByXuid: economyModule.getPlayerMoneyByXuid
+		});
 		// JWT 密钥管理：优先从 data/.jwt_secret 读取，不存在则自动生成
 		(function loadOrGenerateJwtSecrets() {
 			var crypto = require('crypto');

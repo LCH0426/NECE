@@ -143,33 +143,38 @@ function registerRoutes(router, d) {
                 return res.status(500).json({ code: 500, msg: '经济系统未加载' });
             }
 
-            const beforeBalance = d.money.get(xuid) || 0;
+            const eco = d.economyFunctions;
+            const beforeBalance = eco ? eco.getPlayerMoneyByXuid(xuid) : (d.money.get(xuid) || 0);
             let success = false;
             const reason = '管理员操作(' + (req.user ? req.user.uid : 'unknown') + ')';
             const playerName = d.getPlayerName ? d.getPlayerName(xuid) : xuid;
 
             if (action === 'add') {
-                success = d.money.add(xuid, intAmount);
-                if (success && d.writeEconomyLog) d.writeEconomyLog({ action: 'add', player: playerName, xuid: xuid, amount: intAmount, balance: d.money.get(xuid) || 0, reason: reason });
-            } else if (action === 'reduce') {
-                success = d.money.reduce(xuid, intAmount);
-                if (success && d.writeEconomyLog) d.writeEconomyLog({ action: 'reduce', player: playerName, xuid: xuid, amount: intAmount, balance: d.money.get(xuid) || 0, reason: reason });
-            } else if (action === 'set') {
-                // set操作通过差额计算转为add或reduce
-                const currentBalance = d.money.get(xuid) || 0;
-                if (intAmount >= currentBalance) {
-                    success = d.money.add(xuid, intAmount - currentBalance);
-                    if (success && d.writeEconomyLog) d.writeEconomyLog({ action: 'add', player: playerName, xuid: xuid, amount: intAmount - currentBalance, balance: d.money.get(xuid) || 0, reason: reason });
+                if (eco) {
+                    success = eco.addPlayerMoneyByXuid(xuid, intAmount, reason);
                 } else {
-                    success = d.money.reduce(xuid, currentBalance - intAmount);
-                    if (success && d.writeEconomyLog) d.writeEconomyLog({ action: 'reduce', player: playerName, xuid: xuid, amount: currentBalance - intAmount, balance: d.money.get(xuid) || 0, reason: reason });
+                    success = d.money.add(xuid, intAmount);
+                }
+            } else if (action === 'reduce') {
+                if (eco) {
+                    success = eco.addPlayerMoneyByXuid(xuid, -intAmount, reason);
+                } else {
+                    success = d.money.reduce(xuid, intAmount);
+                }
+            } else if (action === 'set') {
+                const currentBalance = eco ? eco.getPlayerMoneyByXuid(xuid) : (d.money.get(xuid) || 0);
+                const diff = intAmount - currentBalance;
+                if (eco) {
+                    success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                } else {
+                    success = diff >= 0 ? d.money.add(xuid, diff) : d.money.reduce(xuid, -diff);
                 }
             } else {
                 return res.status(400).json({ code: 400, msg: '无效操作，支持: add, reduce, set' });
             }
 
             if (success) {
-                const afterBalance = d.money.get(xuid) || 0;
+                const afterBalance = eco ? eco.getPlayerMoneyByXuid(xuid) : (d.money.get(xuid) || 0);
                 let playerName = d.getPlayerName(xuid);
 
                 const actionNames = { add: '增加', reduce: '减少', set: '设置' };

@@ -50,23 +50,48 @@ const _allRateLimitStores = [];      // 所有限流器的 store 引用，用于
 let _rateLimitCleanupTimer = null;
 
 /**
- * 创建限流中间件（每个实例独立计数，互不干扰）
+ * 创建速率限制器（内存存储）
  * @param {number} windowMs 时间窗口（毫秒）
  * @param {number} maxRequests 窗口内最大请求数
+ * @param {number} [maxEntries=10000] 最大存储条目数，防止内存溢出
  */
-function createRateLimiter(windowMs, maxRequests) {
+function createRateLimiter(windowMs, maxRequests, maxEntries) {
     const store = {};  // 每个限流器独立存储，避免不同类型限流共享计数
     _allRateLimitStores.push(store);
+    maxEntries = maxEntries || 10000;
     return function(req, res, next) {
         const key = req.ip || req.connection.remoteAddress || 'unknown';
         const now = Date.now();
         let entry = store[key];
         if (!entry || now > entry.resetAt) {
+            // 新条目前检查存储上限
+            if (!store[key]) {
+                const storeSize = Object.keys(store).length;
+                if (storeSize >= maxEntries) {
+                    // 清理过期条目
+                    const keys = Object.keys(store);
+                    for (let i = 0; i < keys.length; i++) {
+                        if (now > store[keys[i]].resetAt) {
+                            delete store[keys[i]];
+                        }
+                    }
+                    // 仍然超限则拒绝
+                    if (Object.keys(store).length >= maxEntries) {
+                        return res.status(429).json({ code: 429, msg: '请求过于频繁，请稍后再试' });
+                    }
+                }
+            }
             entry = { count: 1, resetAt: now + windowMs };
             store[key] = entry;
         } else {
             entry.count++;
         }
+        if (entry.count > maxRequests) {
+            return res.status(429).json({ code: 429, msg: '请求过于频繁，请稍后再试' });
+        }
+        next();
+    };
+}
         if (entry.count > maxRequests) {
             return res.status(429).json({ code: 429, msg: '请求过于频繁，请稍后再试' });
         }
@@ -136,6 +161,22 @@ function setHasWish(val, wishModule, economyWriteLog) {
     _hasWish = !!val;
     _wishModuleRef = wishModule || null;
     _writeEconomyLog = economyWriteLog || null;
+}
+
+let _economyFunctions = null;
+function setEconomyFunctions(funcs) {
+    _economyFunctions = funcs || null;
+}
+
+/**
+ * 获取错误消息（debug 模式返回详细信息，否则返回通用消息）
+ * @param {Error} e - 错误对象
+ * @param {string} fallback - 通用错误消息
+ * @returns {string}
+ */
+function getErrorMessage(e, fallback) {
+    if (_webConfig && _webConfig.debugMode) return fallback + ': ' + e.message;
+    return fallback || '服务器内部错误';
 }
 
 let chatHistory = [];              // 服务端聊天记录缓冲，供 Web 面板实时查看
@@ -479,6 +520,8 @@ function createV1Routes(webConfig) {
         triggerReload,
         fs, pathModule,
         mc: mc, money: money,
+        economyFunctions: _economyFunctions,
+        getErrorMessage: getErrorMessage,
         loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter,
         hasWish: _hasWish
     };
@@ -605,5 +648,6 @@ module.exports = {
     onReload,
     setPlayerDataRef,
     setConfigRef,
-    setHasWish
+    setHasWish,
+    setEconomyFunctions
 };
