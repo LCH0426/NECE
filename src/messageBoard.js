@@ -22,8 +22,9 @@
  */
 
 
-const C = require('./constants');
 const U = require('./utils');
+
+const MOOD_OPTIONS = ['开心', '难过', '平静', '兴奋', '生气'];
 const D = require('./debug');
 
 let messageBoardDM = null;
@@ -144,7 +145,7 @@ function createAddMessageForm(player) {
     let fm = mc.newCustomForm();
     fm.setTitle(t(lang, 'mb.add_title'));
     fm.addInput(t(lang, 'mb.add_content_label'), "string", "");
-    fm.addDropdown(t(lang, 'mb.mood_label'), C.MOOD_OPTIONS, 0);
+    fm.addDropdown(t(lang, 'mb.mood_label'), MOOD_OPTIONS, 0);
 
     player.sendForm(fm, function(pl, data) {
         if (data == null || !Array.isArray(data)) {
@@ -165,7 +166,7 @@ function createAddMessageForm(player) {
             xuid: pl.xuid,
             playerName: pl.realName,
             msg: msg,
-            mood: C.MOOD_OPTIONS[moodIndex],
+            mood: MOOD_OPTIONS[moodIndex],
             time: U.getCurrentTimeString(),
             client: client,
             isDeleted: false

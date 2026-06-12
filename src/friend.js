@@ -21,7 +21,6 @@
  */
 
 
-const C = require('./constants');
 const U = require('./utils');
 const D = require('./debug');
 

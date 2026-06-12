@@ -21,7 +21,15 @@
  */
 
 let _database = null;         // database.js 模块引用
-let _C = null;                // constants 模块引用
+const DEFAULT_PLAYER_SETTINGS = {
+    enableWelcome: true, enableActionbar: true, enableIpDetector: true,
+    enableActionbarPing: true, enableActionbarMoney: true, enableActionbarTime: false,
+    enableActionbarTps: true, enableActionbarSpeed: false, enableActionbarBiome: false,
+    enableBankNotice: true, enableDeathTeleportPopup: true, enableGiveClock: true,
+    enableGiveCompass: true, allowFriendRequests: true, acceptStrangerMessages: true,
+    enableMessageNotification: true, enableFriendRequestNotification: true,
+    enableMailNotification: true, enableTpaRejectMode: false, enableChain: true, locale: "zh_CN"
+};
 let _fs = null;               // fs 模块引用
 let _itemsDataPath = '';      // items.json 文件路径
 let _getPlayerData = null;    // 获取全局玩家数据的函数
@@ -37,7 +45,6 @@ let _dirtyPlayers = new Set();
 /** 注入依赖，由 index.js 的 initAllConfigs 调用 */
 function init(deps) {
     _database = deps.database;
-    _C = deps.constants;
     _fs = deps.fs;
     _itemsDataPath = deps.itemsDataPath;
     _getPlayerData = deps.getPlayerData;
@@ -150,7 +157,7 @@ function getItemInfoById(itemId) {
 function getPlayerSetting(xuid, key) {
     let playerSettings = _getPlayerSettings();
     if (!playerSettings[xuid]) {
-        playerSettings[xuid] = Object.assign({}, _C.DEFAULT_PLAYER_SETTINGS);
+        playerSettings[xuid] = Object.assign({}, DEFAULT_PLAYER_SETTINGS);
     }
     return playerSettings[xuid][key] !== undefined ? playerSettings[xuid][key] : false;
 }
@@ -165,7 +172,7 @@ function getPlayerSetting(xuid, key) {
 function setPlayerSetting(xuid, key, value) {
     const playerSettings = _getPlayerSettings();
     if (!playerSettings[xuid]) {
-        playerSettings[xuid] = Object.assign({}, _C.DEFAULT_PLAYER_SETTINGS);
+        playerSettings[xuid] = Object.assign({}, DEFAULT_PLAYER_SETTINGS);
     }
     playerSettings[xuid][key] = value;
     if (_database.isPlayerDbReady()) {

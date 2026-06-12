@@ -21,7 +21,37 @@
  */
 
 const U = require('./utils');
-const C = require('./constants');
+
+/** 设置界面表单描述 */
+const PLAYER_SETTINGS_SCHEMA = [
+    { type: 'label', text: '§b进服提醒' },
+    { key: 'enableWelcome', label: '§e入服欢迎' },
+    { key: 'enableActionbar', label: '§e右下角显示UID' },
+    { key: 'enableIpDetector', label: '§e进服显示网络协议信息' },
+    { type: 'label', text: '§b侧边栏显示' },
+    { key: 'enableActionbarMoney', label: '§e侧边栏显示§e余额' },
+    { key: 'enableActionbarPing', label: '§e侧边栏显示延迟' },
+    { key: 'enableActionbarTps', label: '§e侧边栏显示TPS' },
+    { key: 'enableActionbarSpeed', label: '§e侧边栏显示移动速度' },
+    { key: 'enableActionbarBiome', label: '§e侧边栏显示群系' },
+    { key: 'enableActionbarTime', label: '§e侧边栏显示时间' },
+    { type: 'label', text: '§b入服物品' },
+    { key: 'enableGiveClock', label: '§e入服给钟（菜单）' },
+    { key: 'enableGiveCompass', label: '§e入服给指南针（快捷菜单）' },
+    { type: 'label', text: '§b杂项' },
+    { key: 'enableBankNotice', label: '§e定期存款到期通知' },
+    { key: 'enableDeathTeleportPopup', label: '§e死亡后传送弹窗' },
+    { type: 'label', text: '§b好友与消息设置' },
+    { key: 'allowFriendRequests', label: '§e允许添加我为好友' },
+    { key: 'acceptStrangerMessages', label: '§e接受陌生人私信' },
+    { key: 'enableMessageNotification', label: '§e新私信提醒' },
+    { key: 'enableFriendRequestNotification', label: '§e好友请求提醒' },
+    { key: 'enableMailNotification', label: '§e新邮件提醒' },
+    { type: 'label', text: '§b传送设置' },
+    { key: 'enableTpaRejectMode', label: '§c拒绝所有传送请求' },
+    { type: 'label', text: '§b语言设置' },
+    { type: 'dropdown', key: 'locale', label: '§e语言', options: ['zh_CN'], optionLabels: ['简体中文'] }
+];
 
 let _deps = {};
 
@@ -759,7 +789,7 @@ function showPlayerSettingsForm(player) {
 	const switchIndices = [];  // 记录每个开关在表单数据中的索引及其对应key
 	const dropdownIndices = []; // 记录每个下拉菜单在表单数据中的索引及其对应key
 	let dataIdx = 0;
-	const schema = C.PLAYER_SETTINGS_SCHEMA;
+	const schema = PLAYER_SETTINGS_SCHEMA;
 
 	// 动态获取支持的语言列表
 	const supportedLocales = _deps.getSupportedLocales ? _deps.getSupportedLocales() : ['zh_CN'];
