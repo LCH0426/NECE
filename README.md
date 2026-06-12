@@ -194,6 +194,44 @@ NECE 内置基于 Express.js 的网页端管理后台，提供以下功能：
 | `web.host`            | `"0.0.0.0"` | Web 面板绑定地址  |
 | `web.secureCookie`    | `false`     | HTTPS 时启用 Secure Cookie |
 
+## 国际化 (i18n)
+
+NECE 支持多语言界面，语言文件位于 `lang/` 目录。通过 `config.json` 的 `language` 字段切换语言（默认 `zh_CN`）。
+
+### 已完成国际化的模块
+
+| 模块 | 文件 | 命名空间 | 状态 |
+|------|------|----------|------|
+| 封禁系统 | `src/ban.js` | `ban.*` | ✅ 已完成 |
+| CDK兑换 | `src/cdk.js` | `cdk.*` | ✅ 已完成 |
+| 备份系统 | `src/backup.js` | `backup.*` | ✅ 已完成 |
+| 实体清理 | `src/clearLag.js` | `clearlag.*` | ✅ 已完成 |
+| 留言板 | `src/messageBoard.js` | `mb.*` | ✅ 已完成 |
+| 银行系统 | `src/bank.js` | `bank.*` | ✅ 已完成 |
+| 公会系统 | `src/guild.js` | `guild.*` | ⏳ 待完成 |
+| 邮件系统 | `src/mail.js` | `mail.*` | ⏳ 待完成 |
+| 好友系统 | `src/friend.js` | `friend.*` | ⏳ 待完成 |
+| 商店系统 | `src/shop.js` | `shop.*` | ⏳ 待完成 |
+| 传送系统 | `src/teleport.js` | `teleport.*` | ⏳ 待完成 |
+| 祈愿系统 | `src/wish.js` | `wish.*` | ⏳ 待完成 |
+| 连锁挖矿 | `src/chain.js` | `chain.*` | ⏳ 待完成 |
+| VIP系统 | `src/vip.js` | `vip.*` | ⏳ 待完成 |
+| 经济系统 | `src/economy.js` | `economy.*` | ⏳ 待完成 |
+| 排行榜 | `src/rank.js` | `rank.*` | ⏳ 待完成 |
+| 个人中心 | `src/personalCenter.js` | `pc.*` | ⏳ 待完成 |
+| 聊天系统 | `src/chat.js` | `chat.*` | ⏳ 待完成 |
+| 侧边栏 | `src/sidebar.js` | `sidebar.*` | ⏳ 待完成 |
+| 菜单系统 | `src/menu.js` | `menu.*` | ⏳ 待完成 |
+| 个人数据 | `src/playerData.js` | `pd.*` | ⏳ 待完成 |
+| 死亡点 | `src/deathPoint.js` | `death.*` | ⏳ 待完成 |
+| MOTD | `src/motd.js` | `motd.*` | ⏳ 待完成 |
+
+### 添加新语言
+
+1. 复制 `lang/zh_CN.json` 为新文件（如 `lang/en_US.json`）
+2. 翻译所有值（保持键名不变）
+3. 在 `config.json` 中设置 `"language": "en_US"`
+
 ## 项目结构
 
 ```

@@ -37,6 +37,16 @@ function createCdkModule(deps) {
     const cdkDataDM = deps.cdkDataDM;
     const addPlayerMoney = deps.addPlayerMoney;
     const getCurrencyName = deps.getCurrencyName;
+    const _t = deps.t || null;
+    const _getLang = deps.getSystemLanguage || function() { return 'zh_CN'; };
+
+    function t(key) {
+        if (!_t) return key;
+        var lang = _getLang();
+        var args = [lang];
+        for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+        return _t.apply(null, args);
+    }
 
     /** 加载CDK数据 */
     function getCdkData() {
@@ -49,12 +59,12 @@ function createCdkModule(deps) {
      */
     function showCdkRedeemForm(player) {
         const fm = mc.newCustomForm();
-        fm.setTitle("CDK兑换");
-        fm.addInput("请输入兑换码", "兑换码", "");
+        fm.setTitle(t('cdk.title'));
+        fm.addInput(t('cdk.input_code'), t('cdk.input_code_hint'), "");
         player.sendForm(fm, function(p, data) {
             if (data == null || !data || !data[0]) return;
             const code = data[0].trim();
-            if (!code) { p.tell("§e[兑换] 兑换码不能为空"); return; }
+            if (!code) { p.tell(t('cdk.err_empty_code')); return; }
             redeemCdk(p, code);
         });
     }
@@ -68,7 +78,7 @@ function createCdkModule(deps) {
     function redeemCdk(player, code) {
         const cdkData = getCdkData();
         if (!cdkData || !cdkData.codes || !cdkData.codes[code]) {
-            player.sendModalForm("兑换失败", "兑换码不存在", "重新输入", "关闭", function(pl, ok) {
+            player.sendModalForm(t('cdk.err_not_found_title'), t('cdk.err_not_found'), t('cdk.btn_retry'), t('cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
             return;
@@ -79,7 +89,7 @@ function createCdkModule(deps) {
 
         // 检查该玩家是否已使用过此兑换码
         if (cdkInfo.usedBy && cdkInfo.usedBy[xuid]) {
-            player.sendModalForm("兑换失败", "你已经使用过该兑换码", "重新输入", "关闭", function(pl, ok) {
+            player.sendModalForm(t('cdk.err_not_found_title'), t('cdk.err_already_used'), t('cdk.btn_retry'), t('cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
             return;
@@ -92,7 +102,7 @@ function createCdkModule(deps) {
                 usedCount = Object.keys(cdkInfo.usedBy).length;
             }
             if (usedCount >= cdkInfo.maxUses) {
-                player.sendModalForm("兑换失败", "该兑换码已被全部使用", "重新输入", "关闭", function(pl, ok) {
+                player.sendModalForm(t('cdk.err_not_found_title'), t('cdk.err_all_used'), t('cdk.btn_retry'), t('cdk.btn_close'), function(pl, ok) {
                     if (ok === true) showCdkRedeemForm(pl);
                 });
                 return;
@@ -134,14 +144,14 @@ function createCdkModule(deps) {
                 case "snbt":
                     const snbtItem = mc.newItem(r.snbt);
                     if (snbtItem && player.giveItem(snbtItem)) {
-                        rewardDescs.push(r.itemName || "SNBT物品");
+                        rewardDescs.push(r.itemName || t('cdk.snbt_item'));
                     } else {
-                        failedDescs.push(r.itemName || "SNBT物品");
+                        failedDescs.push(r.itemName || t('cdk.snbt_item'));
                     }
                     break;
                 case "money":
                     const amount = r.amount || 0;
-                    if (addPlayerMoney(player, amount, "CDK兑换")) {
+                    if (addPlayerMoney(player, amount, t('cdk.reward_reason'))) {
                         rewardDescs.push(amount + getCurrencyName());
                     } else {
                         failedDescs.push(amount + getCurrencyName());
@@ -158,15 +168,15 @@ function createCdkModule(deps) {
         }
 
         if (failedDescs.length > 0) {
-            var msg = "部分奖励发放失败（背包可能已满）：\n" + failedDescs.join("\n");
-            if (rewardDescs.length > 0) msg += "\n\n已获得:\n" + rewardDescs.join("\n");
-            msg += "\n\n请腾出背包空间后重新兑换";
-            player.sendModalForm("兑换部分成功", msg, "重新兑换", "关闭", function(pl, ok) {
+            var msg = t('cdk.partial_success_msg', failedDescs.join("\n"));
+            if (rewardDescs.length > 0) msg += t('cdk.partial_success_obtained', rewardDescs.join("\n"));
+            msg += t('cdk.partial_success_retry');
+            player.sendModalForm(t('cdk.partial_success_title'), msg, t('cdk.btn_retry'), t('cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
         } else {
-            const desc = rewardDescs.length > 0 ? rewardDescs.join("\n") : "无奖励";
-            player.sendModalForm("兑换成功", "获得:\n" + desc, "继续兑换", "关闭", function(pl, ok) {
+            const desc = rewardDescs.length > 0 ? rewardDescs.join("\n") : t('cdk.no_reward');
+            player.sendModalForm(t('cdk.success_title'), t('cdk.success_msg', desc), t('cdk.btn_continue'), t('cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
         }
