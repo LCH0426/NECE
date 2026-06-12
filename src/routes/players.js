@@ -44,7 +44,7 @@ function registerRoutes(router, d) {
             let onlinePlayers = d.mc.getOnlinePlayers();
             let players = onlinePlayers.map(function(p) {
                 let balance = 0;
-                try { balance = d.money.get(p.xuid) || 0; } catch (e) { balance = 0; }
+                try { balance = d.economyFunctions.getPlayerMoneyByXuid(p.xuid); } catch (e) { balance = 0; }
 
                 let ip = '';
                 let ping = 0;
@@ -139,42 +139,30 @@ function registerRoutes(router, d) {
         }
 
         try {
-            if (typeof d.money === 'undefined' || d.money === null) {
+            const eco = d.economyFunctions;
+            if (!eco) {
                 return res.status(500).json({ code: 500, msg: '经济系统未加载' });
             }
 
-            const eco = d.economyFunctions;
-            const beforeBalance = eco ? eco.getPlayerMoneyByXuid(xuid) : (d.money.get(xuid) || 0);
+            const beforeBalance = eco.getPlayerMoneyByXuid(xuid);
             let success = false;
             const reason = '管理员操作(' + (req.user ? req.user.uid : 'unknown') + ')';
             const playerName = d.getPlayerName ? d.getPlayerName(xuid) : xuid;
 
             if (action === 'add') {
-                if (eco) {
-                    success = eco.addPlayerMoneyByXuid(xuid, intAmount, reason);
-                } else {
-                    success = d.money.add(xuid, intAmount);
-                }
+                success = eco.addPlayerMoneyByXuid(xuid, intAmount, reason);
             } else if (action === 'reduce') {
-                if (eco) {
-                    success = eco.addPlayerMoneyByXuid(xuid, -intAmount, reason);
-                } else {
-                    success = d.money.reduce(xuid, intAmount);
-                }
+                success = eco.addPlayerMoneyByXuid(xuid, -intAmount, reason);
             } else if (action === 'set') {
-                const currentBalance = eco ? eco.getPlayerMoneyByXuid(xuid) : (d.money.get(xuid) || 0);
+                const currentBalance = eco.getPlayerMoneyByXuid(xuid);
                 const diff = intAmount - currentBalance;
-                if (eco) {
-                    success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
-                } else {
-                    success = diff >= 0 ? d.money.add(xuid, diff) : d.money.reduce(xuid, -diff);
-                }
+                success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
             } else {
                 return res.status(400).json({ code: 400, msg: '无效操作，支持: add, reduce, set' });
             }
 
             if (success) {
-                const afterBalance = eco ? eco.getPlayerMoneyByXuid(xuid) : (d.money.get(xuid) || 0);
+                const afterBalance = eco.getPlayerMoneyByXuid(xuid);
                 let playerName = d.getPlayerName(xuid);
 
                 const actionNames = { add: '增加', reduce: '减少', set: '设置' };
@@ -292,7 +280,7 @@ function registerRoutes(router, d) {
 
             // 只对当前页的玩家获取余额、在线状态、封禁状态和称号
             pagedPlayers.forEach(function(p) {
-                try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
+                try { p.balance = d.economyFunctions.getPlayerMoneyByXuid(p.xuid); } catch (e) { p.balance = 0; }
                 try { p.isOnline = !!d.mc.getPlayer(p.xuid); } catch (e) { p.isOnline = false; }
                 try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
                 try { p.activeTitle = d.chatModule.getPlayerActiveTitle(p.xuid); } catch (e) { p.activeTitle = ''; }
@@ -349,7 +337,7 @@ function registerRoutes(router, d) {
 
             // 只对当前页的玩家获取余额、封禁状态和称号
             pagedPlayers.forEach(function(p) {
-                try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
+                try { p.balance = d.economyFunctions.getPlayerMoneyByXuid(p.xuid); } catch (e) { p.balance = 0; }
                 try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
                 try { p.activeTitle = d.chatModule.getPlayerActiveTitle(p.xuid); } catch (e) { p.activeTitle = ''; }
             });
@@ -406,7 +394,7 @@ function registerRoutes(router, d) {
 
             // 只对当前页的玩家获取余额、封禁状态和称号
             pagedPlayers.forEach(function(p) {
-                try { p.balance = d.money.get(p.xuid) || 0; } catch (e) { p.balance = 0; }
+                try { p.balance = d.economyFunctions.getPlayerMoneyByXuid(p.xuid); } catch (e) { p.balance = 0; }
                 try { p.isBanned = d.banModule.isPlayerBanned(p.xuid, p.lastIp); } catch (e) { p.isBanned = false; }
                 try { p.activeTitle = d.chatModule.getPlayerActiveTitle(p.xuid); } catch (e) { p.activeTitle = ''; }
             });
@@ -489,7 +477,7 @@ function registerRoutes(router, d) {
 
             const pData = playerData.players[xuid];
             let balance = 0;
-            try { balance = d.money.get(xuid) || 0; } catch (e) { balance = 0; }
+            try { balance = d.economyFunctions.getPlayerMoneyByXuid(xuid); } catch (e) { balance = 0; }
 
             // 玩家在线时附加实时设备和位置信息
             let isOnline = false;
