@@ -200,30 +200,31 @@ NECE 支持多语言界面，语言文件位于 `lang/` 目录。通过 `config.
 
 ### 已完成国际化的模块
 
-| 模块 | 文件 | 命名空间 | 状态 |
-|------|------|----------|------|
-| 封禁系统 | `src/ban.js` | `ban.*` | ✅ 已完成 |
-| CDK兑换 | `src/cdk.js` | `cdk.*` | ✅ 已完成 |
-| 备份系统 | `src/backup.js` | `backup.*` | ✅ 已完成 |
-| 实体清理 | `src/clearLag.js` | `clearlag.*` | ✅ 已完成 |
-| 留言板 | `src/messageBoard.js` | `mb.*` | ✅ 已完成 |
-| 银行系统 | `src/bank.js` | `bank.*` | ✅ 已完成 |
-| 公会系统 | `src/guild.js` | `guild.*` | ⏳ 待完成 |
-| 邮件系统 | `src/mail.js` | `mail.*` | ⏳ 待完成 |
-| 好友系统 | `src/friend.js` | `friend.*` | ⏳ 待完成 |
-| 商店系统 | `src/shop.js` | `shop.*` | ⏳ 待完成 |
-| 传送系统 | `src/teleport.js` | `teleport.*` | ⏳ 待完成 |
-| 祈愿系统 | `src/wish.js` | `wish.*` | ⏳ 待完成 |
-| 连锁挖矿 | `src/chain.js` | `chain.*` | ⏳ 待完成 |
-| VIP系统 | `src/vip.js` | `vip.*` | ⏳ 待完成 |
-| 经济系统 | `src/economy.js` | `economy.*` | ⏳ 待完成 |
-| 排行榜 | `src/rank.js` | `rank.*` | ⏳ 待完成 |
-| 个人中心 | `src/personalCenter.js` | `pc.*` | ⏳ 待完成 |
-| 聊天系统 | `src/chat.js` | `chat.*` | ⏳ 待完成 |
-| 侧边栏 | `src/sidebar.js` | `sidebar.*` | ⏳ 待完成 |
-| 菜单系统 | `src/menu.js` | `menu.*` | ⏳ 待完成 |
-| 个人数据 | `src/playerData.js` | `pd.*` | ⏳ 待完成 |
-| MOTD | `src/motd.js` | `motd.*` | ⏳ 待完成 |
+| 模块 | 文件 | 命名空间 | 键数 | 状态 |
+|------|------|----------|------|------|
+| 邮件系统 | `src/mail.js` | `mail.*` | 137 | ✅ 已完成 |
+| 银行系统 | `src/bank.js` | `bank.*` | 79 | ✅ 已完成 |
+| 封禁系统 | `src/ban.js` | `ban.*` | 58 | ✅ 已完成 |
+| 备份系统 | `src/backup.js` | `backup.*` | 57 | ✅ 已完成 |
+| 留言板 | `src/messageBoard.js` | `mb.*` | 47 | ✅ 已完成 |
+| VIP系统 | `src/vip.js` | `vip.*` | 31 | ✅ 已完成 |
+| CDK兑换 | `src/cdk.js` | `cdk.*` | 20 | ✅ 已完成 |
+| 连锁计划 | `src/chain.js` | `chain_plan.*` | 24 | ✅ 已完成 |
+| 连锁挖矿 | `src/chain.js` | `chain.*` | 5 | ⏳ 部分完成 |
+| 实体清理 | `src/clearLag.js` | `clearlag.*` | 2 | ⏳ 部分完成 |
+| 公会系统 | `src/guild.js` | `guild.*` | - | ⏳ 待完成 |
+| 好友系统 | `src/friend.js` | `friend.*` | - | ⏳ 待完成 |
+| 商店系统 | `src/shop.js` | `shop.*` | - | ⏳ 待完成 |
+| 传送系统 | `src/teleport.js` | `teleport.*` | - | ⏳ 待完成 |
+| 祈愿系统 | `src/wish.js` | `wish.*` | - | ⏳ 待完成 |
+| 经济系统 | `src/economy.js` | `economy.*` | - | ⏳ 待完成 |
+| 排行榜 | `src/rank.js` | `rank.*` | - | ⏳ 待完成 |
+| 个人中心 | `src/personalCenter.js` | `pc.*` | - | ⏳ 待完成 |
+| 聊天系统 | `src/chat.js` | `chat.*` | - | ⏳ 待完成 |
+| 侧边栏 | `src/sidebar.js` | `sidebar.*` | - | ⏳ 待完成 |
+| 菜单系统 | `src/menu.js` | `menu.*` | - | ⏳ 待完成 |
+| 个人数据 | `src/playerData.js` | `pd.*` | - | ⏳ 待完成 |
+| MOTD | `src/motd.js` | `motd.*` | - | ⏳ 待完成 |
 
 ### 添加新语言
 
