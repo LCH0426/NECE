@@ -37,7 +37,6 @@ function createCdkModule(deps) {
     const cdkDataDM = deps.cdkDataDM;
     const addPlayerMoney = deps.addPlayerMoney;
     const getCurrencyName = deps.getCurrencyName;
-    const giveItemById = deps.giveItemById;
 
     /** 加载CDK数据 */
     function getCdkData() {
@@ -116,38 +115,61 @@ function createCdkModule(deps) {
 
         // 逐个发放奖励并收集描述
         const rewardDescs = [];
+        const failedDescs = [];
         rewards.forEach(function(r) {
             switch (r.type) {
                 case "item":
                     const count = r.count || 1;
-                    giveItemById(player, r.itemId, count);
-                    rewardDescs.push((r.itemName || r.itemId) + " x" + count);
+                    var itemSuccess = true;
+                    for (var ci = 0; ci < count; ci++) {
+                        var item = mc.newItem(r.itemId, 1);
+                        if (!item || !player.giveItem(item)) { itemSuccess = false; break; }
+                    }
+                    if (itemSuccess) {
+                        rewardDescs.push((r.itemName || r.itemId) + " x" + count);
+                    } else {
+                        failedDescs.push((r.itemName || r.itemId) + " x" + count);
+                    }
                     break;
                 case "snbt":
-                    // 从SNBT字符串反序列化物品
                     const snbtItem = mc.newItem(r.snbt);
-                    if (snbtItem) {
-                        player.giveItem(snbtItem);
+                    if (snbtItem && player.giveItem(snbtItem)) {
+                        rewardDescs.push(r.itemName || "SNBT物品");
+                    } else {
+                        failedDescs.push(r.itemName || "SNBT物品");
                     }
-                    rewardDescs.push(r.itemName || "SNBT物品");
                     break;
                 case "money":
                     const amount = r.amount || 0;
-                    addPlayerMoney(player, amount, "CDK兑换");
-                    rewardDescs.push(amount + getCurrencyName());
+                    if (addPlayerMoney(player, amount, "CDK兑换")) {
+                        rewardDescs.push(amount + getCurrencyName());
+                    } else {
+                        failedDescs.push(amount + getCurrencyName());
+                    }
                     break;
             }
         });
 
-        // 记录使用信息并保存
-        if (!cdkInfo.usedBy) cdkInfo.usedBy = {};
-        cdkInfo.usedBy[xuid] = { name: player.name, time: new Date().toLocaleString() };
-        cdkDataDM.save();
+        // 仅当全部奖励发放成功时才标记CDK已使用
+        if (failedDescs.length === 0) {
+            if (!cdkInfo.usedBy) cdkInfo.usedBy = {};
+            cdkInfo.usedBy[xuid] = { name: player.name, time: new Date().toLocaleString() };
+            cdkDataDM.save();
+        }
 
-        const desc = rewardDescs.length > 0 ? rewardDescs.join("\n") : "无奖励";
-        player.sendModalForm("兑换成功", "获得:\n" + desc, "继续兑换", "关闭", function(pl, ok) {
-            if (ok === true) showCdkRedeemForm(pl);
-        });
+        if (failedDescs.length > 0) {
+            var msg = "部分奖励发放失败（背包可能已满）：\n" + failedDescs.join("\n");
+            if (rewardDescs.length > 0) msg += "\n\n已获得:\n" + rewardDescs.join("\n");
+            msg += "\n\n请腾出背包空间后重新兑换";
+            player.sendModalForm("兑换部分成功", msg, "重新兑换", "关闭", function(pl, ok) {
+                if (ok === true) showCdkRedeemForm(pl);
+            });
+        } else {
+            const desc = rewardDescs.length > 0 ? rewardDescs.join("\n") : "无奖励";
+            player.sendModalForm("兑换成功", "获得:\n" + desc, "继续兑换", "关闭", function(pl, ok) {
+                if (ok === true) showCdkRedeemForm(pl);
+            });
+        }
     }
 
     return {

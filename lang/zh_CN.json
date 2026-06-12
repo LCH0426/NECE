@@ -117,6 +117,7 @@
     "err_economy_disabled": "§e[邮件] §c经济系统未启用，无法发放{0}！",
     "err_item_invalid": "§e[邮件] §c物品 {0} 数据无效！",
     "inventory_full": "§e[邮件] §e背包已满，物品已掉落在脚下！",
+    "inventory_full_need_clear": "§e[邮件] §c背包已满，请先清理背包后再领取附件！",
     "claim_item_success": "§e[邮件] §a成功领取 {0}！",
     "err_snbt_parse": "§e[邮件] §c物品 {0} SNBT解析失败！",
     "err_item_create": "§e[邮件] §c物品 {0} 创建失败！",
@@ -299,5 +300,38 @@
     "purchase_success_title": "§a购买成功",
     "purchase_success_permanent": "-------------------------\n§a购买成功！\n§a花费：§f{0} 点§c{1}§r\n§a剩余余额：§f{2} 点§c{3}§r\n§a剩余时间：§f永久\n§a到期时间：§f永不过期\n-------------------------\n§e拥有月光祝福的玩家将可享受商城85%%折扣！",
     "purchase_success": "-------------------------\n§a购买成功！\n§a花费：§f{0} 点§c{1}§r\n§a剩余余额：§f{2} 点§c{3}§r\n§a剩余时间：§f{4}天\n§a到期时间：§f{5}年{6}月{7}日\n-------------------------\n§e拥有月光祝福的玩家将可享受商城85%%折扣！"
+  },
+  "chain": {
+    "settings_title": "§l§6连锁挖矿",
+    "plan_info": "§a当前计划：§e{0}\n§a每日上限：§f{1} 个\n§a今日已用：§f{2} 个\n§a今日剩余：§f{3} 个",
+    "btn_settings": "§a连锁设置",
+    "btn_plan": "§b购买计划",
+    "btn_back": "§c返回"
+  },
+  "chain_plan": {
+    "title": "§l§b连锁计划",
+    "current_plan": "§a当前计划：§e{0}",
+    "daily_limit": "§a每日上限：§f{0} 个",
+    "daily_used": "§a今日已用：§f{0} 个",
+    "remaining": "§a今日剩余：§f{0} 个",
+    "expire_time": "§a到期时间：§f{0}年{1}月{2}日",
+    "remaining_days": "§a剩余天数：§f{0} 天",
+    "plan_list_title": "§e可用计划：",
+    "plan_item": "§f{0}: 每日{1}个, 价格{2}, 时长{3}天",
+    "select_plan": "选择计划",
+    "plan_option": "{0} - 每日{1}个 - {2}{3} - {4}天",
+    "btn_purchase": "§a购买 {0} ({1}点{2})",
+    "btn_back": "§c返回",
+    "confirm_title": "§c确认购买",
+    "confirm_content": "§a计划名称：§e{0}\n§a每日上限：§f{1} 个\n§a价格：§f{2} {3}\n§a时长：§f{4} 天\n\n§c确认购买？",
+    "btn_confirm": "§a确认购买",
+    "btn_cancel": "§c取消",
+    "invalid_plan": "§c无效的计划",
+    "cannot_purchase_free": "§c不能购买免费计划",
+    "already_have_plan": "§c您已有该计划且未过期，无需重复购买",
+    "insufficient_balance": "§c余额不足！需要 {0} {1}",
+    "purchase_failed": "§c购买失败",
+    "purchase_reason": "购买连锁计划: {0}",
+    "purchase_success": "§a购买成功！计划: {0}, 时长: {1} 天"
   }
 }

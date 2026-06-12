@@ -19,7 +19,15 @@ const testFiles = [
     'unit/economy.test.js',
     'unit/shop.test.js',
     'unit/guild.test.js',
-    'unit/i18n.test.js'
+    'unit/i18n.test.js',
+    'unit/bank.test.js',
+    'unit/ban.test.js',
+    'unit/messageBoard.test.js',
+    'unit/teleport.test.js',
+    'unit/monitoring.test.js',
+    'unit/backup.test.js',
+    'unit/clearLag.test.js',
+    'unit/mail.test.js'
 ];
 
 // 运行测试

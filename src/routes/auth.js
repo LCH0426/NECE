@@ -52,6 +52,16 @@ function registerRoutes(router, d) {
 
         d.setRefreshTokenCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now());
 
+        // 设置 Access Token Cookie，供文件下载等无法携带 Authorization Header 的场景使用
+        var accessMaxAge = d.webConfig.jwtExpire ? undefined : 15 * 60 * 1000;
+        try {
+            var accessDecoded = d.jwt.decode(tokens.accessToken);
+            if (accessDecoded && accessDecoded.exp) {
+                accessMaxAge = accessDecoded.exp * 1000 - Date.now();
+            }
+        } catch (e) {}
+        if (accessMaxAge) d.setAccessTokenCookie(res, tokens.accessToken, accessMaxAge);
+
         res.json({
             code: 200,
             msg: '登录成功',
@@ -110,6 +120,16 @@ function registerRoutes(router, d) {
 
             d.setRefreshTokenCookie(res, newTokens.refreshToken, newTokens.refreshExpiresAt - Date.now());
 
+            // 同步更新 Access Token Cookie
+            var accessMaxAge = undefined;
+            try {
+                var accessDecoded = d.jwt.decode(newTokens.accessToken);
+                if (accessDecoded && accessDecoded.exp) {
+                    accessMaxAge = accessDecoded.exp * 1000 - Date.now();
+                }
+            } catch (e) {}
+            if (accessMaxAge) d.setAccessTokenCookie(res, newTokens.accessToken, accessMaxAge);
+
             res.json({
                 code: 200,
                 msg: '续签成功',
@@ -125,7 +145,8 @@ function registerRoutes(router, d) {
     // 退出登录：将Access Token加入黑名单，撤销Refresh Token，清除Cookie
     router.post('/auth/logout', function(req, res) {
         const authHeader = req.headers['authorization'];
-        const accessToken = authHeader && authHeader.split(' ')[1];
+        const cookies = d.parseCookies(req);
+        const accessToken = (authHeader && authHeader.split(' ')[1]) || cookies.auth_token || null;
 
         // 将Access Token加入黑名单
         if (accessToken) {
@@ -138,7 +159,6 @@ function registerRoutes(router, d) {
             } catch (e) { /* token签名无效或格式错误，跳过黑名单 */ }
         }
 
-        const cookies = d.parseCookies(req);
         const refreshToken = cookies.refresh_token;
 
         // 撤销Refresh Token
@@ -152,6 +172,7 @@ function registerRoutes(router, d) {
         }
 
         d.clearRefreshTokenCookie(res);
+        d.clearAccessTokenCookie(res);
 
         res.json({ code: 200, msg: '已退出登录' });
     });

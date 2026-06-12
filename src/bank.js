@@ -181,12 +181,12 @@ function createBankModule(deps) {
             if (account.current.balance < withdrawAmount) {
                 return { success: false, message: t(lang, 'bank.err_bank_insufficient', withdrawAmount, currency, Math.floor(account.current.balance)) };
             }
-            account.current.balance -= withdrawAmount;
-            account.current.balance = Math.floor(account.current.balance);
-            savePlayerDataNow();
             if (!addPlayerMoney(player, withdrawAmount, t(lang, 'bank.reason_withdraw'))) {
                 return { success: false, message: t(lang, 'bank.err_withdraw_failed') };
             }
+            account.current.balance -= withdrawAmount;
+            account.current.balance = Math.floor(account.current.balance);
+            savePlayerDataNow();
             return { success: true, message: t(lang, 'bank.withdraw_success_msg', withdrawAmount, currency, account.current.balance) };
         }
         return { success: false, message: t(lang, 'bank.err_invalid_amount') };
@@ -217,7 +217,7 @@ function createBankModule(deps) {
         const matureTime = matureDate.getFullYear() + '.' + String(matureDate.getMonth() + 1).padStart(2, '0') + '.' + String(matureDate.getDate()).padStart(2, '0') + '.' + String(matureDate.getHours()).padStart(2, '0') + '.' + String(matureDate.getMinutes()).padStart(2, '0') + '.' + String(matureDate.getSeconds()).padStart(2, '0');
 
         let deposit = {
-            id: Date.now(),
+            id: Date.now() + '_' + Math.random().toString(36).substring(2, 8),
             principal: amount,
             rate: config.rate,
             days: days,

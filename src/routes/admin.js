@@ -103,8 +103,8 @@ function registerRoutes(router, d) {
             if (filename.includes('..') || filename.includes('/') || filename.includes('\\') || filename.includes('\0')) {
                 return res.status(400).json({ code: 400, msg: '非法文件名' });
             }
-            if (!filename.endsWith('.7z')) {
-                return res.status(400).json({ code: 400, msg: '只能下载.7z备份文件' });
+            if (!filename.endsWith('.7z') && !filename.endsWith('.zip')) {
+                return res.status(400).json({ code: 400, msg: '只能下载.7z或.zip备份文件' });
             }
             const backupDir = d.backupModule.getBackupDir();
             const filePath = d.pathModule.join(backupDir, filename);
@@ -151,6 +151,9 @@ function registerRoutes(router, d) {
                     cfg.compressionAlgorithm = algo;
                 }
             }
+            if (typeof body.dataBackupInterval === 'number') {
+                cfg.dataBackupInterval = Math.max(0, body.dataBackupInterval);
+            }
 
             const MAIN_CONFIG_PATH = d.pathModule.join(__dirname, '..', '..', 'config.json');
             try {
@@ -162,10 +165,32 @@ function registerRoutes(router, d) {
             }
 
             d.backupModule.reload(cfg);
+            var dataInterval = cfg.dataBackupInterval || 0;
+            if (dataInterval > 0) {
+                d.backupModule.startDataBackupScheduler(dataInterval * 3600 * 1000);
+            } else {
+                d.backupModule.stopDataBackupScheduler();
+            }
             d.adminLog.log(req.user.uid, '修改备份配置', JSON.stringify(cfg));
             res.json({ code: 200, msg: '备份配置已更新', data: cfg });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '更新备份配置失败: ' + e.message });
+        }
+    });
+
+    // 执行数据备份（打包data目录）
+    router.post('/backup/data', d.adminAuth, d.configLimiter, function(req, res) {
+        try {
+            d.backupModule.executeDataBackup(function(err, result) {
+                if (err) {
+                    res.status(500).json({ code: 500, msg: '数据备份失败: ' + (err.error || err.message || '未知错误') });
+                    return;
+                }
+                d.adminLog.log(req.user.uid, '执行数据备份', '文件:' + result.filename);
+                res.json({ code: 200, msg: '数据备份完成', data: result });
+            });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '数据备份失败: ' + e.message });
         }
     });
 
@@ -545,6 +570,116 @@ function registerRoutes(router, d) {
             });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '查询经济日志失败: ' + e.message });
+        }
+    });
+
+    // ==================== 危险操作接口（需要二次验证码） ====================
+
+    // 删除玩家所有数据（需要二次验证码验证）
+    router.post('/admin/player/delete-all', d.adminAuth, d.configLimiter, function(req, res) {
+        try {
+            var xuid = req.body.xuid;
+            var captchaId = req.body.captchaId;
+            var captchaCode = req.body.captchaCode;
+
+            if (!xuid) {
+                return res.status(400).json({ code: 400, msg: '请提供玩家XUID' });
+            }
+            if (!captchaId || !captchaCode) {
+                return res.status(400).json({ code: 400, msg: '需要验证码确认此危险操作' });
+            }
+
+            // 验证验证码
+            if (!d.database.verifyCaptcha(captchaId, captchaCode, req.ip)) {
+                return res.status(400).json({ code: 400, msg: '验证码错误或已过期' });
+            }
+
+            // 检查玩家是否存在
+            var playerData = d.database.getPlayerDataSQL(xuid);
+            if (!playerData) {
+                return res.status(404).json({ code: 404, msg: '未找到该玩家数据' });
+            }
+
+            var playerName = playerData.name || xuid;
+
+            // 清空玩家余额（LLMoney）
+            if (d.money) {
+                try {
+                    var balance = d.money.get(xuid) || 0;
+                    if (balance > 0) {
+                        d.money.reduce(xuid, balance);
+                    }
+                } catch (e) {}
+            }
+
+            // 删除玩家核心数据
+            d.database.deletePlayerDataSQL(xuid);
+
+            // 删除玩家设置
+            d.database.deletePlayerSettingsSQL(xuid);
+
+            // 删除死亡点
+            d.database.deleteDeathPointsSQL(xuid);
+
+            // 删除好友关系
+            d.database.deleteFriendsSQL(xuid);
+            d.database.deleteFriendRequestsSQL(xuid);
+
+            // 删除私信
+            d.database.deleteMessagesSQL(xuid);
+
+            // 删除家园
+            d.database.deleteHomesSQL(xuid);
+
+            // 删除背包快照
+            d.database.deletePlayerInventorySQL(xuid);
+
+            // 从公会中移除玩家
+            try {
+                var guild = d.database.getGuildByPlayer(xuid);
+                if (guild) {
+                    d.database.removeGuildMember(xuid);
+                }
+            } catch (e) {}
+
+            // 立即保存数据库到磁盘
+            d.database.requestSavePlayerDb();
+
+            // 记录管理员操作
+            d.adminLog.log(req.user.uid, '删除玩家所有数据', '玩家:' + playerName + ' XUID:' + xuid);
+
+            // 从内存中移除
+            if (d.getPlayerData && d.getPlayerData().players) {
+                delete d.getPlayerData().players[xuid];
+            }
+
+            res.json({ code: 200, msg: '玩家"' + playerName + '"的所有数据已删除' });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '删除玩家数据失败: ' + e.message });
+        }
+    });
+
+    // 生成删除玩家数据的验证码
+    router.get('/admin/player/delete-captcha', d.adminAuth, d.captchaLimiter, function(req, res) {
+        try {
+            var captcha = d.svgCaptcha.create({
+                size: 4,
+                width: 120,
+                height: 40,
+                fontSize: 36
+            });
+
+            var captchaId = d.database.generateCaptcha(captcha.text, req.ip);
+
+            res.json({
+                code: 200,
+                data: {
+                    captchaId: captchaId,
+                    svg: captcha.data
+                }
+            });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '生成验证码失败: ' + e.message });
         }
     });
 }

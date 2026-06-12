@@ -441,7 +441,7 @@ function getBackupList() {
         const files = fs.readdirSync(backupDir);
         let backups = [];
         files.forEach(function(file) {
-            if (!file.endsWith('.7z')) return;
+            if (!file.endsWith('.7z') && !file.endsWith('.zip')) return;
             let filePath = pathModule.join(backupDir, file);
             try {
                 const stat = fs.statSync(filePath);
@@ -452,7 +452,8 @@ function getBackupList() {
                     sizeFormatted: formatFileSize(stat.size),
                     time: stat.mtimeMs,
                     timeFormatted: formatDateTime(stat.mtime),
-                    world: parsed.world
+                    world: parsed.world,
+                    type: file.endsWith('.zip') ? 'data' : 'world'
                 });
             } catch (e) { logger.warn('[Backup] 读取备份文件信息失败: ' + e.message); }
         });
@@ -470,7 +471,7 @@ function getBackupList() {
  * @returns {{world: string, timestamp: string}}
  */
 function parseBackupFilename(filename) {
-    const match = filename.match(/^(.+)_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.7z$/);
+    const match = filename.match(/^(.+)_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.(7z|zip)$/);
     if (match) {
         return { world: match[1], timestamp: match[2] };
     }
@@ -495,16 +496,15 @@ function getBackupStats() {
 
 /**
  * 删除指定备份文件，包含路径遍历安全检查
- * @param {string} filename - 备份文件名（仅允许.7z文件）
+ * @param {string} filename - 备份文件名（.7z 或 .zip）
  * @returns {{success?: boolean, error?: string}}
  */
 function deleteBackup(filename) {
     if (!filename) return { error: '文件名不能为空' };
-    // 防止路径遍历攻击
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
         return { error: '非法文件名' };
     }
-    if (!filename.endsWith('.7z')) return { error: '只能删除.7z备份文件' };
+    if (!filename.endsWith('.7z') && !filename.endsWith('.zip')) return { error: '只能删除.7z或.zip备份文件' };
     const filePath = pathModule.join(backupDir, filename);
     if (!fs.existsSync(filePath)) return { error: '文件不存在' };
     try {
@@ -594,11 +594,101 @@ function formatDateTime(date) {
     return y + '-' + M + '-' + day + ' ' + h + ':' + m + ':' + s;
 }
 
+/**
+ * 执行数据文件夹备份（打包data目录为zip）
+ * @param {Function} callback - callback(err, result)
+ */
+function executeDataBackup(callback) {
+    if (isBackingUp) {
+        callback({ error: '备份正在进行中，请稍后再试' });
+        return;
+    }
+    isBackingUp = true;
+    const startTime = Date.now();
+
+    try {
+        const dataDir = pathModule.resolve(process.cwd(), 'plugins', 'NECE', 'data');
+        if (!fs.existsSync(dataDir)) {
+            isBackingUp = false;
+            callback({ error: '数据目录不存在' });
+            return;
+        }
+
+        const timestamp = formatBackupTime();
+        const backupName = 'data_backup_' + timestamp;
+        const backupPath = pathModule.join(backupDir, backupName + '.zip');
+
+        // 使用7z压缩data目录
+        _7z.cmd(['a', '-tzip', backupPath, dataDir + '/*'], function(err) {
+            isBackingUp = false;
+            const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            if (err) {
+                logger.error('数据备份失败: ' + err.message);
+                callback({ error: '数据备份失败: ' + err.message });
+                return;
+            }
+
+            // 获取备份文件大小
+            let size = 0;
+            try {
+                const stats = fs.statSync(backupPath);
+                size = stats.size;
+            } catch (e) {}
+
+            logger.info('数据备份完成: ' + backupName + '.zip (' + formatFileSize(size) + ', 耗时' + duration + '秒)');
+
+            // 清理旧备份
+            cleanupOldBackups();
+
+            callback(null, {
+                filename: backupName + '.zip',
+                size: size,
+                duration: parseFloat(duration),
+                time: formatDateTime(new Date())
+            });
+        });
+    } catch (e) {
+        isBackingUp = false;
+        logger.error('数据备份异常: ' + e.message);
+        callback({ error: '数据备份异常: ' + e.message });
+    }
+}
+
+/**
+ * 定时数据备份
+ */
+let dataBackupTimer = null;
+
+function startDataBackupScheduler(intervalMs) {
+    if (dataBackupTimer) {
+        clearInterval(dataBackupTimer);
+        dataBackupTimer = null;
+    }
+    if (!intervalMs || intervalMs <= 0) return;
+    dataBackupTimer = setInterval(function() {
+        executeDataBackup(function(err, result) {
+            if (err) logger.warn('定时数据备份失败: ' + JSON.stringify(err));
+            else logger.info('定时数据备份完成: ' + result.filename);
+        });
+    }, intervalMs);
+}
+
+function stopDataBackupScheduler() {
+    if (dataBackupTimer) {
+        clearInterval(dataBackupTimer);
+        dataBackupTimer = null;
+    }
+}
+
 module.exports = {
     init: init,
     reload: reload,
     getConfig: getConfig,
     executeBackup: executeBackup,
+    executeDataBackup: executeDataBackup,
+    startDataBackupScheduler: startDataBackupScheduler,
+    stopDataBackupScheduler: stopDataBackupScheduler,
     getBackupList: getBackupList,
     getBackupStats: getBackupStats,
     deleteBackup: deleteBackup,
