@@ -30,7 +30,8 @@ const { copyDirSync, rmrf } = require('./utils');
 
 let backupConfig = null;    // 备份配置（interval、compressionLevel、maxAgeDays、maxCount）
 let backupDir = '';         // 备份文件存储目录
-let isBackingUp = false;    // 备份进行中标记，防止并发备份
+let isBackingUp = false;    // 世界备份进行中标记
+let isDataBackingUp = false; // 数据备份进行中标记
 let scheduledTimer = null;  // 定时备份的interval句柄
 
 /**
@@ -177,7 +178,7 @@ function executeBackup(callback) {
     // 通知所有在线玩家
     const onlinePlayers = mc.getOnlinePlayers();
     onlinePlayers.forEach(function(p) {
-        try { p.sendToast('服务器正在进行地图备份，请耐心等待', '§6备份中'); } catch (e) { logger.warn('[Backup] 发送备份通知失败: ' + e.message); }
+        try { p.sendToast('§b服务器正在进行地图备份，请耐心等待，在备份完成前的修改不会被保存', '§6备份中'); } catch (e) { logger.warn('[Backup] 发送备份通知失败: ' + e.message); }
     });
 
     // 延迟1秒后执行save hold，给toast通知显示时间
@@ -299,7 +300,7 @@ function executeBackup(callback) {
                         }
 
                         onlinePlayers.forEach(function(p) {
-                            try { p.sendToast('快照已完成，正在后台压缩', '§6压缩中'); } catch (e) { /* ignore */ }
+                            try { p.sendToast('§6快照已完成，正在后台压缩', '§6压缩中'); } catch (e) { /* ignore */ }
                         });
 
                         logger.info('从临时目录压缩 (LZMA2, 级别: ' + compressionLevel + ')...');
@@ -375,7 +376,7 @@ function finishBackup(results, startTime, onlinePlayers, callback) {
     });
 
     onlinePlayers.forEach(function(p) {
-        try { p.sendToast('地图备份已完成', '备份完成'); } catch (e) { /* ignore */ }
+        try { p.sendToast('§a地图备份已完成', '§f备份完成！'); } catch (e) { /* ignore */ }
     });
 
     try {
@@ -560,9 +561,9 @@ function cleanupOldBackups() {
     return deleted;
 }
 
-/** 检查是否正在备份中 */
+/** 检查是否正在备份中（世界备份或数据备份） */
 function isBackupRunning() {
-    return isBackingUp;
+    return isBackingUp || isDataBackingUp;
 }
 
 /**
@@ -571,7 +572,7 @@ function isBackupRunning() {
  * @returns {string} 如"1.50 GB"
  */
 function formatFileSize(bytes) {
-    if (bytes === 0) return '0 B';
+    if (!bytes || bytes <= 0) return '0 B';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let i = Math.floor(Math.log(bytes) / Math.log(1024));
     if (i >= units.length) i = units.length - 1;
@@ -599,17 +600,17 @@ function formatDateTime(date) {
  * @param {Function} callback - callback(err, result)
  */
 function executeDataBackup(callback) {
-    if (isBackingUp) {
-        callback({ error: '备份正在进行中，请稍后再试' });
+    if (isDataBackingUp) {
+        callback({ error: '数据备份正在进行中，请稍后再试' });
         return;
     }
-    isBackingUp = true;
+    isDataBackingUp = true;
     const startTime = Date.now();
 
     try {
         const dataDir = pathModule.resolve(process.cwd(), 'plugins', 'NECE', 'data');
         if (!fs.existsSync(dataDir)) {
-            isBackingUp = false;
+            isDataBackingUp = false;
             callback({ error: '数据目录不存在' });
             return;
         }
@@ -620,7 +621,7 @@ function executeDataBackup(callback) {
 
         // 使用7z压缩data目录
         _7z.cmd(['a', '-tzip', backupPath, dataDir + '/*'], function(err) {
-            isBackingUp = false;
+            isDataBackingUp = false;
             const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
             if (err) {
@@ -649,7 +650,7 @@ function executeDataBackup(callback) {
             });
         });
     } catch (e) {
-        isBackingUp = false;
+        isDataBackingUp = false;
         logger.error('数据备份异常: ' + e.message);
         callback({ error: '数据备份异常: ' + e.message });
     }
