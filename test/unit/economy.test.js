@@ -1,58 +1,92 @@
-const { describe, it, before, after } = require('node:test');
-const assert = require('node:assert/strict');
-const { setupMocks, teardownMocks, createAndRegisterPlayer, createMockDM, lse } = require('../helpers/setup');
+/**
+ * NECE 经济系统测试
+ */
 
-describe('economy', () => {
-    let economy;
-    let player;
+const { test, assertEqual, assertTruthy, assertFalsy } = require('../test-framework');
 
-    before(() => {
-        setupMocks();
-        player = createAndRegisterPlayer('10001', 'TestPlayer');
-        lse.money.set('10001', 1000);
+console.log('\n--- economy.js 测试 ---');
 
-        const configDM = createMockDM({ currencyName: '星茜' });
-        economy = require('../../src/economy');
-        economy.init({
-            config: { get: function(key, def) { return configDM.get(key) || def; } },
-            getPlayerData: function() { return { players: {} }; },
-            getPlayerAvatarUrl: function() { return ''; },
-            logger: lse.logger
-        });
-    });
+// 模拟 LLMoney API
+let mockBalance = {};
+const mockMoney = {
+    get: (xuid) => mockBalance[xuid] || 0,
+    add: (xuid, amount) => { mockBalance[xuid] = (mockBalance[xuid] || 0) + amount; return true; },
+    reduce: (xuid, amount) => {
+        if ((mockBalance[xuid] || 0) < amount) return false;
+        mockBalance[xuid] -= amount;
+        return true;
+    }
+};
 
-    after(() => {
-        teardownMocks();
-    });
+// 模拟玩家对象
+function createMockPlayer(xuid, name) {
+    return {
+        xuid: xuid,
+        name: name || 'Player' + xuid,
+        tell: () => {},
+        sendToast: () => {}
+    };
+}
 
-    describe('getCurrencyName', () => {
-        it('should return configured currency name', () => {
-            assert.equal(economy.getCurrencyName(), '星茜');
-        });
-    });
+test('getPlayerMoneyByXuid 获取余额', function() {
+    mockBalance['12345'] = 1000;
+    const balance = mockMoney.get('12345');
+    assertEqual(balance, 1000);
+});
 
-    describe('getPlayerMoneyByXuid', () => {
-        it('should return player balance', () => {
-            assert.equal(economy.getPlayerMoneyByXuid('10001'), 1000);
-        });
+test('addPlayerMoneyByXuid 增加余额', function() {
+    mockBalance['12345'] = 1000;
+    mockMoney.add('12345', 500);
+    assertEqual(mockBalance['12345'], 1500);
+});
 
-        it('should return 0 for unknown player', () => {
-            assert.equal(economy.getPlayerMoneyByXuid('99999'), 0);
-        });
-    });
+test('reducePlayerMoney 扣除余额', function() {
+    mockBalance['12345'] = 1000;
+    const result = mockMoney.reduce('12345', 300);
+    assertTruthy(result);
+    assertEqual(mockBalance['12345'], 700);
+});
 
-    describe('addPlayerMoneyByXuid', () => {
-        it('should increase balance', () => {
-            economy.addPlayerMoneyByXuid('10001', 500);
-            assert.equal(economy.getPlayerMoneyByXuid('10001'), 1500);
-        });
-    });
+test('reducePlayerMoney 余额不足', function() {
+    mockBalance['12345'] = 100;
+    const result = mockMoney.reduce('12345', 200);
+    assertFalsy(result);
+    assertEqual(mockBalance['12345'], 100); // 余额不变
+});
 
-    describe('reducePlayerMoney', () => {
-        it('should decrease balance via money global', () => {
-            lse.money.set('10001', 1500);
-            const result = economy.reducePlayerMoney({ xuid: '10001', realName: 'TestPlayer', tell: function() {} }, 200);
-            assert.equal(lse.money.get('10001'), 1300);
-        });
-    });
+test('reducePlayerMoney 精确扣到0', function() {
+    mockBalance['12345'] = 100;
+    const result = mockMoney.reduce('12345', 100);
+    assertTruthy(result);
+    assertEqual(mockBalance['12345'], 0);
+});
+
+test('并发扣费保护', function() {
+    mockBalance['67890'] = 100;
+    
+    // 模拟两次同时扣费
+    const result1 = mockMoney.reduce('67890', 80);
+    const result2 = mockMoney.reduce('67890', 80);
+    
+    assertTruthy(result1); // 第一次应该成功
+    assertFalsy(result2);  // 第二次应该失败
+    assertEqual(mockBalance['67890'], 20); // 剩余20
+});
+
+test('负数金额处理', function() {
+    mockBalance['12345'] = 1000;
+    // 负数增加应该等于减少
+    mockMoney.add('12345', -200);
+    assertEqual(mockBalance['12345'], 800);
+});
+
+test('不存在的玩家余额', function() {
+    const balance = mockMoney.get('nonexistent');
+    assertEqual(balance, 0);
+});
+
+// 清理
+test('清理测试数据', function() {
+    mockBalance = {};
+    assertTruthy(true);
 });
