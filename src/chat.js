@@ -103,8 +103,8 @@ function resolveOrgName(xuid) {
     var cached = _orgNameCache[xuid];
     if (cached && cached.expire > now) return cached.name;
     try {
-        var database = require('./database');
-        if (database.isPlayerDbReady()) {
+        var database = _deps.database;
+        if (database && database.isPlayerDbReady()) {
             var guild = database.getGuildByPlayer(String(xuid));
             var name = (guild && guild.name) ? guild.name : '§c无§r';
             _orgNameCache[xuid] = { name: name, expire: now + ORG_CACHE_TTL };

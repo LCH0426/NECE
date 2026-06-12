@@ -947,7 +947,8 @@ async function initAllConfigs() {
 		getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData,
 		savePlayerDataNow: savePlayerDataNow,
 		getPlayerMoney: getPlayerMoney, reducePlayerMoney: reducePlayerMoney,
-		getCurrencyName: getCurrencyName, getConfig: function() { return config._data || {}; }
+		getCurrencyName: getCurrencyName, getConfig: function() { return config._data || {}; },
+		database: database
 	});
 	chatModule.loadChatConfig();
 	chatModule.registerChatListener();

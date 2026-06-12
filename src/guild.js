@@ -58,6 +58,27 @@ function init(deps) {
     mailApi = deps.mailApi || null;
     chatModule = deps.chatModule || null;
     notifyEconomyChange = deps.notifyEconomyChange || function() {};
+
+    // 每10分钟清理超过30分钟的申请和邀请记录，防止内存泄漏
+    setInterval(function() {
+        var now = Date.now();
+        // 清理过期的加入申请
+        for (var guildId in _joinRequests) {
+            if (!_joinRequests.hasOwnProperty(guildId)) continue;
+            _joinRequests[guildId] = _joinRequests[guildId].filter(function(req) {
+                return now - req.time < 1800000;
+            });
+            if (_joinRequests[guildId].length === 0) delete _joinRequests[guildId];
+        }
+        // 清理过期的公会邀请
+        for (var targetXuid in _guildInvites) {
+            if (!_guildInvites.hasOwnProperty(targetXuid)) continue;
+            _guildInvites[targetXuid] = _guildInvites[targetXuid].filter(function(inv) {
+                return now - inv.time < 1800000;
+            });
+            if (_guildInvites[targetXuid].length === 0) delete _guildInvites[targetXuid];
+        }
+    }, 600000);
 }
 
 /** 获取当前公会配置 */
