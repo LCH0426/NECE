@@ -33,12 +33,29 @@ let backupDir = '';         // 备份文件存储目录
 let isBackingUp = false;    // 世界备份进行中标记
 let isDataBackingUp = false; // 数据备份进行中标记
 let scheduledTimer = null;  // 定时备份的interval句柄
+let _deps = {};             // 依赖注入（t、getSystemLanguage）
+
+/** 获取系统语言 */
+function getLang() {
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+}
+
+/** 翻译函数，支持 {0} {1} 等占位符（同一占位符多次出现全部替换） */
+function t(key) {
+    if (!_deps.t) return key;
+    var lang = getLang();
+    var args = [lang];
+    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    return _deps.t.apply(null, args);
+}
 
 /**
  * 初始化备份模块，创建备份目录并启动定时备份
  * @param {Object} cfg - 备份配置对象
+ * @param {Object} [deps] - 依赖（t、getSystemLanguage）
  */
-function init(cfg) {
+function init(cfg, deps) {
+    _deps = deps || {};
     D.debugLogModule('backup')('init: 初始化完成');
     backupConfig = cfg || {};
     backupDir = pathModule.resolve(process.cwd(), 'backup');
@@ -137,21 +154,21 @@ function waitForSaveHold(callback, maxRetries, retryInterval) {
                 if (result.success && (
                     output.indexOf('Files are now ready to be copied') !== -1 ||
                     output.indexOf('Data saved') !== -1)) {
-                    logger.info('save query 确认文件已准备好 (第' + retries + '次查询)');
+                    logger.info(t('backup.log_save_query_ready', retries));
                     callback(true);
                     return;
                 }
                 // 前3次和每5次输出一次调试日志
                 if (retries <= 3 || retries % 5 === 0) {
-                    logger.info('save query 第' + retries + '次查询, success=' + result.success + ', output=' + (output.substring(0, 200) || '(空)'));
+                    logger.info(t('backup.log_save_query_retry', retries, result.success, output.substring(0, 200) || '(空)'));
                 }
             }
         } catch (e) {
-            logger.error('save query 异常: ' + e.message);
+            logger.error(t('backup.log_save_query_error', e.message));
         }
 
         if (retries >= maxRetries) {
-            logger.error('save query 超时 (' + maxRetries + '次查询)，无法确认文件是否准备好');
+            logger.error(t('backup.log_save_query_timeout', maxRetries));
             callback(false);
             return;
         }
@@ -169,7 +186,7 @@ function waitForSaveHold(callback, maxRetries, retryInterval) {
  */
 function executeBackup(callback) {
     if (isBackingUp) {
-        callback({ error: '备份正在进行中，请稍后再试' });
+        callback({ error: t('backup.err_already_running') });
         return;
     }
     isBackingUp = true;
@@ -178,7 +195,7 @@ function executeBackup(callback) {
     // 通知所有在线玩家
     const onlinePlayers = mc.getOnlinePlayers();
     onlinePlayers.forEach(function(p) {
-        try { p.sendToast('§b服务器正在进行地图备份，请耐心等待，在备份完成前的修改不会被保存', '§6备份中'); } catch (e) { logger.warn('[Backup] 发送备份通知失败: ' + e.message); }
+        try { p.sendToast(t('backup.toast_backing_up'), t('backup.toast_backing_up_title')); } catch (e) { logger.warn(t('backup.log_send_notify_fail', e.message)); }
     });
 
     // 延迟1秒后执行save hold，给toast通知显示时间
@@ -186,10 +203,10 @@ function executeBackup(callback) {
         try {
             const holdResult = mc.runcmdEx('save hold');
             if (holdResult && holdResult.output) {
-                logger.info('save hold 输出: ' + holdResult.output.trim());
+                logger.info(t('backup.log_save_hold_output', holdResult.output.trim()));
             }
         } catch (e) {
-            logger.error('save hold 执行失败: ' + e.message);
+            logger.error(t('backup.log_save_hold_error', e.message));
         }
 
         waitForSaveHold(function(holdSuccess) {
@@ -197,10 +214,10 @@ function executeBackup(callback) {
                 // hold失败时恢复存档写入
                 try {
                     let resumeResult = mc.runcmdEx('save resume');
-                    logger.info('save resume (hold失败) 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
-                } catch (e) { logger.error('[Backup] save resume (hold失败) 异常: ' + e.message); }
+                    logger.info(t('backup.log_save_resume_hold_fail', resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
+                } catch (e) { logger.error(t('backup.log_save_resume_hold_fail_error', e.message)); }
                 isBackingUp = false;
-                callback({ error: 'save hold 超时，无法锁定世界存档' });
+                callback({ error: t('backup.err_save_hold_timeout') });
                 return;
             }
 
@@ -208,9 +225,9 @@ function executeBackup(callback) {
             try {
                 const worldNames = getWorldNames();
                 if (worldNames.length === 0) {
-                    try { mc.runcmdEx('save resume'); } catch (e) { logger.error('[Backup] save resume 失败: ' + e.message); }
+                    try { mc.runcmdEx('save resume'); } catch (e) { logger.error(t('backup.log_save_resume_error', e.message)); }
                     isBackingUp = false;
-                    callback({ error: '未找到世界存档目录' });
+                    callback({ error: t('backup.err_no_worlds') });
                     return;
                 }
 
@@ -232,12 +249,12 @@ function executeBackup(callback) {
                     try { fs.mkdirSync(backupDir, { recursive: true }); } catch (e) { /* ignore */ }
                 }
 
-                logger.info('尝试直接压缩世界文件 (LZMA2, 级别: ' + compressionLevel + ')...');
+                logger.info(t('backup.log_compress_direct', compressionLevel));
 
                 compressTo7z(firstWorldPath, firstArchivePath, compressionLevel, function(firstErr) {
                     if (!firstErr) {
                         // 直接压缩成功，继续处理剩余世界
-                        logger.info('直接压缩成功，继续处理其余世界...');
+                        logger.info(t('backup.log_compress_direct_ok'));
                         var results = [];
                         var fileSize = 0;
                         try { fileSize = fs.statSync(firstArchivePath).size; } catch (e) { /* ignore */ }
@@ -268,19 +285,19 @@ function executeBackup(callback) {
                         }
                     } else {
                         // 直接压缩失败，回退到复制临时目录再压缩
-                        logger.warn('[Backup] 直接压缩失败，回退到临时目录模式: ' + firstErr.message);
+                        logger.warn(t('backup.log_compress_fallback', firstErr.message));
                         // 删除可能残留的失败归档
                         try { if (fs.existsSync(firstArchivePath)) fs.unlinkSync(firstArchivePath); } catch (e) { /* ignore */ }
 
                         var tempDir = pathModule.join(backupDir, '_temp_' + timestamp);
                         try { fs.mkdirSync(tempDir, { recursive: true }); } catch (e) {
-                            try { mc.runcmdEx('save resume'); } catch (ex) { logger.error('[Backup] save resume 失败: ' + ex.message); }
+                            try { mc.runcmdEx('save resume'); } catch (ex) { logger.error(t('backup.log_save_resume_error', ex.message)); }
                             isBackingUp = false;
-                            callback({ error: '创建临时目录失败: ' + e.message });
+                            callback({ error: t('backup.err_create_temp_dir', e.message) });
                             return;
                         }
 
-                        logger.info('正在复制世界文件到临时目录...');
+                        logger.info(t('backup.log_copying'));
                         var copyErrors = [];
                         for (var ci = 0; ci < worldNames.length; ci++) {
                             var wn = worldNames[ci];
@@ -292,18 +309,18 @@ function executeBackup(callback) {
                         // 复制完成，先恢复世界写入，再从临时目录压缩
                         try {
                             var resumeResult = mc.runcmdEx('save resume');
-                            logger.info('save resume 输出: ' + (resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
-                        } catch (e) { logger.error('save resume 执行失败: ' + e.message); }
+                            logger.info(t('backup.log_save_resume_output', resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
+                        } catch (e) { logger.error(t('backup.log_save_resume_error', e.message)); }
 
                         if (copyErrors.length > 0) {
-                            logger.error('复制世界文件时出错: ' + JSON.stringify(copyErrors));
+                            logger.error(t('backup.log_copy_error', JSON.stringify(copyErrors)));
                         }
 
                         onlinePlayers.forEach(function(p) {
-                            try { p.sendToast('§6快照已完成，正在后台压缩', '§6压缩中'); } catch (e) { /* ignore */ }
+                            try { p.sendToast(t('backup.toast_compressing'), t('backup.toast_compressing_title')); } catch (e) { /* ignore */ }
                         });
 
-                        logger.info('从临时目录压缩 (LZMA2, 级别: ' + compressionLevel + ')...');
+                        logger.info(t('backup.log_compress_temp', compressionLevel));
 
                         var results = [];
                         var completed = 0;
@@ -326,7 +343,7 @@ function executeBackup(callback) {
 
                                 if (completed >= total) {
                                     // 清理临时目录
-                                    try { rmrf(tempDir); } catch (e) { logger.error('清理临时目录失败: ' + e.message); }
+                                    try { rmrf(tempDir); } catch (e) { logger.error(t('backup.log_cleanup_temp_fail', e.message)); }
                                     finishBackup(results, startTime, onlinePlayers, callback);
                                 }
                             });
@@ -336,10 +353,10 @@ function executeBackup(callback) {
             } catch (e) {
                 try {
                     mc.runcmdEx('save resume');
-                    logger.error('异常后 save resume 已执行');
-                } catch (ex) { logger.error('[Backup] 异常后 save resume 也失败: ' + ex.message); }
+                    logger.error(t('backup.log_resume_done'));
+                } catch (ex) { logger.error(t('backup.log_resume_fail', ex.message)); }
                 isBackingUp = false;
-                callback({ error: '备份失败: ' + e.message });
+                callback({ error: t('backup.err_backup_failed', e.message) });
             }
         });
     }, 1000);
@@ -357,7 +374,7 @@ function finishBackup(results, startTime, onlinePlayers, callback) {
     try {
         var resumeResult = mc.runcmdEx('save resume');
         if (resumeResult && resumeResult.output && resumeResult.output.indexOf('are resumed') === -1) {
-            logger.info('save resume 输出: ' + resumeResult.output.trim());
+            logger.info(t('backup.log_save_resume_output', resumeResult.output.trim()));
         }
     } catch (e) { /* 已经 resume 过，忽略 */ }
 
@@ -376,23 +393,23 @@ function finishBackup(results, startTime, onlinePlayers, callback) {
     });
 
     onlinePlayers.forEach(function(p) {
-        try { p.sendToast('§a地图备份已完成', '§f备份完成！'); } catch (e) { /* ignore */ }
+        try { p.sendToast(t('backup.toast_done'), t('backup.toast_done_title')); } catch (e) { /* ignore */ }
     });
 
     try {
         if (failCount === 0) {
-            logger.info('备份完成！耗时 ' + elapsedSec + ' 秒，总大小 ' + formatFileSize(totalBackupSize) + '，成功 ' + successCount + '/' + results.length);
+            logger.info(t('backup.log_backup_done_all', elapsedSec, formatFileSize(totalBackupSize), successCount, results.length));
         } else {
-            logger.info('备份完成！耗时 ' + elapsedSec + ' 秒，成功 ' + successCount + '/' + results.length + '，失败 ' + failCount + '/' + results.length);
+            logger.info(t('backup.log_backup_done_partial', elapsedSec, successCount, results.length, failCount));
         }
         results.forEach(function(r) {
             if (r.success) {
-                logger.info('备份成功: ' + r.file + ' (' + r.sizeFormatted + ')');
+                logger.info(t('backup.log_backup_item_ok', r.file, r.sizeFormatted));
             } else {
-                logger.info('备份失败: ' + (r.file || r.world) + ' - ' + (r.error || '未知错误'));
+                logger.info(t('backup.log_backup_item_fail', r.file || r.world, r.error || t('backup.err_unknown')));
             }
         });
-    } catch (e) { logger.warn('[Backup] 输出备份结果失败: ' + e.message); }
+    } catch (e) { logger.warn(t('backup.log_output_fail', e.message)); }
 
     cleanupOldBackups();
     isBackingUp = false;
@@ -422,7 +439,7 @@ function compressTo7z(sourcePath, archivePath, compressionLevel, callback) {
         if (err) {
             var detail = err.message || 'Unknown error';
             if (err.stderr) detail += ' | stderr: ' + err.stderr.trim();
-            logger.warn('[Backup] 7z 压缩失败: ' + detail);
+            logger.warn(t('backup.log_7z_fail', detail));
             var enhancedErr = new Error(detail);
             enhancedErr.code = err.code;
             callback(enhancedErr);
@@ -456,7 +473,7 @@ function getBackupList() {
                     world: parsed.world,
                     type: file.endsWith('.zip') ? 'data' : 'world'
                 });
-            } catch (e) { logger.warn('[Backup] 读取备份文件信息失败: ' + e.message); }
+            } catch (e) { logger.warn(t('backup.log_read_info_fail', e.message)); }
         });
         backups.sort(function(a, b) { return b.time - a.time; });
         return backups;
@@ -501,18 +518,18 @@ function getBackupStats() {
  * @returns {{success?: boolean, error?: string}}
  */
 function deleteBackup(filename) {
-    if (!filename) return { error: '文件名不能为空' };
+    if (!filename) return { error: t('backup.err_empty_filename') };
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-        return { error: '非法文件名' };
+        return { error: t('backup.err_invalid_filename') };
     }
-    if (!filename.endsWith('.7z') && !filename.endsWith('.zip')) return { error: '只能删除.7z或.zip备份文件' };
+    if (!filename.endsWith('.7z') && !filename.endsWith('.zip')) return { error: t('backup.err_invalid_extension') };
     const filePath = pathModule.join(backupDir, filename);
-    if (!fs.existsSync(filePath)) return { error: '文件不存在' };
+    if (!fs.existsSync(filePath)) return { error: t('backup.err_file_not_found') };
     try {
         fs.unlinkSync(filePath);
         return { success: true };
     } catch (e) {
-        return { error: '删除失败: ' + e.message };
+        return { error: t('backup.err_delete_failed', e.message) };
     }
 }
 
@@ -536,8 +553,8 @@ function cleanupOldBackups() {
                 let ageDays = Math.floor((now - b.time) / (24 * 3600 * 1000));
                 let result = deleteBackup(b.filename);
                 if (result.success) {
-                    deleted.push({ filename: b.filename, reason: '过期', ageDays: ageDays });
-                    logger.info('已删除 ' + ageDays + ' 天前的备份: ' + b.filename);
+                    deleted.push({ filename: b.filename, reason: t('backup.cleanup_expired'), ageDays: ageDays });
+                    logger.info(t('backup.log_deleted_expired', ageDays, b.filename));
                 }
             }
         });
@@ -552,8 +569,8 @@ function cleanupOldBackups() {
             const ageDays = Math.floor((Date.now() - oldest.time) / (24 * 3600 * 1000));
             const result = deleteBackup(oldest.filename);
             if (result.success) {
-                deleted.push({ filename: oldest.filename, reason: '超出数量限制', ageDays: ageDays });
-                logger.info('备份数量超出限制(' + maxCount + ')，已删除 ' + ageDays + ' 天前的备份: ' + oldest.filename);
+                deleted.push({ filename: oldest.filename, reason: t('backup.cleanup_excess'), ageDays: ageDays });
+                logger.info(t('backup.log_deleted_excess', maxCount, ageDays, oldest.filename));
             }
         }
     }
@@ -601,7 +618,7 @@ function formatDateTime(date) {
  */
 function executeDataBackup(callback) {
     if (isDataBackingUp) {
-        callback({ error: '数据备份正在进行中，请稍后再试' });
+        callback({ error: t('backup.err_data_already_running') });
         return;
     }
     isDataBackingUp = true;
@@ -611,7 +628,7 @@ function executeDataBackup(callback) {
         const dataDir = pathModule.resolve(process.cwd(), 'plugins', 'NECE', 'data');
         if (!fs.existsSync(dataDir)) {
             isDataBackingUp = false;
-            callback({ error: '数据目录不存在' });
+            callback({ error: t('backup.err_data_dir_missing') });
             return;
         }
 
@@ -625,8 +642,8 @@ function executeDataBackup(callback) {
             const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
             if (err) {
-                logger.error('数据备份失败: ' + err.message);
-                callback({ error: '数据备份失败: ' + err.message });
+                logger.error(t('backup.log_data_fail', err.message));
+                callback({ error: t('backup.err_data_backup_failed', err.message) });
                 return;
             }
 
@@ -637,7 +654,7 @@ function executeDataBackup(callback) {
                 size = stats.size;
             } catch (e) {}
 
-            logger.info('数据备份完成: ' + backupName + '.zip (' + formatFileSize(size) + ', 耗时' + duration + '秒)');
+            logger.info(t('backup.log_data_done', backupName + '.zip', formatFileSize(size), duration));
 
             // 清理旧备份
             cleanupOldBackups();
@@ -651,8 +668,8 @@ function executeDataBackup(callback) {
         });
     } catch (e) {
         isDataBackingUp = false;
-        logger.error('数据备份异常: ' + e.message);
-        callback({ error: '数据备份异常: ' + e.message });
+        logger.error(t('backup.log_data_exception', e.message));
+        callback({ error: t('backup.err_data_backup_exception', e.message) });
     }
 }
 
@@ -669,8 +686,8 @@ function startDataBackupScheduler(intervalMs) {
     if (!intervalMs || intervalMs <= 0) return;
     dataBackupTimer = setInterval(function() {
         executeDataBackup(function(err, result) {
-            if (err) logger.warn('定时数据备份失败: ' + JSON.stringify(err));
-            else logger.info('定时数据备份完成: ' + result.filename);
+            if (err) logger.warn(t('backup.log_data_scheduled_fail', JSON.stringify(err)));
+            else logger.info(t('backup.log_data_scheduled_ok', result.filename));
         });
     }, intervalMs);
 }
