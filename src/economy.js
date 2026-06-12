@@ -547,7 +547,10 @@ function _executeTransfer(sender, targetName, targetXuid, amount) {
     }
     if (!senderRecent) _recentTransfers[sender.xuid] = {};
     _recentTransfers[sender.xuid][transferKey] = now;
-    reducePlayerMoney(sender, amount, "转账给" + targetName);
+    if (!reducePlayerMoney(sender, amount, "转账给" + targetName)) {
+        sender.tell("§e[经济] 扣费失败，转账取消");
+        return;
+    }
     const targetPlayer = mc.getPlayer(targetXuid);
     if (targetPlayer) {
         addPlayerMoney(targetPlayer, amount, "来自" + sender.realName + "的转账");
@@ -714,7 +717,10 @@ function showEconomyLogForm(player, page) {
         }
         if (page < result.totalPages) {
             if (id === btnIdx) { showEconomyLogForm(p, page + 1); return; }
+            btnIdx++;
         }
+        // 关闭按钮
+        if (id === btnIdx) return;
     });
 }
 
