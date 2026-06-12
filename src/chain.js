@@ -142,11 +142,11 @@ function resetDailyUsage(planData) {
 function checkCanChain(xuid) {
     var planData = getPlayerPlanData(xuid);
     resetDailyUsage(planData);
-    
+
     var planConfig = getPlanConfig();
     var plan = planData.plan || 'free';
     var planInfo = planConfig[plan] || DEFAULT_PLANS.free;
-    
+
     // 检查付费计划是否过期
     if (plan !== 'free' && planData.expireTime > 0 && Date.now() > planData.expireTime) {
         planData.plan = 'free';
@@ -155,10 +155,10 @@ function checkCanChain(xuid) {
         plan = 'free';
         planInfo = planConfig['free'] || DEFAULT_PLANS.free;
     }
-    
+
     var dailyLimit = planInfo.dailyLimit || 100;
     var remaining = dailyLimit - planData.dailyUsed;
-    
+
     return {
         canChain: remaining > 0,
         remaining: Math.max(0, remaining),
@@ -189,76 +189,76 @@ function addDailyUsage(xuid, count) {
 function purchasePlan(player, planName) {
     var xuid = player.xuid;
     var planConfig = getPlanConfig();
-    
+
     if (!planConfig[planName]) {
         return { success: false, message: '§c无效的计划' };
     }
-    
+
     if (planName === 'free') {
         return { success: false, message: '§c不能购买免费计划' };
     }
-    
+
     var planData = getPlayerPlanData(xuid);
     var now = Date.now();
     var currentPlan = planData.plan || 'free';
-    
+
     // 检查是否已有相同计划且未过期
     if (currentPlan === planName && planData.expireTime > now) {
         return { success: false, message: '§c您已有该计划且未过期，请使用续费功能' };
     }
-    
+
     var planInfo = planConfig[planName];
     var price = planInfo.price || 0;
     var duration = planInfo.duration || 7;
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
-    
+
     // 计算实际价格（如果是升级，补差价）
     var actualPrice = price;
     var upgradeInfo = '';
-    
+
     if (currentPlan !== 'free' && planData.expireTime > now) {
         // 已有付费计划且未过期，计算差价
         var currentPlanInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
         var currentPrice = currentPlanInfo.price || 0;
         var priceDiff = price - currentPrice;
-        
+
         if (priceDiff <= 0) {
             return { success: false, message: '§c不能降级或购买相同等级的计划' };
         }
-        
+
         // 计算剩余天数
         var remainingDays = Math.ceil((planData.expireTime - now) / (1000 * 60 * 60 * 24));
-        
+
         // 差价 = (新计划价格 - 旧计划价格) * 剩余天数 / 7
         actualPrice = Math.ceil(priceDiff * remainingDays / 7);
         upgradeInfo = '§e升级补差价: §f' + actualPrice + ' ' + currencyName + ' §e(剩余' + remainingDays + '天)\n';
     }
-    
+
     // 检查余额
     var playerMoney = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0;
     if (playerMoney < actualPrice) {
         return { success: false, message: '§c余额不足！需要 ' + actualPrice + ' ' + currencyName };
     }
-    
+
     // 扣费
     if (_deps.reducePlayerMoney) {
         var displayName = getPlanDisplayName(planName);
         var currentDisplayName = getPlanDisplayName(currentPlan);
-        var reason = currentPlan !== 'free' && planData.expireTime > now ? 
-            'Block Plan 升级: ' + currentDisplayName + ' -> ' + displayName : 
+        var reason = currentPlan !== 'free' && planData.expireTime > now ?
+            'Block Plan 升级: ' + currentDisplayName + ' -> ' + displayName :
             'Block Plan 购买: ' + displayName;
         if (!_deps.reducePlayerMoney(player, actualPrice, reason)) {
             return { success: false, message: '§c购买失败' };
         }
     }
-    
+
     // 更新计划（新计划替换旧计划）
     var expireTime = now + (duration * 24 * 60 * 60 * 1000);
-    
+
     planData.plan = planName;
     planData.expireTime = expireTime;
     savePlanData(xuid, planData);
-    
+
     var successDisplayName = getPlanDisplayName(planName);
     return { success: true, message: '§a购买成功！计划: ' + successDisplayName + ', 时长: ' + duration + ' 天' };
 }
@@ -275,26 +275,26 @@ function renewPlan(player, weeks) {
     var planData = getPlayerPlanData(xuid);
     var now = Date.now();
     var currentPlan = planData.plan || 'free';
-    
+
     if (currentPlan === 'free') {
         return { success: false, message: '§c免费计划无法续费，请先购买付费计划' };
     }
-    
+
     if (weeks < 1 || weeks > 3) {
         return { success: false, message: '§c续费周数必须在1-3之间' };
     }
-    
+
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
     var weeklyPrice = Math.ceil((planInfo.price || 0) / (planInfo.duration || 7) * 7);
     var totalPrice = weeklyPrice * weeks;
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
-    
+
     // 检查余额
     var playerMoney = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0;
     if (playerMoney < totalPrice) {
         return { success: false, message: '§c余额不足！续费' + weeks + '周需要 ' + totalPrice + ' ' + currencyName };
     }
-    
+
     // 扣费
     if (_deps.reducePlayerMoney) {
         var displayName = getPlanDisplayName(currentPlan);
@@ -302,13 +302,13 @@ function renewPlan(player, weeks) {
             return { success: false, message: '§c续费失败' };
         }
     }
-    
+
     // 延长到期时间
     var baseTime = planData.expireTime > now ? planData.expireTime : now;
     var addDays = weeks * 7;
     planData.expireTime = baseTime + (addDays * 24 * 60 * 60 * 1000);
     savePlanData(xuid, planData);
-    
+
     var displayName2 = getPlanDisplayName(currentPlan);
     return { success: true, message: '§a续费成功！计划: ' + displayName2 + ', 延长: ' + addDays + ' 天' };
 }
@@ -321,14 +321,14 @@ function showPlanMenu(player) {
     var xuid = player.xuid;
     var planData = getPlayerPlanData(xuid);
     resetDailyUsage(planData);
-    
+
     var planConfig = getPlanConfig();
     var currentPlan = planData.plan || 'free';
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS.free;
     var checkResult = checkCanChain(xuid);
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
     var isActive = currentPlan !== 'free' && planData.expireTime > Date.now();
-    
+
     // 根据是否已购买计划显示不同界面
     if (isActive) {
         // 已购买且未到期：显示两个独立按钮（续费和升级）
@@ -345,12 +345,12 @@ function showPlanMenu(player) {
 function showActivePlanMenu(player, planData, planInfo, checkResult, currencyName) {
     var fm = mc.newSimpleForm();
     fm.setTitle('§l§bBlock Plan');
-    
+
     var planConfig = getPlanConfig();
     var expireDate = new Date(planData.expireTime);
     var remainingDays = Math.ceil((planData.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
     var planDisplayName = getPlanDisplayName(planData.plan || 'free');
-    
+
     var content = '§a当前计划：' + planDisplayName + '\n';
     content += '§a今日用量：§f' + planData.dailyUsed + '/' + planInfo.dailyLimit + '\n';
     content += '§a今日剩余：§f' + checkResult.remaining + '\n';
@@ -358,7 +358,7 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
     content += '§a剩余天数：§f' + remainingDays + ' 天\n';
     content += '\n§e§lBlock Plan 说明：\n';
     content += '§r§7购买 Block Plan 可提升每日连锁方块上限\n\n';
-    
+
     var plans = ['free', 'lite', 'standard', 'pro', 'max'];
     for (var i = 0; i < plans.length; i++) {
         var pName = plans[i];
@@ -368,12 +368,12 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
         if (pName === 'free') content += ' §e(默认)';
         content += '\n';
     }
-    
+
     fm.setContent(content);
     fm.addButton('§a续费计划', "textures/ui/confirm");
     fm.addButton('§b升级计划', "textures/ui/arrow_up");
     fm.addButton('§c返回', "textures/ui/recap_glyph_desaturated");
-    
+
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
         if (id === 0) {
@@ -398,26 +398,26 @@ function showRenewMenu(player) {
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
     var weeklyPrice = Math.ceil((planInfo.price || 0) / (planInfo.duration || 7) * 7);
     var currentDisplayName = getPlanDisplayName(currentPlan);
-    
+
     var fm = mc.newCustomForm();
     fm.setTitle('§l§aBlock Plan - 续费');
-    
+
     fm.addLabel('§a当前计划：' + currentDisplayName);
     fm.addLabel('§a每周价格：§f' + weeklyPrice + ' ' + currencyName);
-    
+
     var renewOptions = [
         '1周 - ' + weeklyPrice + currencyName,
         '2周 - ' + (weeklyPrice * 2) + currencyName,
         '3周 - ' + (weeklyPrice * 3) + currencyName
     ];
     fm.addDropdown('选择续费周数', renewOptions, 0);
-    
+
     player.sendForm(fm, function(p, data) {
         if (data == null) {
             showPlanMenu(p);
             return;
         }
-        
+
         // 找到下拉菜单的索引
         for (var i = 0; i < data.length; i++) {
             if (typeof data[i] === 'number') {
@@ -439,45 +439,45 @@ function showUpgradeMenu(player) {
     var currentPlan = planData.plan || 'free';
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
     var currentDisplayName = getPlanDisplayName(currentPlan);
-    
+
     var fm = mc.newCustomForm();
     fm.setTitle('§l§bBlock Plan - 升级');
-    
+
     fm.addLabel('§a当前计划：' + currentDisplayName);
-    
+
     // 只显示比当前计划更高级的计划
     var planOrder = ['lite', 'standard', 'pro', 'max'];
     var currentIndex = planOrder.indexOf(currentPlan);
     var upgradeOptions = [];
     var upgradePlans = [];
-    
+
     var currentPlanInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
     var currentPrice = currentPlanInfo.price || 0;
     var remainingDays = Math.ceil((planData.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
-    
+
     for (var i = currentIndex + 1; i < planOrder.length; i++) {
         var pName = planOrder[i];
         var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
         var priceDiff = (pInfo.price || 0) - currentPrice;
         var upgradePrice = Math.ceil(priceDiff * remainingDays / 7);
         var displayName = getPlanDisplayName(pName);
-        
+
         upgradeOptions.push(displayName + ' - 每日' + pInfo.dailyLimit + '个 - 补差价' + upgradePrice + currencyName);
         upgradePlans.push(pName);
     }
-    
+
     if (upgradeOptions.length === 0) {
         fm.addLabel('§c您已是最高级别计划，无法继续升级');
     } else {
         fm.addDropdown('选择升级计划', upgradeOptions, 0);
     }
-    
+
     player.sendForm(fm, function(p, data) {
         if (data == null) {
             showPlanMenu(p);
             return;
         }
-        
+
         if (upgradeOptions.length > 0) {
             for (var i = 0; i < data.length; i++) {
                 if (typeof data[i] === 'number') {
@@ -496,26 +496,26 @@ function showUpgradeMenu(player) {
 function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyName, planConfig) {
     var fm = mc.newCustomForm();
     fm.setTitle('§l§bBlock Plan');
-    
+
     // 显示当前计划信息
     var currentDisplayName = getPlanDisplayName(planData.plan || 'free');
     fm.addLabel('§a当前计划：' + currentDisplayName);
     fm.addLabel('§a今日用量：§f' + planData.dailyUsed + '/' + planInfo.dailyLimit);
     fm.addLabel('§a今日剩余：§f' + checkResult.remaining);
-    
+
     // 添加描述文本
     var freeLimit = (planConfig.free || DEFAULT_PLANS.free).dailyLimit;
     var liteLimit = (planConfig.lite || DEFAULT_PLANS.lite).dailyLimit;
     var standardLimit = (planConfig.standard || DEFAULT_PLANS.standard).dailyLimit;
     var proLimit = (planConfig.pro || DEFAULT_PLANS.pro).dailyLimit;
     var maxLimit = (planConfig.max || DEFAULT_PLANS.max).dailyLimit;
-    
+
     var freeName = getPlanDisplayName('free');
     var liteName = getPlanDisplayName('lite');
     var standardName = getPlanDisplayName('standard');
     var proName = getPlanDisplayName('pro');
     var maxName = getPlanDisplayName('max');
-    
+
     fm.addLabel('§e§lBlock Plan 说明：\n' +
         '§r§7购买 Block Plan 可提升每日连锁方块上限\n\n' +
         freeName + ' §7- ' + freeLimit + '/天 §e(默认)\n' +
@@ -523,23 +523,23 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
         standardName + ' §7- ' + standardLimit + '/天\n' +
         proName + ' §7- ' + proLimit + '/天\n' +
         maxName + ' §7- ' + maxLimit + '/天');
-    
+
     // 下拉菜单选择计划
     var planOptions = [];
     var planKeys = ['lite', 'standard', 'pro', 'max'];
-    
+
     for (var i = 0; i < planKeys.length; i++) {
         var pName = planKeys[i];
         var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
         var displayName = getPlanDisplayName(pName);
         planOptions.push(displayName + ' - 每日' + pInfo.dailyLimit + '个 - ' + (pInfo.price || 0) + currencyName + ' - ' + (pInfo.duration || 0) + '天');
     }
-    
+
     fm.addDropdown('选择计划', planOptions, 0);
-    
+
     player.sendForm(fm, function(p, data) {
         if (data == null) return;
-        
+
         for (var i = 0; i < data.length; i++) {
             if (typeof data[i] === 'number') {
                 var selectedPlan = planKeys[data[i]];
@@ -560,7 +560,7 @@ function showPurchaseConfirm(player, planName) {
     var planInfo = planConfig[planName] || DEFAULT_PLANS[planName];
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
     var displayName = getPlanDisplayName(planName);
-    
+
     player.sendModalForm(
         '§cBlock Plan - 确认购买',
         '§a计划名称：' + displayName + '\n§a每日上限：§f' + planInfo.dailyLimit + ' 个\n§a价格：§f' + planInfo.price + ' ' + currencyName + '\n§a时长：§f' + planInfo.duration + ' 天\n\n§c确认购买？',
@@ -592,11 +592,11 @@ function showRenewConfirm(player, weeks) {
     var planConfig = getPlanConfig();
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
-    
+
     var weeklyPrice = Math.ceil((planInfo.price || 0) / (planInfo.duration || 7) * 7);
     var totalPrice = weeklyPrice * weeks;
     var displayName = getPlanDisplayName(currentPlan);
-    
+
     player.sendModalForm(
         '§cBlock Plan - 确认续费',
         '§a当前计划：' + displayName + '\n§a续费周数：§f' + weeks + ' 周\n§a续费金额：§f' + totalPrice + ' ' + currencyName + '\n\n§c确认续费？',
@@ -851,13 +851,13 @@ function showChainSettingsForm(player) {
 
     var fm = mc.newSimpleForm();
     fm.setTitle('§l§6连锁挖矿 - Block Plan');
-    
+
     var content = '§a当前计划：' + planDisplayName + '\n';
     content += '§a今日用量：§f' + chainCheck.dailyUsed + '/' + chainCheck.dailyLimit + '\n';
     content += '§a今日剩余：§f' + chainCheck.remaining + '\n';
     content += '-------------------------\n';
     fm.setContent(content);
-    
+
     fm.addButton('§a连锁设置', "textures/ui/icon_setting");
     fm.addButton('§bBlock Plan', "textures/ui/confirm");
 
@@ -868,8 +868,6 @@ function showChainSettingsForm(player) {
         } else if (id === 1) {
             showPlanMenu(p);
         }
-    });
-}
     });
 }
 
