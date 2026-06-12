@@ -92,12 +92,6 @@ function createRateLimiter(windowMs, maxRequests, maxEntries) {
         next();
     };
 }
-        if (entry.count > maxRequests) {
-            return res.status(429).json({ code: 429, msg: '请求过于频繁，请稍后再试' });
-        }
-        next();
-    };
-}
 
 // 登录限流：每IP每分钟最多10次
 const loginLimiter = createRateLimiter(60000, 10);

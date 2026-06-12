@@ -737,7 +737,7 @@ function showSendGlobalMailForm(player) {
 
     const itemOptions = [t(lang, 'mail.none')];
     items.forEach(function(item) {
-        const Enchanted = '';
+        let Enchanted = '';
         if (item.isEnchanted) {
             Enchanted = '§d';
         }
@@ -1048,7 +1048,7 @@ function showSendSingleMailForm(player, target) {
 
     const itemOptions = [t(lang, 'mail.none')];
     items.forEach(function(item) {
-        const Enchanted = '';
+        let Enchanted = '';
         if (item.isEnchanted) {
             Enchanted = '§d';
         }
@@ -1223,7 +1223,7 @@ function showPlayerSendMailForm(player) {
 
     const itemOptions = [t(lang, 'mail.none')];
     items.forEach(function(item) {
-        const Enchanted = '';
+        let Enchanted = '';
         if (item.isEnchanted) {
             Enchanted = '§d';
         }

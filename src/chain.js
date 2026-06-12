@@ -458,14 +458,15 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
         }
     }
 
-    // 传送掉落物到玩家脚下
+    // 传送掉落物到玩家脚下（只传送近距离的掉落物，避免影响其他玩家）
     if (count > 1) {
         try {
             var ppos = player.pos;
             var entities = mc.getAllEntities();
             for (var i = 0; i < entities.length; i++) {
                 var e = entities[i];
-                if (e.type === 'minecraft:item' && e.distanceTo(player) < 64) {
+                // 只传送10格内的掉落物，避免误传送其他玩家的物品
+                if (e.type === 'minecraft:item' && e.distanceTo(player) < 10) {
                     e.teleport(ppos);
                 }
             }

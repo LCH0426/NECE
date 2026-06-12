@@ -1367,11 +1367,6 @@ function initStatTrackers() {
 		personalCenter.bumpStat(player.xuid, "placing", 1);
 	});
 
-	mc.listen("afterPlaceBlock", function(player, block) {
-		if (!_rankEnabled) return;
-		personalCenter.bumpStat(player.xuid, "placing", 1);
-	});
-
 	mc.listen("onMobDie", function(mob, source, cause) {
 		if (!_rankEnabled) return;
 		if (!source || !source.isPlayer()) return;
@@ -1590,7 +1585,8 @@ mc.listen("onServerStarted", async () => {
 
 /** 玩家预加入事件：检查封禁状态，被封禁的玩家在此阶段踢出 */
 mc.listen("onPreJoin", function(pl) {
-	const ip = pl.getDevice ? pl.getDevice().ip : '';
+	var ip = '';
+	try { var dev = pl.getDevice ? pl.getDevice() : null; ip = dev && dev.ip ? dev.ip : ''; } catch(e) {}
 	const banCheck = banModule.isPlayerBanned(pl.xuid, ip);
 	if (banCheck.banned) {
 		pl.kick('§c你已被封禁\n§e原因：' + banCheck.reason);

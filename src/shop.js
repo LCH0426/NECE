@@ -676,7 +676,10 @@ function showBuyItemForm(player, item, deps) {
 
 /** 执行购买逻辑：扣款、发放物品、VIP折扣累计、写日志 */
 function executePurchase(player, item, count, unitPrice, totalCost, hasVip, originalUnitPrice, deps) {
-	deps.reducePlayerMoney(player, totalCost, "商店购买");
+	if (!deps.reducePlayerMoney(player, totalCost, "商店购买")) {
+		player.tell("§e[商店] 扣费失败，购买取消");
+		return;
+	}
 	deps.giveItemById(player, item.id, count);
 
 	if (hasVip) {

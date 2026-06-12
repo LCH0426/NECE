@@ -106,10 +106,10 @@ function createBankModule(deps) {
         if (timeDiff < 1000) return 0;
         let days = timeDiff / (1000 * 60 * 60 * 24);
         const dailyRate = 0.0002;
-        let interest = account.current.balance * dailyRate * days;
+        let interest = Math.round(account.current.balance * dailyRate * days);
         if (interest > 0) {
-            account.current.balance = Math.floor(account.current.balance + interest);
-            account.current.totalInterest = Math.floor(account.current.totalInterest + interest);
+            account.current.balance = account.current.balance + interest;
+            account.current.totalInterest = account.current.totalInterest + interest;
             account.current.lastInterestTime = U.getCurrentTimeString();
             savePlayerDataNow();
         }
