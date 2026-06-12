@@ -152,11 +152,15 @@ function registerRoutes(router, d) {
             if (action === 'add') {
                 success = eco.addPlayerMoneyByXuid(xuid, intAmount, reason);
             } else if (action === 'reduce') {
-                success = eco.addPlayerMoneyByXuid(xuid, -intAmount, reason);
+                success = eco.reducePlayerMoneyByXuid ? eco.reducePlayerMoneyByXuid(xuid, intAmount, reason) : eco.addPlayerMoneyByXuid(xuid, -intAmount, reason);
             } else if (action === 'set') {
                 const currentBalance = eco.getPlayerMoneyByXuid(xuid);
                 const diff = intAmount - currentBalance;
-                success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                if (diff >= 0) {
+                    success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                } else {
+                    success = eco.reducePlayerMoneyByXuid ? eco.reducePlayerMoneyByXuid(xuid, -diff, reason) : eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                }
             } else {
                 return res.status(400).json({ code: 400, msg: '无效操作，支持: add, reduce, set' });
             }

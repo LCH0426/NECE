@@ -108,9 +108,8 @@ const debugLog = debugModule.debugLog;
 const debugWarn = debugModule.debugWarn;
 
 // ============ 防抖保存机制 ============
-const _saveTimers = {};   // key -> 序号，用于判断定时器是否过期
+const _saveTimers = {};   // key -> setTimeout句柄
 const _saveFns = {};      // key -> 实际保存函数
-let _saveTimerSeq = 0;    // 全局递增序号，确保旧定时器被新调用覆盖后不会执行
 
 /**
  * 防抖保存：同一key的多次调用只执行最后一次，中间的被跳过
@@ -125,14 +124,12 @@ function debouncedSave(key, saveFn, delay) {
 		saveFn();
 		return;
 	}
+	if (_saveTimers[key]) clearTimeout(_saveTimers[key]);
 	_saveFns[key] = saveFn;
-	_saveTimerSeq++;
-	const seq = _saveTimerSeq;
-	_saveTimers[key] = seq;
-	setTimeout(() => {
-		if (_saveTimers[key] === seq) {
-			saveFn();
-			delete _saveTimers[key];
+	_saveTimers[key] = setTimeout(function() {
+		delete _saveTimers[key];
+		if (_saveFns[key]) {
+			_saveFns[key]();
 			delete _saveFns[key];
 		}
 	}, delay);
@@ -141,7 +138,7 @@ function debouncedSave(key, saveFn, delay) {
 /** 立即执行指定key的待写入保存 */
 function flushSave(key) {
 	if (_saveTimers[key] !== undefined) {
-		_saveTimers[key] = -1;
+		clearTimeout(_saveTimers[key]);
 		delete _saveTimers[key];
 		if (_saveFns[key]) {
 			_saveFns[key]();
@@ -956,6 +953,13 @@ async function initAllConfigs() {
 		getPlayerData: function() { return playerData; },
 		savePlayerDataNow: savePlayerDataNow,
 		saveSinglePlayerData: saveSinglePlayerData,
+		t: i18n.t,
+		getPlayerSetting: getPlayerSetting,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; },
+		getPlayerMoney: getPlayerMoney,
+		reducePlayerMoney: reducePlayerMoney,
+		getCurrencyName: getCurrencyName,
+		openMainMenu: personalCenter.openMainMenu
 	});
 	chainModule.setOnChainComplete(function(player, extraCount) {
 		if (extraCount > 0) personalCenter.bumpStat(player.xuid, 'mining', extraCount);
@@ -964,6 +968,10 @@ async function initAllConfigs() {
 	chainModule.registerChainCommand(registerPlayerCommand);
 	initNarConfig();
 	backupModule.init(config.get("backup"));
+	var dataBackupInterval = config.get("backup").dataBackupInterval || 0;
+	if (dataBackupInterval > 0) {
+		backupModule.startDataBackupScheduler(dataBackupInterval * 3600 * 1000);
+	}
 
 	guildModule.init({
 		logger: logger,
@@ -1057,7 +1065,8 @@ async function initAllConfigs() {
 
 	let rankModule = rankModuleCreator.create({
 		playerData: playerData,
-		getCurrencyName: getCurrencyName
+		getCurrencyName: getCurrencyName,
+		getMoneyByXuid: getPlayerMoneyByXuid
 	});
 	commonDeps.rankModule = rankModule;
 
@@ -1886,6 +1895,12 @@ function initWebServer() {
 				_refreshStatConfigCache();
 				if (hasWish) wishModule.reloadConfig();
 				backupModule.reload(config.get("backup"));
+				var dataBackupInterval = config.get("backup").dataBackupInterval || 0;
+				if (dataBackupInterval > 0) {
+					backupModule.startDataBackupScheduler(dataBackupInterval * 3600 * 1000);
+				} else {
+					backupModule.stopDataBackupScheduler();
+				}
 				clearLagModule.reload();
 			} catch (e) { logger.error('[Core] 重载配置失败: ' + e.message); }
 		});

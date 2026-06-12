@@ -442,10 +442,8 @@ function showBuyConfirmForm(player, titleName, cost, type) {
         }
 
         // 扣款
-        try {
-            _deps.reducePlayerMoney(p, cost, "购买称号: " + titleName);
-        } catch (e) {
-            p.tell("§e[称号] §c扣款失败: " + e.message);
+        if (!_deps.reducePlayerMoney(p, cost, "购买称号: " + titleName)) {
+            p.tell("§e[称号] §c余额不足，无法购买称号");
             return;
         }
 

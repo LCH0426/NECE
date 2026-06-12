@@ -188,26 +188,37 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 		return getRecycleName(recycleConfig, type) + "×" + recyclable[type].count;
 	}).join("、");
 
-	economyModule.confirmPurchase(player, -totalValue, "一键回收: " + itemNames, function(p) {
+	player.sendModalForm("§e确认回收", "§a确定要回收以下物品吗？\n\n" + itemNames + "\n\n§e预计获得: " + totalValue + " " + deps.getCurrencyName(), "§a确认回收", "§c取消", function(p, result) {
+		if (result !== true) return;
+		// 重新计算当前背包中实际可回收物品，防止确认期间背包变动
+		const actualResult = calculateRecyclableItems(p, recycleConfig);
+		const actualRecyclable = actualResult.recyclable;
+		const actualTotalValue = actualResult.totalValue;
+
+		if (actualTotalValue <= 0) {
+			p.tell("§e[商店] §c背包中没有可回收的物品了");
+			return;
+		}
+
 		const currentBalance = deps.getPlayerMoney(p);
 
 		const inventory = p.getInventory();
 		for (let i = 0; i < inventory.size; i++) {
 			const item = inventory.getItem(i);
-			if (!item.isNull() && recyclable[item.type]) {
+			if (!item.isNull() && actualRecyclable[item.type]) {
 				inventory.setItem(i, mc.newItem("minecraft:air", 0));
 			}
 		}
 		p.refreshItems();
 
-		deps.addPlayerMoney(p, totalValue, "一键回收");
+		deps.addPlayerMoney(p, actualTotalValue, "一键回收");
 
 		const newBalance = deps.getPlayerMoney(p);
 
-		writeRecycleLog(p, recyclable, totalValue, currentBalance, newBalance);
+		writeRecycleLog(p, actualRecyclable, actualTotalValue, currentBalance, newBalance);
 
 		p.tell("§e[商店] §a回收成功！");
-		p.tell("§e[商店] §e+" + totalValue + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");
+		p.tell("§e[商店] §e+" + actualTotalValue + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");
 	});
 }
 
@@ -476,9 +487,11 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 						}
 					);
 				} else {
+					// 经验添加失败，退还已扣除的货币
+					deps.addPlayerMoney(p, cost, "购买经验失败退还");
 					p.sendModalForm(
 						"§c购买失败",
-						"§c系统错误：经验添加失败，请联系管理员",
+						"§c系统错误：经验添加失败，已退还 " + cost + " 点" + deps.getCurrencyName(),
 						"§a确定",
 						"§c关闭",
 						function(pl, res) {
@@ -853,10 +866,15 @@ function showSellItemForm(player, item, deps) {
 	});
 }
 
-/** 执行出售逻辑：通过clear命令移除物品、增加货币、写日志 */
+/** 执行出售逻辑：先增加货币，再移除物品，防止货币发放失败时物品丢失 */
 function executeSell(player, item, count, income, deps) {
+	// 先加钱，加钱失败则不扣物品
+	if (!deps.addPlayerMoney(player, income, "商店回收")) {
+		player.tell("§e[商店] §c回收失败：货币发放异常，物品未扣除");
+		return;
+	}
+	// 加钱成功后再移除物品
 	mc.runcmd('clear "' + player.realName + '" ' + item.id + ' 0 ' + count);
-	deps.addPlayerMoney(player, income, "商店回收");
 	const newBalance = deps.getPlayerMoney(player);
 	writeShopSellLog(player, item.name, count, income, newBalance);
 	player.tell("§e[商店] 回收成功 " + item.name + " x" + count + " 获得" + income + deps.getCurrencyName() + " 余额" + newBalance + deps.getCurrencyName());

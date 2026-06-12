@@ -52,8 +52,11 @@ function getSystemLang() {
  */
 function t(key) {
     if (!_deps.t) return key;
-    var args = Array.prototype.slice.call(arguments);
-    args[0] = getSystemLang();
+    var lang = getSystemLang();
+    var args = [lang];
+    for (var i = 0; i < arguments.length; i++) {
+        args.push(arguments[i]);
+    }
     return _deps.t.apply(null, args);
 }
 

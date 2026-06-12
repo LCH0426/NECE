@@ -300,6 +300,32 @@ function addPlayerMoneyByXuid(xuid, value, source) {
     }
 }
 
+/**
+ * 通过XUID减少货币（玩家在线时自动发送通知）
+ * @param {string} xuid - 玩家XUID
+ * @param {number} value - 扣除金额
+ * @param {string} source - 扣费来源描述
+ * @returns {boolean} 是否成功
+ */
+function reducePlayerMoneyByXuid(xuid, value, source) {
+    try {
+        if (typeof money === 'undefined' || money === null) return false;
+        if (typeof money.reduce !== 'function') return false;
+        if (!xuid) return false;
+        const intValue = Math.floor(Number(value));
+        const success = money.reduce(xuid, intValue);
+        if (success) {
+            const player = mc.getPlayer(xuid);
+            if (player) {
+                notifyEconomyChange(player, -intValue, source || '系统扣费');
+            }
+        }
+        return success;
+    } catch (e) {
+        return false;
+    }
+}
+
 // ============ 转账系统 (原 src/pay.js) ============
 
 /** 从磁盘加载待领取转账记录 */
@@ -750,6 +776,7 @@ module.exports = {
     addPlayerMoney: addPlayerMoney,
     getPlayerMoneyByXuid: getPlayerMoneyByXuid,
     addPlayerMoneyByXuid: addPlayerMoneyByXuid,
+    reducePlayerMoneyByXuid: reducePlayerMoneyByXuid,
     showMoneyMainForm: showMoneyMainForm,
     showTransferTypeForm: showTransferTypeForm,
     showEconomyPanel: showEconomyPanel,

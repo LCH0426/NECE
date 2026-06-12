@@ -75,38 +75,10 @@ function init(fdm, mdm, deps) {
     if (!messageData.players) messageData.players = {};
 }
 
-/**
- * 发送系统邮件给指定玩家
- * @param {string} xuid - 收件人XUID
- * @param {string} content - 邮件内容
- */
+/** 发送系统邮件，委托给mailApi.sendSystemMail */
 function sendSystemMail(xuid, content) {
     var mailApi = _deps.mailApi;
-    if (!mailApi || !mailApi.addMail) return;
-    try {
-        var mailId = mailApi.getNextId ? mailApi.getNextId() : Date.now();
-        if (mailApi.incrementNextId) mailApi.incrementNextId();
-        var timeStr = mailApi.formatMailTime ? mailApi.formatMailTime() : new Date().toLocaleString();
-        mailApi.addMail({
-            id: mailId,
-            fromXuid: 'system',
-            fromName: '系统',
-            toXuid: String(xuid),
-            content: content,
-            time: timeStr,
-            read: false,
-            starQian: 0,
-            items: [],
-            claimed: false
-        });
-        try {
-            var tp = mc.getPlayer(String(xuid));
-            if (tp) {
-                tp.sendToast('§e新邮件提醒', '§a您收到了一封系统邮件');
-                tp.tell('§e[邮件] §a您收到了一封系统邮件，请在邮件系统中查看');
-            }
-        } catch (e) {}
-    } catch (e) {}
+    if (mailApi && mailApi.sendSystemMail) mailApi.sendSystemMail(xuid, content);
 }
 
 /** 立即持久化好友数据到磁盘 */
@@ -424,7 +396,7 @@ function showMyMessagesForm(player) {
         if (id >= 0 && id < playerList.length) {
             showConversationHistoryForm(p, playerList[id].fromXuid, playerList[id].fromName);
         } else {
-            if (_deps.showPersonalCenterForm) _deps.showPersonalCenterForm(p);
+            showMyFriendsForm(p);
         }
     });
 }
@@ -554,9 +526,11 @@ function showMessageDetailForm(player, message) {
         if (id === 0) {
             showSendMessageForm(p, message.fromXuid, message.fromName);
         } else if (id === 1) {
-            // 通过引用比较删除特定消息对象
+            // 通过 fromXuid + time + content 组合标识消息，避免引用比较失效
             const msgData = getPlayerMessageData(p.xuid);
-            msgData.messages = msgData.messages.filter(function(m) { return m !== message; });
+            msgData.messages = msgData.messages.filter(function(m) {
+                return !(m.fromXuid === message.fromXuid && m.time === message.time && m.content === message.content);
+            });
             saveMessageData();
             p.tell("§e[好友] §c消息已删除");
             showMyMessagesForm(p);
@@ -613,7 +587,7 @@ function showMyFriendsForm(player) {
         } else if (id >= 3 && myFriends.length > 0 && id < 3 + myFriends.length) {
             showFriendDetailForm(p, myFriends[id - 3]);
         } else {
-            if (_deps.showPersonalCenterForm) _deps.showPersonalCenterForm(p);
+            if (_deps.openMainMenu) _deps.openMainMenu(p);
         }
     });
 }

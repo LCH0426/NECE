@@ -19,6 +19,13 @@
   "chain": {
     "enabled": true,
     "maxBlocks": 64,
+    "plans": {
+      "free": { "dailyLimit": 100, "price": 0, "duration": 0 },
+      "lite": { "dailyLimit": 500, "price": 500, "duration": 7 },
+      "standard": { "dailyLimit": 1000, "price": 1000, "duration": 7 },
+      "pro": { "dailyLimit": 2000, "price": 1800, "duration": 7 },
+      "max": { "dailyLimit": 5000, "price": 3000, "duration": 7 }
+    },
     "pickaxe": [
       "minecraft:stone", "minecraft:cobblestone", "minecraft:deepslate",
       "minecraft:iron_ore", "minecraft:gold_ore", "minecraft:diamond_ore",
@@ -364,7 +371,8 @@
     "compressionLevel": 5,
     "interval": 0,
     "maxAgeDays": 0,
-    "maxCount": 0
+    "maxCount": 0,
+    "dataBackupInterval": 0
   },
   "web": {
     "enabled": true,

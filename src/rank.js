@@ -26,6 +26,7 @@ const RANK_PAGE_SIZE = 10;
 function createRankModule(deps) {
     const playerData = deps.playerData;
     const getCurrencyName = deps.getCurrencyName;
+    const getMoneyByXuid = deps.getMoneyByXuid;
 
     function showRankMainForm(player) {
         let fm = mc.newSimpleForm();
@@ -53,7 +54,9 @@ function createRankModule(deps) {
             let value = 0;
             switch (type) {
                 case "money":
-                    if (typeof money !== 'undefined' && money && typeof money.get === 'function') {
+                    if (getMoneyByXuid) {
+                        value = getMoneyByXuid(xuid) || 0;
+                    } else if (typeof money !== 'undefined' && money && typeof money.get === 'function') {
                         value = money.get(xuid) || 0;
                     }
                     break;

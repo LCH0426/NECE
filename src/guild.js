@@ -100,40 +100,9 @@ function showEmptyTipForm(player, title, text, backFn) {
     });
 }
 
-/**
- * 发送系统邮件给指定玩家
- * @param {string} xuid - 收件人XUID
- * @param {string} content - 邮件内容
- */
+/** 发送系统邮件，委托给mailApi.sendSystemMail */
 function sendSystemMail(xuid, content) {
-    if (!mailApi || !mailApi.addMail) return;
-    try {
-        var mailId = mailApi.getNextId ? mailApi.getNextId() : Date.now();
-        if (mailApi.incrementNextId) mailApi.incrementNextId();
-        var timeStr = mailApi.formatMailTime ? mailApi.formatMailTime() : new Date().toLocaleString();
-        mailApi.addMail({
-            id: mailId,
-            fromXuid: 'system',
-            fromName: '系统',
-            toXuid: String(xuid),
-            content: content,
-            time: timeStr,
-            read: false,
-            starQian: 0,
-            items: [],
-            claimed: false
-        });
-        // 收件人在线时推送通知
-        try {
-            var tp = mc.getPlayer(String(xuid));
-            if (tp) {
-                tp.sendToast('§e新邮件提醒', '§a您收到了一封系统邮件');
-                tp.tell('§e[邮件] §a您收到了一封系统邮件，请在邮件系统中查看');
-            }
-        } catch (e) {}
-    } catch (e) {
-        logger.warn('[Guild] 发送系统邮件失败: ' + e.message);
-    }
+    if (mailApi && mailApi.sendSystemMail) mailApi.sendSystemMail(xuid, content);
 }
 
 /** 安全传送玩家 */
@@ -197,7 +166,10 @@ function doCreateGuild(player, name, description) {
     var cost = cfg().createCost || 1000;
     if (cost > 0 && confirmPurchase) {
         confirmPurchase(player, cost, '创建公会', function(p) {
-            reducePlayerMoney(p, cost, '创建公会');
+            if (!reducePlayerMoney(p, cost, '创建公会')) {
+                p.tell('§e[公会] §c扣费失败，无法创建公会');
+                return;
+            }
             var maxMembers = cfg().maxMembers || 20;
             var guildId = database.createGuild(name, description, p.xuid, maxMembers);
             p.tell('§e[公会] §a公会"' + name + '"创建成功！');

@@ -271,6 +271,30 @@ function setRefreshTokenCookie(res, refreshToken, maxAge) {
     ].filter(Boolean).join('; '));
 }
 
+/** 设置 HttpOnly Access Token Cookie（用于文件下载等无法携带 Authorization Header 的场景） */
+function setAccessTokenCookie(res, accessToken, maxAge) {
+    const isSecure = _webConfig && _webConfig.secureCookie === true;
+    res.setHeader('Set-Cookie', [
+        'auth_token=' + accessToken,
+        'Path=/api/v1',
+        'HttpOnly',
+        isSecure ? 'Secure' : '',
+        'SameSite=Strict',
+        'Max-Age=' + Math.floor(maxAge / 1000)
+    ].filter(Boolean).join('; '));
+}
+
+/** 通过设置 Max-Age=0 立即清除客户端的 Access Token Cookie */
+function clearAccessTokenCookie(res) {
+    res.setHeader('Set-Cookie', [
+        'auth_token=',
+        'Path=/api/v1',
+        'HttpOnly',
+        'SameSite=Strict',
+        'Max-Age=0'
+    ].join('; '));
+}
+
 /** 通过设置 Max-Age=0 立即清除客户端的 Refresh Token Cookie */
 function clearRefreshTokenCookie(res) {
     res.setHeader('Set-Cookie', [
@@ -373,14 +397,20 @@ function createApp(webConfig) {
 }
 
 /**
- * 验证请求中的 Access Token（Authorization Header 或 query 参数），检查黑名单和类型
+ * 验证请求中的 Access Token（Authorization Header 或 auth_token Cookie），检查黑名单和类型
  * @param {object} req Express 请求对象
  * @param {object} webConfig 配置对象
  * @param {function} callback (err, user) 回调，err 含 code/msg/tokenExpired 字段
  */
 function verifyAccessToken(req, webConfig, callback) {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    let token = authHeader && authHeader.split(' ')[1];
+
+    // Authorization Header 未携带时，回退到 auth_token Cookie
+    if (!token) {
+        const cookies = parseCookies(req);
+        token = cookies.auth_token || null;
+    }
 
     if (!token) {
         return callback({ code: 401, msg: '未登录' });
@@ -509,7 +539,7 @@ function createV1Routes(webConfig) {
         getPlayerData, getPlayerName, getXuidByUid, getPlayerNameByUid,
         getCurrencyName, getItemsMap, getItemName, getItemTexture, invalidateItemsCache,
         chatHistory, addChatMessage, MAX_CHAT_HISTORY,
-        issueTokenPair, setRefreshTokenCookie, clearRefreshTokenCookie,
+        issueTokenPair, setRefreshTokenCookie, clearRefreshTokenCookie, setAccessTokenCookie, clearAccessTokenCookie,
         parseCookies, getRefreshSecret, getJwtSecret: function() { return _webConfig ? _webConfig.jwtSecret : ''; },
         triggerReload,
         fs, pathModule,

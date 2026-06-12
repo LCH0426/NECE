@@ -53,6 +53,86 @@ function dbDebugLog() {
     logger.info(args.join(' '));
 }
 
+/**
+ * 删除玩家核心数据
+ * @param {string} xuid - 玩家XUID
+ */
+function deletePlayerDataSQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM player_data WHERE xuid = ?', [xuid]);
+}
+
+/**
+ * 删除玩家设置
+ * @param {string} xuid - 玩家XUID
+ */
+function deletePlayerSettingsSQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM player_settings WHERE xuid = ?', [xuid]);
+}
+
+/**
+ * 删除玩家死亡点
+ * @param {string} xuid - 玩家XUID
+ */
+function deleteDeathPointsSQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM death_points WHERE xuid = ?', [xuid]);
+}
+
+/**
+ * 删除玩家好友关系
+ * @param {string} xuid - 玩家XUID
+ */
+function deleteFriendsSQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM friends WHERE xuid = ? OR friend_xuid = ?', [xuid, xuid]);
+}
+
+/**
+ * 删除玩家好友请求
+ * @param {string} xuid - 玩家XUID
+ */
+function deleteFriendRequestsSQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM friend_requests WHERE xuid = ? OR from_xuid = ?', [xuid, xuid]);
+}
+
+/**
+ * 删除玩家私信
+ * @param {string} xuid - 玩家XUID
+ */
+function deleteMessagesSQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM messages WHERE xuid = ? OR from_xuid = ? OR to_xuid = ?', [xuid, xuid, xuid]);
+}
+
+/**
+ * 删除玩家家园
+ * @param {string} xuid - 玩家XUID
+ */
+function deleteHomesSQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM homes WHERE xuid = ?', [xuid]);
+}
+
+/**
+ * 删除玩家背包快照
+ * @param {string} xuid - 玩家XUID
+ */
+function deletePlayerInventorySQL(xuid) {
+    if (!playerDb) return;
+    markPlayerDbDirty();
+    playerDb.run('DELETE FROM player_inventory WHERE xuid = ?', [xuid]);
+}
+
 /** 初始化认证数据库，建表并创建索引 */
 async function initDatabase() {
     // 迁移：旧文件 nlce.db → nece.db
@@ -445,7 +525,8 @@ async function initPlayerDatabase() {
         ['last_ip', "TEXT DEFAULT ''"],
         ['platform', "TEXT DEFAULT ''"],
         ['titles', "TEXT DEFAULT '{}'"],
-        ['chain', "TEXT DEFAULT '{}'"]
+        ['chain', "TEXT DEFAULT '{}'"],
+        ['chain_plan', "TEXT DEFAULT '{}'"]
     ];
     colsToAdd.forEach(function(col) {
         if (!existingCols[col[0]]) {
@@ -544,7 +625,7 @@ function cancelPendingSave() {}
 function getPlayerDataSQL(xuid) {
     if (!playerDb) return null;
     let result = playerDb.exec(
-        'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain FROM player_data WHERE xuid = ?',
+        'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan FROM player_data WHERE xuid = ?',
         [xuid]
     );
     if (result.length === 0 || result[0].values.length === 0) return null;
@@ -566,7 +647,8 @@ function getPlayerDataSQL(xuid) {
         titles: JSON.parse(row[13] || '{}'),
         lastIp: row[14] || '',
         platform: row[15] || '',
-        chain: JSON.parse(row[16] || '{}')
+        chain: JSON.parse(row[16] || '{}'),
+        chainPlan: JSON.parse(row[17] || '{}')
     };
 }
 
@@ -580,8 +662,8 @@ function setPlayerDataSQL(xuid, data) {
     markPlayerDbDirty();
     playerDb.run(
         `INSERT OR REPLACE INTO player_data
-         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [xuid, data.uid, data.name, data.uuid, data.registerTime,
          String(data.leavetime || ''), data.healthBonus || 0, data.rw,
          JSON.stringify(data.taxdata || {}), JSON.stringify(data.bankdata || {}),
@@ -589,7 +671,8 @@ function setPlayerDataSQL(xuid, data) {
          JSON.stringify(data.avatar || {}), JSON.stringify(data.count || {}),
          JSON.stringify(data.titles || {}),
          data.lastIp || '', data.platform || '',
-         JSON.stringify(data.chain || {})]
+         JSON.stringify(data.chain || {}),
+         JSON.stringify(data.chainPlan || {})]
     );
 }
 
@@ -624,7 +707,7 @@ function getAllPlayerDataSQL() {
     if (!playerDb) return {};
     dbDebugLog('getAllPlayerDataSQL: 查询所有玩家数据');
     let result = playerDb.exec(
-        'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain FROM player_data'
+        'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan FROM player_data'
     );
     const players = {};
     if (result.length === 0) return players;
@@ -651,7 +734,8 @@ function getAllPlayerDataSQL() {
             titles: JSON.parse(obj.titles || '{}'),
             lastIp: obj.last_ip || '',
             platform: obj.platform || '',
-            chain: JSON.parse(obj.chain || '{}')
+            chain: JSON.parse(obj.chain || '{}'),
+            chainPlan: JSON.parse(obj.chain_plan || '{}')
         };
     });
     return players;
@@ -1473,6 +1557,15 @@ module.exports = {
     batchSavePlayerDb,
     savePlayerInventorySQL,
     getPlayerInventorySQL,
+    // 玩家数据删除SQL
+    deletePlayerDataSQL,
+    deletePlayerSettingsSQL,
+    deleteDeathPointsSQL,
+    deleteFriendsSQL,
+    deleteFriendRequestsSQL,
+    deleteMessagesSQL,
+    deleteHomesSQL,
+    deletePlayerInventorySQL,
     // 公会系统SQL
     createGuildTables,
     createGuild,

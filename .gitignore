@@ -13,4 +13,5 @@ wish_config.json
 wish.js
 .github/
 test/plugins/
+.mimocode/
 

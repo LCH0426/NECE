@@ -571,7 +571,7 @@ function showMailDetailForm(player, mail) {
         }
 
         if (id === btnIndex) {
-            mailData.mails = mailData.mails.filter(function(m) { return m !== mail; });
+            mailData.mails = mailData.mails.filter(function(m) { return m.id !== mail.id; });
             save();
             p.tell(t(lang, 'mail.mail_deleted'));
             showMailListForm(p);
@@ -655,11 +655,12 @@ function claimMailAttachments(player, mail) {
                         if (fallbackItem) {
                             if (player.getInventory().hasRoomFor(fallbackItem)) {
                                 player.giveItem(fallbackItem);
+                                player.tell(t(lang, 'mail.claim_item_success', fallbackItem.name));
                             } else {
-                                mc.spawnItem(fallbackItem, player.pos);
-                                player.tell(t(lang, 'mail.inventory_full'));
+                                player.tell(t(lang, 'mail.inventory_full_need_clear'));
+                                allItemsSuccess = false;
+                                return;
                             }
-                            player.tell(t(lang, 'mail.claim_item_success', fallbackItem.name));
                             return;
                         }
                     }
@@ -671,11 +672,11 @@ function claimMailAttachments(player, mail) {
                 if (item) {
                     if (player.getInventory().hasRoomFor(item)) {
                         player.giveItem(item);
+                        player.tell(t(lang, 'mail.claim_item_success', item.name));
                     } else {
-                        mc.spawnItem(item, player.pos);
-                        player.tell(t(lang, 'mail.inventory_full'));
+                        player.tell(t(lang, 'mail.inventory_full_need_clear'));
+                        allItemsSuccess = false;
                     }
-                    player.tell(t(lang, 'mail.claim_item_success', item.name));
                 } else {
                     player.tell(t(lang, 'mail.err_item_create', index + 1));
                     allItemsSuccess = false;
@@ -852,7 +853,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
                     content: content,
                     time: _deps.U ? _deps.U.getCurrentTimeString() : formatMailTime(),
                     scheduledTime: scheduledTime,
-                    read: false,
+                    read: {},
                     starQian: starQian,
                     items: items,
                     claimed: {}
@@ -893,7 +894,7 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
         toXuid: "all",
         content: content,
         time: _deps.U ? _deps.U.getCurrentTimeString() : formatMailTime(),
-        read: false,
+        read: {},
         starQian: starQian,
         items: items,
         claimed: {}
@@ -1428,10 +1429,44 @@ function showPlayerMailSystemForm(player) {
     });
 }
 
+/**
+ * 发送系统邮件的公共接口
+ * @param {string} xuid - 收件人XUID
+ * @param {string} content - 邮件内容
+ */
+function sendSystemMail(xuid, content) {
+    if (!addMail) return;
+    try {
+        var mailId = getNextId ? getNextId() : Date.now();
+        if (incrementNextId) incrementNextId();
+        var timeStr = formatMailTime ? formatMailTime() : new Date().toLocaleString();
+        addMail({
+            id: mailId,
+            fromXuid: 'system',
+            fromName: '系统',
+            toXuid: String(xuid),
+            content: content,
+            time: timeStr,
+            read: false,
+            starQian: 0,
+            items: [],
+            claimed: false
+        });
+        try {
+            var tp = mc.getPlayer(String(xuid));
+            if (tp) {
+                tp.sendToast('§e新邮件提醒', '§a您收到了一封系统邮件');
+                tp.tell('§e[邮件] §a您收到了一封系统邮件，请在邮件系统中查看');
+            }
+        } catch (e) {}
+    } catch (e) {}
+}
+
 module.exports = {
     init: init,
     getData: getData,
     save: save,
+    sendSystemMail: sendSystemMail,
     addMail: addMail,
     deleteMail: deleteMail,
     getMailById: getMailById,
