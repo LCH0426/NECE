@@ -33,10 +33,24 @@ let banData = {
 };
 let _deps = {};
 
+/** 获取系统语言 */
+function getLang() {
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+}
+
+/** 翻译函数 */
+function t(key) {
+    if (!_deps.t) return key;
+    var lang = getLang();
+    var args = [lang];
+    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    return _deps.t.apply(null, args);
+}
+
 /**
  * 初始化封禁模块
  * @param {Object} dm - DataManager实例，用于封禁数据持久化
- * @param {Object} deps - 外部依赖（playerData等）
+ * @param {Object} deps - 外部依赖（playerData、t、getSystemLanguage）
  */
 function init(dm, deps) {
     D.debugLogModule('ban')('init: 初始化完成');
@@ -92,7 +106,7 @@ function resolvePlayer(identifier) {
         if (info.uid && String(info.uid) === String(identifier)) {
             result = {
                 xuid: xuid,
-                name: info.name || '未知玩家',
+                name: info.name || t('ban.unknown_player'),
                 uid: info.uid,
                 ip: '',
                 online: false
@@ -107,7 +121,7 @@ function resolvePlayer(identifier) {
             let entry = banData.entries[identifier];
             return {
                 xuid: identifier,
-                name: entry.name || '未知玩家',
+                name: entry.name || t('ban.unknown_player'),
                 uid: entry.uid || identifier,
                 ip: entry.ip || '',
                 online: false
@@ -126,17 +140,17 @@ function resolvePlayer(identifier) {
  * @returns {{success: boolean, message: string, xuid?: string}}
  */
 function banPlayer(identifier, reason, operator) {
-    reason = reason || '管理员封禁';
-    operator = operator || '控制台';
+    reason = reason || t('ban.default_reason');
+    operator = operator || t('ban.default_operator');
 
     let playerInfo = resolvePlayer(identifier);
     if (!playerInfo) {
-        return { success: false, message: '未找到玩家：' + identifier };
+        return { success: false, message: t('ban.err_player_not_found', identifier) };
     }
 
     let xuid = playerInfo.xuid;
     if (banData.entries[xuid]) {
-        return { success: false, message: '玩家 ' + playerInfo.name + ' 已在封禁列表中' };
+        return { success: false, message: t('ban.err_already_banned', playerInfo.name) };
     }
 
     // 尝试获取IP
@@ -162,15 +176,12 @@ function banPlayer(identifier, reason, operator) {
     // 在线玩家直接踢出
     const onlinePlayer = mc.getPlayer(xuid);
     if (onlinePlayer) {
-        onlinePlayer.kick('§c你已被封禁\n§e原因：' + reason + '\n§e操作者：' + operator);
+        onlinePlayer.kick(t('ban.kick_msg', reason, operator));
     }
 
-    let msg = '已封禁玩家 ' + playerInfo.name + ' (XUID: ' + xuid;
-    if (playerInfo.uid && playerInfo.uid !== xuid) msg += ', UID: ' + playerInfo.uid;
-    if (ip) msg += ', IP: ' + ip;
-    msg += ')，原因：' + reason;
-
-    return { success: true, message: msg, xuid: xuid };
+    var uidPart = (playerInfo.uid && playerInfo.uid !== xuid) ? t('ban.ban_success_uid', playerInfo.uid) : '';
+    var ipPart = ip ? t('ban.ban_success_ip', ip) : '';
+    return { success: true, message: t('ban.ban_success', playerInfo.name, xuid, uidPart + ipPart, reason), xuid: xuid };
 }
 
 /**
@@ -186,22 +197,21 @@ function unbanPlayer(identifier) {
             let entry = banData.entries[identifier];
             delete banData.entries[identifier];
             saveData();
-            return { success: true, message: '已解封 XUID: ' + identifier + ' (' + (entry.name || '未知') + ')' };
+            return { success: true, message: t('ban.unban_success_xuid', identifier, entry.name || t('ban.unknown')) };
         }
-        return { success: false, message: '未找到玩家：' + identifier };
+        return { success: false, message: t('ban.err_player_not_found', identifier) };
     }
 
     const xuid = playerInfo.xuid;
     if (!banData.entries[xuid]) {
-        return { success: false, message: '玩家 ' + playerInfo.name + ' 不在封禁列表中' };
+        return { success: false, message: t('ban.err_not_banned', playerInfo.name) };
     }
 
     let entry = banData.entries[xuid];
     delete banData.entries[xuid];
     saveData();
 
-    const msg = '已解封玩家 ' + playerInfo.name + ' (XUID: ' + xuid + ')';
-    return { success: true, message: msg };
+    return { success: true, message: t('ban.unban_success', playerInfo.name, xuid) };
 }
 
 /**
@@ -221,7 +231,7 @@ function isPlayerBanned(xuid, ip) {
             if (!banData.entries.hasOwnProperty(bxuid)) continue;
             let entry = banData.entries[bxuid];
             if (entry.banned && entry.ip && entry.ip === ip) {
-                return { banned: true, reason: 'IP关联封禁 (关联XUID: ' + bxuid + ', 原因: ' + entry.reason + ')', entry: entry };
+                return { banned: true, reason: t('ban.ip_linked_ban', bxuid, entry.reason), entry: entry };
             }
         }
     }
@@ -251,23 +261,23 @@ function getBanList() {
 function showBanListForm(player) {
     let banList = getBanList();
     let gui = mc.newSimpleForm();
-    gui.setTitle("§l§c封禁列表");
+    gui.setTitle(t('ban.title_ban_list'));
 
     if (banList.length === 0) {
-        player.sendModalForm("§c封禁列表", "§a当前没有封禁的玩家", "§a返回", "§c关闭", function(p, result) {
+        player.sendModalForm(t('ban.title_ban_list'), t('ban.empty_ban_list'), t('ban.btn_back'), t('ban.btn_close'), function(p, result) {
             if (result) showBanMainForm(p);
         });
         return;
     } else {
-        gui.setContent("§c共有 " + banList.length + " 名被封禁的玩家：\n点击查看详情");
+        gui.setContent(t('ban.ban_list_content', banList.length));
         banList.forEach(function(entry) {
-            gui.addButton("§c" + entry.name + "\n§6XUID: " + entry.xuid + " | 原因: " + entry.reason);
+            gui.addButton(t('ban.ban_list_entry', entry.name, entry.xuid, entry.reason));
         });
     }
 
     // 最后两个按钮：封禁玩家、返回
-    gui.addButton("§a封禁玩家", "textures/ui/color_plus");
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t('ban.btn_ban_player'), "textures/ui/color_plus");
+    gui.addButton(t('ban.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -289,28 +299,28 @@ function showBanListForm(player) {
  */
 function showBanDetailForm(player, entry) {
     let gui = mc.newSimpleForm();
-    gui.setTitle("§l§c封禁详情 - " + entry.name);
+    gui.setTitle(t('ban.title_ban_detail', entry.name));
 
     let content = "-------------------------\n";
-    content += "§c玩家名称：§f" + entry.name + "\n";
-    content += "§cXUID：§f" + entry.xuid + "\n";
-    content += "§cUID：§f" + (entry.uid || "未知") + "\n";
-    content += "§cIP：§f" + (entry.ip || "未记录") + "\n";
-    content += "§c封禁原因：§f" + entry.reason + "\n";
-    content += "§c操作者：§f" + entry.operator + "\n";
-    content += "§c封禁时间：§f" + entry.time + "\n";
+    content += t('ban.detail_name', entry.name) + "\n";
+    content += t('ban.detail_xuid', entry.xuid) + "\n";
+    content += t('ban.detail_uid', entry.uid || t('ban.unknown')) + "\n";
+    content += t('ban.detail_ip', entry.ip || t('ban.unrecorded')) + "\n";
+    content += t('ban.detail_reason', entry.reason) + "\n";
+    content += t('ban.detail_operator', entry.operator) + "\n";
+    content += t('ban.detail_time', entry.time) + "\n";
     content += "-------------------------\n";
 
     gui.setContent(content);
-    gui.addButton("§a解封", "textures/ui/check");
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t('ban.btn_unban'), "textures/ui/check");
+    gui.addButton(t('ban.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
 
         if (id === 0) {
             // 解封前弹出二次确认
-            p.sendModalForm("§a确认解封", "§a确定要解封玩家 §f" + entry.name + " §a吗？", "§a确认", "§c取消", function(pl, res) {
+            p.sendModalForm(t('ban.confirm_unban_title'), t('ban.confirm_unban_msg', entry.name), t('ban.btn_confirm'), t('ban.btn_cancel'), function(pl, res) {
                 if (res) {
                     let result = unbanPlayer(entry.xuid);
                     pl.tell("" + result.message);
@@ -331,9 +341,9 @@ function showBanDetailForm(player, entry) {
  */
 function showBanPlayerForm(player) {
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§c封禁玩家");
-    gui.addInput("玩家ID/UID/XUID", "输入玩家名称、UID或XUID", "");
-    gui.addInput("封禁原因", "输入封禁原因（可选）", "管理员封禁");
+    gui.setTitle(t('ban.title_ban_player'));
+    gui.addInput(t('ban.input_id_placeholder'), t('ban.input_id_hint'), "");
+    gui.addInput(t('ban.input_reason_placeholder'), t('ban.input_reason_hint'), t('ban.default_reason'));
 
     player.sendForm(gui, function(p, data) {
         if (data == null || data === undefined || !Array.isArray(data)) {
@@ -342,10 +352,10 @@ function showBanPlayerForm(player) {
         }
 
         let identifier = (data[0] || "").trim();
-        let reason = (data[1] || "").trim() || "管理员封禁";
+        let reason = (data[1] || "").trim() || t('ban.default_reason');
 
         if (!identifier) {
-            p.tell("§c请输入玩家标识！");
+            p.tell(t('ban.err_empty_identifier'));
             showBanPlayerForm(p);
             return;
         }
@@ -359,24 +369,24 @@ function showBanPlayerForm(player) {
 /** 注册控制台命令：ban、unban、banlist */
 function registerConsoleCommands() {
     try {
-        mc.regConsoleCmd('ban', '封禁玩家 (支持ID/UID/XUID)', function(args) {
+        mc.regConsoleCmd('ban', t('ban.cmd_ban_desc'), function(args) {
             if (args.length < 1) {
-                logger.info('用法: ban <玩家ID/UID/XUID> [原因]');
+                logger.info(t('ban.cmd_usage_ban'));
                 return;
             }
             let identifier = args[0];
-            let reason = args.length > 1 ? args.slice(1).join(' ') : '控制台封禁';
-            let result = banPlayer(identifier, reason, '控制台');
+            let reason = args.length > 1 ? args.slice(1).join(' ') : t('ban.default_operator') + t('ban.default_reason');
+            let result = banPlayer(identifier, reason, t('ban.default_operator'));
             logger.info(result.message);
         });
     } catch (error) {
-        logger.error('/ban 控制台命令注册出错！错误：' + error);
+        logger.error(t('ban.err_cmd_register', 'ban', error));
     }
 
     try {
-        mc.regConsoleCmd('unban', '解封玩家 (支持ID/UID/XUID)', function(args) {
+        mc.regConsoleCmd('unban', t('ban.cmd_unban_desc'), function(args) {
             if (args.length < 1) {
-                logger.info('用法: unban <玩家ID/UID/XUID>');
+                logger.info(t('ban.cmd_usage_unban'));
                 return;
             }
             let identifier = args[0];
@@ -384,62 +394,62 @@ function registerConsoleCommands() {
             logger.info(result.message);
         });
     } catch (error) {
-        logger.error('/unban 控制台命令注册出错！错误：' + error);
+        logger.error(t('ban.err_cmd_register', 'unban', error));
     }
 
     try {
-        mc.regConsoleCmd('banlist', '查看封禁列表', function(args) {
+        mc.regConsoleCmd('banlist', t('ban.cmd_banlist_desc'), function(args) {
             const banList = getBanList();
             if (banList.length === 0) {
-                logger.info('当前没有封禁的玩家');
+                logger.info(t('ban.cmd_banlist_empty'));
                 return;
             }
-            logger.info('封禁列表 (' + banList.length + ' 人)：');
+            logger.info(t('ban.cmd_banlist_header', banList.length));
             banList.forEach(function(entry) {
-                logger.info('  ' + entry.name + ' | XUID: ' + entry.xuid + ' | UID: ' + (entry.uid || '未知') + ' | IP: ' + (entry.ip || '未记录') + ' | 原因: ' + entry.reason + ' | 操作者: ' + entry.operator);
+                logger.info(t('ban.cmd_banlist_entry', entry.name, entry.xuid, entry.uid || t('ban.unknown'), entry.ip || t('ban.unrecorded'), entry.reason, entry.operator));
             });
         });
     } catch (error) {
-        logger.error('/banlist 控制台命令注册出错！错误：' + error);
+        logger.error(t('ban.err_cmd_register', 'banlist', error));
     }
 }
 
 /** 注册游戏内命令：/ban、/unban、/banlist */
 function registerGameCommands() {
     try {
-        const banCmd = mc.newCommand('ban', '封禁玩家', PermType.GameMasters);
+        const banCmd = mc.newCommand('ban', t('ban.game_cmd_ban'), PermType.GameMasters);
         banCmd.mandatory('target', ParamType.RawText);
         banCmd.optional('reason', ParamType.RawText);
         banCmd.overload(['target', 'reason']);
         banCmd.setCallback(function(_cmd, origin, output, results) {
             let player = origin.player;
             let identifier = String(results.target || '').trim();
-            const reason = String(results.reason || '管理员封禁').trim();
+            const reason = String(results.reason || t('ban.default_reason')).trim();
             if (!identifier) {
-                if (player) player.tell('§c用法: /ban <玩家ID/UID/XUID> [原因]');
-                else logger.info('用法: ban <玩家ID/UID/XUID> [原因]');
+                if (player) player.tell(t('ban.game_usage_ban'));
+                else logger.info(t('ban.cmd_usage_ban'));
                 return;
             }
-            const operator = player ? player.name : '控制台';
+            const operator = player ? player.name : t('ban.default_operator');
             let result = banPlayer(identifier, reason, operator);
             if (player) player.tell('' + (result.success ? '§a' + result.message : '§c' + result.message));
             else logger.info(result.message);
         });
         banCmd.setup();
     } catch (error) {
-        logger.error('/ban 游戏命令注册出错！错误：' + error);
+        logger.error(t('ban.err_cmd_register', 'ban', error));
     }
 
     try {
-        const unbanCmd = mc.newCommand('unban', '解封玩家', PermType.GameMasters);
+        const unbanCmd = mc.newCommand('unban', t('ban.game_cmd_unban'), PermType.GameMasters);
         unbanCmd.mandatory('target', ParamType.RawText);
         unbanCmd.overload(['target']);
         unbanCmd.setCallback(function(_cmd, origin, output, results) {
             let player = origin.player;
             const identifier = String(results.target || '').trim();
             if (!identifier) {
-                if (player) player.tell('§c用法: /unban <玩家ID/UID/XUID>');
-                else logger.info('用法: unban <玩家ID/UID/XUID>');
+                if (player) player.tell(t('ban.game_usage_unban'));
+                else logger.info(t('ban.cmd_usage_unban'));
                 return;
             }
             const result = unbanPlayer(identifier);
@@ -448,11 +458,11 @@ function registerGameCommands() {
         });
         unbanCmd.setup();
     } catch (error) {
-        logger.error('/unban 游戏命令注册出错！错误：' + error);
+        logger.error(t('ban.err_cmd_register', 'unban', error));
     }
 
     try {
-        const banlistCmd = mc.newCommand('banlist', '查看封禁列表', PermType.GameMasters);
+        const banlistCmd = mc.newCommand('banlist', t('ban.game_cmd_banlist'), PermType.GameMasters);
         banlistCmd.overload([]);
         banlistCmd.setCallback(function(_cmd, origin, output, results) {
             const player = origin.player;
@@ -461,24 +471,24 @@ function registerGameCommands() {
             } else {
                 const list = getBanList();
                 if (list.length === 0) {
-                    logger.info('当前没有封禁的玩家');
+                    logger.info(t('ban.cmd_banlist_empty'));
                 } else {
-                    logger.info('封禁列表 (' + list.length + ' 人)：');
+                    logger.info(t('ban.cmd_banlist_header', list.length));
                     list.forEach(function(entry) {
-                        logger.info('  ' + entry.name + ' | XUID: ' + entry.xuid + ' | 原因: ' + entry.reason);
+                        logger.info(t('ban.cmd_banlist_entry_short', entry.name, entry.xuid, entry.reason));
                     });
                 }
             }
         });
         banlistCmd.setup();
     } catch (error) {
-        logger.error('/banlist 游戏命令注册出错！错误：' + error);
+        logger.error(t('ban.err_cmd_register', 'banlist', error));
     }
 }
 
 /** Web API用封禁接口，默认操作者为"API" */
 function apiBan(identifier, reason, operator) {
-    return banPlayer(identifier, reason || 'API封禁', operator || 'API');
+    return banPlayer(identifier, reason || t('ban.default_reason_api'), operator || t('ban.default_operator_api'));
 }
 
 /** Web API用解封接口 */
