@@ -76,6 +76,29 @@ function createBankModule(deps) {
         return p.bankdata;
     }
 
+    /** 获取银行账户，若不存在则自动创建 */
+    function ensureBankAccount(player) {
+        let xuid = player.xuid;
+        let account = getPlayerBankAccount(xuid);
+        if (!account) {
+            // 玩家数据被删除但玩家仍在线，重建数据
+            if (!playerData.players[xuid]) {
+                playerData.players[xuid] = {};
+            }
+            playerData.players[xuid].bankdata = {
+                current: {
+                    balance: 0,
+                    lastInterestTime: U.getCurrentTimeString(),
+                    totalInterest: 0
+                },
+                fixed: []
+            };
+            savePlayerDataNow();
+            account = playerData.players[xuid].bankdata;
+        }
+        return account;
+    }
+
     /**
      * 将自定义时间字符串（年.月.日.时.分.秒）转换为时间戳
      * @param {string} timeStr - 格式 "2026.05.27.14.30.00"
@@ -142,11 +165,12 @@ function createBankModule(deps) {
      * 执行活期存取操作（正数存入，负数取出）
      * @param {object} player - 玩家对象
      * @param {number} amount - 操作金额（>0 存入，<0 取出）
-     * @returns {{ success: boolean, message: string }}
+     * @param {Function} [callback] - 操作完成后的回调 (result) => void，result: { success: boolean, message: string }
+     * @returns {{ success: boolean, message: string }|undefined} 同步结果，或undefined表示异步操作
      */
-    function performCurrentOperation(player, amount) {
+    function performCurrentOperation(player, amount, callback) {
         let xuid = player.xuid;
-        let account = getPlayerBankAccount(xuid);
+        let account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         let currency = getCurrencyName();
         calculateCurrentInterest(account);
@@ -154,42 +178,63 @@ function createBankModule(deps) {
         if (amount > 0) {
             let playerMoney = getPlayerMoney(player);
             if (playerMoney < amount) {
-                return { success: false, message: t(lang, 'bank.err_insufficient_balance', amount, currency, playerMoney) };
+                let result = { success: false, message: t(lang, 'bank.err_insufficient_balance', amount, currency, playerMoney) };
+                if (callback) { callback(result); return; }
+                return result;
             }
             if (confirmPurchase) {
                 confirmPurchase(player, amount, t(lang, 'bank.reason_deposit'), function(p) {
                     if (!reducePlayerMoney(p, amount, t(lang, 'bank.reason_deposit'))) {
-                        p.tell(t(lang, 'bank.err_deposit_failed'));
+                        let r = { success: false, message: t(lang, 'bank.err_deposit_failed') };
+                        if (callback) callback(r);
+                        else p.tell(r.message);
                         return;
                     }
                     account.current.balance += amount;
                     account.current.balance = Math.floor(account.current.balance);
                     savePlayerDataNow();
-                    p.tell(t(lang, 'bank.deposit_success', amount, currency, account.current.balance));
+                    let r = { success: true, message: t(lang, 'bank.deposit_success', amount, currency, account.current.balance) };
+                    if (callback) callback(r);
+                    else p.tell(r.message);
+                }, function(p) {
+                    // 取消回调
+                    if (callback) callback({ success: false, message: '' });
                 });
-                return { success: true, message: t(lang, 'bank.confirm_bill') };
+                return; // 异步操作，不返回同步结果
             }
             if (!reducePlayerMoney(player, amount, t(lang, 'bank.reason_deposit'))) {
-                return { success: false, message: t(lang, 'bank.err_deposit_failed') };
+                let result = { success: false, message: t(lang, 'bank.err_deposit_failed') };
+                if (callback) { callback(result); return; }
+                return result;
             }
             account.current.balance += amount;
             account.current.balance = Math.floor(account.current.balance);
             savePlayerDataNow();
-            return { success: true, message: t(lang, 'bank.deposit_success', amount, currency, account.current.balance) };
+            let result = { success: true, message: t(lang, 'bank.deposit_success', amount, currency, account.current.balance) };
+            if (callback) { callback(result); return; }
+            return result;
         } else if (amount < 0) {
             const withdrawAmount = Math.abs(amount);
             if (account.current.balance < withdrawAmount) {
-                return { success: false, message: t(lang, 'bank.err_bank_insufficient', withdrawAmount, currency, Math.floor(account.current.balance)) };
+                let result = { success: false, message: t(lang, 'bank.err_bank_insufficient', withdrawAmount, currency, Math.floor(account.current.balance)) };
+                if (callback) { callback(result); return; }
+                return result;
             }
             if (!addPlayerMoney(player, withdrawAmount, t(lang, 'bank.reason_withdraw'))) {
-                return { success: false, message: t(lang, 'bank.err_withdraw_failed') };
+                let result = { success: false, message: t(lang, 'bank.err_withdraw_failed') };
+                if (callback) { callback(result); return; }
+                return result;
             }
             account.current.balance -= withdrawAmount;
             account.current.balance = Math.floor(account.current.balance);
             savePlayerDataNow();
-            return { success: true, message: t(lang, 'bank.withdraw_success_msg', withdrawAmount, currency, account.current.balance) };
+            let result = { success: true, message: t(lang, 'bank.withdraw_success_msg', withdrawAmount, currency, account.current.balance) };
+            if (callback) { callback(result); return; }
+            return result;
         }
-        return { success: false, message: t(lang, 'bank.err_invalid_amount') };
+        let result = { success: false, message: t(lang, 'bank.err_invalid_amount') };
+        if (callback) { callback(result); return; }
+        return result;
     }
 
     /**
@@ -201,7 +246,7 @@ function createBankModule(deps) {
      */
     function depositFixed(player, amount, days) {
         let xuid = player.xuid;
-        let account = getPlayerBankAccount(xuid);
+        let account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         let currency = getCurrencyName();
         if (amount <= 0) return { success: false, message: t(lang, 'bank.err_invalid_deposit_amount') };
@@ -239,7 +284,7 @@ function createBankModule(deps) {
      */
     function withdrawFixed(player, depositId) {
         let xuid = player.xuid;
-        let account = getPlayerBankAccount(xuid);
+        let account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         let currency = getCurrencyName();
         let depositIndex = account.fixed.findIndex(function(d) { return d.id === depositId; });
@@ -271,7 +316,7 @@ function createBankModule(deps) {
     function checkFixedDepositMaturity(player, getPlayerSettingFn) {
         let xuid = player.xuid;
         if (!getPlayerSettingFn(xuid, "enableBankNotice")) return;
-        let account = getPlayerBankAccount(xuid);
+        let account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         account.fixed.forEach(function(deposit) {
             if (isFixedDepositMature(deposit)) {
@@ -284,7 +329,7 @@ function createBankModule(deps) {
     /** 显示银行主界面 */
     function showBankMainForm(player) {
         let xuid = player.xuid;
-        let account = getPlayerBankAccount(xuid);
+        let account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         let currency = getCurrencyName();
         calculateCurrentInterest(account);
@@ -313,10 +358,21 @@ function createBankModule(deps) {
         });
     }
 
+    /** 显示操作结果模式表单 */
+    function showOperationResultForm(player, result, returnFn) {
+        let lang = getLocale(player.xuid);
+        let title = result.success ? t(lang, 'bank.op_success_title') : t(lang, 'bank.op_failed_title');
+        player.sendModalForm(title, result.message || '', t(lang, 'bank.back'), t(lang, 'bank.close'), function(p, id) {
+            if (id === null || id === 1) return; // 关闭弹窗
+            if (returnFn) returnFn(p);
+            else showBankMainForm(p);
+        });
+    }
+
     /** 显示活期存取表单 */
     function showCurrentOperationForm(player) {
         let xuid = player.xuid;
-        let account = getPlayerBankAccount(xuid);
+        let account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         let currency = getCurrencyName();
         calculateCurrentInterest(account);
@@ -331,16 +387,19 @@ function createBankModule(deps) {
             let amountStr = (data[1] || "").trim();
             let amount = parseFloat(amountStr);
             if (isNaN(amount)) { p.tell(t(lang, 'bank.err_invalid_amount')); showCurrentOperationForm(p); return; }
-            let result = performCurrentOperation(p, amount);
-            p.tell("" + result.message);
-            p.sendModalForm(result.success ? t(lang, 'bank.op_success') : t(lang, 'bank.op_failed'), result.message, t(lang, 'bank.back'), t(lang, 'bank.cancel'), function(player) { showBankMainForm(player); });
+            let syncResult = performCurrentOperation(p, amount, function(result) {
+                showOperationResultForm(p, result);
+            });
+            if (syncResult !== undefined) {
+                showOperationResultForm(p, syncResult);
+            }
         });
     }
 
     /** 显示定期存款主界面 */
     function showFixedDepositMainForm(player) {
         let xuid = player.xuid;
-        let account = getPlayerBankAccount(xuid);
+        let account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         let currency = getCurrencyName();
         let gui = mc.newSimpleForm();
@@ -371,7 +430,7 @@ function createBankModule(deps) {
     /** 显示玩家所有定期存款列表 */
     function showFixedDepositDetailForm(player) {
         const xuid = player.xuid;
-        const account = getPlayerBankAccount(xuid);
+        const account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         if (account.fixed.length === 0) {
             player.sendModalForm(t(lang, 'bank.no_fixed'), t(lang, 'bank.no_fixed_msg'), t(lang, 'bank.back'), t(lang, 'bank.cancel'), function(player) { showFixedDepositMainForm(player); });
@@ -425,8 +484,7 @@ function createBankModule(deps) {
             if (id === 0) {
                 if (isMature) {
                     let result = withdrawFixed(p, deposit.id);
-                    p.tell("" + result.message);
-                    p.sendModalForm(t(lang, 'bank.withdraw_success'), result.message, t(lang, 'bank.back'), t(lang, 'bank.cancel'), function(player) { showFixedDepositMainForm(player); });
+                    showOperationResultForm(p, result, showFixedDepositMainForm);
                 } else {
                     p.sendModalForm(t(lang, 'bank.early_withdraw_warn'),
                         t(lang, 'bank.early_withdraw_msg', deposit.principal, currency, Math.floor(deposit.principal * 0.02), deposit.principal - Math.floor(deposit.principal * 0.02)),
@@ -434,8 +492,7 @@ function createBankModule(deps) {
                         function(player, res) {
                             if (res) {
                                 let result = withdrawFixed(player, deposit.id);
-                                player.tell("" + result.message);
-                                player.sendModalForm(t(lang, 'bank.withdraw_success'), result.message, t(lang, 'bank.back'), t(lang, 'bank.cancel'), function(player) { showFixedDepositMainForm(player); });
+                                showOperationResultForm(player, result, showFixedDepositMainForm);
                             } else {
                                 showSingleFixedDepositForm(player, deposit);
                             }
@@ -462,8 +519,7 @@ function createBankModule(deps) {
             if (isNaN(amount) || amount <= 0) { p.tell(t(lang, 'bank.err_invalid_deposit_amount')); showFixedDepositForm(p); return; }
             const days = [7, 30, 90][durationIndex];
             const result = depositFixed(p, amount, days);
-            p.tell("" + result.message);
-            p.sendModalForm(result.success ? t(lang, 'bank.op_success') : t(lang, 'bank.op_failed'), result.message, t(lang, 'bank.back'), t(lang, 'bank.cancel'), function(player) { showFixedDepositMainForm(player); });
+            showOperationResultForm(p, result, showFixedDepositMainForm);
         });
     }
 

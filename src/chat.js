@@ -466,14 +466,14 @@ function showCustomTitleForm(player) {
         "§a规则说明:\n" +
         "- 最多 §e" + maxChars + " 个字符（不含颜色代码）\n" +
         "- 每字 §e" + perCharCost + " " + currencyName + "\n" +
-        "- 支持颜色代码: §1§2§3§4§5§6§8§9§a§b§c§d§e§f\n" +
+        "- 支持颜色代码: §0黑色 §1深蓝色 §2深绿色 §3深青色 §4深红色 §5深紫色 §6金色 §8深灰色 §9蓝色 §a绿色 §b青色 §c红色 §d浅紫色 §e黄色 §f白色 §g金币色 §h石英色 §i铁色 §j下界合金色 §m红石色 §n铜色 §p金属金色 §q翡翠色 §s钻石色 §t青金石色 §u紫水晶色 §v树脂色\n" +
         "- 不得包含违禁词\n" +
         "- 不能与商店在售称号相同"
     );
     fm.addInput("称号内容", "输入称号，可用§加颜色代码", "");
 
     player.sendForm(fm, function(p, data) {
-        if (data === null) { showBuyTitleForm(p); return; }
+        if (data == null) { showBuyTitleForm(p); return; }
 
         var input = (data[1] || '').trim();
         if (!input) {
@@ -729,7 +729,7 @@ function registerChatListener() {
         if (!chatCfg.enabled) return true;
 
         if (isBadWord(msg)) {
-            pl.sendToast('§e消息拦截', '§f发送内容包含违规词语，已被系统过滤');
+            pl.sendToast('§e消息拦截', '§f发送内容包含违规词语，已被系统过滤，请不要说脏话哦！');
             return false;  // 阻止原始消息广播
         }
 

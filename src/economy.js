@@ -671,8 +671,7 @@ function confirmPurchase(player, cost, reason, onConfirm, onCancel) {
     fm.addButton("§a确认");
     fm.addButton("§c取消");
     player.sendForm(fm, function(p, id) {
-        if (id === null) return;
-        if (id === 1) {
+        if (id === null || id === 1) {
             if (onCancel) onCancel(p);
             return;
         }

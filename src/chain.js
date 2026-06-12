@@ -38,11 +38,11 @@ const _chainCooldowns = {};
 
 // 默认计划配置
 const DEFAULT_PLANS = {
-    free: { dailyLimit: 100, price: 0, duration: 0 },
-    lite: { dailyLimit: 500, price: 500, duration: 7 },
-    standard: { dailyLimit: 1000, price: 1000, duration: 7 },
-    pro: { dailyLimit: 2000, price: 1800, duration: 7 },
-    max: { dailyLimit: 5000, price: 3000, duration: 7 }
+    free: { dailyLimit: 1000, price: 0, duration: 0 },
+    lite: { dailyLimit: 2000, price: 7000, duration: 7 },
+    standard: { dailyLimit: 5000, price: 20000, duration: 7 },
+    pro: { dailyLimit: 8000, price: 25000, duration: 7 },
+    max: { dailyLimit: 50000, price: 500000, duration: 7 }
 };
 
 // 套餐名称格式
@@ -351,21 +351,32 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
 
     var content = '§a当前计划：' + planDisplayName + '\n';
     content += '§a今日用量：§f' + planData.dailyUsed + '/' + planInfo.dailyLimit + '\n';
-    content += '§a今日剩余：§f' + checkResult.remaining + '\n';
     content += '§a到期时间：§f' + expireDate.getFullYear() + '年' + (expireDate.getMonth() + 1) + '月' + expireDate.getDate() + '日\n';
     content += '§a剩余天数：§f' + remainingDays + ' 天\n';
     content += '\n§e§lBlock Plan 说明：\n';
-    content += '§r§7购买 Block Plan 可提升每日连锁方块上限\n\n';
+    content += '§r购买 Block Plan 可提升每日连锁方块上限\n\n';
 
-    var plans = ['free', 'lite', 'standard', 'pro', 'max'];
-    for (var i = 0; i < plans.length; i++) {
-        var pName = plans[i];
-        var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
-        var pDisplayName = getPlanDisplayName(pName);
-        content += pDisplayName + ' §7- ' + pInfo.dailyLimit + '/天';
-        if (pName === 'free') content += ' §e(默认)';
-        content += '\n';
-    }
+    var freeLimit = (planConfig.free || DEFAULT_PLANS.free).dailyLimit;
+    var liteLimit = (planConfig.lite || DEFAULT_PLANS.lite).dailyLimit;
+    var standardLimit = (planConfig.standard || DEFAULT_PLANS.standard).dailyLimit;
+    var proLimit = (planConfig.pro || DEFAULT_PLANS.pro).dailyLimit;
+    var maxLimit = (planConfig.max || DEFAULT_PLANS.max).dailyLimit;
+
+    var standardRatio = (standardLimit / liteLimit).toFixed(1);
+    var proRatio = (proLimit / liteLimit).toFixed(0);
+    var maxRatio = (maxLimit / liteLimit).toFixed(0);
+
+    var freeName = getPlanDisplayName('free');
+    var liteName = getPlanDisplayName('lite');
+    var standardName = getPlanDisplayName('standard');
+    var proName = getPlanDisplayName('pro');
+    var maxName = getPlanDisplayName('max');
+
+    content += freeName + ' 每日' + freeLimit + '的免费用量\n';
+    content += liteName + ' 每日' + liteLimit + '用量\n';
+    content += standardName + ' 每日' + standardRatio + '倍于' + liteName + '的用量\n';
+    content += proName + ' 每日' + proRatio + '倍于' + liteName + '的用量\n';
+    content += maxName + ' 每日' + maxRatio + '倍于' + liteName + '的用量\n';
 
     fm.setContent(content);
     fm.addButton('§a续费计划', "textures/ui/confirm");
@@ -499,7 +510,6 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
     var currentDisplayName = getPlanDisplayName(planData.plan || 'free');
     fm.addLabel('§a当前计划：' + currentDisplayName);
     fm.addLabel('§a今日用量：§f' + planData.dailyUsed + '/' + planInfo.dailyLimit);
-    fm.addLabel('§a今日剩余：§f' + checkResult.remaining);
 
     // 添加描述文本
     var freeLimit = (planConfig.free || DEFAULT_PLANS.free).dailyLimit;
@@ -514,13 +524,17 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
     var proName = getPlanDisplayName('pro');
     var maxName = getPlanDisplayName('max');
 
+    var standardRatio = (standardLimit / liteLimit).toFixed(1);
+    var proRatio = (proLimit / liteLimit).toFixed(0);
+    var maxRatio = (maxLimit / liteLimit).toFixed(0);
+
     fm.addLabel('§e§lBlock Plan 说明：\n' +
-        '§r§7购买 Block Plan 可提升每日连锁方块上限\n\n' +
-        freeName + ' §7- ' + freeLimit + '/天 §e(默认)\n' +
-        liteName + ' §7- ' + liteLimit + '/天\n' +
-        standardName + ' §7- ' + standardLimit + '/天\n' +
-        proName + ' §7- ' + proLimit + '/天\n' +
-        maxName + ' §7- ' + maxLimit + '/天');
+        '§r购买 Block Plan 可提升每日连锁方块上限\n\n' +
+        freeName + ' 每日' + freeLimit + '的免费用量\n' +
+        liteName + ' 每日' + liteLimit + '用量\n' +
+        standardName + ' 每日' + standardRatio + '倍于' + liteName + '的用量\n' +
+        proName + ' 每日' + proRatio + '倍于' + liteName + '的用量\n' +
+        maxName + ' 每日' + maxRatio + '倍于' + liteName + '的用量');
 
     // 下拉菜单选择计划
     var planOptions = [];
@@ -852,7 +866,6 @@ function showChainSettingsForm(player) {
 
     var content = '§a当前计划：' + planDisplayName + '\n';
     content += '§a今日用量：§f' + chainCheck.dailyUsed + '/' + chainCheck.dailyLimit + '\n';
-    content += '§a今日剩余：§f' + chainCheck.remaining + '\n';
     content += '-------------------------\n';
     fm.setContent(content);
 
@@ -883,7 +896,7 @@ function showChainConfigForm(player) {
     // 记录每个工具类型对应的方块ID列表
     var blockIdList = [];
     var toolTypes = ['pickaxe', 'axe', 'shovel', 'hoe'];
-    var toolNames = { pickaxe: '§7稿子', axe: '§7斧子', shovel: '§7铲子', hoe: '§7锄头' };
+    var toolNames = { pickaxe: '稿子', axe: '斧子', shovel: '铲子', hoe: '锄头' };
 
     for (var t = 0; t < toolTypes.length; t++) {
         var toolKey = toolTypes[t];
@@ -901,7 +914,7 @@ function showChainConfigForm(player) {
     }
 
     player.sendForm(fm, function(p, data) {
-        if (data === null || data === undefined) {
+        if (data == null) {
             showChainSettingsForm(p);
             return;
         }
