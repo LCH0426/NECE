@@ -24,6 +24,23 @@ function registerRoutes(router, d) {
 
     var database = d.database;
 
+    // 缓存配置读取（30秒有效）
+    var _configCache = null;
+    var _configCacheTime = 0;
+    function getGuildConfig() {
+        var now = Date.now();
+        if (!_configCache || now - _configCacheTime > 30000) {
+            try {
+                var cfgContent = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
+                _configCache = JSON.parse(cfgContent);
+                _configCacheTime = now;
+            } catch (e) {
+                _configCache = _configCache || {};
+            }
+        }
+        return _configCache;
+    }
+
     // ==================== 管理员接口 ====================
 
     // 获取所有公会列表
@@ -248,9 +265,8 @@ function registerRoutes(router, d) {
 
             var maxMembers = 20;
             try {
-                var cfgContent = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
-                var cfg = JSON.parse(cfgContent);
-                if (cfg.guild && cfg.guild.maxMembers) maxMembers = cfg.guild.maxMembers;
+                var guildCfg = getGuildConfig().guild;
+                if (guildCfg && guildCfg.maxMembers) maxMembers = guildCfg.maxMembers;
             } catch (e) {}
 
             var guildId = database.createGuild(name, description, xuid, maxMembers);
@@ -449,17 +465,19 @@ function registerRoutes(router, d) {
             }
 
             // 从玩家账户扣除
-            var balance = d.money.get(xuid) || 0;
+            var balance = d.economyFunctions ? d.economyFunctions.getPlayerMoneyByXuid(xuid) : (d.money.get(xuid) || 0);
             if (balance < amount) {
                 res.status(400).json({ code: 400, msg: '余额不足' });
                 return;
             }
 
             var playerName = d.getPlayerName ? d.getPlayerName(xuid) : xuid;
-            d.money.reduce(xuid, amount);
-            database.updateGuild(guild.id, { fund: guild.fund + amount });
-            // 写入经济日志
-            if (d.writeEconomyLog) d.writeEconomyLog({ action: 'reduce', player: playerName, xuid: xuid, amount: amount, balance: d.money.get(xuid) || 0, reason: 'Web存入公会资金' });
+            if (d.economyFunctions) {
+                d.economyFunctions.addPlayerMoneyByXuid(xuid, -amount, 'Web存入公会资金');
+            } else {
+                d.money.reduce(xuid, amount);
+            }
+            database.updateGuildFundAdd(guild.id, amount);
 
             res.json({ code: 200, msg: '存入成功', data: { newFund: guild.fund + amount } });
         } catch (e) {
@@ -483,9 +501,8 @@ function registerRoutes(router, d) {
             // 根据配置决定权限
             var withdrawAdminOnly = false;
             try {
-                var cfgContent = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
-                var cfg = JSON.parse(cfgContent);
-                if (cfg.guild && cfg.guild.withdrawAdminOnly) withdrawAdminOnly = cfg.guild.withdrawAdminOnly;
+                var guildCfg = getGuildConfig().guild;
+                if (guildCfg && guildCfg.withdrawAdminOnly) withdrawAdminOnly = guildCfg.withdrawAdminOnly;
             } catch (e) {}
 
             if (withdrawAdminOnly && !isOwner && !isAdmin) {
@@ -500,15 +517,16 @@ function registerRoutes(router, d) {
                 return;
             }
 
-            if (guild.fund < amount) {
+            if (!database.updateGuildFundReduce(guild.id, amount)) {
                 res.status(400).json({ code: 400, msg: '公会资金不足' });
                 return;
             }
 
-            database.updateGuild(guild.id, { fund: guild.fund - amount });
-            d.money.add(xuid, amount);
-            var playerName2 = d.getPlayerName ? d.getPlayerName(xuid) : xuid;
-            if (d.writeEconomyLog) d.writeEconomyLog({ action: 'add', player: playerName2, xuid: xuid, amount: amount, balance: d.money.get(xuid) || 0, reason: 'Web取出公会资金' });
+            if (d.economyFunctions) {
+                d.economyFunctions.addPlayerMoneyByXuid(xuid, amount, 'Web取出公会资金');
+            } else {
+                d.money.add(xuid, amount);
+            }
 
             res.json({ code: 200, msg: '取出成功', data: { newFund: guild.fund - amount } });
         } catch (e) {
@@ -600,9 +618,8 @@ function registerRoutes(router, d) {
             // 检查管理员数量限制
             var maxAdmins = 3;
             try {
-                var cfgContent = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
-                var cfg = JSON.parse(cfgContent);
-                if (cfg.guild && cfg.guild.maxAdmins) maxAdmins = cfg.guild.maxAdmins;
+                var guildCfg = getGuildConfig().guild;
+                if (guildCfg && guildCfg.maxAdmins) maxAdmins = guildCfg.maxAdmins;
             } catch (e) {}
 
             var adminCount = members.filter(function(m) { return m.role === 'admin'; }).length;
