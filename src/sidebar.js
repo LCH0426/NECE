@@ -94,9 +94,9 @@ function init(deps) {
  * 遍历所有在线玩家，根据各自的侧边栏开关决定显示内容
  */
 function startRenderLoop() {
-	const SIDEBAR_SETTING_KEYS = _deps.constants.SIDEBAR_SETTING_KEYS;
-	const SIDEBAR_CACHE_TTL = _deps.constants.SIDEBAR_CACHE_TTL;
-	const SIDEBAR_MONEY_CACHE_TTL = _deps.constants.SIDEBAR_MONEY_CACHE_TTL;
+	const SIDEBAR_SETTING_KEYS = ['enableActionbarPing', 'enableActionbarMoney', 'enableActionbarTime', 'enableActionbarTps', 'enableActionbarSpeed', 'enableActionbarBiome'];
+	const SIDEBAR_CACHE_TTL = 5000;
+	const SIDEBAR_MONEY_CACHE_TTL = 3000;
 
 	setInterval(function() {
 		const onlinePlayers = mc.getOnlinePlayers();

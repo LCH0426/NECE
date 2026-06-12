@@ -21,7 +21,6 @@ const database = require('./src/database');
 const debugModule = require('./src/debug');
 const webServer = require('./src/server');
 const behaviorLog = require('./src/behaviorLog');
-const C = require('./src/constants');
 const U = require('./src/utils');
 const shopModule = require('./src/shop');
 const teleportModule = require('./src/teleport');
@@ -58,21 +57,21 @@ const PLUGIN_AUTHOR = "LCH0426";
 ll.registerPlugin(PLUGIN_NAME, DESIGNATION_NAME, [1, 9, 9], { Author: PLUGIN_AUTHOR });
 
 // ============ 全局路径常量 ============
-const CONFIG_PATH = C.PATHS.CONFIG;
-const SHOP_DATA_PATH = C.PATHS.SHOP_DATA;
-const CDK_DATA_PATH = C.PATHS.CDK_DATA;
-const RECYCLE_DATA_PATH = C.PATHS.RECYCLE_DATA;
-const RECYCLE_LOG_DIR = C.PATHS.RECYCLE_LOG_DIR;
-const MESSAGEBOARD_DATA_PATH = C.PATHS.MESSAGEBOARD_DATA;
-const WISH_DATA_PATH = C.PATHS.WISH_DATA;
-const ENCHANT_BOOK_SHOP_PATH = C.PATHS.ENCHANT_BOOK_SHOP;
-const SPAWN_EGG_SHOP_PATH = C.PATHS.SPAWN_EGG_SHOP;
-const BAN_DATA_PATH = C.PATHS.BAN_DATA;
-const MAIL_DATA_PATH = C.PATHS.MAIL_DATA;
-const NAR_CONFIG_PATH = C.PATHS.NAR_CONFIG;
-const ITEMS_DATA_PATH = C.PATHS.ITEMS_DATA;
-const WARPS_DATA_PATH = C.PATHS.WARPS_DATA;
-const BAD_WORDS_PATH = C.PATHS.BAD_WORDS;
+const CONFIG_PATH = "plugins/NECE/config.json";
+const SHOP_DATA_PATH = "plugins/NECE/data/shopdata.json";
+const CDK_DATA_PATH = "plugins/NECE/data/cdkdata.json";
+const RECYCLE_DATA_PATH = "plugins/NECE/data/Recycleitems.json";
+const RECYCLE_LOG_DIR = "plugins/NECE/logs/rc";
+const MESSAGEBOARD_DATA_PATH = "plugins/NECE/data/MessageBoardData.json";
+const WISH_DATA_PATH = "plugins/NECE/data/WishData.json";
+const ENCHANT_BOOK_SHOP_PATH = "plugins/NECE/data/EnchantBookShop.json";
+const SPAWN_EGG_SHOP_PATH = "plugins/NECE/data/SpawnEggShop.json";
+const BAN_DATA_PATH = "plugins/NECE/data/BanData.json";
+const MAIL_DATA_PATH = "plugins/NECE/data/MailData.json";
+const NAR_CONFIG_PATH = "plugins/NECE/data/NARConfig.json";
+const ITEMS_DATA_PATH = "plugins/NECE/data/items.json";
+const WARPS_DATA_PATH = "plugins/NECE/data/warps.json";
+const BAD_WORDS_PATH = "./plugins/NECE/data/fuckbad.json";
 
 // ============ 全局运行时状态 ============
 let config;                                            // 主配置（JsonConfigFileAdapter）
@@ -390,12 +389,20 @@ function registerDataManager(name, path, defaultData, options) {
 
 // ============ 配置与数据初始化 ============
 
-/** 根据LEVEL_EXP_STEPS累加生成等级经验表 */
+/** 根据每级经验阶梯累加生成等级经验表 */
+const LEVEL_EXP_STEPS = [
+	375, 500, 625, 725, 850, 950, 1075, 1200, 1300, 1425,
+	1525, 1650, 1775, 1875, 2000, 2375, 2500, 2625, 2775, 2825,
+	3425, 3725, 4000, 4300, 4575, 4875, 5150, 5450, 5725, 6025,
+	6300, 6600, 6900, 7175, 7475, 7750, 8050, 9050, 10550, 11525,
+	12450, 13450, 14400, 15350, 16325, 17275, 18250, 19200, 26400, 28800,
+	31200, 33600, 36000, 232350, 258950, 285750, 312825, 340125
+];
 function initLevelExpTable() {
 	levelUpExp[0] = 0;
 	let total = 0;
-	for (let i = 0; i < C.LEVEL_EXP_STEPS.length; i++) {
-		total += C.LEVEL_EXP_STEPS[i];
+	for (let i = 0; i < LEVEL_EXP_STEPS.length; i++) {
+		total += LEVEL_EXP_STEPS[i];
 		levelUpExp[i + 1] = total;
 	}
 }
@@ -754,8 +761,8 @@ function _migrateOldConfigKeys() {
 	}
 }
 
-const IPV4_MESSAGE = C.IPV4_MESSAGE;
-const IPV6_MESSAGE = C.IPV6_MESSAGE;
+const IPV4_MESSAGE = "§a本服务器已接入IPv6网络，访问 §rhttps://citlalia.cn/v6 §a来了解如何启用";
+const IPV6_MESSAGE = "§a您正在使用IPv6网络访问本服务器";
 
 /** 初始化玩家核心数据：优先从SQL加载，否则从JSON文件加载 */
 function initPlayerData() {
@@ -842,7 +849,29 @@ const homesDM = registerDataManager('homes', '', {}, {
 });
 const warpsDM = registerDataManager('warps', WARPS_DATA_PATH, {});
 
-const DEFAULT_ENCHANT_BOOK_CONFIG = C.DEFAULT_ENCHANT_BOOK_CONFIG;
+const DEFAULT_ENCHANT_BOOK_CONFIG = { enchantments: {
+	"0": { name: "保护", max_lv: 4, cost_per_level: 100 }, "1": { name: "火焰保护", max_lv: 4, cost_per_level: 150 },
+	"2": { name: "摔落缓冲", max_lv: 4, cost_per_level: 100 }, "3": { name: "爆炸保护", max_lv: 4, cost_per_level: 150 },
+	"4": { name: "弹射物保护", max_lv: 4, cost_per_level: 150 }, "5": { name: "荆棘", max_lv: 3, cost_per_level: 200 },
+	"6": { name: "水下呼吸", max_lv: 3, cost_per_level: 200 }, "7": { name: "深海探索者", max_lv: 3, cost_per_level: 200 },
+	"8": { name: "水下速掘", max_lv: 3, cost_per_level: 200 }, "9": { name: "锋利", max_lv: 5, cost_per_level: 250 },
+	"10": { name: "亡灵杀手", max_lv: 5, cost_per_level: 300 }, "11": { name: "节肢杀手", max_lv: 5, cost_per_level: 250 },
+	"12": { name: "击退", max_lv: 2, cost_per_level: 150 }, "13": { name: "火焰附加", max_lv: 2, cost_per_level: 200 },
+	"14": { name: "抢夺", max_lv: 3, cost_per_level: 200 }, "15": { name: "效率", max_lv: 5, cost_per_level: 200 },
+	"16": { name: "精准采集", max_lv: 1, cost_per_level: 500 }, "17": { name: "耐久", max_lv: 3, cost_per_level: 150 },
+	"18": { name: "时运", max_lv: 3, cost_per_level: 300 }, "19": { name: "力量", max_lv: 5, cost_per_level: 250 },
+	"20": { name: "冲击", max_lv: 2, cost_per_level: 200 }, "21": { name: "火矢", max_lv: 1, cost_per_level: 400 },
+	"22": { name: "无限", max_lv: 1, cost_per_level: 1000 }, "23": { name: "海之眷顾", max_lv: 3, cost_per_level: 300 },
+	"24": { name: "饵钓", max_lv: 3, cost_per_level: 200 }, "25": { name: "冰霜行者", max_lv: 2, cost_per_level: 400 },
+	"26": { name: "经验修补", max_lv: 1, cost_per_level: 800 }, "27": { name: "绑定诅咒", max_lv: 1, cost_per_level: 800 },
+	"28": { name: "消失诅咒", max_lv: 1, cost_per_level: 800 }, "29": { name: "穿刺", max_lv: 5, cost_per_level: 250 },
+	"30": { name: "激流", max_lv: 3, cost_per_level: 200 }, "31": { name: "忠诚", max_lv: 3, cost_per_level: 200 },
+	"32": { name: "引雷", max_lv: 1, cost_per_level: 1000 }, "33": { name: "多重射击", max_lv: 3, cost_per_level: 300 },
+	"34": { name: "穿透", max_lv: 4, cost_per_level: 200 }, "35": { name: "快速装填", max_lv: 3, cost_per_level: 200 },
+	"36": { name: "灵魂疾行", max_lv: 3, cost_per_level: 300 }, "37": { name: "迅捷潜行", max_lv: 3, cost_per_level: 200 },
+	"38": { name: "风爆", max_lv: 3, cost_per_level: 300 }, "39": { name: "致密", max_lv: 3, cost_per_level: 300 },
+	"40": { name: "破甲", max_lv: 3, cost_per_level: 300 }, "41": { name: "突进", max_lv: 3, cost_per_level: 300 }
+}};
 const enchantBookShopDM = registerDataManager('enchantBookShop', ENCHANT_BOOK_SHOP_PATH, DEFAULT_ENCHANT_BOOK_CONFIG);
 const spawnEggShopDM = registerDataManager('spawnEggShop', SPAWN_EGG_SHOP_PATH, spawnEggShopConfig);
 
@@ -881,7 +910,7 @@ async function initAllConfigs() {
 		loadLocale: i18n.loadLocale,
 		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
-	playerDataModule.init({ database: database, config: config, constants: C, fs: fs, itemsDataPath: ITEMS_DATA_PATH,
+	playerDataModule.init({ database: database, config: config, fs: fs, itemsDataPath: ITEMS_DATA_PATH,
 		getPlayerData: function() { return playerData; },
 		getPlayerSettings: function() { return playerSettings; },
 		savePlayerSettings: function() { playerSettingsDM.save(true); }
@@ -1053,7 +1082,6 @@ async function initAllConfigs() {
 			openMainMenu: personalCenter.openMainMenu,
 			vipModule: vipModule,
 			showPersonalCenterForm: personalCenter.showPersonalCenterForm,
-			constants: C,
 			getPlayerData: function() { return playerData; },
 			getPlayerSetting: getPlayerSetting
 		});
@@ -1262,7 +1290,7 @@ mc.listen("onJoin", (player) => {
 	// Debug 模式弹窗
 	if (_debugMode) {
 		try {
-			const debugDismissedPath = C.PATHS.DEBUG_DISMISSED;
+			const debugDismissedPath = "plugins/NECE/data/debug_dismissed.json";
 			let dismissed = {};
 			try { dismissed = JSON.parse(fs.readFileSync(debugDismissedPath, 'utf-8')); } catch (e) {}
 			if (!dismissed[playerXUID]) {
@@ -1585,7 +1613,7 @@ mc.listen("onServerStarted", async () => {
 	}
 	banModule.registerConsoleCommands();
 	banModule.registerGameCommands();
-	sidebarModule.init({ constants: C, config: config, money: money, getCurrencyName: getCurrencyName, getPlayerSetting: getPlayerSetting, tpsData: tpsData });
+	sidebarModule.init({ config: config, money: money, getCurrencyName: getCurrencyName, getPlayerSetting: getPlayerSetting, tpsData: tpsData });
 	menuModule.registerCommands(registerPlayerCommand);
 	menuModule.registerCompassListener();
 	menuModule.registerClockListener();
