@@ -170,6 +170,30 @@ function rmrf(dirPath) {
     fs.rmdirSync(dirPath);
 }
 
+/**
+ * 安全传送玩家到指定坐标
+ * 优先使用 API 传送，失败时回退到 /tp 命令
+ * @param {Player} player - 玩家对象
+ * @param {number} x - X坐标
+ * @param {number} y - Y坐标
+ * @param {number} z - Z坐标
+ * @param {number} dim - 维度ID
+ * @returns {boolean} 是否成功
+ */
+function safeTeleport(player, x, y, z, dim) {
+    try {
+        player.teleport(new FloatPos(x, y, z, dim));
+        return true;
+    } catch (e) {
+        try {
+            player.runcmd('tp ' + x + ' ' + y + ' ' + z);
+            return true;
+        } catch (e2) {
+            return false;
+        }
+    }
+}
+
 module.exports = {
     ensureDir,
     formatTime,
@@ -180,5 +204,6 @@ module.exports = {
     getNetworkType,
     cleanFormatting,
     copyDirSync,
-    rmrf
+    rmrf,
+    safeTeleport
 };
