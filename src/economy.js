@@ -712,7 +712,11 @@ function readEconomyLog(playerName, page, pageSize) {
                 });
             } catch (e) {}
         });
-        allLogs.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
+        allLogs.sort(function(a, b) {
+            var ta = Date.parse(a.time) || 0;
+            var tb = Date.parse(b.time) || 0;
+            return tb - ta;
+        });
         var total = allLogs.length;
         var totalPages = Math.ceil(total / pageSize) || 1;
         var start = (page - 1) * pageSize;

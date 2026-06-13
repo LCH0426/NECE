@@ -72,13 +72,15 @@ function sqlEscape(val) {
 function run(session, sql, params) {
     if (!session) return null;
     try {
+        var finalSql;
         if (params && params.length > 0) {
             var idx = 0;
-            var finalSql = sql.replace(/\?/g, function() { return sqlEscape(params[idx++]); });
-            session.exec(finalSql);
+            finalSql = sql.replace(/\?/g, function() { return sqlEscape(params[idx++]); });
         } else {
-            session.exec(sql);
+            finalSql = sql;
         }
+        if (_debug) dbDebugLog('run:', finalSql.substring(0, 200));
+        session.exec(finalSql);
         return {};
     } catch (e) {
         logger.error('[DB] SQL执行失败: ' + e.message + ' | SQL: ' + sql.substring(0, 100));
@@ -104,6 +106,7 @@ function query(session, sql, params) {
             var row = stmt.fetch();
             if (row) results.push(row);
         } while (stmt.step());
+        if (_debug) dbDebugLog('query:', sql.substring(0, 100), '→', results.length, 'rows');
         return results;
     } catch (e) {
         logger.error('[DB] SQL查询失败: ' + e.message + ' | SQL: ' + sql.substring(0, 100));
