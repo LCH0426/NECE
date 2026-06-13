@@ -159,7 +159,7 @@ function startRenderLoop() {
 					// 全量更新：重建余额、延迟、TPS、速度、群系等数据
 					if (isFullUpdate || !_sidebarDataCache[xuid]) {
 						const sidebarData = {};
-						let sidebarScore = 100;
+						let sidebarScore = 0;
 						const compactLines = [];
 
 						// 余额行
@@ -168,7 +168,7 @@ function startRenderLoop() {
 								_sidebarMoneyCache[xuid] = _deps.money.get(xuid) || 0;
 							}
 							const moneyLine = "§6§c" + _deps.getCurrencyName() + "§r: " + _sidebarMoneyCache[xuid];
-							if (isCompact) { compactLines.push(moneyLine); } else { sidebarData[moneyLine] = sidebarScore--; }
+							if (isCompact) { compactLines.push(moneyLine); } else { sidebarData[moneyLine] = sidebarScore++; }
 						}
 
 						// 延迟行
@@ -187,7 +187,7 @@ function startRenderLoop() {
 							} else {
 								pingLine = "§e延迟: N/A";
 							}
-							if (isCompact) { compactLines.push(pingLine); } else { sidebarData[pingLine] = sidebarScore--; }
+							if (isCompact) { compactLines.push(pingLine); } else { sidebarData[pingLine] = sidebarScore++; }
 						}
 
 						// TPS行
@@ -196,7 +196,7 @@ function startRenderLoop() {
 							const tps = parseFloat(tpsData['tps']);
 							const tpsColor = tps <= 12 ? "§c" : tps <= 17 ? "§e" : "§a";
 							const tpsLine = "§6TPS:" + tpsColor + tpsData['tps'];
-							if (isCompact) { compactLines.push(tpsLine); } else { sidebarData[tpsLine] = sidebarScore--; }
+							if (isCompact) { compactLines.push(tpsLine); } else { sidebarData[tpsLine] = sidebarScore++; }
 						}
 
 						// 移动速度行
@@ -213,7 +213,7 @@ function startRenderLoop() {
 							} catch (error) {
 								speedLine = "§e速度: N/A";
 							}
-							if (isCompact) { compactLines.push(speedLine); } else { sidebarData[speedLine] = sidebarScore--; }
+							if (isCompact) { compactLines.push(speedLine); } else { sidebarData[speedLine] = sidebarScore++; }
 						}
 
 						// 生物群系行
@@ -237,7 +237,7 @@ function startRenderLoop() {
 							} catch (error) {
 								biomeLine = "§e生物群系: N/A";
 							}
-							if (isCompact) { compactLines.push(biomeLine); } else { sidebarData[biomeLine] = sidebarScore--; }
+							if (isCompact) { compactLines.push(biomeLine); } else { sidebarData[biomeLine] = sidebarScore++; }
 						}
 
 						_sidebarDataCache[xuid] = { sidebarData: sidebarData, compactLines: compactLines, isCompact: isCompact };
