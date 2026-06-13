@@ -103,6 +103,7 @@
     "btn_view_mail": "§a我的邮件",
     "btn_send_global": "§b发送全体邮件",
     "btn_send_single": "§e发送个人邮件",
+    "btn_send_mail": "§e发送邮件",
     "btn_manage_scheduled": "§6定时邮件管理",
     "btn_claim_attach": "§a领取附件",
     "btn_back_system": "§a返回邮件系统",
