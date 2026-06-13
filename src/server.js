@@ -387,8 +387,8 @@ function createApp(webConfig) {
     });
 
     if (webConfig.enableFrontend !== false) {
-        app.use(express.static(WEB_DIR));
-        app.get(/^\/(?!api).*/, (req, res) => {
+        app.use(globalApiLimiter, express.static(WEB_DIR));
+        app.get(/^\/(?!api).*/, globalApiLimiter, function(req, res) {
             res.sendFile(pathModule.join(WEB_DIR, 'index.html'));
         });
     }

@@ -143,7 +143,7 @@ function registerRoutes(router, d) {
     });
 
     // 退出登录：将Access Token加入黑名单，撤销Refresh Token，清除Cookie
-    router.post('/auth/logout', function(req, res) {
+    router.post('/auth/logout', d.refreshLimiter, function(req, res) {
         const authHeader = req.headers['authorization'];
         const cookies = d.parseCookies(req);
         const accessToken = (authHeader && authHeader.split(' ')[1]) || cookies.auth_token || null;

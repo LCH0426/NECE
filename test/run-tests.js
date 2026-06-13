@@ -5,7 +5,7 @@
 
 const path = require('path');
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 console.log('NECE 测试套件');
 console.log('='.repeat(60));
@@ -69,7 +69,7 @@ nodeTestFiles.forEach(function(file) {
     }
     try {
         // --test-timeout 防止单个测试挂起；execSync timeout 防止 setInterval 导致进程不退出
-        var result = execSync('node --test --test-timeout=5000 --test-concurrency=1 ' + testPath, {
+        var result = execFileSync('node', ['--test', '--test-timeout=5000', '--test-concurrency=1', testPath], {
             timeout: 12000,
             encoding: 'utf-8',
             cwd: path.join(__dirname, '..'),
