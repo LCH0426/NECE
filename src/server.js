@@ -105,6 +105,8 @@ const backupDownloadLimiter = createRateLimiter(60000, 5);
 const globalApiLimiter = createRateLimiter(60000, 300);
 // 配置修改限流：每IP每分钟最多10次
 const configLimiter = createRateLimiter(60000, 10);
+// 写操作限流：每IP每分钟最多30次
+const writeLimiter = createRateLimiter(60000, 30);
 
 /** 定期清理过期的限流记录，防止内存泄漏 */
 function startRateLimitCleanup() {
@@ -546,7 +548,7 @@ function createV1Routes(webConfig) {
         mc: mc, money: money,
         economyFunctions: _economyFunctions,
         getErrorMessage: getErrorMessage,
-        loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter,
+        loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter, writeLimiter,
         hasWish: _hasWish
     };
 
