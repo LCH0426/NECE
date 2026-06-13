@@ -21,18 +21,15 @@
  * 采用黑名单模式，提醒和完成消息使用 tell 发送
  */
 
-var _config = null;
 var _mainTimer = null;
 var _reminderTimer = null;
 var _deps = {};
 
 /**
  * 初始化实体清理模块
- * @param {object} config - 配置对象，需提供 get 方法
- * @param {object} deps - 依赖对象
+ * @param {object} deps - 依赖对象（含 getConfig）
  */
-function init(config, deps) {
-    _config = config;
+function init(deps) {
     _deps = deps || {};
 }
 
@@ -65,8 +62,7 @@ function t(key) {
  * @returns {object} 配置对象
  */
 function getClearLagConfig() {
-    if (!_config) return null;
-    return _config.get('clearLag', null);
+    return _deps.getConfig ? _deps.getConfig() : null;
 }
 
 /**

@@ -28,6 +28,7 @@ const teleportPendingRequests = {};
 // 传送冷却记录，key为 xuid_type，value为冷却截止时间戳
 const teleportCooldowns = {};
 
+let _deps = {};
 let tpsConfig = {};       // 传送系统配置（从config.json加载并补全默认值）
 let homesData = {};       // 家园数据 { xuid: [{ name, x, y, z, dim, sharedWith, ... }] }
 let warpsData = {};       // 公共地标数据 { name: { x, y, z, dim, cost, ... } }
@@ -110,16 +111,14 @@ function saveWarpsData() {
  * @param {DataManager} _warpsDM - 地标数据管理器
  * @param {object} deps - 依赖对象
  */
-function init(config, _homesDM, _warpsDM, deps) {
+function init(_homesDM, _warpsDM, deps) {
 	D.debugLogModule('teleport')('init: 初始化完成');
+	_deps = deps || {};
 	homesDM = _homesDM;
 	warpsDM = _warpsDM;
 
-	// 从配置读取传送设置，缺失字段使用默认值
-	let tpCfg = config.get('teleport');
-	if (!tpCfg || typeof tpCfg === 'string') {
-		tpCfg = {};
-	}
+	// 从配置读取传送设置，config.init 已在 index.js 中设置默认值
+	let tpCfg = _deps.getConfig ? _deps.getConfig() : {};
 	tpsConfig = {
 		enabled: tpCfg.enabled !== undefined ? tpCfg.enabled : true,
 		enableHome: tpCfg.enableHome !== undefined ? tpCfg.enableHome : true,
@@ -190,7 +189,7 @@ function showTpgMainMenu(player, deps) {
 
 	// 通过累计 btnIndex 将表单按钮ID映射到实际功能，跳过被禁用的功能
 	player.sendForm(fm, function(p, id) {
-		if (id === null) return;
+		if (id == null) return;
 		let btnIndex = 0;
 		if (tpsConfig.enableHome) {
 			if (btnIndex === id) { showHomeMainForm(p, deps); return; }
@@ -334,7 +333,7 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 	fm.addButton("§c拒绝", "textures/ui/cancel");
 
 	toPlayer.sendForm(fm, function(p, id) {
-		if (id === null) {
+		if (id == null) {
 			delete teleportPendingRequests[reqId];
 			fromPlayer.tell("§e[传送] §c" + p.name + " 忽略了你的传送请求");
 			return;
@@ -455,7 +454,7 @@ function showTpaPendingRequests(player, deps) {
 	});
 
 	player.sendForm(fm, function(p, id) {
-		if (id === null) return;
+		if (id == null) return;
 		const item = pending[id];
 		if (!item) return;
 
@@ -468,7 +467,7 @@ function showTpaPendingRequests(player, deps) {
 		subFm.addButton("§c拒绝", "textures/ui/cancel");
 
 		p.sendForm(subFm, function(p2, btnId) {
-			if (btnId === null) return;
+			if (btnId == null) return;
 			if (btnId === 0) {
 				acceptTpaRequest(item.id, p2, deps);
 			} else {
@@ -594,7 +593,7 @@ function showHomeMainForm(player, deps) {
 	const sharedHomeCount = sharedHomes.length;
 
 	player.sendForm(fm, function(p, id) {
-		if (id === null) return;
+		if (id == null) return;
 		if (id === ownHomeCount + sharedHomeCount) {
 			showHomeSetForm(p, deps);
 		} else if (id === ownHomeCount + sharedHomeCount + 1) {
@@ -713,7 +712,7 @@ function showHomeDetailForm(player, home, homeIndex, deps) {
 	fm.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
-		if (id === null) return;
+		if (id == null) return;
 		switch (id) {
 			case 0: teleportToHome(p, home); break;
 			case 1: showHomeShareForm(p, home, homeIndex, deps); break;
@@ -770,7 +769,7 @@ function showHomeShareForm(player, home, homeIndex, deps) {
 	fm.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
-		if (id === null) return;
+		if (id == null) return;
 
 		if (id === 0) {
 			showHomeShareAddForm(p, home, homeIndex, deps);
@@ -853,7 +852,7 @@ function showHomeDeleteConfirm(player, home, homeIndex, deps) {
 	fm.addButton("§a取消", "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
-		if (id === null) return;
+		if (id == null) return;
 		if (id === 1) {
 			showHomeDetailForm(p, home, homeIndex, deps);
 			return;
@@ -900,7 +899,7 @@ function showWarpMainForm(player, deps) {
 	}
 
 	player.sendForm(fm, function(p, id) {
-		if (id === null) return;
+		if (id == null) return;
 		if (id < warpNames.length) {
 			const warpName = warpNames[id];
 			teleportToWarp(p, warpName, deps);
@@ -959,7 +958,7 @@ function showWarpAdminForm(player, deps) {
 	fm.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
-		if (id === null) return;
+		if (id == null) return;
 		switch (id) {
 			case 0: showWarpAddForm(p, deps); break;
 			case 1: showWarpDeleteForm(p, deps); break;
@@ -1034,7 +1033,7 @@ function showWarpDeleteForm(player, deps) {
 	});
 
 	player.sendForm(fm, function(p, id) {
-		if (id === null) return;
+		if (id == null) return;
 
 		const name = warpNames[id];
 		if (name && warpsData[name]) {
@@ -1217,7 +1216,7 @@ function showDeathPointMenu(player) {
 	menuForm.addButton("§c关闭", "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(menuForm, function(p, buttonIndex) {
-		if (buttonIndex === null || buttonIndex === undefined) return;
+		if (buttonIndex == null) return;
 
 		if (buttonIndex === deathPoints.length) {
 			return;
