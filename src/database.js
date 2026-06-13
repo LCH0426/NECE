@@ -104,7 +104,8 @@ function query(session, sql, params) {
         var results = [];
         do {
             var row = stmt.fetch();
-            if (row) results.push(row);
+            // LLSE 的 fetch() 在无结果时可能返回空对象 {}，需检查是否有实际数据
+            if (row && Object.keys(row).length > 0) results.push(row);
         } while (stmt.step());
         if (_debug) dbDebugLog('query:', sql.substring(0, 100), '→', results.length, 'rows');
         return results;
