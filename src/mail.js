@@ -41,6 +41,16 @@ function init(dm, deps) {
     mailData = mailDM.load();
     if (!mailData.mails) mailData.mails = [];
     if (!mailData.nextId) mailData.nextId = 1;
+
+    // 迁移旧数据：read/claimed 从布尔值统一为对象格式
+    var migrated = false;
+    mailData.mails.forEach(function(m) {
+        if (m.read === false) { m.read = {}; migrated = true; }
+        if (m.read === true) { m.read = {}; m.read[m.toXuid] = true; migrated = true; }
+        if (m.claimed === false) { m.claimed = {}; migrated = true; }
+        if (m.claimed === true) { m.claimed = {}; m.claimed[m.toXuid] = true; migrated = true; }
+    });
+    if (migrated) save();
 }
 
 /** 获取邮件原始数据 */
@@ -148,12 +158,7 @@ function getUnreadMailCount(xuid) {
     if (!mailData || !mailData.mails) return 0;
     return mailData.mails.filter(function(m) {
         if (m.scheduledTime) return false;  // 跳过尚未激活的定时邮件
-        if (m.toXuid === xuid) {
-            return !m.read;
-        } else if (m.toXuid === "all") {
-            return !m.read || !m.read[xuid];
-        }
-        return false;
+        return !m.read || !m.read[xuid];
     }).length;
 }
 
@@ -166,12 +171,7 @@ function getUnreadMailInfo(xuid) {
     if (!mailData || !mailData.mails) return { count: 0, attachmentCount: 0, normalCount: 0 };
     const myMails = mailData.mails.filter(function(m) {
         if (m.scheduledTime) return false;
-        if (m.toXuid === xuid) {
-            return !m.read;
-        } else if (m.toXuid === "all") {
-            return !m.read || !m.read[xuid];
-        }
-        return false;
+        return !m.read || !m.read[xuid];
     });
     // 区分含附件和普通邮件
     const attachmentMails = myMails.filter(function(m) { return (m.starQian && m.starQian > 0) || (m.items && m.items.length > 0); });
@@ -376,7 +376,7 @@ function showMailSystemForm(player) {
     gui.addButton(t(lang, 'mail.btn_send_global'), "textures/ui/icon_book_writable");
     gui.addButton(t(lang, 'mail.btn_send_single'), "textures/ui/icon_book_writable");
     gui.addButton(t(lang, 'mail.btn_manage_scheduled'), "textures/ui/icon_setting");
-    gui.addButton(t(lang, 'mail.btn_close'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'mail.btn_close'), "textures/ui/cancel");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -429,16 +429,7 @@ function showMailListForm(player, page) {
     } else {
         gui.setContent(t(lang, 'mail.mail_count', myMails.length) + "\n" + t(lang, 'mail.current_page', currentPage + 1, totalPages));
         pageMails.forEach(function(mail) {
-            let isUnread = false;
-            if (mail.toXuid === "all") {
-                if (!mail.read || !mail.read[xuid]) {
-                    isUnread = true;
-                }
-            } else {
-                if (!mail.read) {
-                    isUnread = true;
-                }
-            }
+            let isUnread = !mail.read || !mail.read[xuid];
             const type = mail.toXuid === "all" ? t(lang, 'mail.type_global') : "";
             const icon = isUnread ? "textures/ui/invite_base" : "textures/ui/New_confirm_Hover";
             gui.addButton(t(lang, 'mail.mail_item', type, mail.fromName, mail.time), icon);
@@ -495,13 +486,9 @@ function showMailDetailForm(player, mail) {
     const xuid = player.xuid;
     const lang = getLocale(xuid);
 
-    // 标记已读：群发邮件用对象按 xuid 索引，私信直接布尔值
-    if (mail.toXuid === "all") {
-        if (!mail.read) mail.read = {};
-        mail.read[xuid] = true;
-    } else {
-        mail.read = true;
-    }
+    // 标记已读
+    if (!mail.read) mail.read = {};
+    mail.read[xuid] = true;
     save();
 
     const gui = mc.newSimpleForm();
@@ -517,12 +504,7 @@ function showMailDetailForm(player, mail) {
     const hasAttachment = (mail.starQian && mail.starQian > 0) || (mail.items && mail.items.length > 0);
 
     // 判断当前玩家是否已领取附件
-    let isClaimed = false;
-    if (mail.toXuid === "all") {
-        isClaimed = mail.claimed && mail.claimed[xuid];
-    } else {
-        isClaimed = mail.claimed;
-    }
+    let isClaimed = mail.claimed && mail.claimed[xuid];
 
     if (hasAttachment) {
         content += t(lang, 'mail.detail_attach_content');
@@ -592,12 +574,7 @@ function claimMailAttachments(player, mail) {
     const lang = getLocale(xuid);
 
     // 检查是否已领取
-    let isClaimed = false;
-    if (mail.toXuid === "all") {
-        isClaimed = mail.claimed && mail.claimed[xuid];
-    } else {
-        isClaimed = mail.claimed;
-    }
+    let isClaimed = mail.claimed && mail.claimed[xuid];
 
     if (isClaimed) {
         player.tell(t(lang, 'mail.err_already_claimed'));
@@ -697,12 +674,8 @@ function claimMailAttachments(player, mail) {
     }
 
     // 标记已领取
-    if (mail.toXuid === "all") {
-        if (!mail.claimed) mail.claimed = {};
-        mail.claimed[xuid] = true;
-    } else {
-        mail.claimed = true;
-    }
+    if (!mail.claimed) mail.claimed = {};
+    mail.claimed[xuid] = true;
     save();
 
     player.tell(t(lang, 'mail.claim_success'));
@@ -1129,10 +1102,10 @@ function sendSingleMail(player, target, content, starQian, selectedItems) {
         toXuid: target.xuid,
         content: content,
         time: _deps.U ? _deps.U.getCurrentTimeString() : formatMailTime(),
-        read: false,
+        read: {},
         starQian: starQian,
         items: items,
-        claimed: false
+        claimed: {}
     });
     save();
 
@@ -1319,10 +1292,10 @@ function showPlayerSendMailForm(player) {
             toXuid: target.xuid,
             content: content,
             time: _deps.U ? _deps.U.getCurrentTimeString() : formatMailTime(),
-            read: false,
+            read: {},
             starQian: 0,
             items: itemsFormatted,
-            claimed: false
+            claimed: {}
         });
         save();
 
@@ -1447,10 +1420,10 @@ function sendSystemMail(xuid, content) {
             toXuid: String(xuid),
             content: content,
             time: timeStr,
-            read: false,
+            read: {},
             starQian: 0,
             items: [],
-            claimed: false
+            claimed: {}
         });
         try {
             var tp = mc.getPlayer(String(xuid));
