@@ -641,7 +641,7 @@ function initRankConfig() {
 	config.init("shop", { "enabled": true, "enableRecycle": true, "enableXpShop": true });
 	config.init("rank", { "enabled": true });
 	config.init("cdk", { "enabled": true });
-	config.init("bank", { "enabled": true });
+	config.init("bank", { "enabled": true, "fixedDeposits": { "7": { "rate": 0.001, "nameKey": "bank.period_week" }, "30": { "rate": 0.0099, "nameKey": "bank.period_month" }, "90": { "rate": 0.044, "nameKey": "bank.period_season" } } });
 	config.init("vip", { "enabled": true });
 	config.init("friend", { "enabled": true });
 	config.init("messageBoard", { "enabled": true });
@@ -686,6 +686,38 @@ function initRankConfig() {
 		"jwtRefreshSecret": "NECE_Default_Refresh_Secret_Change_Me",
 		"jwtRefreshExpire": "7d"
 	});
+	config.init("chat", {
+		"enabled": true,
+		"format": "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e|§a<§r{name}§a> §r{msg}",
+		"wordFilter": true
+	});
+	config.init("chain", {
+		"enabled": true,
+		"mineAll": false,
+		"sneakOnly": true,
+		"blocks": {},
+		"plans": {
+			"free": { "dailyLimit": 1000, "price": 0, "duration": 0 },
+			"lite": { "dailyLimit": 2000, "price": 7000, "duration": 7 },
+			"standard": { "dailyLimit": 5000, "price": 20000, "duration": 7 },
+			"pro": { "dailyLimit": 8000, "price": 25000, "duration": 7 },
+			"max": { "dailyLimit": 50000, "price": 500000, "duration": 7 }
+		}
+	});
+	config.init("clearLag", {
+		"enabled": false,
+		"interval": 300,
+		"reminder": 60,
+		"keepNamed": true,
+		"whitelist": []
+	});
+	config.init("motd", {
+		"enabled": false,
+		"lines": [],
+		"interval": 10
+	});
+	config.init("menu", {});
+	config.init("quickMenu", { "items": [] });
 	// 旧键迁移：将旧格式的 enable* 标志和 *Config 键迁移到新的嵌套结构
 	_migrateOldConfigKeys();
 }
@@ -904,7 +936,7 @@ async function initAllConfigs() {
 	initRankConfig();
 	// 经济模块和玩家数据模块需要最先初始化
 	economyModule.init({
-		config: config,
+		getDebug: function() { return _debugMode; },
 		getPlayerData: function() { return playerData; },
 		getPlayerAvatarUrl: getPlayerAvatarUrl,
 		loadLocale: i18n.loadLocale,
@@ -980,7 +1012,9 @@ async function initAllConfigs() {
 	});
 	chatModule.loadChatConfig();
 	chatModule.registerChatListener();
-	chainModule.init(config, {
+	chainModule.init({
+		getConfig: function() { return config.get('chain', {}); },
+		getDebug: function() { return _debugMode; },
 		getPlayerData: function() { return playerData; },
 		savePlayerDataNow: savePlayerDataNow,
 		saveSinglePlayerData: saveSinglePlayerData,
@@ -998,7 +1032,8 @@ async function initAllConfigs() {
 	chainModule.registerChainListener();
 	chainModule.registerChainCommand(registerPlayerCommand);
 	initNarConfig();
-	backupModule.init(config.get("backup"), {
+	backupModule.init({
+		getConfig: function() { return config.get('backup'); },
 		t: i18n.t,
 		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
@@ -1050,10 +1085,12 @@ async function initAllConfigs() {
 		showRecycleForm: function(p) { shopModule.showRecycleForm(p, recycleConfig, commonDeps); },
 		RECYCLE_LOG_DIR: RECYCLE_LOG_DIR,     // 回收日志目录
 		// UI
-		openMainMenu: personalCenter.openMainMenu // (Player) => void — 打开主菜单
+		openMainMenu: personalCenter.openMainMenu, // (Player) => void — 打开主菜单
+		// 配置
+		getConfig: function() { return config.get('teleport'); }
 	};
 
-	teleportModule.init(config, homesDM, warpsDM, commonDeps);
+	teleportModule.init(homesDM, warpsDM, commonDeps);
 
 	// 初始化VIP模块
 	vipModule.init({
@@ -1147,11 +1184,14 @@ async function initAllConfigs() {
 	personalCenter.installPrototypeExtensions();
 
 	// MOTD 动态轮换模块
-	motdModule.init(config);
+	motdModule.init({
+		getConfig: function() { return config.get('motd', {}); }
+	});
 	motdModule.start();
 
 	// 定时实体清理模块
-	clearLagModule.init(config, {
+	clearLagModule.init({
+		getConfig: function() { return config.get('clearLag'); },
 		t: i18n.t,
 		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
@@ -1932,7 +1972,7 @@ function initWebServer() {
 				config.reload();
 				_refreshStatConfigCache();
 				if (hasWish) wishModule.reloadConfig();
-				backupModule.reload(config.get("backup"));
+				backupModule.reload();
 				var dataBackupInterval = config.get("backup").dataBackupInterval || 0;
 				if (dataBackupInterval > 0) {
 					backupModule.startDataBackupScheduler(dataBackupInterval * 3600 * 1000);

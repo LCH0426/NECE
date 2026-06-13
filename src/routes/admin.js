@@ -164,7 +164,7 @@ function registerRoutes(router, d) {
                 return res.status(500).json({ code: 500, msg: '保存配置文件失败: ' + e.message });
             }
 
-            d.backupModule.reload(cfg);
+            d.triggerReload('config');
             var dataInterval = cfg.dataBackupInterval || 0;
             if (dataInterval > 0) {
                 d.backupModule.startDataBackupScheduler(dataInterval * 3600 * 1000);

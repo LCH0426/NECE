@@ -25,8 +25,14 @@ let _fs = null;
 let _U = null;
 let _pathModule = null;
 
-// 默认聊天配置：启用状态、格式模板、敏感词开关
-let chatCfg = { enabled: true, format: "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e|§a<§r{name}§a> §r{msg}", wordFilter: true };
+// 默认聊天配置
+const DEFAULT_CHAT_CFG = { enabled: true, format: "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e|§a<§r{name}§a> §r{msg}", wordFilter: true };
+
+/** 获取聊天配置（始终读取最新值，支持热重载） */
+function getChatCfg() {
+    var cfg = _deps.getConfig ? _deps.getConfig() : {};
+    return Object.assign({}, DEFAULT_CHAT_CFG, cfg);
+}
 let badWordList = [];
 let badWordRegex = null;  // 预编译的敏感词正则，避免每次检测时重建
 
@@ -60,12 +66,7 @@ function init(deps) {
  */
 function loadChatConfig() {
     try {
-        // 聊天配置从 config.json 加载
-        var cfg = _deps.getConfig ? _deps.getConfig() : {};
-        if (cfg && cfg.chat) {
-            chatCfg = Object.assign(chatCfg, cfg.chat);
-        }
-        // 敏感词列表从独立文件加载
+        // 聊天配置通过 getChatCfg() 实时读取，此处只加载敏感词列表
         const badWordsPath = _deps.badWordsPath;
         if (_fs.existsSync(badWordsPath)) {
             const bwRaw = _fs.readFileSync(badWordsPath, 'utf-8');
@@ -535,7 +536,7 @@ function registerTitleCommand(registerPlayerCommand) {
  * @returns {boolean} 是否命中敏感词过滤
  */
 function isBadWord(text) {
-    if (!chatCfg.wordFilter || !badWordRegex) return false;
+    if (!getChatCfg().wordFilter || !badWordRegex) return false;
     return badWordRegex.test(text);
 }
 
@@ -557,7 +558,7 @@ const CHAT_PLACEHOLDER_MAP = {
  * @returns {string} 格式化后的聊天字符串
  */
 function buildChatOutput(player, message) {
-    const pattern = chatCfg.format || "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e|§a<§r{name}§a> §r{msg}";
+    const pattern = getChatCfg().format || DEFAULT_CHAT_CFG.format;
     var result = pattern.replace(/\{(\w+)\}/g, function(m, key) {
         if (key === 'msg') return message;
         const fn = CHAT_PLACEHOLDER_MAP[key];
@@ -726,7 +727,7 @@ function registerChatListener() {
         _deps.webServer.addChatMessage(pl.name, msg, 'player');
         _writeChatMessage({ time: Date.now(), sender: pl.name, message: msg, type: 'player' });
 
-        if (!chatCfg.enabled) return true;
+        if (!getChatCfg().enabled) return true;
 
         if (isBadWord(msg)) {
             pl.sendToast('§e消息拦截', '§f发送内容包含违规词语，已被系统过滤，请不要说脏话哦！');
@@ -736,11 +737,6 @@ function registerChatListener() {
         mc.broadcast(buildChatOutput(pl, msg));
         return false;  // 替换为格式化消息广播
     });
-}
-
-/** 获取当前聊天配置的只读引用 */
-function getChatCfg() {
-    return chatCfg;
 }
 
 module.exports = {

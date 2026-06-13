@@ -25,25 +25,25 @@
  *   {tps}     - 当前 TPS
  */
 
-let _config = null;
+let _deps = {};
 let _timer = null;
 let _currentIndex = 0;
 
 /**
  * 初始化动态 MOTD 模块
- * @param {object} config - 配置对象，需提供 get 方法
+ * @param {object} deps - 依赖对象（含 getConfig）
  */
-function init(config) {
-    _config = config;
+function init(deps) {
+    _deps = deps || {};
 }
 
 /**
  * 启动 MOTD 轮换定时器
  */
 function start() {
-    if (!_config) return;
+    if (!_deps.getConfig) return;
 
-    var motdCfg = _config.get('motd', {});
+    var motdCfg = _deps.getConfig ? _deps.getConfig() : {};
     if (!motdCfg.enabled) return;
 
     var lines = motdCfg.lines;

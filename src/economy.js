@@ -23,7 +23,6 @@
 const fs = require('fs');
 const U = require('./utils');
 
-let _config = null;
 let _currencyNameCache = null; // 货币名称缓存，避免重复读取配置
 let _deps = {};
 
@@ -33,7 +32,6 @@ let pendingTransfers = {};
 
 /** 初始化经济模块，加载待领取转账数据 */
 function init(deps) {
-    _config = deps.config;
     _currencyNameCache = null;
     _deps = deps;
     _loadPendingTransfers();
@@ -165,13 +163,13 @@ function reducePlayerMoney(player, value, reason) {
         }
 
         const beforeMoney = money.get(xuid) || 0;
-        if (_config && _config.get('debug')) logger.info('尝试减少玩家 ' + player.name + ' (' + xuid + ') 货币：' + beforeMoney + ' - ' + intValue);
+        if (_deps.getDebug && _deps.getDebug()) logger.info('尝试减少玩家 ' + player.name + ' (' + xuid + ') 货币：' + beforeMoney + ' - ' + intValue);
 
         let success = money.reduce(xuid, intValue);
-        if (_config && _config.get('debug')) logger.info('money.reduce调用结果：' + success);
+        if (_deps.getDebug && _deps.getDebug()) logger.info('money.reduce调用结果：' + success);
 
         const afterMoney = money.get(xuid) || 0;
-        if (_config && _config.get('debug')) logger.info('减少货币后余额：' + afterMoney);
+        if (_deps.getDebug && _deps.getDebug()) logger.info('减少货币后余额：' + afterMoney);
 
         if (success) {
             // 统一日志
@@ -226,10 +224,10 @@ function addPlayerMoney(player, value, reason) {
             return false;
         }
 
-        if (_config && _config.get('debug')) logger.info('尝试增加玩家 ' + player.name + ' (' + xuid + ') 货币：' + intValue);
+        if (_deps.getDebug && _deps.getDebug()) logger.info('尝试增加玩家 ' + player.name + ' (' + xuid + ') 货币：' + intValue);
 
         let success = money.add(xuid, intValue);
-        if (_config && _config.get('debug')) logger.info('money.add调用结果：' + success);
+        if (_deps.getDebug && _deps.getDebug()) logger.info('money.add调用结果：' + success);
 
         if (success) {
             const afterMoney = money.get(xuid) || 0;

@@ -51,13 +51,12 @@ function t(key) {
 
 /**
  * 初始化备份模块，创建备份目录并启动定时备份
- * @param {Object} cfg - 备份配置对象
- * @param {Object} [deps] - 依赖（t、getSystemLanguage）
+ * @param {Object} deps - 依赖（getConfig、t、getSystemLanguage）
  */
-function init(cfg, deps) {
+function init(deps) {
     _deps = deps || {};
     D.debugLogModule('backup')('init: 初始化完成');
-    backupConfig = cfg || {};
+    backupConfig = _deps.getConfig ? _deps.getConfig() : {};
     backupDir = pathModule.resolve(process.cwd(), 'backup');
     if (!fs.existsSync(backupDir)) {
         fs.mkdirSync(backupDir, { recursive: true });
@@ -67,11 +66,10 @@ function init(cfg, deps) {
 
 /**
  * 热重载备份配置，重启定时器
- * @param {Object} cfg - 新的备份配置
  */
-function reload(cfg) {
+function reload() {
     stopScheduledBackup();
-    backupConfig = cfg || {};
+    backupConfig = _deps.getConfig ? _deps.getConfig() : {};
     startScheduledBackup();
 }
 

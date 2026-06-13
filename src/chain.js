@@ -21,15 +21,10 @@
  * 按工具类型配置可连锁方块，通过命名空间自动识别工具
  */
 
-let _config = null;
 let _deps = {};
 let _debug = false;
 let _onChainComplete = null;
 let _itemsMap = null;
-
-// 配置缓存
-let _cachedConfig = null;
-let _configVersion = 0;
 
 // 连锁冷却记录 { xuid: timestamp }
 const _chainCooldowns = {};
@@ -63,21 +58,14 @@ function getPlanDisplayName(planName) {
     return PLAN_NAME_FORMAT[planName] || planName;
 }
 
-function init(config, deps) {
-    _config = config;
+function init(deps) {
     _deps = deps || {};
-    _debug = config && config.get('debug') === true;
+    _debug = deps.getDebug ? deps.getDebug() : false;
 }
 
-/** 获取连锁全局配置，带缓存 */
+/** 获取连锁全局配置 */
 function getChainConfig() {
-    if (!_config) return {};
-    var currentVersion = _config._version || 0;
-    if (!_cachedConfig || currentVersion !== _configVersion) {
-        _cachedConfig = _config.get('chain', {});
-        _configVersion = currentVersion;
-    }
-    return _cachedConfig;
+    return _deps.getConfig ? _deps.getConfig() : {};
 }
 
 /**
