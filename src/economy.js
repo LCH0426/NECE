@@ -368,7 +368,12 @@ function writeEconomyLog(entry) {
             String(now.getMonth() + 1).padStart(2, '0') + '-' +
             String(now.getDate()).padStart(2, '0');
         const logPath = logDir + "/economy-" + dateStr + ".jsonl";
-        entry.time = now.toLocaleString();
+        entry.time = now.getFullYear() + '-' +
+            String(now.getMonth() + 1).padStart(2, '0') + '-' +
+            String(now.getDate()).padStart(2, '0') + ' ' +
+            String(now.getHours()).padStart(2, '0') + ':' +
+            String(now.getMinutes()).padStart(2, '0') + ':' +
+            String(now.getSeconds()).padStart(2, '0');
         const line = JSON.stringify(entry) + '\n';
         fs.appendFile(logPath, line, 'utf-8', function(e) {
             if (e) logger.error("[EconomyLog] 写入日志失败: " + e.message);
@@ -432,7 +437,7 @@ function showTransferTypeForm(player) {
     fm.addButton("返回", "textures/ui/recap_glyph_desaturated");
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
-        if (id === 2) { showMoneyMainForm(p); return; }
+        if (id === 2) { showEconomyPanel(p); return; }
         if (id === 0) showTransferOnlineForm(p);
         else if (id === 1) showTransferOfflineForm(p);
     });
