@@ -1213,7 +1213,7 @@ function showDeathPointMenu(player) {
 		);
 	});
 
-	menuForm.addButton("§c关闭", "textures/ui/recap_glyph_desaturated");
+	menuForm.addButton("§c关闭", "textures/ui/cancel");
 
 	player.sendForm(menuForm, function(p, buttonIndex) {
 		if (buttonIndex == null) return;
