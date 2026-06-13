@@ -60,6 +60,15 @@ function getActionLabel(eventKey) {
     return eventKey;
 }
 
+/** 获取 detail 字段的本地化文本 */
+function dt(key) {
+    if (!_deps.t) return key;
+    var lang = _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+    var args = [lang, 'behavior.' + key];
+    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
+    return _deps.t.apply(null, args);
+}
+
 // CSV 列名常量（数据格式固定，不随语言变化）
 const COL_TIME = '时间';
 const COL_DIM = '维度';
@@ -278,7 +287,7 @@ function registerEventListeners() {
     mc.listen("onLeft", function(pl) {
         try {
             appendEntry({ action: labelOf('onLeft'), dim: '', source: pl.realName, sx: '', sy: '', sz: '', target: '', tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onLeft', e); }
     });
 
     mc.listen("onPlayerDie", function(pl) {
@@ -287,7 +296,7 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             appendEntry({ action: labelOf('onPlayerDie'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: '', tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onPlayerDie', e); }
     });
 
     mc.listen("onPlayerCmd", function(pl, cmd) {
@@ -296,7 +305,7 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             appendEntry({ action: labelOf('onPlayerCmd'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: cmd, tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onPlayerCmd', e); }
     });
 
     mc.listen("onChat", function(pl, msg) {
@@ -305,7 +314,7 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             appendEntry({ action: labelOf('onChat'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: msg, tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onChat', e); }
     });
 
     mc.listen("onUseItem", function(pl, it) {
@@ -313,8 +322,8 @@ function registerEventListeners() {
             let pos = safePlayerPos(pl);
             if (!pos) return;
             let c = fmtCoord(pos);
-            appendEntry({ action: labelOf('onUseItem'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: it.name, tx: '', ty: '', tz: '', detail: '类型:' + it.type });
-        } catch(e) { _eventCatch("unknown", e); }
+            appendEntry({ action: labelOf('onUseItem'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: it.name, tx: '', ty: '', tz: '', detail: dt('detail_type', it.type) });
+        } catch(e) { _eventCatch('onUseItem', e); }
     });
 
     mc.listen("onUseItemOn", function(pl, it, bl) {
@@ -324,17 +333,17 @@ function registerEventListeners() {
             if (!pos) return;
             let c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
-            appendEntry({ action: labelOf('onUseItemOn'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '使用物品:' + it.name + ' 类型:' + it.type });
-        } catch(e) { _eventCatch("unknown", e); }
+            appendEntry({ action: labelOf('onUseItemOn'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: dt('detail_use_item', it.name, it.type) });
+        } catch(e) { _eventCatch('onUseItemOn', e); }
     });
 
-    mc.listen("onTakeItem", function(pl, en, it) {
+    mc.listen("onTakeItem", function(pl, _en, it) {
         try {
             let pos = safePlayerPos(pl);
             if (!pos) return;
             let c = fmtCoord(pos);
-            appendEntry({ action: labelOf('onTakeItem'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: it.name, tx: '', ty: '', tz: '', detail: '数量:' + it.count });
-        } catch(e) { _eventCatch("unknown", e); }
+            appendEntry({ action: labelOf('onTakeItem'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: it.name, tx: '', ty: '', tz: '', detail: dt('detail_count', it.count) });
+        } catch(e) { _eventCatch('onTakeItem', e); }
     });
 
     mc.listen("onDropItem", function(pl, it) {
@@ -342,8 +351,8 @@ function registerEventListeners() {
             let pos = safePlayerPos(pl);
             if (!pos) return;
             let c = fmtCoord(pos);
-            appendEntry({ action: labelOf('onDropItem'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: it.name, tx: '', ty: '', tz: '', detail: '数量:' + it.count });
-        } catch(e) { _eventCatch("unknown", e); }
+            appendEntry({ action: labelOf('onDropItem'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: it.name, tx: '', ty: '', tz: '', detail: dt('detail_count', it.count) });
+        } catch(e) { _eventCatch('onDropItem', e); }
     });
 
     mc.listen("onStartDestroyBlock", function(pl, bl) {
@@ -354,7 +363,7 @@ function registerEventListeners() {
             let c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onStartDestroyBlock'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onStartDestroyBlock', e); }
     });
 
     mc.listen("onDestroyBlock", function(pl, bl) {
@@ -365,7 +374,7 @@ function registerEventListeners() {
             let c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onDestroyBlock'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onDestroyBlock', e); }
     });
 
     mc.listen("onPlaceBlock", function(pl, bl) {
@@ -376,7 +385,7 @@ function registerEventListeners() {
             let c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onPlaceBlock'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onPlaceBlock', e); }
     });
 
     mc.listen("onOpenContainer", function(pl, bl) {
@@ -387,7 +396,7 @@ function registerEventListeners() {
             let c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onOpenContainer'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onOpenContainer', e); }
     });
 
     mc.listen("onCloseContainer", function(pl, bl) {
@@ -398,18 +407,18 @@ function registerEventListeners() {
             const c = fmtCoord(pos);
             let bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onCloseContainer'), dim: String(pos.dim), source: pl.realName, sx: c.sx, sy: c.sy, sz: c.sz, target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onCloseContainer', e); }
     });
 
     // 物品栏变动：oldItem有/newItem无=取出，oldItem无/newItem有=放入
     mc.listen("onInventoryChange", function(pl, slotNum, oldItem, newItem) {
         try {
             if (oldItem && !newItem) {
-                appendEntry({ action: labelOf('onInventoryOut'), dim: '', source: pl.realName, sx: '', sy: '', sz: '', target: oldItem.name, tx: '', ty: '', tz: '', detail: '数量:' + oldItem.count + ' 槽位:' + slotNum });
+                appendEntry({ action: labelOf('onInventoryOut'), dim: '', source: pl.realName, sx: '', sy: '', sz: '', target: oldItem.name, tx: '', ty: '', tz: '', detail: dt('detail_count_slot', oldItem.count, slotNum) });
             } else if (!oldItem && newItem) {
-                appendEntry({ action: labelOf('onInventoryIn'), dim: '', source: pl.realName, sx: '', sy: '', sz: '', target: newItem.name, tx: '', ty: '', tz: '', detail: '数量:' + newItem.count + ' 槽位:' + slotNum });
+                appendEntry({ action: labelOf('onInventoryIn'), dim: '', source: pl.realName, sx: '', sy: '', sz: '', target: newItem.name, tx: '', ty: '', tz: '', detail: dt('detail_count_slot', newItem.count, slotNum) });
             }
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onInventoryChange', e); }
     });
 
     // 容器变动：按方块坐标记录
@@ -418,32 +427,32 @@ function registerEventListeners() {
             let blPos = safeBlockPos(bl);
             let bc = fmtCoord(blPos);
             if (oldItem && !newItem) {
-                appendEntry({ action: labelOf('onContainerOut'), dim: blPos ? String(blPos.dim) : '', source: '', sx: '', sy: '', sz: '', target: oldItem.name, tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '数量:' + oldItem.count + ' 槽位:' + slotNum });
+                appendEntry({ action: labelOf('onContainerOut'), dim: blPos ? String(blPos.dim) : '', source: '', sx: '', sy: '', sz: '', target: oldItem.name, tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: dt('detail_count_slot', oldItem.count, slotNum) });
             } else if (!oldItem && newItem) {
-                appendEntry({ action: labelOf('onContainerIn'), dim: blPos ? String(blPos.dim) : '', source: '', sx: '', sy: '', sz: '', target: newItem.name, tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '数量:' + newItem.count + ' 槽位:' + slotNum });
+                appendEntry({ action: labelOf('onContainerIn'), dim: blPos ? String(blPos.dim) : '', source: '', sx: '', sy: '', sz: '', target: newItem.name, tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: dt('detail_count_slot', newItem.count, slotNum) });
             }
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onContainerChange', e); }
     });
 
     mc.listen("onExplode", function(source, pos) {
         try {
             if (!pos) return;
             appendEntry({ action: labelOf('onExplode'), dim: String(pos.dim), source: source || '', sx: pos.x.toFixed(0), sy: pos.y.toFixed(0), sz: pos.z.toFixed(0), target: '', tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onExplode', e); }
     });
 
     mc.listen("onBedExplode", function(pos) {
         try {
             if (!pos) return;
             appendEntry({ action: labelOf('onBedExplode'), dim: String(pos.dim), source: '', sx: pos.x.toFixed(0), sy: pos.y.toFixed(0), sz: pos.z.toFixed(0), target: '', tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onBedExplode', e); }
     });
 
     mc.listen("onRespawnAnchorExplode", function(pos) {
         try {
             if (!pos) return;
             appendEntry({ action: labelOf('onRespawnAnchorExplode'), dim: String(pos.dim), source: '', sx: pos.x.toFixed(0), sy: pos.y.toFixed(0), sz: pos.z.toFixed(0), target: '', tx: '', ty: '', tz: '', detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onRespawnAnchorExplode', e); }
     });
 
     mc.listen("onBlockExploded", function(bl, source) {
@@ -451,7 +460,7 @@ function registerEventListeners() {
             const blPos = safeBlockPos(bl);
             const bc = fmtCoord(blPos);
             appendEntry({ action: labelOf('onBlockExploded'), dim: blPos ? String(blPos.dim) : '', source: source || '', sx: '', sy: '', sz: '', target: bl ? bl.name : '', tx: bc.sx, ty: bc.sy, tz: bc.sz, detail: '' });
-        } catch(e) { _eventCatch("unknown", e); }
+        } catch(e) { _eventCatch('onBlockExploded', e); }
     });
 }
 

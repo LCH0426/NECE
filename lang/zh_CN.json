@@ -254,7 +254,11 @@
     "col_source": "来源",
     "col_event": "事件",
     "col_target": "目标",
-    "col_extra": "附加信息"
+    "col_extra": "附加信息",
+    "detail_type": "类型:{0}",
+    "detail_use_item": "使用物品:{0} 类型:{1}",
+    "detail_count": "数量:{0}",
+    "detail_count_slot": "数量:{0} 槽位:{1}"
   },
   "cdk": {
     "title": "CDK兑换",
