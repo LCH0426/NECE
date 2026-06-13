@@ -333,9 +333,9 @@ DataManager.prototype.save = function(immediate) {
 			doSQLSave();
 			database.savePlayerDatabase();
 		} else {
-			// 防抖写入SQL，随后触发写磁盘
+			// SQL写入立即执行，磁盘export防抖（防止高频写入时频繁export拖慢性能）
+			doSQLSave();
 			debouncedSave(this.saveKey, function() {
-				doSQLSave();
 				database.requestSavePlayerDb();
 			}, this.saveDelay);
 		}
@@ -635,7 +635,6 @@ function initRankConfig() {
 	config.init("debug", false);
 	_debugMode = config.get("debug", false);
 	debugModule.setDebugMode(_debugMode);
-	config.init("currencyName", "星茜");
 	config.init("sidebar", { "compact": false });
 	// 功能开关：统一嵌套到各自模块的 enabled 字段
 	config.init("shop", { "enabled": true, "enableRecycle": true, "enableXpShop": true });
@@ -949,7 +948,7 @@ function initDeathPointData() {
 /**
  * 主初始化函数：加载配置、初始化数据库、注入模块依赖
  */
-async function initAllConfigs() {
+function initAllConfigs() {
 	initLevelExpTable();
 	initRankConfig();
 	// 经济模块和玩家数据模块需要最先初始化
@@ -969,7 +968,7 @@ async function initAllConfigs() {
 	debugLog("initAllConfigs: Debug模式已" + (_debugMode ? "开启" : "关闭"));
 	debugLog("initAllConfigs: 开始初始化所有模块...");
 	// 初始化玩家数据库(SQL)
-	await database.initPlayerDatabase();
+	database.initPlayerDatabase();
 	debugLog("initAllConfigs: 玩家数据库初始化完成");
 	initPlayerData();
 	debugLog("initAllConfigs: 玩家数据加载完成, 玩家数=" + Object.keys(playerData.players || {}).length);
@@ -1224,6 +1223,15 @@ async function initAllConfigs() {
  */
 mc.listen("onJoin", (player) => {
 	if (!_initialized) return; // 防止插件重载时模块未初始化完毕
+	try {
+	onJoinHandler(player);
+	} catch (e) {
+		logger.error('[Core] onJoin 回调异常: ' + (e && e.message ? e.message : e));
+	}
+});
+
+/** onJoin 实际处理逻辑，独立函数便于异常隔离 */
+function onJoinHandler(player) {
 	const playerXUID = String(player.xuid);
 	const playerName = player.name;
 	const playerUUID = player.uuid;
@@ -1354,27 +1362,44 @@ mc.listen("onJoin", (player) => {
 	}
 
 	// 检查未读消息和邮件
-	try {
+	{
+		const joinXuid2 = player.xuid;
 		setTimeout(() => {
-			checkUnreadMessagesAndMails(player);
+			try {
+				const p = mc.getPlayer(joinXuid2);
+				if (p) checkUnreadMessagesAndMails(p);
+			} catch (error) {
+				logger.error(`检查未读消息时出错：${error.message}`);
+			}
 		}, 3000); // 延迟3秒显示，避免与其他消息冲突
-	} catch (error) {
-		logger.error(`检查未读消息时出错：${error.message}`);
 	}
 
 	// 入服给钟和指南针
-	try {
+	{
+		const joinXuid = player.xuid;
 		setTimeout(() => {
-			giveJoinItems(player);
+			try {
+				const p = mc.getPlayer(joinXuid);
+				if (p) giveJoinItems(p);
+			} catch (error) {
+				logger.error(`入服给物品时出错：${error.message}`);
+			}
 		}, 1000); // 延迟1秒给物品
-	} catch (error) {
-		logger.error(`入服给物品时出错：${error.message}`);
 	}
-});
+}
 
 /** 玩家离开事件：累计在线时长，清除状态 */
 mc.listen("onLeft", (player) => {
 	if (!_initialized) return;
+	try {
+	onLeftHandler(player);
+	} catch (e) {
+		logger.error('[Core] onLeft 回调异常: ' + (e && e.message ? e.message : e));
+	}
+});
+
+/** onLeft 实际处理逻辑，独立函数便于异常隔离 */
+function onLeftHandler(player) {
 	const xuid = player.xuid;
 	const xuidStr = String(xuid);
 	if (_joinTimestamps[xuid]) {
@@ -1429,7 +1454,7 @@ mc.listen("onLeft", (player) => {
 		} catch (e) {}
 		database.savePlayerInventorySQL(xuidStr, snapshot, armorSnapshot, offhandSnapshot);
 	} catch (e) { logger.warn('保存背包快照失败: ' + e.message); }
-});
+}
 
 /** 注册游戏行为统计监听和死亡点记录 */
 // 热路径缓存：避免每次事件都走 config.get 的 dot-path 解析
@@ -1945,33 +1970,33 @@ function initWebServer() {
 		logger.info('[Web] Web服务器已在配置中禁用');
 		return;
 	}
-	database.initDatabase().then(function() {
-		logger.info('[Web] 数据库初始化完成');
-		const monitoring = require('./src/monitoring');
-		monitoring.init(tpsData, money, playerData, database);
-		monitoring.startPlayerCountSampling(600000); // 10分钟记录一次玩家人数
-		// 注册Web面板的热重载回调
-		webServer.onReload('recycle', function() {
-			recycleConfig = recycleConfigDM.load();
-			if (commonDeps) commonDeps.recycleConfig = recycleConfig;
-		});
-		webServer.onReload('shop', function() {
-			shopData = shopDataDM.load();
-			if (commonDeps) commonDeps.shopData = shopData;
-		});
-		webServer.onReload('cdk', function() {
-			cdkDataDM.load();
-		});
-		if (hasWish) {
-			webServer.onReload('wish', function() {
-				try {
-					wishModule.reloadConfig();
-				} catch (e) { logger.error('[Core] 重载祈愿配置失败: ' + e.message); }
-			});
-		}
-		webServer.onReload('config', function() {
+	database.initDatabase();
+	logger.info('[Web] 数据库初始化完成');
+	const monitoring = require('./src/monitoring');
+	monitoring.init(tpsData, money, playerData, database);
+	monitoring.startPlayerCountSampling(600000); // 10分钟记录一次玩家人数
+	// 注册Web面板的热重载回调
+	webServer.onReload('recycle', function() {
+		recycleConfig = recycleConfigDM.load();
+		if (commonDeps) commonDeps.recycleConfig = recycleConfig;
+	});
+	webServer.onReload('shop', function() {
+		shopData = shopDataDM.load();
+		if (commonDeps) commonDeps.shopData = shopData;
+	});
+	webServer.onReload('cdk', function() {
+		cdkDataDM.load();
+	});
+	if (hasWish) {
+		webServer.onReload('wish', function() {
 			try {
-				config.reload();
+				wishModule.reloadConfig();
+			} catch (e) { logger.error('[Core] 重载祈愿配置失败: ' + e.message); }
+		});
+	}
+	webServer.onReload('config', function() {
+		try {
+			config.reload();
 				_refreshStatConfigCache();
 				if (hasWish) wishModule.reloadConfig();
 				backupModule.reload();
@@ -2028,10 +2053,7 @@ function initWebServer() {
 			config.set('web', webConfig);
 			logger.info('[安全] 已清除 config.json 中的默认 JWT 密钥');
 		}
-		webServer.startServer(webConfig);
-	}).catch(function(e) {
-		logger.error('[Web] 数据库初始化失败: ' + e.message);
-	});
+	webServer.startServer(webConfig);
 }
 
 /** 注册Web相关的游戏命令和控制台命令 */
