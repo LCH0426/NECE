@@ -51,7 +51,7 @@ function registerRoutes(router, d) {
     });
 
     // 手动触发备份
-    router.post('/backup/execute', d.adminAuth, function(req, res) {
+    router.post('/backup/execute', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             // 防止并发备份
             if (d.backupModule.isBackupRunning()) {
@@ -80,7 +80,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除指定备份文件
-    router.delete('/backup/:filename', d.adminAuth, function(req, res) {
+    router.delete('/backup/:filename', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let filename = req.params.filename;
             let result = d.backupModule.deleteBackup(filename);
@@ -205,7 +205,7 @@ function registerRoutes(router, d) {
     });
 
     // 封禁玩家
-    router.post('/ban', d.adminAuth, function(req, res) {
+    router.post('/ban', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let xuid = (req.body.xuid || '').trim();
             const reason = (req.body.reason || '').trim() || 'Web管理面板封禁';
@@ -227,7 +227,7 @@ function registerRoutes(router, d) {
     });
 
     // 解封玩家
-    router.post('/unban', d.adminAuth, function(req, res) {
+    router.post('/unban', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             const xuid = (req.body.xuid || '').trim();
             if (!xuid) return res.status(400).json({ code: 400, msg: '缺少xuid参数' });
@@ -364,7 +364,7 @@ function registerRoutes(router, d) {
     });
 
     // 手动触发清理
-    router.post('/clearlag/execute', d.adminAuth, function(req, res) {
+    router.post('/clearlag/execute', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let result = d.clearLagModule.executeCleanup();
             let totalKilled = result.killedMobs + result.killedItems;
@@ -435,7 +435,7 @@ function registerRoutes(router, d) {
     });
 
     // 为指定玩家添加称号
-    router.post('/player/:xuid/titles', d.adminAuth, function(req, res) {
+    router.post('/player/:xuid/titles', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var xuid = req.params.xuid;
             var title = (req.body.title || '').trim();
@@ -455,7 +455,7 @@ function registerRoutes(router, d) {
     });
 
     // 设置玩家当前使用的称号
-    router.put('/player/:xuid/titles/active', d.adminAuth, function(req, res) {
+    router.put('/player/:xuid/titles/active', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var xuid = req.params.xuid;
             var title = (req.body.title || '').trim();
@@ -474,7 +474,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除玩家的指定称号
-    router.delete('/player/:xuid/titles/:title', d.adminAuth, function(req, res) {
+    router.delete('/player/:xuid/titles/:title', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var xuid = req.params.xuid;
             var title = req.params.title;
@@ -641,9 +641,6 @@ function registerRoutes(router, d) {
                     d.database.removeGuildMember(xuid);
                 }
             } catch (e) {}
-
-            // 立即保存数据库到磁盘
-            d.database.requestSavePlayerDb();
 
             // 记录管理员操作
             d.adminLog.log(req.user.uid, '删除玩家所有数据', '玩家:' + playerName + ' XUID:' + xuid);
