@@ -942,7 +942,7 @@ async function initAllConfigs() {
 		loadLocale: i18n.loadLocale,
 		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
-	playerDataModule.init({ database: database, config: config, fs: fs, itemsDataPath: ITEMS_DATA_PATH,
+	playerDataModule.init({ database: database, fs: fs, itemsDataPath: ITEMS_DATA_PATH,
 		getPlayerData: function() { return playerData; },
 		getPlayerSettings: function() { return playerSettings; },
 		savePlayerSettings: function() { playerSettingsDM.save(true); }
@@ -1001,7 +1001,7 @@ async function initAllConfigs() {
 		t: i18n.t,
 		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
-	menuModule.init({ config: config, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData });
+	menuModule.init({ getConfig: function() { return config._data || {}; }, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData });
 	menuModule.loadConfig();
 	chatModule.init({ fs: fs, U: U, badWordsPath: BAD_WORDS_PATH, webServer: webServer,
 		getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData,
@@ -1162,7 +1162,6 @@ async function initAllConfigs() {
 		getPlayerData: function() { return playerData; },
 		savePlayerDataNow: savePlayerDataNow,
 		money: money,
-		config: config,
 		getCurrencyName: getCurrencyName,
 		notifyEconomyChange: notifyEconomyChange,
 		getPlayerSetting: getPlayerSetting,
@@ -1653,7 +1652,7 @@ mc.listen("onServerStarted", async () => {
 	}
 	banModule.registerConsoleCommands();
 	banModule.registerGameCommands();
-	sidebarModule.init({ config: config, money: money, getCurrencyName: getCurrencyName, getPlayerSetting: getPlayerSetting, tpsData: tpsData });
+	sidebarModule.init({ getConfig: function() { return config._data || {}; }, money: money, getCurrencyName: getCurrencyName, getPlayerSetting: getPlayerSetting, tpsData: tpsData });
 	menuModule.registerCommands(registerPlayerCommand);
 	menuModule.registerCompassListener();
 	menuModule.registerClockListener();

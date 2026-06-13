@@ -11,11 +11,12 @@ describe('menu', () => {
 
         menuModule = require('../../src/menu');
         menuModule.init({
-            config: { get: function(key, def) {
-                if (key === 'menu') return { enabled: true, main: { title: 'Test', items: [{ name: 'Test', comm: 'test' }] } };
-                if (key === 'quickMenu') return { items: [{ name: 'QItem', img: '', comm: 'qcmd' }] };
-                return def;
-            }},
+            getConfig: function() {
+                return {
+                    menu: { enabled: true, main: { title: 'Test', items: [{ name: 'Test', comm: 'test' }] } },
+                    quickMenu: { items: [{ name: 'QItem', img: '', comm: 'qcmd' }] }
+                };
+            },
             getCurrencyName: function() { return '星茜'; },
             getPlayerData: function() { return { players: { '10001': { quickmenu: { slots: [0] } } } }; },
             savePlayerData: function() {}
