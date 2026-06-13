@@ -268,7 +268,7 @@ function setRefreshTokenCookie(res, refreshToken, maxAge) {
         'Path=/api/v1',
         'HttpOnly',
         isSecure ? 'Secure' : '',
-        'SameSite=Strict',
+        'SameSite=Lax',
         'Max-Age=' + Math.floor(maxAge / 1000)
     ].filter(Boolean).join('; '));
 }
@@ -281,7 +281,7 @@ function setAccessTokenCookie(res, accessToken, maxAge) {
         'Path=/api/v1',
         'HttpOnly',
         isSecure ? 'Secure' : '',
-        'SameSite=Strict',
+        'SameSite=Lax',
         'Max-Age=' + Math.floor(maxAge / 1000)
     ].filter(Boolean).join('; '));
 }
@@ -292,7 +292,7 @@ function clearAccessTokenCookie(res) {
         'auth_token=',
         'Path=/api/v1',
         'HttpOnly',
-        'SameSite=Strict',
+        'SameSite=Lax',
         'Max-Age=0'
     ].join('; '));
 }
@@ -303,7 +303,7 @@ function clearRefreshTokenCookie(res) {
         'refresh_token=',
         'Path=/api/v1',
         'HttpOnly',
-        'SameSite=Strict',
+        'SameSite=Lax',
         'Max-Age=0'
     ].join('; '));
 }
