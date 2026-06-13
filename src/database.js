@@ -79,7 +79,7 @@ function run(session, sql, params) {
         } else {
             finalSql = sql;
         }
-        if (_debug) dbDebugLog('run:', finalSql.substring(0, 200));
+        if (_debug && sql.indexOf('player_data') === -1) dbDebugLog('run:', finalSql.substring(0, 200));
         session.exec(finalSql);
         return {};
     } catch (e) {
