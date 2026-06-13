@@ -89,22 +89,23 @@ function savePlayerData() {
 
 /**
  * 立即保存所有脏玩家数据（用于关服等关键操作）
- * 取消待执行的防抖定时器，直接写盘
+ * 只保存标记为脏的玩家，避免全量刷盘
  */
 function savePlayerDataNow() {
     const playerData = _getPlayerData();
-    const ops = [];
-    // 关服时保存所有玩家
-    for (let xuid in playerData.players) {
-        if (!playerData.players.hasOwnProperty(xuid)) continue;
-        (function(xuid, data) {
-            ops.push(function() { _database.setPlayerDataSQL(xuid, data); });
-        })(xuid, playerData.players[xuid]);
-    }
+    const dirtyList = Array.from(_dirtyPlayers);
     _dirtyPlayers.clear();
-    _database.batchSavePlayerDb(ops);
-    _database.cancelPendingSave();
-    _database.savePlayerDatabase();
+    if (dirtyList.length === 0) return;
+    const ops = [];
+    dirtyList.forEach(function(xuid) {
+        if (playerData.players && playerData.players[xuid]) {
+            var data = playerData.players[xuid];
+            ops.push(function() { _database.setPlayerDataSQL(xuid, data); });
+        }
+    });
+    if (ops.length > 0) {
+        _database.batchSavePlayerDb(ops);
+    }
 }
 
 /**
