@@ -304,7 +304,7 @@ function registerRoutes(router, d) {
     // ==================== ClearLag 实体清理接口 ====================
 
     // 获取清理配置
-    router.get('/clearlag/config', d.adminAuth, function(req, res) {
+    router.get('/clearlag/config', d.adminAuth, d.configLimiter, function(req, res) {
         try {
             let content = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
             let cfg = JSON.parse(content);
@@ -492,7 +492,7 @@ function registerRoutes(router, d) {
     // ===== 经济日志查询 =====
 
     // 查询指定玩家的经济日志
-    router.get('/economy/log/:playerName', d.adminAuth, function(req, res) {
+    router.get('/economy/log/:playerName', d.adminAuth, d.configLimiter, function(req, res) {
         try {
             var playerName = req.params.playerName;
             var page = parseInt(req.query.page) || 1;
