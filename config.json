@@ -1,8 +1,12 @@
 {
   "debug": false,
   "language": "zh_CN",
-  "sidebarCompact": false,
+  "currencyName": "星茜",
+  "sidebar": {
+    "compact": false
+  },
   "titles": {
+    "enabled": true,
     "defaultTitle": "萌新",
     "maxTitles": 10,
     "maxChars": 10,
@@ -312,6 +316,9 @@
       "NECE"
     ]
   },
+  "behavior": {
+    "enabled": true
+  },
   "teleport": {
     "enabled": true,
     "enableHome": true,
@@ -368,6 +375,7 @@
     "maxEntitiesPerType": 50
   },
   "backup": {
+    "enabled": true,
     "compressionLevel": 5,
     "interval": 0,
     "maxAgeDays": 0,

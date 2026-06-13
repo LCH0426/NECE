@@ -159,7 +159,7 @@ function startRenderLoop() {
 			if (hasSidebar) {
 				try {
 					const cfg = _deps.getConfig ? _deps.getConfig() : {};
-					const isCompact = cfg.sidebarCompact;
+					const isCompact = cfg.sidebarCompact || (cfg.sidebar && cfg.sidebar.compact);
 
 					// 全量更新：重建余额、延迟、TPS、速度、群系等数据
 					if (isFullUpdate || !_sidebarDataCache[xuid]) {

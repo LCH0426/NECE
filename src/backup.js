@@ -78,12 +78,13 @@ function getConfig() {
     return backupConfig;
 }
 
-/** 启动定时备份，interval为0时禁用 */
+/** 启动定时备份，enabled为false或interval为0时禁用 */
 function startScheduledBackup() {
     if (scheduledTimer) {
         clearInterval(scheduledTimer);
         scheduledTimer = null;
     }
+    if (backupConfig.enabled === false) return;
     const intervalHours = backupConfig.interval || 0;
     if (intervalHours <= 0) return;
     const intervalMs = intervalHours * 3600 * 1000;
