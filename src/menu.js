@@ -32,8 +32,9 @@ function init(deps) {
 
 /** 从配置加载菜单数据，替换货币名占位符 */
 function loadConfig() {
+    var cfg = _deps.getConfig ? _deps.getConfig() : {};
     // 主菜单
-    menuConfig = _deps.config.get("menu", {});
+    menuConfig = cfg.menu || {};
     const cn = _deps.getCurrencyName();
     for (var key in menuConfig) {
         if (!menuConfig.hasOwnProperty(key)) continue;
@@ -47,7 +48,7 @@ function loadConfig() {
         }
     }
     // 快捷菜单
-    quickMenuConfig = _deps.config.get("quickMenu", { items: [] });
+    quickMenuConfig = cfg.quickMenu || { items: [] };
     (quickMenuConfig.items || []).forEach(function(btn) {
         if (btn.name) btn.name = btn.name.replace(/星茜/g, cn);
     });
@@ -140,7 +141,8 @@ function showMainMenu(player) {
 function registerClockListener() {
     mc.listen("onUseItem", function(player, item) {
         if (!item || item.type !== "minecraft:clock") return;
-        if (!_deps.config.get("menu.enabled", false)) return;
+        var cfg = _deps.getConfig ? _deps.getConfig() : {};
+        if (!cfg.menu || !cfg.menu.enabled) return;
 
         var xuid = player.xuid;
         var now = Date.now();
