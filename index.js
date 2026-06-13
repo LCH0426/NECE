@@ -636,7 +636,7 @@ function initRankConfig() {
 	_debugMode = config.get("debug", false);
 	debugModule.setDebugMode(_debugMode);
 	config.init("currencyName", "星茜");
-	config.init("sidebarCompact", false);
+	config.init("sidebar", { "compact": false });
 	// 功能开关：统一嵌套到各自模块的 enabled 字段
 	config.init("shop", { "enabled": true, "enableRecycle": true, "enableXpShop": true });
 	config.init("rank", { "enabled": true });
@@ -671,10 +671,28 @@ function initRankConfig() {
 		"warpCost": 0
 	});
 	config.init("backup", {
+		"enabled": true,
 		"compressionLevel": 5,
 		"interval": 0,
 		"maxAgeDays": 0,
-		"maxCount": 0
+		"maxCount": 0,
+		"dataBackupInterval": 0
+	});
+	config.init("behavior", { "enabled": true });
+	config.init("titles", {
+		"enabled": true,
+		"defaultTitle": "萌新",
+		"maxTitles": 10,
+		"maxChars": 10,
+		"perCharCost": 100,
+		"forbiddenTitles": ["辅助", "腐竹", "服主", "管理员", "OP", "admin", "owner", "console", "system", "服务器"],
+		"shop": [
+			{ "name": "冒险家", "cost": 500 },
+			{ "name": "矿工大师", "cost": 1000 },
+			{ "name": "建筑大师", "cost": 2000 },
+			{ "name": "红石达人", "cost": 3000 },
+			{ "name": "服务器元老", "cost": 5000 }
+		]
 	});
 	config.init("web", {
 		"enabled": true,
@@ -1326,24 +1344,7 @@ mc.listen("onJoin", (player) => {
 		}
 	}
 
-	// Debug 模式弹窗
-	if (_debugMode) {
-		try {
-			const debugDismissedPath = "plugins/NECE/data/debug_dismissed.json";
-			let dismissed = {};
-			try { dismissed = JSON.parse(fs.readFileSync(debugDismissedPath, 'utf-8')); } catch (e) {}
-			if (!dismissed[playerXUID]) {
-				const form = mc.newSimpleForm();
-				form.setTitle("Debug Mod");
-				form.setContent("你正在参与服务器测试，如遇问题请反馈给管理员。");
-				form.addButton("关闭");
-				player.sendForm(form, function() {
-					dismissed[playerXUID] = true;
-					try { fs.writeFileSync(debugDismissedPath, JSON.stringify(dismissed), 'utf-8'); } catch (e) {}
-				});
-			}
-		} catch (e) { logger.warn('[Debug] 弹窗异常: ' + e.message); }
-	}
+
 
 	// 检查定期存款到期情况
 	try {
@@ -1658,10 +1659,12 @@ mc.listen("onServerStarted", async () => {
 	menuModule.registerClockListener();
 	registerWebCommands();
 	initWebServer();
-	behaviorLog.init({
-		t: i18n.t,
-		getSystemLanguage: function() { return config.language || 'zh_CN'; }
-	});
+	if (config.get('behavior.enabled') !== false) {
+		behaviorLog.init({
+			t: i18n.t,
+			getSystemLanguage: function() { return config.language || 'zh_CN'; }
+		});
+	}
 
 	// 定时检查计划发送的邮件
 	setInterval(function() { mailModule.checkScheduledMails(); }, 30000);
