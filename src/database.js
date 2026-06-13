@@ -53,19 +53,33 @@ function dbDebugLog() {
 }
 
 /**
- * 执行带参数的SQL（INSERT/UPDATE/DELETE），使用预准备语句防止注入
+ * 转义SQL字符串值（单引号转义）
+ */
+function sqlEscape(val) {
+    if (val === null || val === undefined) return 'NULL';
+    if (typeof val === 'number') return String(val);
+    if (typeof val === 'boolean') return val ? '1' : '0';
+    return "'" + String(val).replace(/'/g, "''") + "'";
+}
+
+/**
+ * 执行带参数的SQL（INSERT/UPDATE/DELETE），替换 ? 占位符后通过 session.exec 执行
  * @param {DBSession} session - 数据库会话
  * @param {string} sql - SQL语句（用 ? 占位符）
  * @param {Array} params - 参数数组
- * @returns {DBStmt|null} 语句对象（可用于 affectedRows），失败返回 null
+ * @returns {Object|null} 成功返回 {}，失败返回 null
  */
 function run(session, sql, params) {
     if (!session) return null;
     try {
-        var stmt = session.prepare(sql);
-        if (params && params.length > 0) stmt.bind(params);
-        stmt.execute();
-        return stmt;
+        if (params && params.length > 0) {
+            var idx = 0;
+            var finalSql = sql.replace(/\?/g, function() { return sqlEscape(params[idx++]); });
+            session.exec(finalSql);
+        } else {
+            session.exec(sql);
+        }
+        return {};
     } catch (e) {
         logger.error('[DB] SQL执行失败: ' + e.message + ' | SQL: ' + sql.substring(0, 100));
         return null;
@@ -738,8 +752,10 @@ function updateGuild(guildId, fields) {
 
 function updateGuildFundReduce(guildId, amount) {
     if (amount <= 0) return false;
-    var stmt = run(playerDb, 'UPDATE guilds SET fund = fund - ? WHERE id = ? AND fund >= ?', [amount, guildId, amount]);
-    return stmt && stmt.affectedRows > 0;
+    var before = query(playerDb, 'SELECT fund FROM guilds WHERE id = ?', [guildId]);
+    if (before.length === 0 || before[0].fund < amount) return false;
+    run(playerDb, 'UPDATE guilds SET fund = fund - ? WHERE id = ?', [amount, guildId]);
+    return true;
 }
 
 function updateGuildFundAdd(guildId, amount) {
