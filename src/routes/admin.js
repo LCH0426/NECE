@@ -26,11 +26,6 @@ function registerRoutes(router, d) {
     router.get('/backup/stats', d.adminAuth, function(req, res) {
         try {
             const stats = d.backupModule.getBackupStats();
-            if (stats.backups) {
-                stats.backups.forEach(function(b) {
-                    b.downloadUrl = '/api/v1/backup/download/' + encodeURIComponent(b.filename);
-                });
-            }
             res.json({ code: 200, data: stats });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '获取备份统计失败: ' + e.message });
@@ -41,9 +36,6 @@ function registerRoutes(router, d) {
     router.get('/backup/list', d.adminAuth, function(req, res) {
         try {
             const backups = d.backupModule.getBackupList();
-            backups.forEach(function(b) {
-                b.downloadUrl = '/api/v1/backup/download/' + encodeURIComponent(b.filename);
-            });
             res.json({ code: 200, data: backups });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '获取备份列表失败: ' + e.message });
@@ -95,8 +87,48 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 下载备份文件
-    router.get('/backup/download/:filename', d.adminAuth, d.backupDownloadLimiter, function(req, res) {
+    // 申请临时下载令牌（需要管理员权限）
+    router.post('/backup/download-token', d.adminAuth, d.writeLimiter, function(req, res) {
+        try {
+            const filename = (req.body.filename || '').trim();
+            if (!filename) {
+                return res.status(400).json({ code: 400, msg: '缺少filename参数' });
+            }
+            // 安全校验文件名
+            if (filename.includes('..') || filename.includes('/') || filename.includes('\\') || filename.includes('\0')) {
+                return res.status(400).json({ code: 400, msg: '非法文件名' });
+            }
+            if (!filename.endsWith('.7z') && !filename.endsWith('.zip')) {
+                return res.status(400).json({ code: 400, msg: '只能下载.7z或.zip备份文件' });
+            }
+            const backupDir = d.backupModule.getBackupDir();
+            const filePath = d.pathModule.join(backupDir, filename);
+            const resolvedPath = d.pathModule.resolve(filePath);
+            const resolvedBackupDir = d.pathModule.resolve(backupDir);
+            if (!resolvedPath.startsWith(resolvedBackupDir + d.pathModule.sep) && resolvedPath !== resolvedBackupDir) {
+                return res.status(400).json({ code: 400, msg: '非法文件路径' });
+            }
+            if (!d.fs.existsSync(filePath)) {
+                return res.status(404).json({ code: 404, msg: '文件不存在' });
+            }
+            const token = d.generateDownloadToken(filename);
+            const downloadUrl = '/api/v1/backup/download/' + encodeURIComponent(filename) + '?token=' + token;
+            d.adminLog.log(req.user.uid, '生成下载链接', '文件:' + filename);
+            res.json({
+                code: 200,
+                data: {
+                    downloadUrl: downloadUrl,
+                    token: token,
+                    expiresIn: 6 * 3600
+                }
+            });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '生成下载链接失败: ' + e.message });
+        }
+    });
+
+    // 下载备份文件（仅支持临时下载令牌）
+    router.get('/backup/download/:filename', d.backupDownloadLimiter, function(req, res) {
         try {
             const filename = req.params.filename;
             // 防止路径穿越攻击：使用path.resolve验证路径在备份目录内
@@ -106,6 +138,20 @@ function registerRoutes(router, d) {
             if (!filename.endsWith('.7z') && !filename.endsWith('.zip')) {
                 return res.status(400).json({ code: 400, msg: '只能下载.7z或.zip备份文件' });
             }
+
+            // 检查临时下载令牌
+            var downloadToken = req.query.token;
+            if (!downloadToken) {
+                return res.status(401).json({ code: 401, msg: '缺少下载令牌，请先申请临时下载链接' });
+            }
+            var tokenFilename = d.consumeDownloadToken(downloadToken);
+            if (!tokenFilename) {
+                return res.status(403).json({ code: 403, msg: '下载链接无效或已过期' });
+            }
+            if (tokenFilename !== filename) {
+                return res.status(403).json({ code: 403, msg: '令牌与文件不匹配' });
+            }
+
             const backupDir = d.backupModule.getBackupDir();
             const filePath = d.pathModule.join(backupDir, filename);
             // 二次验证：解析后的绝对路径必须在备份目录内

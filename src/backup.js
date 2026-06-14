@@ -435,7 +435,17 @@ function compressTo7z(sourcePath, archivePath, compressionLevel, callback) {
     ];
 
     _7z.cmd(args, function(err) {
-        if (err) {
+        // 7-zip exit code 1 为警告而非致命错误，压缩包可能已成功生成
+        // 检查压缩包文件是否实际存在且大小>0来判断是否真正失败
+        var archiveExists = false;
+        try {
+            if (fs.existsSync(archivePath)) {
+                var stat = fs.statSync(archivePath);
+                if (stat.size > 0) archiveExists = true;
+            }
+        } catch (e) { /* ignore */ }
+
+        if (err && !archiveExists) {
             var detail = err.message || 'Unknown error';
             if (err.stderr) detail += ' | stderr: ' + err.stderr.trim();
             logger.warn(t('backup.log_7z_fail', detail));
@@ -443,6 +453,9 @@ function compressTo7z(sourcePath, archivePath, compressionLevel, callback) {
             enhancedErr.code = err.code;
             callback(enhancedErr);
         } else {
+            if (err && archiveExists) {
+                logger.warn(t('backup.log_7z_warn', err.message || 'Unknown warning'));
+            }
             callback(null);
         }
     });
@@ -640,10 +653,24 @@ function executeDataBackup(callback) {
             isDataBackingUp = false;
             const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-            if (err) {
+            // 7-zip exit code 1 为警告而非致命错误，压缩包可能已成功生成
+            // 检查压缩包文件是否实际存在且大小>0来判断是否真正失败
+            var backupFileExists = false;
+            try {
+                if (fs.existsSync(backupPath)) {
+                    var stats = fs.statSync(backupPath);
+                    if (stats.size > 0) backupFileExists = true;
+                }
+            } catch (e) { /* ignore */ }
+
+            if (err && !backupFileExists) {
                 logger.error(t('backup.log_data_fail', err.message));
                 callback({ error: t('backup.err_data_backup_failed', err.message) });
                 return;
+            }
+
+            if (err && backupFileExists) {
+                logger.warn(t('backup.log_data_warn', err.message));
             }
 
             // 获取备份文件大小

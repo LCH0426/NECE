@@ -707,7 +707,9 @@ function initRankConfig() {
 		"jwtSecret": "NECE_Default_Secret_Change_Me",
 		"jwtExpire": "15m",
 		"jwtRefreshSecret": "NECE_Default_Refresh_Secret_Change_Me",
-		"jwtRefreshExpire": "7d"
+		"jwtRefreshExpire": "7d",
+		"trustProxy": false,
+		"proxyProtocol": false
 	});
 	config.init("chat", {
 		"enabled": true,

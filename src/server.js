@@ -27,6 +27,8 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const net = require('net');
+const http = require('http');
 const svgCaptcha = require('svg-captcha');
 const pathModule = require('path');
 const fs = require('fs');
@@ -108,6 +110,212 @@ const configLimiter = createRateLimiter(60000, 10);
 // 写操作限流：每IP每分钟最多30次
 const writeLimiter = createRateLimiter(60000, 30);
 
+// 临时下载令牌存储：token -> { filename, createdAt, expiresAt }
+const _downloadTokens = new Map();
+const DOWNLOAD_TOKEN_TTL = 6 * 3600 * 1000; // 6小时有效期
+
+/** 生成临时下载令牌 */
+function generateDownloadToken(filename) {
+    const token = crypto.randomBytes(32).toString('hex');
+    const now = Date.now();
+    _downloadTokens.set(token, {
+        filename: filename,
+        createdAt: now,
+        expiresAt: now + DOWNLOAD_TOKEN_TTL
+    });
+    return token;
+}
+
+/** 验证临时下载令牌，返回关联的文件名或null */
+function verifyDownloadToken(token) {
+    const entry = _downloadTokens.get(token);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+        _downloadTokens.delete(token);
+        return null;
+    }
+    return entry.filename;
+}
+
+/** 消费临时下载令牌（一次性使用后删除） */
+function consumeDownloadToken(token) {
+    const filename = verifyDownloadToken(token);
+    if (filename) {
+        _downloadTokens.delete(token);
+    }
+    return filename;
+}
+
+/** 清理过期的临时下载令牌 */
+function cleanupDownloadTokens() {
+    const now = Date.now();
+    for (const [token, entry] of _downloadTokens) {
+        if (now > entry.expiresAt) {
+            _downloadTokens.delete(token);
+        }
+    }
+}
+
+/**
+ * PROXY Protocol v1 解析器
+ * PROXY Protocol v1 格式: "PROXY TCP4|TCP6|UNKNOWN src_addr dst_addr src_port dst_port\r\n"
+ * PROXY Protocol v2 格式: 0x0D 0x0A 0x0D 0x0A 0x00 0x0D 0x0A 0x51 0x55 0x49 0x54 0x0A + ...
+ * @param {Buffer} buf - 数据缓冲区
+ * @returns {{ consumed: number, srcAddress: string|null, srcPort: number|null }|null} 解析结果，null 表示数据不完整
+ */
+function parseProxyProtocol(buf) {
+    // PROXY Protocol v2 签名 (12 bytes)
+    const V2_SIG = Buffer.from([0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A]);
+
+    // 检测 v2
+    if (buf.length >= 12 && buf.slice(0, 12).equals(V2_SIG)) {
+        if (buf.length < 16) return null; // 头部不完整
+        const verCmd = buf[12];
+        const version = (verCmd & 0xF0) >> 4;
+        const command = verCmd & 0x0F;
+        if (version !== 2) return null;
+        const family = buf[13];
+        const addrLen = buf.readUInt16BE(14);
+        const totalLen = 16 + addrLen;
+        if (buf.length < totalLen) return null; // 数据不完整
+        if (command === 0) {
+            // LOCAL command - 本地连接，不代理
+            return { consumed: totalLen, srcAddress: null, srcPort: null };
+        }
+        if (command !== 1) return null; // PROXY command
+        const af = (family & 0xF0) >> 4;
+        const proto = family & 0x0F;
+        if (proto !== 1) {
+            // 非 TCP (STREAM) 协议，跳过
+            return { consumed: totalLen, srcAddress: null, srcPort: null };
+        }
+        let offset = 16;
+        if (af === 1) {
+            // IPv4: 4+4+2+2 = 12 bytes
+            if (addrLen < 12) return null;
+            const srcAddr = buf[offset] + '.' + buf[offset+1] + '.' + buf[offset+2] + '.' + buf[offset+3];
+            offset += 8; // skip src+dst addr
+            const srcPort = buf.readUInt16BE(offset);
+            return { consumed: totalLen, srcAddress: srcAddr, srcPort: srcPort };
+        } else if (af === 2) {
+            // IPv6: 16+16+2+2 = 36 bytes
+            if (addrLen < 36) return null;
+            const srcAddr = [];
+            for (let i = 0; i < 16; i++) {
+                srcAddr.push(buf[offset + i].toString(16).padStart(2, '0'));
+            }
+            const srcAddrStr = srcAddr[0]+srcAddr[1]+':'+srcAddr[2]+srcAddr[3]+':'+srcAddr[4]+srcAddr[5]+':'+srcAddr[6]+srcAddr[7]+':'+srcAddr[8]+srcAddr[9]+':'+srcAddr[10]+srcAddr[11]+':'+srcAddr[12]+srcAddr[13]+':'+srcAddr[14]+srcAddr[15];
+            offset += 32; // skip src+dst addr
+            const srcPort = buf.readUInt16BE(offset);
+            return { consumed: totalLen, srcAddress: srcAddrStr, srcPort: srcPort };
+        }
+        // UNSPEC 或其他
+        return { consumed: totalLen, srcAddress: null, srcPort: null };
+    }
+
+    // 检测 v1: 以 "PROXY " 开头
+    const V1_PREFIX = 'PROXY ';
+    if (buf.length < 6) return null;
+    const prefix = buf.slice(0, 6).toString('ascii');
+    if (prefix !== V1_PREFIX) {
+        // 不是 PROXY protocol，当作普通连接
+        return { consumed: 0, srcAddress: null, srcPort: null };
+    }
+    // 查找 \r\n 结束符
+    const crlfIdx = buf.indexOf('\r\n');
+    if (crlfIdx === -1) return null; // 数据不完整
+    const line = buf.slice(0, crlfIdx).toString('ascii');
+    const parts = line.split(' ');
+    // PROXY TCP4 src_addr dst_addr src_port dst_port
+    if (parts.length < 6) {
+        return { consumed: crlfIdx + 2, srcAddress: null, srcPort: null };
+    }
+    const proto = parts[1];
+    if (proto === 'TCP4' || proto === 'TCP6') {
+        return {
+            consumed: crlfIdx + 2,
+            srcAddress: parts[2],
+            srcPort: parseInt(parts[4], 10) || null
+        };
+    }
+    // UNKNOWN 或其他
+    return { consumed: crlfIdx + 2, srcAddress: null, srcPort: null };
+}
+
+/**
+ * 创建支持 PROXY Protocol 的 TCP 服务器
+ * 在 TCP 层解析 PROXY Protocol 头，提取真实 IP 后将连接转发给 HTTP server
+ * @param {http.Server} httpServer - Express 的 HTTP server
+ * @param {object} options - 配置选项
+ * @param {boolean} options.v2 - 是否同时支持 v2（默认 true，始终支持 v1）
+ * @returns {net.Server}
+ */
+function createProxyProtocolServer(httpServer, options) {
+    const tcpServer = net.createServer(function(socket) {
+        let buf = Buffer.alloc(0);
+        let proxyParsed = false;
+
+        socket.on('data', function onData(chunk) {
+            if (proxyParsed) return; // 已解析完毕，后续数据由 HTTP server 处理
+
+            buf = Buffer.concat([buf, chunk]);
+
+            const result = parseProxyProtocol(buf);
+            if (result === null) {
+                // 数据不完整，等待更多数据
+                if (buf.length > 4096) {
+                    // 超过 4KB 还没解析出 PROXY protocol，当作普通连接
+                    proxyParsed = true;
+                    socket.removeListener('data', onData);
+                    socket.emit('proxy-protocol', null);
+                    httpServer.emit('connection', socket);
+                    socket.unshift(buf);
+                }
+                return;
+            }
+
+            proxyParsed = true;
+            socket.removeListener('data', onData);
+
+            if (result.srcAddress) {
+                // Node.js 的 socket.remoteAddress 是原型链上的 getter，直接赋值无法覆盖
+                // 必须用 Object.defineProperty 在实例上定义 own property 来遮蔽原型 getter
+                Object.defineProperty(socket, 'remoteAddress', {
+                    value: result.srcAddress,
+                    writable: true,
+                    configurable: true
+                });
+                if (result.srcPort) {
+                    Object.defineProperty(socket, 'remotePort', {
+                        value: result.srcPort,
+                        writable: true,
+                        configurable: true
+                    });
+                }
+            }
+
+            // 消费掉 PROXY protocol 头，剩余数据推回
+            if (result.consumed > 0) {
+                const remaining = buf.slice(result.consumed);
+                if (remaining.length > 0) {
+                    socket.unshift(remaining);
+                }
+            } else {
+                // consumed === 0 表示不是 PROXY protocol，原始数据完整推回
+                socket.unshift(buf);
+            }
+
+            httpServer.emit('connection', socket);
+        });
+
+        socket.on('error', function(err) {
+            // 忽略 socket 错误，避免未捕获异常
+        });
+    });
+
+    return tcpServer;
+}
+
 /** 定期清理过期的限流记录，防止内存泄漏 */
 function startRateLimitCleanup() {
     if (_rateLimitCleanupTimer) clearInterval(_rateLimitCleanupTimer);
@@ -122,6 +330,7 @@ function startRateLimitCleanup() {
                 }
             }
         }
+        cleanupDownloadTokens();
     }, 120000); // 每2分钟清理一次
 }
 
@@ -171,7 +380,7 @@ function setEconomyFunctions(funcs) {
  * @returns {string}
  */
 function getErrorMessage(e, fallback) {
-    if (_webConfig && _webConfig.debugMode) return fallback + ': ' + e.message;
+    if ((_configRef && _configRef.get('debug')) || (_webConfig && _webConfig.debugMode)) return fallback + ': ' + e.message;
     return fallback || '服务器内部错误';
 }
 
@@ -378,6 +587,19 @@ function createApp(webConfig) {
     }));
     app.use(express.json());
 
+    // Debug 模式下打印 HTTP 请求日志
+    if (webConfig.debugMode || (_configRef && _configRef.get('debug'))) {
+        app.use(function(req, res, next) {
+            const start = Date.now();
+            res.on('finish', function() {
+                const duration = Date.now() - start;
+                const ip = req.ip || req.connection.remoteAddress;
+                logger.info('[HTTP] ' + req.method + ' ' + req.originalUrl + ' ' + res.statusCode + ' ' + duration + 'ms ' + ip);
+            });
+            next();
+        });
+    }
+
     const v1Router = createV1Routes(webConfig);
     app.use('/api/v1', globalApiLimiter, v1Router);
 
@@ -549,7 +771,8 @@ function createV1Routes(webConfig) {
         economyFunctions: _economyFunctions,
         getErrorMessage: getErrorMessage,
         loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter, writeLimiter,
-        hasWish: _hasWish
+        hasWish: _hasWish,
+        generateDownloadToken, consumeDownloadToken
     };
 
     // 版本信息接口
@@ -602,12 +825,27 @@ function startServer(webConfig) {
 
     createApp(webConfig);
 
-    server = app.listen(port, host, () => {
-        logger.info('[Web] API服务器已启动: http://' + displayHost + ':' + port);
-        if (webConfig.enableFrontend !== false) {
-            logger.info('[Web] 前端页面: http://' + displayHost + ':' + port);
-        }
-    });
+    if (webConfig.proxyProtocol) {
+        // PROXY Protocol 模式：创建 TCP 服务器解析 PROXY Protocol 头，转发给 HTTP server
+        const httpServer = http.createServer(app);
+        const tcpServer = createProxyProtocolServer(httpServer, { v2: true });
+        server = tcpServer;
+        tcpServer.listen(port, host, () => {
+            logger.info('[Web] API服务器已启动 (PROXY Protocol v1/v2): http://' + displayHost + ':' + port);
+            if (webConfig.enableFrontend !== false) {
+                logger.info('[Web] 前端页面: http://' + displayHost + ':' + port);
+            }
+        });
+        // 保存 httpServer 引用，用于关闭
+        server._httpServer = httpServer;
+    } else {
+        server = app.listen(port, host, () => {
+            logger.info('[Web] API服务器已启动: http://' + displayHost + ':' + port);
+            if (webConfig.enableFrontend !== false) {
+                logger.info('[Web] 前端页面: http://' + displayHost + ':' + port);
+            }
+        });
+    }
 
     // 按需监控：不再持续轮询，由 /system/stats 端点触发采集
     monitoring.refreshStats().catch(function(e) {});
@@ -628,6 +866,9 @@ function stopServer() {
     if (cleanupTimer) { clearInterval(cleanupTimer); cleanupTimer = null; }
     if (_rateLimitCleanupTimer) { clearInterval(_rateLimitCleanupTimer); _rateLimitCleanupTimer = null; }
     if (server) {
+        if (server._httpServer) {
+            server._httpServer.close();
+        }
         server.close();
         server = null;
         logger.info('[Web] 服务器已关闭');

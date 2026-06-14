@@ -31,6 +31,10 @@ const teleportCooldowns = {};
 let _deps = {};
 // RTP 摔伤保护：记录刚RTP的玩家，5秒内取消摔伤
 var _rtpProtected = {};
+// 家园脏标记
+var _dirtyHomes = {};
+// 死亡点脏标记
+var _dirtyDeathPoints = {};
 
 /** 注册RTP摔伤保护事件 */
 function registerRtpProtection() {
@@ -123,6 +127,26 @@ function setTeleportCooldown(xuid, type, seconds) {
 function getPlayerHomes(xuid) {
 	if (!homesData[xuid]) homesData[xuid] = [];
 	return homesData[xuid];
+}
+
+/** 标记家园数据为脏 */
+function markHomeDirty(xuid) { _dirtyHomes[xuid] = true; }
+
+/** 获取并清空家园脏标记 */
+function flushDirtyHomes() {
+    var list = Object.keys(_dirtyHomes);
+    _dirtyHomes = {};
+    return list;
+}
+
+/** 标记死亡点数据为脏 */
+function markDeathPointDirty(xuid) { _dirtyDeathPoints[xuid] = true; }
+
+/** 获取并清空死亡点脏标记 */
+function flushDirtyDeathPoints() {
+    var list = Object.keys(_dirtyDeathPoints);
+    _dirtyDeathPoints = {};
+    return list;
 }
 
 /** 通过 DataManager 防抖保存家园数据 */
@@ -727,6 +751,7 @@ function showHomeSetForm(player, deps) {
 			sharedWith: [],
 			lastUse: 0
 		});
+		markHomeDirty(p.xuid);
 		saveHomesData();
 		p.tell("§e[家园] §a家园 §b" + name + " §a设置成功！");
 		showHomeMainForm(p, deps);
@@ -782,6 +807,7 @@ function teleportToHome(player, home) {
 
 	if (safeTeleport(player, home.x, home.y, home.z, home.dim)) {
 		home.lastUse = Date.now();
+		markHomeDirty(player.xuid);
 		saveHomesData();
 		setTeleportCooldown(player.xuid, 'home', getTpConfig().homeCooldown);
 		player.tell("§e[家园] §a已传送到家园 §b" + home.name);
@@ -826,6 +852,7 @@ function showHomeShareForm(player, home, homeIndex, deps) {
 			const idx = home.sharedWith.indexOf(removeName);
 			if (idx !== -1) {
 				home.sharedWith.splice(idx, 1);
+				markHomeDirty(p.xuid);
 				saveHomesData();
 				p.tell("§e[家园] §a已移除共享玩家 " + removeName);
 			}
@@ -890,6 +917,7 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
 			if (!home.sharedWith) home.sharedWith = [];
 			if (home.sharedWith.indexOf(selected.name) === -1) {
 				home.sharedWith.push(selected.name);
+				markHomeDirty(p2.xuid);
 				saveHomesData();
 				p2.tell("§e[家园] §a已将 " + selected.name + " 添加到家园共享列表");
 			} else {
@@ -924,6 +952,7 @@ function showHomeDeleteConfirm(player, home, homeIndex, deps) {
 
 		const homes = getPlayerHomes(p.xuid);
 		homes.splice(homeIndex, 1);
+		markHomeDirty(p.xuid);
 		saveHomesData();
 		p.tell("§e[家园] §a已删除家园 §b" + home.name);
 		showHomeMainForm(p, deps);
@@ -1490,5 +1519,7 @@ module.exports = {
 	showDeathPointMenu: showDeathPointMenu,
 	teleportToDeathPoint: teleportToDeathPoint,
 	getDeathPointData: function() { return deathPointData; },
-	safeTeleport: safeTeleport
+	safeTeleport: safeTeleport,
+	flushDirtyHomes: flushDirtyHomes,
+	flushDirtyDeathPoints: flushDirtyDeathPoints
 };

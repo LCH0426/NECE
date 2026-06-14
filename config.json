@@ -397,6 +397,8 @@
     "port": 8080,
     "host": "0.0.0.0",
     "jwtExpire": "15m",
-    "jwtRefreshExpire": "7d"
+    "jwtRefreshExpire": "7d",
+    "trustProxy": false,
+    "proxyProtocol": false
   }
 }
