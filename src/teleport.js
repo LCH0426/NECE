@@ -29,6 +29,17 @@ const teleportPendingRequests = {};
 const teleportCooldowns = {};
 
 let _deps = {};
+// RTP 摔伤保护：记录刚RTP的玩家，5秒内取消摔伤
+var _rtpProtected = {};
+
+/** 注册RTP摔伤保护事件 */
+function registerRtpProtection() {
+    mc.listen('onDamage', function(player, damage, cause) {
+        if (cause === 5 && _rtpProtected[player.xuid]) { // cause 5 = 摔伤
+            return false; // 取消摔伤
+        }
+    });
+}
 
 /** 运行时读取传送配置，支持热重载 */
 function getTpConfig() {
@@ -141,6 +152,7 @@ function init(_homesDM, _warpsDM, deps) {
 
 	homesData = homesDM.load();
 	warpsData = warpsDM.load();
+	registerRtpProtection();
 	D.debugLogModule('teleport')('init: 家园数=' + Object.keys(homesData).length + ', 地标数=' + Object.keys(warpsData).length);
 
 
@@ -1442,8 +1454,9 @@ function executeRtp(player, radius, cost) {
 	var y = 320;
 	player.sendText("§e[传送] §a正在传送到随机位置...", 0);
 	if (safeTeleport(player, x + 0.5, y, z + 0.5, 0)) {
-		// 给予短暂摔伤保护
-		try { player.addEffect(28, 100, 0, false); } catch (e) {}
+		// 5秒内拦截摔伤
+		_rtpProtected[player.xuid] = true;
+		setTimeout(function() { delete _rtpProtected[player.xuid]; }, 5000);
 		var rtpCd = (_deps.getConfig ? _deps.getConfig() : {}).rtpCooldown || 60;
 		setTeleportCooldown(player.xuid, 'rtp', rtpCd);
 		player.tell("§e[传送] §a已传送到随机位置 (" + x + ", " + y + ", " + z + ")");
