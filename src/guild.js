@@ -60,26 +60,39 @@ function init(deps) {
     chatModule = deps.chatModule || null;
     notifyEconomyChange = deps.notifyEconomyChange || function() {};
 
-    // 每10分钟清理超过30分钟的申请和邀请记录，防止内存泄漏
+    // 从数据库加载待处理的申请和邀请
+    _loadGuildRequestsFromDB();
+    _loadGuildInvitesFromDB();
+
+    // 每10分钟清理超过30分钟的申请和邀请记录
     setInterval(function() {
-        var now = Date.now();
-        // 清理过期的加入申请
-        for (var guildId in _joinRequests) {
-            if (!_joinRequests.hasOwnProperty(guildId)) continue;
-            _joinRequests[guildId] = _joinRequests[guildId].filter(function(req) {
-                return now - req.time < 1800000;
-            });
-            if (_joinRequests[guildId].length === 0) delete _joinRequests[guildId];
-        }
-        // 清理过期的公会邀请
-        for (var targetXuid in _guildInvites) {
-            if (!_guildInvites.hasOwnProperty(targetXuid)) continue;
-            _guildInvites[targetXuid] = _guildInvites[targetXuid].filter(function(inv) {
-                return now - inv.time < 1800000;
-            });
-            if (_guildInvites[targetXuid].length === 0) delete _guildInvites[targetXuid];
-        }
+        database.clearExpiredGuildRequestsSQL(1800000);
+        database.clearExpiredGuildInvitesSQL(1800000);
+        // 同步清理内存缓存
+        _loadGuildRequestsFromDB();
+        _loadGuildInvitesFromDB();
     }, 600000);
+}
+
+/** 从数据库加载公会申请到内存缓存 */
+function _loadGuildRequestsFromDB() {
+    _joinRequests = {};
+    var guilds = database.getAllGuilds();
+    guilds.forEach(function(g) {
+        var reqs = database.getGuildRequestsSQL(g.id);
+        if (reqs.length > 0) _joinRequests[g.id] = reqs;
+    });
+}
+
+/** 从数据库加载公会邀请到内存缓存 */
+function _loadGuildInvitesFromDB() {
+    _guildInvites = {};
+    var pd = getPlayerData ? getPlayerData() : null;
+    if (!pd || !pd.players) return;
+    for (var xuid in pd.players) {
+        var invites = database.getGuildInvitesSQL(xuid);
+        if (invites.length > 0) _guildInvites[xuid] = invites;
+    }
 }
 
 /** 获取当前公会配置 */
@@ -1202,6 +1215,7 @@ function showPendingInvitesPanel(player) {
             if (database.getGuildByPlayer(String(p.xuid))) {
                 p.tell('§e[公会] §c你已在公会中');
                 _guildInvites[xuid] = [];
+                database.clearGuildInvitesSQL(xuid);
                 showMainMenu(p);
                 return;
             }
@@ -1209,17 +1223,20 @@ function showPendingInvitesPanel(player) {
             if (!guild) {
                 p.tell('§e[公会] §c该公会已不存在');
                 _guildInvites[xuid].splice(invIdx, 1);
+                database.removeGuildInviteSQL(xuid, inv.guildId);
                 showPendingInvitesPanel(p);
                 return;
             }
             if (database.getMemberCount(guild.id) >= guild.maxMembers) {
                 p.tell('§e[公会] §c该公会成员已满');
                 _guildInvites[xuid].splice(invIdx, 1);
+                database.removeGuildInviteSQL(xuid, inv.guildId);
                 showPendingInvitesPanel(p);
                 return;
             }
             database.addGuildMember(xuid, guild.id, 'member');
             _guildInvites[xuid] = []; // 清空所有邀请
+            database.clearGuildInvitesSQL(xuid);
             p.tell('§e[公会] §a你已加入公会"' + guild.name + '"');
             logger.info('[Guild] ' + p.name + ' 接受邀请加入公会: ' + guild.name);
             // 通知邀请人
@@ -1230,6 +1247,7 @@ function showPendingInvitesPanel(player) {
         } else {
             // 拒绝邀请
             _guildInvites[xuid].splice(invIdx, 1);
+            database.removeGuildInviteSQL(xuid, inv.guildId);
             p.tell('§e[公会] §e已拒绝公会"' + inv.guildName + '"的邀请');
             if (inv.inviterXuid) {
                 sendSystemMail(inv.inviterXuid, '§c玩家§e' + p.name + '§c拒绝了你对§6' + inv.guildName + '§c公会的邀请');
@@ -1311,7 +1329,9 @@ function doSubmitJoinRequest(player, guild) {
             if (database.getMemberCount(guild.id) >= guild.maxMembers) { p.tell('§e[公会] §c该公会成员已满'); return; }
 
             if (!_joinRequests[guild.id]) _joinRequests[guild.id] = [];
-            _joinRequests[guild.id].push({ xuid: String(p.xuid), name: p.name, time: Date.now() });
+            var reqData = { xuid: String(p.xuid), name: p.name, time: Date.now() };
+            _joinRequests[guild.id].push(reqData);
+            database.addGuildRequestSQL(guild.id, reqData.xuid, reqData.name, reqData.time);
             p.tell('§e[公会] §a已向公会"' + guild.name + '"提交加入申请，请等待会长/管理员审批');
 
             // 通知会长和管理员
@@ -1386,6 +1406,7 @@ function showJoinRequestsPanel(player) {
                     if (database.getGuildByPlayer(freshReq.xuid)) {
                         p2.tell('§e[公会] §c该玩家已加入其他公会');
                         _joinRequests[guild.id].splice(freshIdx, 1);
+                        database.removeGuildRequestSQL(guild.id, freshReq.xuid);
                         showJoinRequestsPanel(p2);
                         return;
                     }
@@ -1396,12 +1417,14 @@ function showJoinRequestsPanel(player) {
                     }
                     database.addGuildMember(freshReq.xuid, guild.id, 'member');
                     _joinRequests[guild.id].splice(freshIdx, 1);
+                    database.removeGuildRequestSQL(guild.id, freshReq.xuid);
                     p2.tell('§e[公会] §a已批准"' + freshReq.name + '"加入公会');
                     sendSystemMail(freshReq.xuid, '§a你加入公会§6' + guild.name + '§a的申请已被批准，欢迎加入！');
                     try { var tp = mc.getPlayer(freshReq.xuid); if (tp) tp.tell('§e[公会] §a你的加入公会"' + guild.name + '"申请已被批准'); } catch (e) {}
                     logger.info('[Guild] ' + p2.name + ' 批准 ' + freshReq.name + ' 加入公会: ' + guild.name);
                 } else {
                     _joinRequests[guild.id].splice(freshIdx, 1);
+                    database.removeGuildRequestSQL(guild.id, freshReq.xuid);
                     p2.tell('§e[公会] §e已拒绝"' + freshReq.name + '"的加入申请');
                     sendSystemMail(freshReq.xuid, '§c你加入公会§6' + guild.name + '§c的申请已被拒绝');
                     try { var tp2 = mc.getPlayer(freshReq.xuid); if (tp2) tp2.tell('§e[公会] §c你加入公会"' + guild.name + '"的申请已被拒绝'); } catch (e) {}
@@ -1547,13 +1570,15 @@ function doSendInvite(player, guild, targetXuid) {
 
     // 发送邀请
     if (!_guildInvites[targetXuid]) _guildInvites[targetXuid] = [];
+    var inviteTime = Date.now();
     _guildInvites[targetXuid].push({
         guildId: guild.id,
         guildName: guild.name,
         inviterName: player.name,
         inviterXuid: xuid,
-        time: Date.now()
+        time: inviteTime
     });
+    database.addGuildInviteSQL(targetXuid, guild.id, guild.name, player.name, inviteTime);
 
     var targetName = getPlayerName(targetXuid);
     player.tell('§e[公会] §a已向"' + targetName + '"发送公会邀请，等待对方接受');
@@ -1875,13 +1900,15 @@ function doAdminSendInvite(player, guild, targetXuid) {
     }
 
     if (!_guildInvites[targetXuid]) _guildInvites[targetXuid] = [];
+    var adminInviteTime = Date.now();
     _guildInvites[targetXuid].push({
         guildId: guild.id,
         guildName: guild.name,
         inviterName: player.name,
         inviterXuid: String(player.xuid),
-        time: Date.now()
+        time: adminInviteTime
     });
+    database.addGuildInviteSQL(targetXuid, guild.id, guild.name, player.name, adminInviteTime);
 
     var targetName = getPlayerName(targetXuid);
     player.tell('§e[公会] §a已向"' + targetName + '"发送公会邀请，等待对方接受');
