@@ -737,6 +737,10 @@ function removeGuildInviteSQL(targetXuid, guildId) {
     run(playerDb, 'DELETE FROM guild_invites WHERE target_xuid = ? AND guild_id = ?', [targetXuid, guildId]);
 }
 
+function clearGuildInvitesSQL(targetXuid) {
+    run(playerDb, 'DELETE FROM guild_invites WHERE target_xuid = ?', [targetXuid]);
+}
+
 function clearExpiredGuildRequestsSQL(maxAge) {
     run(playerDb, 'DELETE FROM guild_requests WHERE time < ?', [Date.now() - maxAge]);
 }
@@ -1014,6 +1018,7 @@ module.exports = {
     getGuildInvitesSQL,
     addGuildInviteSQL,
     removeGuildInviteSQL,
+    clearGuildInvitesSQL,
     clearExpiredGuildRequestsSQL,
     clearExpiredGuildInvitesSQL,
     // 玩家人数统计SQL
