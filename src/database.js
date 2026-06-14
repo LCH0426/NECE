@@ -456,7 +456,8 @@ function getPlayerDataSQL(xuid) {
         quickmenu: JSON.parse(r.quick_menu || '{}'), vipdata: JSON.parse(r.vip_data || '{}'),
         avatar: JSON.parse(r.avatar || '{}'), count: JSON.parse(r.count || '{}'),
         titles: JSON.parse(r.titles || '{}'), lastIp: r.last_ip || '', platform: r.platform || '',
-        chain: JSON.parse(r.chain || '{}'), chainPlan: JSON.parse(r.chain_plan || '{}')
+        chain: JSON.parse(r.chain || '{}'), chainPlan: JSON.parse(r.chain_plan || '{}'),
+        dustshop: JSON.parse(r.dustshop || '{}')
     };
 }
 
