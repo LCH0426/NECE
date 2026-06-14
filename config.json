@@ -96,6 +96,11 @@
     "withdrawAdminOnly": false,
     "teleportCooldown": 10
   },
+  "sign": {
+    "enabled": true,
+    "minReward": 100,
+    "maxReward": 8000
+  },
   "menu": {
     "enabled": true,
     "main": {
