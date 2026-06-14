@@ -1111,7 +1111,9 @@ function initAllConfigs() {
 		// UI
 		openMainMenu: personalCenter.openMainMenu, // (Player) => void — 打开主菜单
 		// 配置
-		getConfig: function() { return config.get('teleport'); }
+		getConfig: function() { return config.get('teleport'); },
+		// 数据库
+		database: database
 	};
 
 	teleportModule.init(homesDM, warpsDM, commonDeps);
