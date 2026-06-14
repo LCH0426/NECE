@@ -1384,7 +1384,9 @@ function getDimensionName(dimId) {
  * @param {Player} player
  */
 function showRtpConfirmForm(player) {
-	if (!tpsConfig.enableRtp) {
+	var cfg = _deps.getConfig ? _deps.getConfig() : {};
+	var rtpEnabled = cfg.enableRtp !== undefined ? cfg.enableRtp : true;
+	if (!rtpEnabled) {
 		player.tell("§e[传送] §c随机传送功能已关闭");
 		return;
 	}
@@ -1393,8 +1395,9 @@ function showRtpConfirmForm(player) {
 		player.tell("§e[传送] §c请等待 " + cd + " 秒后再使用随机传送");
 		return;
 	}
-	var cost = tpsConfig.rtpCost || 0;
-	var radius = tpsConfig.rtpRadius || 10000;
+	var cfg = _deps.getConfig ? _deps.getConfig() : {};
+	var cost = cfg.rtpCost !== undefined ? cfg.rtpCost : 0;
+	var radius = cfg.rtpRadius || 10000;
 	var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '金币';
 	var costText = cost > 0 ? "\n§a费用：§f" + cost + " " + currencyName : "";
 	player.sendModalForm(
@@ -1440,7 +1443,8 @@ function executeRtp(player, radius, cost) {
 		}
 	} catch (e) {}
 	if (safeTeleport(player, x + 0.5, y, z + 0.5, 0)) {
-		setTeleportCooldown(player.xuid, 'rtp', tpsConfig.rtpCooldown || 60);
+		var rtpCd = (_deps.getConfig ? _deps.getConfig() : {}).rtpCooldown || 60;
+		setTeleportCooldown(player.xuid, 'rtp', rtpCd);
 		player.tell("§e[传送] §a已传送到随机位置 (" + x + ", " + y + ", " + z + ")");
 	} else {
 		player.tell("§e[传送] §c传送失败，请稍后再试");
