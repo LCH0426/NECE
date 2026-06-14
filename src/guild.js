@@ -74,25 +74,28 @@ function init(deps) {
     }, 600000);
 }
 
-/** 从数据库加载公会申请到内存缓存 */
+/** 从数据库加载公会申请到内存缓存（单次查询所有数据） */
 function _loadGuildRequestsFromDB() {
     _joinRequests = {};
-    var guilds = database.getAllGuilds();
-    guilds.forEach(function(g) {
-        var reqs = database.getGuildRequestsSQL(g.id);
-        if (reqs.length > 0) _joinRequests[g.id] = reqs;
-    });
+    try {
+        var all = database.getAllGuildRequestsSQL ? database.getAllGuildRequestsSQL() : [];
+        all.forEach(function(r) {
+            if (!_joinRequests[r.guild_id]) _joinRequests[r.guild_id] = [];
+            _joinRequests[r.guild_id].push({ xuid: r.xuid, name: r.name, time: r.time });
+        });
+    } catch (e) {}
 }
 
-/** 从数据库加载公会邀请到内存缓存 */
+/** 从数据库加载公会邀请到内存缓存（单次查询所有数据） */
 function _loadGuildInvitesFromDB() {
     _guildInvites = {};
-    var pd = getPlayerData ? getPlayerData() : null;
-    if (!pd || !pd.players) return;
-    for (var xuid in pd.players) {
-        var invites = database.getGuildInvitesSQL(xuid);
-        if (invites.length > 0) _guildInvites[xuid] = invites;
-    }
+    try {
+        var all = database.getAllGuildInvitesSQL ? database.getAllGuildInvitesSQL() : [];
+        all.forEach(function(r) {
+            if (!_guildInvites[r.target_xuid]) _guildInvites[r.target_xuid] = [];
+            _guildInvites[r.target_xuid].push({ guildId: r.guild_id, guildName: r.guild_name, inviterName: r.inviter_name, time: r.time });
+        });
+    } catch (e) {}
 }
 
 /** 获取当前公会配置 */

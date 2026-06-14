@@ -715,6 +715,10 @@ function getGuildRequestsSQL(guildId) {
         .map(function(r) { return { xuid: r.xuid, name: r.name, time: r.time }; });
 }
 
+function getAllGuildRequestsSQL() {
+    return query(playerDb, 'SELECT guild_id, xuid, name, time FROM guild_requests');
+}
+
 function addGuildRequestSQL(guildId, xuid, name, time) {
     run(playerDb, 'INSERT INTO guild_requests (guild_id, xuid, name, time) VALUES (?, ?, ?, ?)', [guildId, xuid, name, time]);
 }
@@ -730,6 +734,10 @@ function clearGuildRequestsSQL(guildId) {
 function getGuildInvitesSQL(targetXuid) {
     return query(playerDb, 'SELECT guild_id, guild_name, inviter_name, time FROM guild_invites WHERE target_xuid = ?', [targetXuid])
         .map(function(r) { return { guildId: r.guild_id, guildName: r.guild_name, inviterName: r.inviter_name, time: r.time }; });
+}
+
+function getAllGuildInvitesSQL() {
+    return query(playerDb, 'SELECT target_xuid, guild_id, guild_name, inviter_name, time FROM guild_invites');
 }
 
 function addGuildInviteSQL(targetXuid, guildId, guildName, inviterName, time) {
@@ -1031,10 +1039,12 @@ module.exports = {
     getGuildTeleportByName,
     // 公会申请/邀请SQL
     getGuildRequestsSQL,
+    getAllGuildRequestsSQL,
     addGuildRequestSQL,
     removeGuildRequestSQL,
     clearGuildRequestsSQL,
     getGuildInvitesSQL,
+    getAllGuildInvitesSQL,
     addGuildInviteSQL,
     removeGuildInviteSQL,
     clearGuildInvitesSQL,
