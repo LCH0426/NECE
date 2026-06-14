@@ -125,11 +125,17 @@ function createBankModule(deps) {
         let now = Date.now();
         let lastTimeStr = account.current.lastInterestTime;
         const lastTime = typeof lastTimeStr === 'string' ? timeStringToTimestamp(lastTimeStr) : lastTimeStr;
+        // 防止时间戳解析失败导致NaN
+        if (isNaN(lastTime) || lastTime <= 0) {
+            account.current.lastInterestTime = U.getCurrentTimeString();
+            return 0;
+        }
         const timeDiff = now - lastTime;
-        if (timeDiff < 1000) return 0;
+        if (isNaN(timeDiff) || timeDiff < 1000) return 0;
         let days = timeDiff / (1000 * 60 * 60 * 24);
         const dailyRate = 0.0002;
         let interest = Math.round(account.current.balance * dailyRate * days);
+        if (isNaN(interest) || interest <= 0) return 0;
         if (interest > 0) {
             account.current.balance = account.current.balance + interest;
             account.current.totalInterest = account.current.totalInterest + interest;

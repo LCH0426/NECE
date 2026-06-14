@@ -14,4 +14,6 @@ wish.js
 .github/
 test/plugins/
 .mimocode/
+backup/
+badwords.json
 

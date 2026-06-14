@@ -152,14 +152,30 @@ function registerRoutes(router, d) {
             if (action === 'add') {
                 success = eco.addPlayerMoneyByXuid(xuid, intAmount, reason);
             } else if (action === 'reduce') {
-                success = eco.reducePlayerMoneyByXuid ? eco.reducePlayerMoneyByXuid(xuid, intAmount, reason) : eco.addPlayerMoneyByXuid(xuid, -intAmount, reason);
+                if (eco.reducePlayerMoneyByXuid) {
+                    success = eco.reducePlayerMoneyByXuid(xuid, intAmount, reason);
+                } else {
+                    // fallback: 验证余额充足后再减少
+                    const currentBal = eco.getPlayerMoneyByXuid(xuid);
+                    if (currentBal < intAmount) {
+                        return res.status(400).json({ code: 400, msg: '玩家余额不足，当前余额: ' + currentBal });
+                    }
+                    success = eco.addPlayerMoneyByXuid(xuid, -intAmount, reason);
+                }
             } else if (action === 'set') {
                 const currentBalance = eco.getPlayerMoneyByXuid(xuid);
                 const diff = intAmount - currentBalance;
-                if (diff >= 0) {
+                if (diff > 0) {
                     success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                } else if (diff < 0) {
+                    if (eco.reducePlayerMoneyByXuid) {
+                        success = eco.reducePlayerMoneyByXuid(xuid, -diff, reason);
+                    } else {
+                        success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                    }
                 } else {
-                    success = eco.reducePlayerMoneyByXuid ? eco.reducePlayerMoneyByXuid(xuid, -diff, reason) : eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                    // 金额相同，无需操作
+                    success = true;
                 }
             } else {
                 return res.status(400).json({ code: 400, msg: '无效操作，支持: add, reduce, set' });

@@ -202,23 +202,33 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 
 		const currentBalance = deps.getPlayerMoney(p);
 
+		// 逐槽位精确匹配：只清除确认时仍在该槽位的可回收物品
+		// 记录每个槽位应清除的物品type，避免槽位移动导致误删
 		const inventory = p.getInventory();
+		let actualEarned = 0;
 		for (let i = 0; i < inventory.size; i++) {
 			const item = inventory.getItem(i);
 			if (!item.isNull() && actualRecyclable[item.type]) {
+				const price = getRecyclePrice(recycleConfig, item.type);
+				actualEarned += item.count * price;
 				inventory.setItem(i, mc.newItem("minecraft:air", 0));
 			}
 		}
 		p.refreshItems();
 
-		deps.addPlayerMoney(p, actualTotalValue, "一键回收");
+		if (actualEarned <= 0) {
+			p.tell("§e[商店] §c回收失败，物品可能已变动");
+			return;
+		}
+
+		deps.addPlayerMoney(p, actualEarned, "一键回收");
 
 		const newBalance = deps.getPlayerMoney(p);
 
-		writeRecycleLog(p, actualRecyclable, actualTotalValue, currentBalance, newBalance);
+		writeRecycleLog(p, actualRecyclable, actualEarned, currentBalance, newBalance);
 
 		p.tell("§e[商店] §a回收成功！");
-		p.tell("§e[商店] §e+" + actualTotalValue + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");
+		p.tell("§e[商店] §e+" + actualEarned + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");
 	});
 }
 
