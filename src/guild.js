@@ -21,7 +21,7 @@
  */
 
 const database = require('./database');
-const U = require('./utils');
+const teleportModule = require('./teleport');
 
 // 传送冷却记录 { xuid: expireTimestamp }
 const guildTpCooldowns = {};
@@ -321,7 +321,7 @@ function doTeleportTo(player, tpName) {
     var remain = checkCooldown(xuid);
     if (remain > 0) { player.tell('§e[公会] §c传送冷却中，请等待 ' + remain + ' 秒'); return; }
 
-    if (U.safeTeleport(player, tp.x, tp.y, tp.z, tp.dim)) {
+    if (teleportModule.safeTeleport(player, tp.x, tp.y, tp.z, tp.dim)) {
         player.tell('§e[公会] §a已传送到公会传送点: ' + tp.name);
     } else {
         player.tell('§e[公会] §c传送失败');
@@ -341,7 +341,7 @@ function doTeleportHQ(player) {
     var remain = checkCooldown(xuid);
     if (remain > 0) { player.tell('§e[公会] §c传送冷却中，请等待 ' + remain + ' 秒'); return; }
 
-    if (U.safeTeleport(player, guild.hqX, guild.hqY, guild.hqZ, guild.hqDim)) {
+    if (teleportModule.safeTeleport(player, guild.hqX, guild.hqY, guild.hqZ, guild.hqDim)) {
         player.tell('§e[公会] §a已传送到公会总部');
     } else {
         player.tell('§e[公会] §c传送失败');
@@ -1032,7 +1032,7 @@ function showTeleportPanel(player) {
             var tp = tps[id];
             var remain = checkCooldown(String(p.xuid));
             if (remain > 0) { p.tell('§e[公会] §c传送冷却中，请等待 ' + remain + ' 秒'); return; }
-            if (U.safeTeleport(p, tp.x, tp.y, tp.z, tp.dim)) {
+            if (teleportModule.safeTeleport(p, tp.x, tp.y, tp.z, tp.dim)) {
                 p.tell('§e[公会] §a已传送到: ' + tp.name);
             } else {
                 p.tell('§e[公会] §c传送失败');
