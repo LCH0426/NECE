@@ -417,6 +417,9 @@ function initPlayerDatabase() {
     if (!homeCols['is_public']) { try { playerDb.exec("ALTER TABLE homes ADD COLUMN is_public INTEGER DEFAULT 0"); } catch (e) {} }
 
     createGuildTables();
+    // 公会申请/邀请表
+    playerDb.exec('CREATE TABLE IF NOT EXISTS guild_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, xuid TEXT NOT NULL, name TEXT, time INTEGER NOT NULL)');
+    playerDb.exec('CREATE TABLE IF NOT EXISTS guild_invites (id INTEGER PRIMARY KEY AUTOINCREMENT, target_xuid TEXT NOT NULL, guild_id INTEGER NOT NULL, guild_name TEXT, inviter_name TEXT, time INTEGER NOT NULL)');
     createPlayerCountTable();
     playerDbReady = true;
     dbDebugLog('initPlayerDatabase: 数据库就绪');
@@ -702,6 +705,46 @@ function createPlayerCountTable() {
     playerDb.exec('CREATE INDEX IF NOT EXISTS idx_player_count_ts ON player_count_history(timestamp)');
 }
 
+// --- 公会申请/邀请 SQL ---
+
+function getGuildRequestsSQL(guildId) {
+    return query(playerDb, 'SELECT xuid, name, time FROM guild_requests WHERE guild_id = ?', [guildId])
+        .map(function(r) { return { xuid: r.xuid, name: r.name, time: r.time }; });
+}
+
+function addGuildRequestSQL(guildId, xuid, name, time) {
+    run(playerDb, 'INSERT INTO guild_requests (guild_id, xuid, name, time) VALUES (?, ?, ?, ?)', [guildId, xuid, name, time]);
+}
+
+function removeGuildRequestSQL(guildId, xuid) {
+    run(playerDb, 'DELETE FROM guild_requests WHERE guild_id = ? AND xuid = ?', [guildId, xuid]);
+}
+
+function clearGuildRequestsSQL(guildId) {
+    run(playerDb, 'DELETE FROM guild_requests WHERE guild_id = ?', [guildId]);
+}
+
+function getGuildInvitesSQL(targetXuid) {
+    return query(playerDb, 'SELECT guild_id, guild_name, inviter_name, time FROM guild_invites WHERE target_xuid = ?', [targetXuid])
+        .map(function(r) { return { guildId: r.guild_id, guildName: r.guild_name, inviterName: r.inviter_name, time: r.time }; });
+}
+
+function addGuildInviteSQL(targetXuid, guildId, guildName, inviterName, time) {
+    run(playerDb, 'INSERT INTO guild_invites (target_xuid, guild_id, guild_name, inviter_name, time) VALUES (?, ?, ?, ?, ?)', [targetXuid, guildId, guildName, inviterName, time]);
+}
+
+function removeGuildInviteSQL(targetXuid, guildId) {
+    run(playerDb, 'DELETE FROM guild_invites WHERE target_xuid = ? AND guild_id = ?', [targetXuid, guildId]);
+}
+
+function clearExpiredGuildRequestsSQL(maxAge) {
+    run(playerDb, 'DELETE FROM guild_requests WHERE time < ?', [Date.now() - maxAge]);
+}
+
+function clearExpiredGuildInvitesSQL(maxAge) {
+    run(playerDb, 'DELETE FROM guild_invites WHERE time < ?', [Date.now() - maxAge]);
+}
+
 function insertPlayerCount(timestamp, count) {
     run(playerDb, 'INSERT INTO player_count_history (timestamp, count) VALUES (?, ?)', [timestamp, count]);
     run(playerDb, 'DELETE FROM player_count_history WHERE timestamp < ?', [timestamp - 7 * 24 * 60 * 60]);
@@ -963,6 +1006,16 @@ module.exports = {
     getGuildTeleports,
     getGuildTeleportCount,
     getGuildTeleportByName,
+    // 公会申请/邀请SQL
+    getGuildRequestsSQL,
+    addGuildRequestSQL,
+    removeGuildRequestSQL,
+    clearGuildRequestsSQL,
+    getGuildInvitesSQL,
+    addGuildInviteSQL,
+    removeGuildInviteSQL,
+    clearExpiredGuildRequestsSQL,
+    clearExpiredGuildInvitesSQL,
     // 玩家人数统计SQL
     insertPlayerCount,
     getPlayerCountHistory,
