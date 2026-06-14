@@ -34,9 +34,9 @@ var _rtpProtected = {};
 
 /** 注册RTP摔伤保护事件 */
 function registerRtpProtection() {
-    mc.listen('onDamage', function(player, damage, cause) {
-        if (cause === 5 && _rtpProtected[player.xuid]) { // cause 5 = 摔伤
-            return false; // 取消摔伤
+    mc.listen('onMobHurt', function(mob, source, damage, cause) {
+        if (cause === 5 && mob && mob.xuid && _rtpProtected[mob.xuid]) {
+            return false;
         }
     });
 }
