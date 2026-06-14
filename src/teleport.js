@@ -1442,6 +1442,8 @@ function executeRtp(player, radius, cost) {
 	var y = 320;
 	player.sendText("§e[传送] §a正在传送到随机位置...", 0);
 	if (safeTeleport(player, x + 0.5, y, z + 0.5, 0)) {
+		// 给予短暂摔伤保护
+		try { player.addEffect(28, 100, 0, false); } catch (e) {}
 		var rtpCd = (_deps.getConfig ? _deps.getConfig() : {}).rtpCooldown || 60;
 		setTeleportCooldown(player.xuid, 'rtp', rtpCd);
 		player.tell("§e[传送] §a已传送到随机位置 (" + x + ", " + y + ", " + z + ")");

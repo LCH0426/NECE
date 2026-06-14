@@ -648,6 +648,7 @@ function initRankConfig() {
 	config.init("mail", { "enabled": true });
 	config.init("level", { "enabled": true });
 	config.init("back", { "enabled": true });
+	config.init("sign", { "enabled": true, "minReward": 100, "maxReward": 8000 });
 	config.init("guild", {
 		"enabled": true,
 		"createCost": 1000,
@@ -1783,7 +1784,8 @@ function registerAllCommands() {
 		["tpa", "互传系统", function(p) { teleportModule.showTpaMainForm(p, commonDeps); }, tpTpaEnabled],
 		["tpy", "接受传送请求", function(p) { teleportModule.acceptTpaRequestByPlayer(p, commonDeps); }, tpTpaEnabled],
 		["tpn", "拒绝传送请求", function(p) { teleportModule.denyTpaRequestByPlayer(p); }, tpTpaEnabled],
-		["rtp", "随机传送", function(p) { teleportModule.showRtpConfirmForm(p); }, tpEnabled]
+		["rtp", "随机传送", function(p) { teleportModule.showRtpConfirmForm(p); }, tpEnabled],
+		["sign", "每日签到", function(p) { handleSignCommand(p); }]
 	];
 	for (let i = 0; i < commands.length; i++) {
 		let cmd = commands[i];
@@ -1796,6 +1798,56 @@ function registerAllCommands() {
 	chatModule.registerTitleCommand(registerPlayerCommand);
 }
 
+
+// ============ 每日签到 ============
+
+function handleSignCommand(player) {
+	var signCfg = config.get('sign', { enabled: true, minReward: 100, maxReward: 8000 });
+	if (!signCfg.enabled) {
+		player.tell("§e[签到] §c签到功能已关闭");
+		return;
+	}
+	var xuid = player.xuid;
+	var pd = playerData.players[xuid];
+	if (!pd) { player.tell("§e[签到] §c玩家数据异常"); return; }
+	if (!pd.sign) pd.sign = {};
+
+	var now = new Date();
+	var today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+	var yesterday = new Date(now.getTime() - 86400000);
+	var yesterdayStr = yesterday.getFullYear() + '-' + String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + String(yesterday.getDate()).padStart(2, '0');
+
+	if (pd.sign.lastDate === today) {
+		player.tell("§e[签到] §c你今天已经签到过了！");
+		return;
+	}
+
+	// 计算连续签到天数
+	var consecutive = 0;
+	if (pd.sign.lastDate === yesterdayStr) {
+		consecutive = (pd.sign.consecutive || 0) + 1;
+	} else {
+		consecutive = 1;
+	}
+
+	// 随机奖励
+	var minR = signCfg.minReward || 100;
+	var maxR = signCfg.maxReward || 8000;
+	var reward = Math.floor(Math.random() * (maxR - minR + 1)) + minR;
+
+	// 发放奖励
+	if (addPlayerMoney) {
+		addPlayerMoney(player, reward, "每日签到");
+	}
+
+	// 保存签到记录
+	pd.sign.lastDate = today;
+	pd.sign.consecutive = consecutive;
+	savePlayerDataNow();
+
+	var currencyName = getCurrencyName();
+	player.tell("§e[签到] §a您已成功签到！获得" + reward + currencyName + "，已连续签到" + consecutive + "天。");
+}
 
 // ============ 头像系统代理 ============
 
