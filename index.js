@@ -274,12 +274,12 @@ DataManager.prototype.save = function(immediate) {
 						}
 						break;
 					case 'deathPoints':
+						var dirtyDP = teleportModule.flushDirtyDeathPoints ? teleportModule.flushDirtyDeathPoints() : [];
+						if (dirtyDP.length === 0) break;
 						const dpPlayers = self.data.players || self.data;
-					debugLog('save deathPoints: dpPlayers keys=' + Object.keys(dpPlayers).length);
-						for (let xuid in dpPlayers) {
-							if (!dpPlayers.hasOwnProperty(xuid)) continue;
-							database.setDeathPointsSQL(xuid, dpPlayers[xuid]);
-						}
+						dirtyDP.forEach(function(xuid) {
+							if (dpPlayers[xuid]) database.setDeathPointsSQL(xuid, dpPlayers[xuid]);
+						});
 						break;
 					case 'friends':
 						var dirtyXuids = friendModule.flushDirtyFriendXuids ? friendModule.flushDirtyFriendXuids() : [];
@@ -302,23 +302,24 @@ DataManager.prototype.save = function(immediate) {
 						});
 						break;
 					case 'messages':
+						var dirtyMsg = friendModule.flushDirtyMessages ? friendModule.flushDirtyMessages() : [];
+						if (dirtyMsg.length === 0) break;
 						const msgPlayers = self.data.players || self.data;
-					debugLog('save messages: msgPlayers keys=' + Object.keys(msgPlayers).length);
-						for (let xuid in msgPlayers) {
-							if (!msgPlayers.hasOwnProperty(xuid)) continue;
+						dirtyMsg.forEach(function(xuid) {
+							var pd = msgPlayers[xuid];
+							if (!pd) return;
 							database.clearMessagesSQL(xuid);
-							const msgs = msgPlayers[xuid].messages || [];
-							msgs.forEach(function(m) {
+							(pd.messages || []).forEach(function(m) {
 								database.addMessageSQL(xuid, m);
 							});
-						}
+						});
 						break;
 					case 'homes':
-					debugLog('save homes: data keys=' + Object.keys(self.data).length);
-						for (let xuid in self.data) {
-							if (!self.data.hasOwnProperty(xuid)) continue;
-							database.setHomesSQL(xuid, self.data[xuid]);
-						}
+						var dirtyHomes = teleportModule.flushDirtyHomes ? teleportModule.flushDirtyHomes() : [];
+						if (dirtyHomes.length === 0) break;
+						dirtyHomes.forEach(function(xuid) {
+							if (self.data[xuid]) database.setHomesSQL(xuid, self.data[xuid]);
+						});
 						break;
 					default:
 						for (let key in self.data) {

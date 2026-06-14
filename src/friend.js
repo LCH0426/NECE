@@ -33,6 +33,8 @@ let messageData = {
     players: {}
 };
 let _deps = {};
+// 消息脏标记
+var _dirtyMessages = {};
 
 /**
  * 将时间字符串解析为时间戳数值，用于消息排序
@@ -225,6 +227,8 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
         read: true
     });
 
+    _dirtyMessages[fromXuid] = true;
+    _dirtyMessages[toXuid] = true;
     saveMessageData();
 
     // 在线时推送 toast 通知
@@ -441,6 +445,7 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
 
     conversation.sort(function(a, b) { return b.timeNum - a.timeNum; });
 
+    _dirtyMessages[xuid] = true;
     saveMessageData();
 
     const gui = mc.newSimpleForm();
@@ -518,6 +523,7 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
  */
 function showMessageDetailForm(player, message) {
     message.read = true;
+    _dirtyMessages[player.xuid] = true;
     saveMessageData();
 
     const gui = mc.newSimpleForm();
@@ -546,6 +552,7 @@ function showMessageDetailForm(player, message) {
             msgData.messages = msgData.messages.filter(function(m) {
                 return !(m.fromXuid === message.fromXuid && m.time === message.time && m.content === message.content);
             });
+            _dirtyMessages[p.xuid] = true;
             saveMessageData();
             p.tell("§e[好友] §c消息已删除");
             showMyMessagesForm(p);
@@ -1128,6 +1135,7 @@ function getAvatarTypeName(type) {
 module.exports = {
     init: init,
     flushDirtyFriendXuids: flushDirtyFriendXuids,
+    flushDirtyMessages: function() { var list = Object.keys(_dirtyMessages); _dirtyMessages = {}; return list; },
     getPlayerFriendData: getPlayerFriendData,
     isPlayerFriend: isPlayerFriend,
     showMyFriendsForm: showMyFriendsForm,
