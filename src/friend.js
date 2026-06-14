@@ -80,11 +80,26 @@ function sendSystemMail(xuid, content) {
     if (mailApi && mailApi.sendSystemMail) mailApi.sendSystemMail(xuid, content);
 }
 
-/** 立即持久化好友数据到磁盘 */
+// 好友数据脏标记，记录哪些 xuid 的数据发生了变化
+var _dirtyFriendXuids = {};
+
+/** 标记某个玩家的好友数据为脏 */
+function markFriendDirty(xuid) {
+    _dirtyFriendXuids[xuid] = true;
+}
+
+/** 立即持久化好友数据到磁盘，只同步变化的玩家 */
 function saveData() {
     if (!friendData.players) friendData.players = {};
     friendDM.save(true);
     return true;
+}
+
+/** 获取脏标记列表并清空（供 SQL 同步调用） */
+function flushDirtyFriendXuids() {
+    var list = Object.keys(_dirtyFriendXuids);
+    _dirtyFriendXuids = {};
+    return list;
 }
 
 /** 立即持久化私信数据到磁盘 */
@@ -106,6 +121,7 @@ function getPlayerFriendData(xuid) {
             requests: [],
             sentRequests: []
         };
+        markFriendDirty(xuid);
         saveData();
     }
     return friendData.players[xuid];
@@ -765,6 +781,8 @@ function showSendFriendRequestForm(player, targetInfo) {
             handled: false
         });
 
+        markFriendDirty(p.xuid);
+        markFriendDirty(targetInfo.xuid);
         saveData();
 
         // 对方在线时推送通知
@@ -864,6 +882,8 @@ function showHandleRequestForm(player, request) {
                     targetFriends.sentRequests.splice(sentIndex, 1);
                 }
 
+                markFriendDirty(p.xuid);
+                markFriendDirty(request.xuid);
                 saveData();
                 p.tell("§e[好友] §a已接受 " + request.name + " 的好友请求！");
             }
@@ -878,6 +898,8 @@ function showHandleRequestForm(player, request) {
                     targetFriends2.sentRequests.splice(sentIndex2, 1);
                 }
 
+                markFriendDirty(p.xuid);
+                markFriendDirty(request.xuid);
                 saveData();
                 sendSystemMail(request.xuid, '§c玩家§e' + p.name + '§c拒绝了你的好友申请');
                 p.tell("§e[好友] §c已拒绝 " + request.name + " 的好友请求");
@@ -955,6 +977,8 @@ function showDeleteFriendConfirmForm(player, friend) {
                 targetFriends.requests = targetFriends.requests.filter(function(r) { return r.xuid !== p.xuid; });
                 targetFriends.sentRequests = targetFriends.sentRequests.filter(function(r) { return r.xuid !== p.xuid; });
 
+                markFriendDirty(p.xuid);
+                markFriendDirty(friend.xuid);
                 saveData();
                 p.tell("§e[好友] §c已删除好友 " + friendName);
             }
@@ -1103,6 +1127,7 @@ function getAvatarTypeName(type) {
 
 module.exports = {
     init: init,
+    flushDirtyFriendXuids: flushDirtyFriendXuids,
     getPlayerFriendData: getPlayerFriendData,
     isPlayerFriend: isPlayerFriend,
     showMyFriendsForm: showMyFriendsForm,

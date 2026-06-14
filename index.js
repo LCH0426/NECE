@@ -282,11 +282,12 @@ DataManager.prototype.save = function(immediate) {
 						}
 						break;
 					case 'friends':
+						var dirtyXuids = friendModule.flushDirtyFriendXuids ? friendModule.flushDirtyFriendXuids() : [];
+						if (dirtyXuids.length === 0) break;
 						const frPlayers = self.data.players || self.data;
-					debugLog('save friends: frPlayers keys=' + Object.keys(frPlayers).length);
-						for (let xuid in frPlayers) {
-							if (!frPlayers.hasOwnProperty(xuid)) continue;
+						dirtyXuids.forEach(function(xuid) {
 							const fd = frPlayers[xuid];
+							if (!fd) return;
 							database.clearFriendsSQL(xuid);
 							(fd.friends || []).forEach(function(f) {
 								database.addFriendSQL(xuid, f.xuid, f.name, f.addTime);
@@ -298,7 +299,7 @@ DataManager.prototype.save = function(immediate) {
 							(fd.sentRequests || []).forEach(function(r) {
 								database.addFriendRequestSQL(xuid, r.xuid, r.name, r.message, r.time, true);
 							});
-						}
+						});
 						break;
 					case 'messages':
 						const msgPlayers = self.data.players || self.data;
