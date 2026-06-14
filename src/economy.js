@@ -26,15 +26,10 @@ const U = require('./utils');
 let _currencyNameCache = null; // 货币名称缓存，避免重复读取配置
 let _deps = {};
 
-// 待领取转账 —— 离线玩家收到转账时暂存于此，上线后自动通知
-const pendingTransfersPath = "plugins/NECE/data/pendingTransfers.json";
-let pendingTransfers = {};
-
-/** 初始化经济模块，加载待领取转账数据 */
+/** 初始化经济模块 */
 function init(deps) {
     _currencyNameCache = null;
     _deps = deps;
-    _loadPendingTransfers();
 
     // 每5分钟清理超过10分钟的转账去重记录，防止内存泄漏
     setInterval(function() {
@@ -326,32 +321,6 @@ function reducePlayerMoneyByXuid(xuid, value, source) {
 
 // ============ 转账系统 (原 src/pay.js) ============
 
-/** 从磁盘加载待领取转账记录 */
-function _loadPendingTransfers() {
-    try {
-        if (fs.existsSync(pendingTransfersPath)) {
-            pendingTransfers = JSON.parse(fs.readFileSync(pendingTransfersPath, 'utf-8'));
-        } else {
-            pendingTransfers = {};
-        }
-    } catch (e) {
-        pendingTransfers = {};
-    }
-}
-
-/** 将待领取转账记录持久化到磁盘 */
-let _savePendingTimer = null;
-function _savePendingTransfers() {
-    if (_savePendingTimer) clearTimeout(_savePendingTimer);
-    _savePendingTimer = setTimeout(function() {
-        _savePendingTimer = null;
-        try {
-            fs.writeFileSync(pendingTransfersPath, JSON.stringify(pendingTransfers, null, '\t'), 'utf-8');
-        } catch (e) {
-            logger.error("保存待领取转账失败: " + e.message);
-        }
-    }, 500);
-}
 
 /**
  * 写入统一经济日志（JSONL 格式，按日期分文件）
@@ -601,17 +570,8 @@ function _executeTransfer(sender, targetName, targetXuid, amount) {
     if (targetPlayer) {
         addPlayerMoney(targetPlayer, amount, "来自" + sender.realName + "的转账");
     } else {
-        // 接收者离线，暂存到待领取队列
-        if (!pendingTransfers[targetXuid]) {
-            pendingTransfers[targetXuid] = [];
-        }
-        pendingTransfers[targetXuid].push({
-            from: sender.realName,
-            fromXuid: sender.xuid,
-            amount: amount,
-            time: new Date().toLocaleString()
-        });
-        _savePendingTransfers();
+        // 接收者离线，暂存到数据库
+        _deps.database.addPendingTransferSQL(targetXuid, sender.realName, sender.xuid, amount, new Date().toLocaleString());
         addPlayerMoneyByXuid(targetXuid, amount);
     }
     const senderBalance = getPlayerMoney(sender);
@@ -626,14 +586,14 @@ function _executeTransfer(sender, targetName, targetXuid, amount) {
 /** 玩家上线时检查并通知待领取的离线转账 */
 function checkPendingTransfers(player) {
     const xuid = player.xuid;
-    if (!pendingTransfers[xuid] || pendingTransfers[xuid].length === 0) return;
-    const transfers = pendingTransfers[xuid];
+    const transfers = _deps.database.getPendingTransfersSQL(xuid);
+    if (transfers.length === 0) return;
     transfers.forEach(function(t) {
         player.tell("§e[经济] 您在离线期间收到了一笔来自" + t.from + "的转账 数额为" + t.amount + getCurrencyName());
+        addPlayerMoney(player, t.amount, "来自" + t.from + "的转账");
         notifyEconomyChange(player, t.amount, "来自" + t.from + "的转账");
     });
-    delete pendingTransfers[xuid];
-    _savePendingTransfers();
+    _deps.database.clearPendingTransfersSQL(xuid);
 }
 
 /**

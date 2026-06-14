@@ -420,6 +420,8 @@ function initPlayerDatabase() {
     // 公会申请/邀请表
     playerDb.exec('CREATE TABLE IF NOT EXISTS guild_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, xuid TEXT NOT NULL, name TEXT, time INTEGER NOT NULL)');
     playerDb.exec('CREATE TABLE IF NOT EXISTS guild_invites (id INTEGER PRIMARY KEY AUTOINCREMENT, target_xuid TEXT NOT NULL, guild_id INTEGER NOT NULL, guild_name TEXT, inviter_name TEXT, time INTEGER NOT NULL)');
+    // 待领取转账表
+    playerDb.exec('CREATE TABLE IF NOT EXISTS pending_transfers (id INTEGER PRIMARY KEY AUTOINCREMENT, target_xuid TEXT NOT NULL, from_name TEXT, from_xuid TEXT, amount REAL NOT NULL, time TEXT)');
     createPlayerCountTable();
     playerDbReady = true;
     dbDebugLog('initPlayerDatabase: 数据库就绪');
@@ -749,6 +751,22 @@ function clearExpiredGuildInvitesSQL(maxAge) {
     run(playerDb, 'DELETE FROM guild_invites WHERE time < ?', [Date.now() - maxAge]);
 }
 
+// --- 待领取转账 SQL ---
+
+function getPendingTransfersSQL(targetXuid) {
+    return query(playerDb, 'SELECT from_name, from_xuid, amount, time FROM pending_transfers WHERE target_xuid = ?', [targetXuid])
+        .map(function(r) { return { from: r.from_name, fromXuid: r.from_xuid, amount: r.amount, time: r.time }; });
+}
+
+function addPendingTransferSQL(targetXuid, fromName, fromXuid, amount, time) {
+    run(playerDb, 'INSERT INTO pending_transfers (target_xuid, from_name, from_xuid, amount, time) VALUES (?, ?, ?, ?, ?)',
+        [targetXuid, fromName, fromXuid, amount, time]);
+}
+
+function clearPendingTransfersSQL(targetXuid) {
+    run(playerDb, 'DELETE FROM pending_transfers WHERE target_xuid = ?', [targetXuid]);
+}
+
 function insertPlayerCount(timestamp, count) {
     run(playerDb, 'INSERT INTO player_count_history (timestamp, count) VALUES (?, ?)', [timestamp, count]);
     run(playerDb, 'DELETE FROM player_count_history WHERE timestamp < ?', [timestamp - 7 * 24 * 60 * 60]);
@@ -1021,6 +1039,10 @@ module.exports = {
     clearGuildInvitesSQL,
     clearExpiredGuildRequestsSQL,
     clearExpiredGuildInvitesSQL,
+    // 待领取转账SQL
+    getPendingTransfersSQL,
+    addPendingTransferSQL,
+    clearPendingTransfersSQL,
     // 玩家人数统计SQL
     insertPlayerCount,
     getPlayerCountHistory,
