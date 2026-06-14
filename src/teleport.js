@@ -817,28 +817,48 @@ function showHomeShareForm(player, home, homeIndex, deps) {
 function showHomeShareAddForm(player, home, homeIndex, deps) {
 	const fm = mc.newCustomForm();
 	fm.setTitle("§l§6添加共享玩家");
-	fm.addInput("§a玩家名称", "输入玩家名称");
+	fm.addInput("§a玩家名称/UID/XUID", "输入玩家名称、UID或XUID");
 
 	player.sendForm(fm, function(p, data) {
 		if (data == null) { showHomeShareForm(p, home, homeIndex, deps); return; }
 
-		const targetName = String(data[0] || "").trim();
-		if (!targetName) {
+		const keyword = String(data[0] || "").trim().toLowerCase();
+		if (!keyword) {
 			showHomeShareForm(p, home, homeIndex, deps);
 			return;
 		}
 
-		// 通过玩家名反查XUID，验证玩家是否存在
+		// 模糊搜索：按名称、UID、XUID 匹配
 		let targetXuid = null;
-		for (const x in deps.playerData.players) {
-			if (deps.playerData.players[x].name === targetName) {
+		let targetName = '';
+		const players = deps.playerData ? (deps.playerData.players || {}) : {};
+		for (const x in players) {
+			if (!players.hasOwnProperty(x)) continue;
+			const info = players[x];
+			const name = (info.name || '').toLowerCase();
+			const uid = String(info.uid || '').toLowerCase();
+			if (name === keyword || uid === keyword || x.toLowerCase() === keyword) {
 				targetXuid = x;
+				targetName = info.name || x;
 				break;
+			}
+		}
+		// 精确匹配失败时尝试模糊匹配名称
+		if (!targetXuid) {
+			for (const x in players) {
+				if (!players.hasOwnProperty(x)) continue;
+				const info = players[x];
+				const name = (info.name || '').toLowerCase();
+				if (name.indexOf(keyword) !== -1) {
+					targetXuid = x;
+					targetName = info.name || x;
+					break;
+				}
 			}
 		}
 
 		if (!targetXuid) {
-			p.tell("§e[家园] §c未找到玩家 " + targetName);
+			p.tell("§e[家园] §c未找到玩家 " + keyword);
 			showHomeShareAddForm(p, home, homeIndex, deps);
 			return;
 		}
