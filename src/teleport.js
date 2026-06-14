@@ -1436,23 +1436,7 @@ function executeRtp(player, radius, cost) {
 	var x = Math.floor(Math.random() * radius * 2) - radius;
 	var z = Math.floor(Math.random() * radius * 2) - radius;
 	var y = 320;
-	var foundSafe = false;
-	player.sendText("§e[传送] §a正在寻找安全位置...", 0);
-	// 从Y=320向下扫描找固体方块，在其上方放置玩家
-	try {
-		for (var tryY = 320; tryY >= -64; tryY--) {
-			var b = mc.getBlock(x, tryY, z, 0);
-			if (b && b.type !== 'minecraft:air' && b.type !== 'minecraft:water' && b.type !== 'minecraft:lava' && b.type !== 'minecraft:fire') {
-				y = tryY + 1;
-				foundSafe = true;
-				break;
-			}
-		}
-	} catch (e) {}
-	if (!foundSafe) {
-		player.tell("§e[传送] §c未找到安全位置，请稍后再试");
-		return;
-	}
+	player.sendText("§e[传送] §a正在传送到随机位置...", 0);
 	if (safeTeleport(player, x + 0.5, y, z + 0.5, 0)) {
 		var rtpCd = (_deps.getConfig ? _deps.getConfig() : {}).rtpCooldown || 60;
 		setTeleportCooldown(player.xuid, 'rtp', rtpCd);
