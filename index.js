@@ -958,7 +958,8 @@ function initAllConfigs() {
 		getPlayerData: function() { return playerData; },
 		getPlayerAvatarUrl: getPlayerAvatarUrl,
 		loadLocale: i18n.loadLocale,
-		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+		getSystemLanguage: function() { return config.language || 'zh_CN'; },
+		database: database
 	});
 	playerDataModule.init({ database: database, fs: fs, itemsDataPath: ITEMS_DATA_PATH,
 		getPlayerData: function() { return playerData; },
