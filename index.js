@@ -668,7 +668,11 @@ function initRankConfig() {
 		"tpaCooldown": 30,
 		"tpaTimeout": 30,
 		"tpaCost": 0,
-		"warpCost": 0
+		"warpCost": 0,
+		"enableRtp": true,
+		"rtpRadius": 10000,
+		"rtpCooldown": 60,
+		"rtpCost": 0
 	});
 	config.init("backup", {
 		"enabled": true,
