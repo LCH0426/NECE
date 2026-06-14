@@ -828,8 +828,7 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
 		}
 
 		// 模糊搜索：按名称、UID、XUID 匹配
-		let targetXuid = null;
-		let targetName = '';
+		const results = [];
 		const players = deps.playerData ? (deps.playerData.players || {}) : {};
 		for (const x in players) {
 			if (!players.hasOwnProperty(x)) continue;
@@ -837,40 +836,39 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
 			const name = (info.name || '').toLowerCase();
 			const uid = String(info.uid || '').toLowerCase();
 			if (name === keyword || uid === keyword || x.toLowerCase() === keyword) {
-				targetXuid = x;
-				targetName = info.name || x;
-				break;
-			}
-		}
-		// 精确匹配失败时尝试模糊匹配名称
-		if (!targetXuid) {
-			for (const x in players) {
-				if (!players.hasOwnProperty(x)) continue;
-				const info = players[x];
-				const name = (info.name || '').toLowerCase();
-				if (name.indexOf(keyword) !== -1) {
-					targetXuid = x;
-					targetName = info.name || x;
-					break;
-				}
+				results.unshift({ xuid: x, name: info.name || x, uid: info.uid || '' });
+			} else if (name.indexOf(keyword) !== -1) {
+				results.push({ xuid: x, name: info.name || x, uid: info.uid || '' });
 			}
 		}
 
-		if (!targetXuid) {
+		if (results.length === 0) {
 			p.tell("§e[家园] §c未找到玩家 " + keyword);
 			showHomeShareAddForm(p, home, homeIndex, deps);
 			return;
 		}
 
-		if (!home.sharedWith) home.sharedWith = [];
-		if (home.sharedWith.indexOf(targetName) === -1) {
-			home.sharedWith.push(targetName);
-			saveHomesData();
-			p.tell("§e[家园] §a已将 " + targetName + " 添加到家园共享列表");
-		} else {
-			p.tell("§e[家园] §c该玩家已在共享列表中");
-		}
-		showHomeShareForm(p, home, homeIndex, deps);
+		// 显示搜索结果列表供选择
+		var sf = mc.newSimpleForm();
+		sf.setTitle("§l§6搜索结果 - " + keyword);
+		sf.setContent("§a找到 " + results.length + " 个玩家，点击选择：");
+		results.forEach(function(r) {
+			sf.addButton("§e" + r.name + "\n§7UID: " + r.uid);
+		});
+		sf.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+		p.sendForm(sf, function(p2, id) {
+			if (id === null || id === results.length) { showHomeShareAddForm(p2, home, homeIndex, deps); return; }
+			var selected = results[id];
+			if (!home.sharedWith) home.sharedWith = [];
+			if (home.sharedWith.indexOf(selected.name) === -1) {
+				home.sharedWith.push(selected.name);
+				saveHomesData();
+				p2.tell("§e[家园] §a已将 " + selected.name + " 添加到家园共享列表");
+			} else {
+				p2.tell("§e[家园] §c该玩家已在共享列表中");
+			}
+			showHomeShareForm(p2, home, homeIndex, deps);
+		});
 	});
 }
 
