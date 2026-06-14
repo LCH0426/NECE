@@ -585,6 +585,7 @@ function _executeTransfer(sender, targetName, targetXuid, amount) {
 
 /** 玩家上线时检查并通知待领取的离线转账 */
 function checkPendingTransfers(player) {
+    if (!_deps.database || !_deps.database.getPendingTransfersSQL) return;
     const xuid = player.xuid;
     const transfers = _deps.database.getPendingTransfersSQL(xuid);
     if (transfers.length === 0) return;
