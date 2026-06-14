@@ -190,6 +190,10 @@ function showTpgMainMenu(player, deps) {
 	if (tpsConfig.enableTpa) {
 		fm.addButton("§b互传系统", "textures/ui/dressing_room_skins");
 	}
+	var rtpCfg = _deps.getConfig ? _deps.getConfig() : {};
+	if (rtpCfg.enableRtp !== false) {
+		fm.addButton("§a随机传送", "textures/ui/icon_map");
+	}
 
 	// 通过累计 btnIndex 将表单按钮ID映射到实际功能，跳过被禁用的功能
 	player.sendForm(fm, function(p, id) {
@@ -205,6 +209,10 @@ function showTpgMainMenu(player, deps) {
 		}
 		if (tpsConfig.enableTpa) {
 			if (btnIndex === id) { showTpaMainForm(p, deps); return; }
+			btnIndex++;
+		}
+		if (rtpCfg.enableRtp !== false) {
+			if (btnIndex === id) { showRtpConfirmForm(p); return; }
 			btnIndex++;
 		}
 	});
@@ -1428,20 +1436,23 @@ function executeRtp(player, radius, cost) {
 	var x = Math.floor(Math.random() * radius * 2) - radius;
 	var z = Math.floor(Math.random() * radius * 2) - radius;
 	var y = 320;
+	var foundSafe = false;
 	player.sendText("§e[传送] §a正在寻找安全位置...", 0);
-	// 尝试找安全地面高度，最多向下搜索64格
+	// 从Y=320向下扫描找固体方块，在其上方放置玩家
 	try {
-		var block = mc.getBlock(x, y, z, 0);
-		if (block) {
-			for (var tryY = y; tryY > 64; tryY--) {
-				var b = mc.getBlock(x, tryY, z, 0);
-				if (b && b.type !== 'minecraft:air' && b.type !== 'minecraft:water' && b.type !== 'minecraft:lava') {
-					y = tryY + 1;
-					break;
-				}
+		for (var tryY = 320; tryY >= -64; tryY--) {
+			var b = mc.getBlock(x, tryY, z, 0);
+			if (b && b.type !== 'minecraft:air' && b.type !== 'minecraft:water' && b.type !== 'minecraft:lava' && b.type !== 'minecraft:fire') {
+				y = tryY + 1;
+				foundSafe = true;
+				break;
 			}
 		}
 	} catch (e) {}
+	if (!foundSafe) {
+		player.tell("§e[传送] §c未找到安全位置，请稍后再试");
+		return;
+	}
 	if (safeTeleport(player, x + 0.5, y, z + 0.5, 0)) {
 		var rtpCd = (_deps.getConfig ? _deps.getConfig() : {}).rtpCooldown || 60;
 		setTeleportCooldown(player.xuid, 'rtp', rtpCd);
