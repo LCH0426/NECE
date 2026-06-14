@@ -29,7 +29,27 @@ const teleportPendingRequests = {};
 const teleportCooldowns = {};
 
 let _deps = {};
-let tpsConfig = {};       // 传送系统配置（从config.json加载并补全默认值）
+
+/** 运行时读取传送配置，支持热重载 */
+function getTpConfig() {
+    var c = _deps.getConfig ? _deps.getConfig() : {};
+    return {
+        enabled: c.enabled !== undefined ? c.enabled : true,
+        enableHome: c.enableHome !== undefined ? c.enableHome : true,
+        enableWarp: c.enableWarp !== undefined ? c.enableWarp : true,
+        enableTpa: c.enableTpa !== undefined ? c.enableTpa : true,
+        homeLimit: c.homeLimit || 10,
+        homeCooldown: c.homeCooldown || 10,
+        tpaCooldown: c.tpaCooldown || 30,
+        tpaTimeout: c.tpaTimeout || 30,
+        tpaCost: c.tpaCost || 0,
+        warpCost: c.warpCost || 0,
+        enableRtp: c.enableRtp !== undefined ? c.enableRtp : true,
+        rtpRadius: c.rtpRadius || 10000,
+        rtpCooldown: c.rtpCooldown || 60,
+        rtpCost: c.rtpCost || 0
+    };
+}
 let homesData = {};       // 家园数据 { xuid: [{ name, x, y, z, dim, sharedWith, ... }] }
 let warpsData = {};       // 公共地标数据 { name: { x, y, z, dim, cost, ... } }
 let homesDM = null;       // 家园数据的 DataManager 实例
@@ -117,35 +137,19 @@ function init(_homesDM, _warpsDM, deps) {
 	homesDM = _homesDM;
 	warpsDM = _warpsDM;
 
-	// 从配置读取传送设置，config.init 已在 index.js 中设置默认值
-	let tpCfg = _deps.getConfig ? _deps.getConfig() : {};
-	tpsConfig = {
-		enabled: tpCfg.enabled !== undefined ? tpCfg.enabled : true,
-		enableHome: tpCfg.enableHome !== undefined ? tpCfg.enableHome : true,
-		enableWarp: tpCfg.enableWarp !== undefined ? tpCfg.enableWarp : true,
-		enableTpa: tpCfg.enableTpa !== undefined ? tpCfg.enableTpa : true,
-		homeLimit: tpCfg.homeLimit || 10,
-		homeCooldown: tpCfg.homeCooldown || 10,
-		tpaCooldown: tpCfg.tpaCooldown || 30,
-		tpaTimeout: tpCfg.tpaTimeout || 30,
-		tpaCost: tpCfg.tpaCost || 0,
-		warpCost: tpCfg.warpCost || 0,
-		enableRtp: tpCfg.enableRtp !== undefined ? tpCfg.enableRtp : true,
-		rtpRadius: tpCfg.rtpRadius || 10000,
-		rtpCooldown: tpCfg.rtpCooldown || 60,
-		rtpCost: tpCfg.rtpCost || 0
-	};
+	// 传送配置运行时读取，支持热重载
 
 	homesData = homesDM.load();
 	warpsData = warpsDM.load();
-	D.debugLogModule('teleport')('init: 家园数=' + Object.keys(homesData).length + ', 地标数=' + Object.keys(warpsData).length + ', 配置=' + JSON.stringify(tpsConfig));
+	D.debugLogModule('teleport')('init: 家园数=' + Object.keys(homesData).length + ', 地标数=' + Object.keys(warpsData).length);
+
 
 	// 每5秒清理超时的TPA请求，通知双方玩家
 	setInterval(function() {
 		const now = Date.now();
 		for (const reqId in teleportPendingRequests) {
 			const req = teleportPendingRequests[reqId];
-			if (now - req.timestamp > tpsConfig.tpaTimeout * 1000) {
+			if (now - req.timestamp > getTpConfig().tpaTimeout * 1000) {
 				const fromPlayer = mc.getPlayer(req.fromXuid);
 				const toPlayer = mc.getPlayer(req.toXuid);
 				if (fromPlayer) fromPlayer.tell("§e[传送] §c传送请求已超时");
@@ -172,7 +176,7 @@ function init(_homesDM, _warpsDM, deps) {
  * @param {object} deps - 依赖对象
  */
 function showTpgMainMenu(player, deps) {
-	if (!tpsConfig.enabled) {
+	if (!getTpConfig().enabled) {
 		player.tell("§e[传送] §c传送系统已关闭");
 		return;
 	}
@@ -181,13 +185,13 @@ function showTpgMainMenu(player, deps) {
 	fm.setTitle("§l§b传送系统");
 	fm.setContent("§a请选择传送功能");
 
-	if (tpsConfig.enableHome) {
+	if (getTpConfig().enableHome) {
 		fm.addButton("§6家园系统", "textures/ui/icon_recipe_nature");
 	}
-	if (tpsConfig.enableWarp) {
+	if (getTpConfig().enableWarp) {
 		fm.addButton("§d公共传送点", "textures/ui/icon_multiplayer");
 	}
-	if (tpsConfig.enableTpa) {
+	if (getTpConfig().enableTpa) {
 		fm.addButton("§b互传系统", "textures/ui/dressing_room_skins");
 	}
 	var rtpCfg = _deps.getConfig ? _deps.getConfig() : {};
@@ -199,15 +203,15 @@ function showTpgMainMenu(player, deps) {
 	player.sendForm(fm, function(p, id) {
 		if (id == null) return;
 		let btnIndex = 0;
-		if (tpsConfig.enableHome) {
+		if (getTpConfig().enableHome) {
 			if (btnIndex === id) { showHomeMainForm(p, deps); return; }
 			btnIndex++;
 		}
-		if (tpsConfig.enableWarp) {
+		if (getTpConfig().enableWarp) {
 			if (btnIndex === id) { showWarpMainForm(p, deps); return; }
 			btnIndex++;
 		}
-		if (tpsConfig.enableTpa) {
+		if (getTpConfig().enableTpa) {
 			if (btnIndex === id) { showTpaMainForm(p, deps); return; }
 			btnIndex++;
 		}
@@ -224,7 +228,7 @@ function showTpgMainMenu(player, deps) {
  * @param {object} deps - 依赖对象
  */
 function showTpaMainForm(player, deps) {
-	if (!tpsConfig.enableTpa) {
+	if (!getTpConfig().enableTpa) {
 		player.tell("§e[传送] §c互传系统已关闭");
 		return;
 	}
@@ -306,10 +310,10 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 	}
 
 	// 检查发起者余额是否足够支付传送费用
-	if (tpsConfig.tpaCost > 0) {
+	if (getTpConfig().tpaCost > 0) {
 		const bal = deps.getPlayerMoney(fromPlayer);
-		if (bal < tpsConfig.tpaCost) {
-			fromPlayer.tell("§e[传送] §c余额不足，需要 " + tpsConfig.tpaCost + " " + deps.getCurrencyName());
+		if (bal < getTpConfig().tpaCost) {
+			fromPlayer.tell("§e[传送] §c余额不足，需要 " + getTpConfig().tpaCost + " " + deps.getCurrencyName());
 			return;
 		}
 	}
@@ -391,7 +395,7 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 
 	// 二次校验请求是否超时（定时器可能还未触发清理）
 	const now = Date.now();
-	if (now - req.timestamp > tpsConfig.tpaTimeout * 1000) {
+	if (now - req.timestamp > getTpConfig().tpaTimeout * 1000) {
 		delete teleportPendingRequests[reqId];
 		byPlayer.tell("§e[传送] §c该传送请求已超时");
 		return;
@@ -406,14 +410,14 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 	}
 
 	// 扣除传送费用（从发起者扣除）
-	if (tpsConfig.tpaCost > 0) {
+	if (getTpConfig().tpaCost > 0) {
 		const bal = deps.getPlayerMoney(fromPlayer);
-		if (bal < tpsConfig.tpaCost) {
+		if (bal < getTpConfig().tpaCost) {
 			delete teleportPendingRequests[reqId];
 			fromPlayer.tell("§e[传送] §c余额不足，传送取消");
 			return;
 		}
-		deps.reducePlayerMoney(fromPlayer, tpsConfig.tpaCost, "互传费用");
+		deps.reducePlayerMoney(fromPlayer, getTpConfig().tpaCost, "互传费用");
 	}
 
 	delete teleportPendingRequests[reqId];
@@ -431,7 +435,7 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 		toPlayer.tell("§e[传送] §a已传送到 " + fromPlayer.name + " 的位置");
 	}
 
-	setTeleportCooldown(fromPlayer.xuid, 'tpa', tpsConfig.tpaCooldown);
+	setTeleportCooldown(fromPlayer.xuid, 'tpa', getTpConfig().tpaCooldown);
 }
 
 /**
@@ -588,7 +592,7 @@ function denyTpaRequestByPlayer(player) {
  * @param {object} deps - 依赖对象
  */
 function showHomeMainForm(player, deps) {
-	if (!tpsConfig.enableHome) {
+	if (!getTpConfig().enableHome) {
 		player.tell("§e[传送] §c家园系统已关闭");
 		return;
 	}
@@ -599,7 +603,7 @@ function showHomeMainForm(player, deps) {
 
 	const fm = mc.newSimpleForm();
 	fm.setTitle("§l§6家园系统");
-	fm.setContent("§a你拥有 §e" + homes.length + "/" + tpsConfig.homeLimit + " §a个家园" + (sharedHomes.length > 0 ? "§a，共享家园 §e" + sharedHomes.length + " §a个" : ""));
+	fm.setContent("§a你拥有 §e" + homes.length + "/" + getTpConfig().homeLimit + " §a个家园" + (sharedHomes.length > 0 ? "§a，共享家园 §e" + sharedHomes.length + " §a个" : ""));
 
 	if (homes.length > 0) {
 		homes.forEach(function(home) {
@@ -671,8 +675,8 @@ function showHomeSetForm(player, deps) {
 	const xuid = player.xuid;
 	const homes = getPlayerHomes(xuid);
 
-	if (homes.length >= tpsConfig.homeLimit) {
-		player.tell("§e[家园] §c已达到家园数量上限（" + tpsConfig.homeLimit + "个）");
+	if (homes.length >= getTpConfig().homeLimit) {
+		player.tell("§e[家园] §c已达到家园数量上限（" + getTpConfig().homeLimit + "个）");
 		showHomeMainForm(player, deps);
 		return;
 	}
@@ -767,7 +771,7 @@ function teleportToHome(player, home) {
 	if (safeTeleport(player, home.x, home.y, home.z, home.dim)) {
 		home.lastUse = Date.now();
 		saveHomesData();
-		setTeleportCooldown(player.xuid, 'home', tpsConfig.homeCooldown);
+		setTeleportCooldown(player.xuid, 'home', getTpConfig().homeCooldown);
 		player.tell("§e[家园] §a已传送到家园 §b" + home.name);
 	} else {
 		player.tell("§e[家园] §c传送失败，请稍后再试");
@@ -920,7 +924,7 @@ function showHomeDeleteConfirm(player, home, homeIndex, deps) {
  * @param {object} deps - 依赖对象
  */
 function showWarpMainForm(player, deps) {
-	if (!tpsConfig.enableWarp) {
+	if (!getTpConfig().enableWarp) {
 		player.tell("§e[传送] §c公共传送点系统已关闭");
 		return;
 	}
@@ -971,13 +975,13 @@ function teleportToWarp(player, warpName, deps) {
 	}
 
 	// 扣除地标传送费用
-	if (tpsConfig.warpCost > 0) {
+	if (getTpConfig().warpCost > 0) {
 		const bal = deps.getPlayerMoney(player);
-		if (bal < tpsConfig.warpCost) {
-			player.tell("§e[传送] §c余额不足，需要 " + tpsConfig.warpCost + " " + deps.getCurrencyName());
+		if (bal < getTpConfig().warpCost) {
+			player.tell("§e[传送] §c余额不足，需要 " + getTpConfig().warpCost + " " + deps.getCurrencyName());
 			return;
 		}
-		deps.reducePlayerMoney(player, tpsConfig.warpCost, "地标传送: " + warpName);
+		deps.reducePlayerMoney(player, getTpConfig().warpCost, "地标传送: " + warpName);
 	}
 
 	if (safeTeleport(player, warp.x, warp.y, warp.z, warp.dim)) {
@@ -985,8 +989,8 @@ function teleportToWarp(player, warpName, deps) {
 	} else {
 		player.tell("§e[传送] §c传送失败，请稍后再试");
 		// 传送失败时退还费用
-		if (tpsConfig.warpCost > 0) {
-			deps.addPlayerMoney(player, tpsConfig.warpCost, "地标传送失败退款");
+		if (getTpConfig().warpCost > 0) {
+			deps.addPlayerMoney(player, getTpConfig().warpCost, "地标传送失败退款");
 		}
 	}
 }
@@ -1458,7 +1462,7 @@ module.exports = {
 	cancelTpaRequest: cancelTpaRequest,
 	acceptTpaRequestByPlayer: acceptTpaRequestByPlayer,
 	denyTpaRequestByPlayer: denyTpaRequestByPlayer,
-	tpsConfig: function() { return tpsConfig; },
+	tpsConfig: getTpConfig,
 	initDeathPoint: initDeathPoint,
 	showRtpConfirmForm: showRtpConfirmForm,
 	recordDeathPoint: recordDeathPoint,
