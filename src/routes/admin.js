@@ -99,7 +99,7 @@ function registerRoutes(router, d) {
     router.get('/backup/download/:filename', d.adminAuth, d.backupDownloadLimiter, function(req, res) {
         try {
             const filename = req.params.filename;
-            // 防止路径穿越攻击
+            // 防止路径穿越攻击：使用path.resolve验证路径在备份目录内
             if (filename.includes('..') || filename.includes('/') || filename.includes('\\') || filename.includes('\0')) {
                 return res.status(400).json({ code: 400, msg: '非法文件名' });
             }
@@ -108,6 +108,12 @@ function registerRoutes(router, d) {
             }
             const backupDir = d.backupModule.getBackupDir();
             const filePath = d.pathModule.join(backupDir, filename);
+            // 二次验证：解析后的绝对路径必须在备份目录内
+            const resolvedPath = d.pathModule.resolve(filePath);
+            const resolvedBackupDir = d.pathModule.resolve(backupDir);
+            if (!resolvedPath.startsWith(resolvedBackupDir + d.pathModule.sep) && resolvedPath !== resolvedBackupDir) {
+                return res.status(400).json({ code: 400, msg: '非法文件路径' });
+            }
             if (!d.fs.existsSync(filePath)) {
                 return res.status(404).json({ code: 404, msg: '文件不存在' });
             }

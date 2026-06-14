@@ -332,7 +332,7 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 	fromPlayer.tell("§e[传送] §a已向 " + toPlayer.name + " 发送传送请求（" + typeDesc + "），等待对方确认...");
 
 	// 同时发送文本通知，确保对方即使无法弹出表单也能看到请求
-	toPlayer.tell("§e[传送] §b" + fromPlayer.name + " §a请求" + typeDesc + " §7(输入 §a/tpy §7同意, §c/tpn §7拒绝)");
+	toPlayer.tell("§e[传送] §b" + fromPlayer.name + " §a请求" + typeDesc + " (输入 §a/tpy 同意, §c/tpn 拒绝)");
 
 	// 弹窗给目标玩家，请求同意或拒绝
 	const fm = mc.newSimpleForm();
@@ -853,7 +853,7 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
 		sf.setTitle("§l§6搜索结果 - " + keyword);
 		sf.setContent("§a找到 " + results.length + " 个玩家，点击选择：");
 		results.forEach(function(r) {
-			sf.addButton("§e" + r.name + "\n§7UID: " + r.uid);
+			sf.addButton("§e" + r.name + "\nUID: " + r.uid);
 		});
 		sf.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
 		p.sendForm(sf, function(p2, id) {

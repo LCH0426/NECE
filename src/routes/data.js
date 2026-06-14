@@ -278,6 +278,10 @@ function registerRoutes(router, d) {
             if (!name) {
                 return res.status(400).json({ code: 400, msg: '玩家名字不能为空' });
             }
+            // 严格校验玩家名：只允许字母、数字、下划线，防止命令注入
+            if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+                return res.status(400).json({ code: 400, msg: '玩家名字只能包含字母、数字和下划线' });
+            }
 
             let list = readAllowlist();
             const exists = list.some(function(item) {
@@ -307,6 +311,10 @@ function registerRoutes(router, d) {
             let name = (req.body.name || '').trim();
             if (!name) {
                 return res.status(400).json({ code: 400, msg: '玩家名字不能为空' });
+            }
+            // 严格校验玩家名：只允许字母、数字、下划线，防止命令注入
+            if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+                return res.status(400).json({ code: 400, msg: '玩家名字只能包含字母、数字和下划线' });
             }
 
             let list = readAllowlist();
