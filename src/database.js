@@ -389,7 +389,7 @@ function initPlayerDatabase() {
     var existingCols = {};
     query(playerDb, "PRAGMA table_info(player_data)").forEach(function(r) { existingCols[r.name] = true; });
     [['last_ip', "TEXT DEFAULT ''"], ['platform', "TEXT DEFAULT ''"], ['titles', "TEXT DEFAULT '{}'"],
-     ['chain', "TEXT DEFAULT '{}'"], ['chain_plan', "TEXT DEFAULT '{}'"]
+     ['chain', "TEXT DEFAULT '{}'"], ['chain_plan', "TEXT DEFAULT '{}'"], ['dustshop', "TEXT DEFAULT '{}'"]
     ].forEach(function(col) {
         if (!existingCols[col[0]]) {
             try { playerDb.exec("ALTER TABLE player_data ADD COLUMN " + col[0] + " " + col[1]); } catch (e) {}
@@ -441,7 +441,7 @@ function cancelPendingSave() {}
  * @returns {Object|null} 玩家数据对象，不存在返回 null
  */
 function getPlayerDataSQL(xuid) {
-    var rows = query(playerDb, 'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan FROM player_data WHERE xuid = ?', [xuid]);
+    var rows = query(playerDb, 'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop FROM player_data WHERE xuid = ?', [xuid]);
     if (rows.length === 0) return null;
     var r = rows[0];
     return {
@@ -457,14 +457,15 @@ function getPlayerDataSQL(xuid) {
 
 function setPlayerDataSQL(xuid, data) {
     run(playerDb,
-        'INSERT OR REPLACE INTO player_data (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT OR REPLACE INTO player_data (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [xuid, data.uid, data.name, data.uuid, data.registerTime,
          String(data.leavetime || ''), data.healthBonus || 0, data.rw,
          JSON.stringify(data.taxdata || {}), JSON.stringify(data.bankdata || {}),
          JSON.stringify(data.quickmenu || {}), JSON.stringify(data.vipdata || {}),
          JSON.stringify(data.avatar || {}), JSON.stringify(data.count || {}),
          JSON.stringify(data.titles || {}), data.lastIp || '', data.platform || '',
-         JSON.stringify(data.chain || {}), JSON.stringify(data.chainPlan || {})]
+         JSON.stringify(data.chain || {}), JSON.stringify(data.chainPlan || {}),
+         JSON.stringify(data.dustshop || {})]
     );
 }
 
@@ -477,6 +478,8 @@ function updatePlayTimeSQL(xuid, playTime) {
 }
 
 function _parsePlayerRow(r) {
+    var dustshop = {};
+    try { dustshop = JSON.parse(r.dustshop || '{}'); } catch (e) { dustshop = {}; }
     return {
         uid: r.uid, name: r.name, uuid: r.uuid, registerTime: r.register_time,
         leavetime: r.leave_time, healthBonus: r.health_bonus, rw: r.rw,
@@ -484,12 +487,13 @@ function _parsePlayerRow(r) {
         quickmenu: JSON.parse(r.quick_menu || '{}'), vipdata: JSON.parse(r.vip_data || '{}'),
         avatar: JSON.parse(r.avatar || '{}'), count: JSON.parse(r.count || '{}'),
         titles: JSON.parse(r.titles || '{}'), lastIp: r.last_ip || '', platform: r.platform || '',
-        chain: JSON.parse(r.chain || '{}'), chainPlan: JSON.parse(r.chain_plan || '{}')
+        chain: JSON.parse(r.chain || '{}'), chainPlan: JSON.parse(r.chain_plan || '{}'),
+        dustshop: dustshop
     };
 }
 
 function getAllPlayerDataSQL() {
-    var rows = query(playerDb, 'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan FROM player_data');
+    var rows = query(playerDb, 'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop FROM player_data');
     var players = {};
     rows.forEach(function(r) { players[r.xuid] = _parsePlayerRow(r); });
     return players;
