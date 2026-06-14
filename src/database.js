@@ -401,7 +401,7 @@ function initPlayerDatabase() {
     playerDb.exec('CREATE TABLE IF NOT EXISTS friends (xuid TEXT, friend_xuid TEXT, friend_name TEXT, add_time TEXT, PRIMARY KEY (xuid, friend_xuid))');
     playerDb.exec('CREATE TABLE IF NOT EXISTS friend_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, message TEXT, time TEXT, handled INTEGER DEFAULT 0, rejected INTEGER DEFAULT 0, is_sent INTEGER DEFAULT 0)');
     playerDb.exec('CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, xuid TEXT, from_xuid TEXT, from_name TEXT, to_xuid TEXT, to_name TEXT, content TEXT, time TEXT, is_read INTEGER DEFAULT 0)');
-    playerDb.exec('CREATE TABLE IF NOT EXISTS homes (xuid TEXT, name TEXT, x REAL, y REAL, z REAL, dim INTEGER, last_use TEXT, shared_with TEXT DEFAULT \'[]\', PRIMARY KEY (xuid, name))');
+    playerDb.exec('CREATE TABLE IF NOT EXISTS homes (xuid TEXT, name TEXT, x REAL, y REAL, z REAL, dim INTEGER, last_use TEXT, shared_with TEXT DEFAULT \'[]\', is_public INTEGER DEFAULT 0, PRIMARY KEY (xuid, name))');
     playerDb.exec("CREATE TABLE IF NOT EXISTS player_inventory (xuid TEXT PRIMARY KEY, items TEXT DEFAULT '[]', armor TEXT DEFAULT '[]', offhand TEXT DEFAULT '[]', save_time TEXT)");
 
     // 兼容已有数据库：检查缺失列并添加
@@ -414,6 +414,7 @@ function initPlayerDatabase() {
     var homeCols = {};
     query(playerDb, "PRAGMA table_info(homes)").forEach(function(r) { homeCols[r.name] = true; });
     if (!homeCols['shared_with']) { try { playerDb.exec("ALTER TABLE homes ADD COLUMN shared_with TEXT DEFAULT '[]'"); } catch (e) {} }
+    if (!homeCols['is_public']) { try { playerDb.exec("ALTER TABLE homes ADD COLUMN is_public INTEGER DEFAULT 0"); } catch (e) {} }
 
     createGuildTables();
     createPlayerCountTable();
@@ -622,17 +623,17 @@ function clearMessagesSQL(xuid) { run(playerDb, 'DELETE FROM messages WHERE xuid
 function _parseHomeRow(r) {
     var shared = [];
     try { shared = JSON.parse(r.shared_with || '[]'); } catch (e) { shared = []; }
-    return { name: r.name, x: r.x, y: r.y, z: r.z, dim: r.dim, lastUse: r.last_use, sharedWith: shared };
+    return { name: r.name, x: r.x, y: r.y, z: r.z, dim: r.dim, lastUse: r.last_use, sharedWith: shared, public: !!r.is_public };
 }
 
 function getHomesSQL(xuid) {
-    return query(playerDb, 'SELECT name, x, y, z, dim, last_use, shared_with FROM homes WHERE xuid = ?', [xuid])
+    return query(playerDb, 'SELECT name, x, y, z, dim, last_use, shared_with, is_public FROM homes WHERE xuid = ?', [xuid])
         .map(_parseHomeRow);
 }
 
 function getAllHomesSQL() {
     var all = {};
-    query(playerDb, 'SELECT xuid, name, x, y, z, dim, last_use, shared_with FROM homes').forEach(function(r) {
+    query(playerDb, 'SELECT xuid, name, x, y, z, dim, last_use, shared_with, is_public FROM homes').forEach(function(r) {
         if (!all[r.xuid]) all[r.xuid] = [];
         all[r.xuid].push(_parseHomeRow(r));
     });
@@ -643,20 +644,20 @@ function setHomesSQL(xuid, homes) {
     run(playerDb, 'DELETE FROM homes WHERE xuid = ?', [xuid]);
     if (homes && homes.length > 0) {
         homes.forEach(function(h) {
-            run(playerDb, 'INSERT INTO homes (xuid, name, x, y, z, dim, last_use, shared_with) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                [xuid, h.name, h.x, h.y, h.z, h.dim || 0, h.lastUse || 0, JSON.stringify(h.sharedWith || [])]);
+            run(playerDb, 'INSERT INTO homes (xuid, name, x, y, z, dim, last_use, shared_with, is_public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [xuid, h.name, h.x, h.y, h.z, h.dim || 0, h.lastUse || 0, JSON.stringify(h.sharedWith || []), h.public ? 1 : 0]);
         });
     }
 }
 
 function addHomeSQL(xuid, home) {
-    run(playerDb, 'INSERT INTO homes (xuid, name, x, y, z, dim, last_use, shared_with) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [xuid, home.name, home.x, home.y, home.z, home.dim || 0, home.lastUse || 0, JSON.stringify(home.sharedWith || [])]);
+    run(playerDb, 'INSERT INTO homes (xuid, name, x, y, z, dim, last_use, shared_with, is_public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [xuid, home.name, home.x, home.y, home.z, home.dim || 0, home.lastUse || 0, JSON.stringify(home.sharedWith || []), home.public ? 1 : 0]);
 }
 function removeHomeSQL(xuid, name) { run(playerDb, 'DELETE FROM homes WHERE xuid = ? AND name = ?', [xuid, name]); }
 function updateHomeSQL(xuid, name, home) {
-    run(playerDb, 'UPDATE homes SET x = ?, y = ?, z = ?, dim = ?, last_use = ?, shared_with = ? WHERE xuid = ? AND name = ?',
-        [home.x, home.y, home.z, home.dim || 0, home.lastUse || 0, JSON.stringify(home.sharedWith || []), xuid, name]);
+    run(playerDb, 'UPDATE homes SET x = ?, y = ?, z = ?, dim = ?, last_use = ?, shared_with = ?, is_public = ? WHERE xuid = ? AND name = ?',
+        [home.x, home.y, home.z, home.dim || 0, home.lastUse || 0, JSON.stringify(home.sharedWith || []), home.public ? 1 : 0, xuid, name]);
 }
 
 function savePlayerInventorySQL(xuid, items, armor, offhand) {
