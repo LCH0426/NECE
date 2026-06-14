@@ -21,6 +21,7 @@
  */
 
 const D = require('./debug');
+const U = require('./utils');
 
 // 待处理的TPA请求，key为 requestId，value为请求详情对象
 const teleportPendingRequests = {};
@@ -264,8 +265,14 @@ function showTpaMainForm(player, deps) {
 			return;
 		}
 
-		const target = otherPlayers[playerIdx];
-		if (!target) return;
+		// 通过xuid重新获取目标玩家，避免闭包中的player对象已失效
+		const targetXuid = otherPlayers[playerIdx] ? otherPlayers[playerIdx].xuid : null;
+		if (!targetXuid) return;
+		const target = mc.getPlayer(targetXuid);
+		if (!target) {
+			p.tell("§e[传送] §c目标玩家已下线");
+			return;
+		}
 
 		const type = typeIdx === 0 ? 'tpa' : 'tpn';
 		sendTpaRequest(p, target, type, deps);
@@ -325,6 +332,9 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 	const typeDesc = type === 'tpa' ? "传送到你所在位置" : type === 'tpn' ? "请你传送到他所在位置" : "与你们互相传送到中点";
 	fromPlayer.tell("§e[传送] §a已向 " + toPlayer.name + " 发送传送请求（" + typeDesc + "），等待对方确认...");
 
+	// 同时发送文本通知，确保对方即使无法弹出表单也能看到请求
+	toPlayer.tell("§e[传送] §b" + fromPlayer.name + " §a请求" + typeDesc + " §7(输入 §a/tpy §7同意, §c/tpn §7拒绝)");
+
 	// 弹窗给目标玩家，请求同意或拒绝
 	const fm = mc.newSimpleForm();
 	fm.setTitle("§l§e传送请求");
@@ -332,10 +342,19 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 	fm.addButton("§a同意", "textures/ui/check");
 	fm.addButton("§c拒绝", "textures/ui/cancel");
 
+	// 保存发起者xuid，避免闭包中引用可能失效的player对象
+	const fromXuid = fromPlayer.xuid;
+
 	toPlayer.sendForm(fm, function(p, id) {
+		// 重新验证请求是否仍然有效（可能已被超时清理）
+		if (!teleportPendingRequests[reqId]) {
+			return;
+		}
 		if (id == null) {
-			delete teleportPendingRequests[reqId];
-			fromPlayer.tell("§e[传送] §c" + p.name + " 忽略了你的传送请求");
+			// 玩家关闭表单（ESC或被其他表单覆盖），不立即删除请求
+			// 请求会保留直到超时自动清理，玩家可以通过 /tpy /tpn 命令或菜单处理
+			const fromP = mc.getPlayer(fromXuid);
+			if (fromP) fromP.tell("§e[传送] §c" + p.name + " 未处理你的传送请求，请求仍在等待中");
 			return;
 		}
 		if (id === 0) {
@@ -391,12 +410,12 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 	// 根据请求类型执行不同的传送逻辑
 	if (req.type === 'tpa') {
 		const toPos = toPlayer.pos;
-		U.safeTeleport(fromPlayer, toPos.x, toPos.y, toPos.z, toPos.dim);
+		U.safeTeleport(fromPlayer, toPos.x, toPos.y, toPos.z, toPos.dimid);
 		fromPlayer.tell("§e[传送] §a已传送到 " + toPlayer.name + " 的位置");
 		toPlayer.tell("§e[传送] §a" + fromPlayer.name + " 已传送到你的位置");
 	} else if (req.type === 'tpn') {
 		const fromPos = fromPlayer.pos;
-		U.safeTeleport(toPlayer, fromPos.x, fromPos.y, fromPos.z, fromPos.dim);
+		U.safeTeleport(toPlayer, fromPos.x, fromPos.y, fromPos.z, fromPos.dimid);
 		fromPlayer.tell("§e[传送] §a" + toPlayer.name + " 已传送到你的位置");
 		toPlayer.tell("§e[传送] §a已传送到 " + fromPlayer.name + " 的位置");
 	}
@@ -676,7 +695,7 @@ function showHomeSetForm(player, deps) {
 			x: pos.x,
 			y: pos.y,
 			z: pos.z,
-			dim: pos.dim,
+			dim: pos.dimid,
 			public: isPublic,
 			sharedWith: [],
 			lastUse: 0
@@ -1000,7 +1019,7 @@ function showWarpAddForm(player, deps) {
 			x: pos.x,
 			y: pos.y,
 			z: pos.z,
-			dim: pos.dim,
+			dim: pos.dimid,
 			cdSec: 0,
 			cost: cost
 		};
