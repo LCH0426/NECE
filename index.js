@@ -1018,7 +1018,7 @@ function initAllConfigs() {
 		t: i18n.t,
 		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
-	menuModule.init({ getConfig: function() { return config._data || {}; }, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData });
+	menuModule.init({ getConfig: function() { return config._data || {}; }, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData, getPlayerSetting: getPlayerSetting });
 	menuModule.loadConfig();
 	chatModule.init({ fs: fs, U: U, badWordsPath: BAD_WORDS_PATH, webServer: webServer,
 		getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData,
@@ -1380,7 +1380,7 @@ function onJoinHandler(player) {
 		setTimeout(() => {
 			try {
 				const p = mc.getPlayer(joinXuid);
-				if (p) giveJoinItems(p);
+				if (p) menuModule.giveJoinItems(p);
 			} catch (error) {
 				logger.error(`入服给物品时出错：${error.message}`);
 			}
@@ -1862,58 +1862,6 @@ function checkUnreadMessagesAndMails(player) {
 		player.tell(msg);
 	}
 }
-
-/** 入服发放菜单钟和快捷菜单指南针 */
-function giveJoinItems(player) {
-	const xuid = player.xuid;
-
-	// 获取玩家设置
-	const enableGiveClock = getPlayerSetting(xuid, "enableGiveClock");
-	const enableGiveCompass = getPlayerSetting(xuid, "enableGiveCompass");
-
-	// 给钟
-	if (enableGiveClock !== false) {
-		try {
-			// 检查背包中是否已有名为"菜单"的钟
-			const hasClock = player.getInventory().getAllItems().some(item =>
-				item && item.type === "minecraft:clock" && item.name === "§l§b菜单"
-			);
-
-			if (!hasClock) {
-				const clock = mc.newItem("minecraft:clock", 1);
-				if (clock) {
-					clock.setDisplayName("§l§b菜单");
-					clock.setLore(["§a右键打开主菜单", "§e点击使用菜单功能"]);
-					player.giveItem(clock);
-				}
-			}
-		} catch (error) {
-			logger.error(`给钟失败：${error.message}`);
-		}
-	}
-
-	// 给指南针
-	if (enableGiveCompass !== false) {
-		try {
-			// 检查背包中是否已有名为"快捷菜单"的指南针
-			const hasCompass = player.getInventory().getAllItems().some(item =>
-				item && item.type === "minecraft:compass" && item.name === "§l§a快捷菜单"
-			);
-
-			if (!hasCompass) {
-				const compass = mc.newItem("minecraft:compass", 1);
-				if (compass) {
-					compass.setDisplayName("§l§a快捷菜单");
-					compass.setLore(["§a右键打开快捷菜单", "§e点击使用快捷功能"]);
-					player.giveItem(compass);
-				}
-			}
-		} catch (error) {
-			logger.error(`给指南针失败：${error.message}`);
-		}
-	}
-}
-
 
 // ============================== NPC攻击响应系统 ==============================
 

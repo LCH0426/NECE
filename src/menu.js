@@ -308,6 +308,50 @@ function registerCompassListener() {
     });
 }
 
+/**
+ * 入服发放菜单钟和快捷菜单指南针
+ * @param {Player} player
+ */
+function giveJoinItems(player) {
+    var getPlayerSetting = _deps.getPlayerSetting;
+    if (!getPlayerSetting) return;
+    var xuid = player.xuid;
+
+    var enableGiveClock = getPlayerSetting(xuid, "enableGiveClock");
+    if (enableGiveClock !== false) {
+        try {
+            var hasClock = player.getInventory().getAllItems().some(function(item) {
+                return item && item.type === "minecraft:clock" && item.name === "§l§b菜单";
+            });
+            if (!hasClock) {
+                var clock = mc.newItem("minecraft:clock", 1);
+                if (clock) {
+                    clock.setDisplayName("§l§b菜单");
+                    clock.setLore(["§a右键打开主菜单", "§e点击使用菜单功能"]);
+                    player.giveItem(clock);
+                }
+            }
+        } catch (e) {}
+    }
+
+    var enableGiveCompass = getPlayerSetting(xuid, "enableGiveCompass");
+    if (enableGiveCompass !== false) {
+        try {
+            var hasCompass = player.getInventory().getAllItems().some(function(item) {
+                return item && item.type === "minecraft:compass" && item.name === "§l§a快捷菜单";
+            });
+            if (!hasCompass) {
+                var compass = mc.newItem("minecraft:compass", 1);
+                if (compass) {
+                    compass.setDisplayName("§l§a快捷菜单");
+                    compass.setLore(["§a右键打开快捷菜单", "§e点击使用快捷功能"]);
+                    player.giveItem(compass);
+                }
+            }
+        } catch (e) {}
+    }
+}
+
 module.exports = {
     init: init,
     loadConfig: loadConfig,
@@ -316,5 +360,6 @@ module.exports = {
     showQuickMenu: showQuickMenu,
     registerClockListener: registerClockListener,
     registerCommands: registerCommands,
-    registerCompassListener: registerCompassListener
+    registerCompassListener: registerCompassListener,
+    giveJoinItems: giveJoinItems
 };
