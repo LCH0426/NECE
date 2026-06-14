@@ -129,7 +129,11 @@ function init(_homesDM, _warpsDM, deps) {
 		tpaCooldown: tpCfg.tpaCooldown || 30,
 		tpaTimeout: tpCfg.tpaTimeout || 30,
 		tpaCost: tpCfg.tpaCost || 0,
-		warpCost: tpCfg.warpCost || 0
+		warpCost: tpCfg.warpCost || 0,
+		enableRtp: tpCfg.enableRtp !== undefined ? tpCfg.enableRtp : true,
+		rtpRadius: tpCfg.rtpRadius || 10000,
+		rtpCooldown: tpCfg.rtpCooldown || 60,
+		rtpCost: tpCfg.rtpCost || 0
 	};
 
 	homesData = homesDM.load();
@@ -1375,6 +1379,77 @@ function getDimensionName(dimId) {
 	return "未知维度(" + dimId + ")";
 }
 
+/**
+ * 随机传送到安全位置，主世界范围内
+ * @param {Player} player
+ */
+function showRtpConfirmForm(player) {
+	if (!tpsConfig.enableRtp) {
+		player.tell("§e[传送] §c随机传送功能已关闭");
+		return;
+	}
+	var cd = checkTeleportCooldown(player.xuid, 'rtp');
+	if (cd > 0) {
+		player.tell("§e[传送] §c请等待 " + cd + " 秒后再使用随机传送");
+		return;
+	}
+	var cost = tpsConfig.rtpCost || 0;
+	var radius = tpsConfig.rtpRadius || 10000;
+	var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '金币';
+	var costText = cost > 0 ? "\n§a费用：§f" + cost + " " + currencyName : "";
+	player.sendModalForm(
+		"§a随机传送",
+		"§a即将传送到主世界随机位置\n§a范围：§f" + radius + " 格" + costText + "\n\n§c确认传送？",
+		"§a确认",
+		"§c取消",
+		function(p, result) {
+			if (result !== true) return;
+			executeRtp(p, radius, cost);
+		}
+	);
+}
+
+/**
+ * 执行随机传送：生成随机坐标，检测安全位置后传送
+ * @param {Player} player
+ * @param {number} radius
+ * @param {number} cost
+ */
+function executeRtp(player, radius, cost) {
+	if (cost > 0) {
+		if (!_deps.reducePlayerMoney || !_deps.reducePlayerMoney(player, cost, "随机传送")) {
+			player.tell("§e[传送] §c余额不足，无法传送");
+			return;
+		}
+	}
+	var x = Math.floor(Math.random() * radius * 2) - radius;
+	var z = Math.floor(Math.random() * radius * 2) - radius;
+	var y = 320;
+	player.sendText("§e[传送] §a正在寻找安全位置...", 0);
+	// 尝试找安全地面高度，最多向下搜索64格
+	try {
+		var block = mc.getBlock(x, y, z, 0);
+		if (block) {
+			for (var tryY = y; tryY > 64; tryY--) {
+				var b = mc.getBlock(x, tryY, z, 0);
+				if (b && b.type !== 'minecraft:air' && b.type !== 'minecraft:water' && b.type !== 'minecraft:lava') {
+					y = tryY + 1;
+					break;
+				}
+			}
+		}
+	} catch (e) {}
+	if (safeTeleport(player, x + 0.5, y, z + 0.5, 0)) {
+		setTeleportCooldown(player.xuid, 'rtp', tpsConfig.rtpCooldown || 60);
+		player.tell("§e[传送] §a已传送到随机位置 (" + x + ", " + y + ", " + z + ")");
+	} else {
+		player.tell("§e[传送] §c传送失败，请稍后再试");
+		if (cost > 0 && _deps.addPlayerMoney) {
+			_deps.addPlayerMoney(player, cost, "随机传送失败退款");
+		}
+	}
+}
+
 module.exports = {
 	init: init,
 	showTpgMainMenu: showTpgMainMenu,
@@ -1386,6 +1461,7 @@ module.exports = {
 	denyTpaRequestByPlayer: denyTpaRequestByPlayer,
 	tpsConfig: function() { return tpsConfig; },
 	initDeathPoint: initDeathPoint,
+	showRtpConfirmForm: showRtpConfirmForm,
 	recordDeathPoint: recordDeathPoint,
 	showDeathPointMenu: showDeathPointMenu,
 	teleportToDeathPoint: teleportToDeathPoint,
