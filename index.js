@@ -1777,7 +1777,8 @@ function registerAllCommands() {
 		["warp", "公共传送点", function(p) { teleportModule.showWarpMainForm(p, commonDeps); }, tpWarpEnabled],
 		["tpa", "互传系统", function(p) { teleportModule.showTpaMainForm(p, commonDeps); }, tpTpaEnabled],
 		["tpy", "接受传送请求", function(p) { teleportModule.acceptTpaRequestByPlayer(p, commonDeps); }, tpTpaEnabled],
-		["tpn", "拒绝传送请求", function(p) { teleportModule.denyTpaRequestByPlayer(p); }, tpTpaEnabled]
+		["tpn", "拒绝传送请求", function(p) { teleportModule.denyTpaRequestByPlayer(p); }, tpTpaEnabled],
+		["rtp", "随机传送", function(p) { teleportModule.showRtpConfirmForm(p); }, tpEnabled]
 	];
 	for (let i = 0; i < commands.length; i++) {
 		let cmd = commands[i];
