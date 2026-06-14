@@ -22,11 +22,15 @@
 
 
 const RANK_PAGE_SIZE = 10;
+const RANK_CACHE_TTL = 60000; // 排行榜缓存60秒
 
 function createRankModule(deps) {
     const playerData = deps.playerData;
     const getCurrencyName = deps.getCurrencyName;
     const getMoneyByXuid = deps.getMoneyByXuid;
+
+    // 排行榜缓存 { type: { data, time } }
+    var _rankCache = {};
 
     function showRankMainForm(player) {
         let fm = mc.newSimpleForm();
@@ -45,6 +49,10 @@ function createRankModule(deps) {
     }
 
     function getRankData(type) {
+        var now = Date.now();
+        if (_rankCache[type] && now - _rankCache[type].time < RANK_CACHE_TTL) {
+            return _rankCache[type].data;
+        }
         const entries = [];
         const players = playerData.players || {};
         Object.keys(players).forEach(function(xuid) {
@@ -56,8 +64,6 @@ function createRankModule(deps) {
                 case "money":
                     if (getMoneyByXuid) {
                         value = getMoneyByXuid(xuid) || 0;
-                    } else if (typeof money !== 'undefined' && money && typeof money.get === 'function') {
-                        value = money.get(xuid) || 0;
                     }
                     break;
                 case "bank":
@@ -78,6 +84,7 @@ function createRankModule(deps) {
             entries.push({ name: name, value: value });
         });
         entries.sort(function(a, b) { return b.value - a.value; });
+        _rankCache[type] = { data: entries, time: Date.now() };
         return entries;
     }
 

@@ -33,7 +33,7 @@ let _sidebarMoneyCacheTime = 0;  // 上次余额缓存刷新时间戳
 // 玩家设备/群系缓存，减少昂贵的LLSE API调用；xuid -> { device, deviceTime, biome, biomeTime }
 let _playerDeviceCache = {};
 let _playerBiomeCache = {};
-const DEVICE_CACHE_TTL = 0;      // 设备信息不缓存，每秒更新
+const DEVICE_CACHE_TTL = 3000;    // 设备信息缓存3秒
 const BIOME_CACHE_TTL = 1000;    // 生物群系缓存1秒
 
 // 上次渲染的侧边栏内容，内容不变时跳过重复渲染；xuid -> string
@@ -74,6 +74,9 @@ const BIOME_NAMES = {
 // 上次渲染的时间行；xuid -> string
 let _lastRenderedTime = {};
 
+// 分层渲染计数器：每秒+1，满5时执行全量重建
+let _renderTick = 0;
+
 // 缓存非时间数据的侧边栏行；xuid -> { sidebarData, compactLines, isCompact, sidebarSettings }
 let _sidebarDataCache = {};
 
@@ -92,14 +95,28 @@ function init(deps) {
  */
 function startRenderLoop() {
 	const SIDEBAR_SETTING_KEYS = ['enableActionbarPing', 'enableActionbarMoney', 'enableActionbarTime', 'enableActionbarTps', 'enableActionbarSpeed', 'enableActionbarBiome'];
-	const SIDEBAR_CACHE_TTL = 0;
-	const SIDEBAR_MONEY_CACHE_TTL = 0;
+	const SIDEBAR_CACHE_TTL = 5000;    // 设置缓存5秒，玩家修改设置后最多5秒生效
+	const SIDEBAR_MONEY_CACHE_TTL = 3000; // 余额缓存3秒
 
 	setInterval(function() {
 		const onlinePlayers = mc.getOnlinePlayers();
 		if (onlinePlayers.length === 0) return;
 		const now = Date.now();
-		const isFullUpdate = true;
+		_renderTick++;
+		const isFullUpdate = _renderTick >= 5;
+		if (isFullUpdate) _renderTick = 0;
+
+		// 清理离线玩家的缓存，防止内存泄漏
+		const onlineXuids = {};
+		for (let oi = 0; oi < onlinePlayers.length; oi++) {
+			onlineXuids[onlinePlayers[oi].xuid] = true;
+		}
+		for (let cxuid in _sidebarCache) {
+			if (!onlineXuids[cxuid]) clearPlayerCache(cxuid);
+		}
+		for (let mxuid in _sidebarMoneyCache) {
+			if (!onlineXuids[mxuid]) delete _sidebarMoneyCache[mxuid];
+		}
 
 		// 定期清空设置缓存，使玩家修改的设置能生效
 		if (now - _sidebarCacheTime > SIDEBAR_CACHE_TTL) {
