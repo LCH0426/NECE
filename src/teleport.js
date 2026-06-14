@@ -21,7 +21,6 @@
  */
 
 const D = require('./debug');
-const U = require('./utils');
 
 // 待处理的TPA请求，key为 requestId，value为请求详情对象
 const teleportPendingRequests = {};
@@ -410,12 +409,12 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 	// 根据请求类型执行不同的传送逻辑
 	if (req.type === 'tpa') {
 		const toPos = toPlayer.pos;
-		U.safeTeleport(fromPlayer, toPos.x, toPos.y, toPos.z, toPos.dimid);
+		safeTeleport(fromPlayer, toPos.x, toPos.y, toPos.z, toPos.dimid);
 		fromPlayer.tell("§e[传送] §a已传送到 " + toPlayer.name + " 的位置");
 		toPlayer.tell("§e[传送] §a" + fromPlayer.name + " 已传送到你的位置");
 	} else if (req.type === 'tpn') {
 		const fromPos = fromPlayer.pos;
-		U.safeTeleport(toPlayer, fromPos.x, fromPos.y, fromPos.z, fromPos.dimid);
+		safeTeleport(toPlayer, fromPos.x, fromPos.y, fromPos.z, fromPos.dimid);
 		fromPlayer.tell("§e[传送] §a" + toPlayer.name + " 已传送到你的位置");
 		toPlayer.tell("§e[传送] §a已传送到 " + fromPlayer.name + " 的位置");
 	}
@@ -753,7 +752,7 @@ function teleportToHome(player, home) {
 		return;
 	}
 
-	if (U.safeTeleport(player, home.x, home.y, home.z, home.dim)) {
+	if (safeTeleport(player, home.x, home.y, home.z, home.dim)) {
 		home.lastUse = Date.now();
 		saveHomesData();
 		setTeleportCooldown(player.xuid, 'home', tpsConfig.homeCooldown);
@@ -971,7 +970,7 @@ function teleportToWarp(player, warpName, deps) {
 		deps.reducePlayerMoney(player, tpsConfig.warpCost, "地标传送: " + warpName);
 	}
 
-	if (U.safeTeleport(player, warp.x, warp.y, warp.z, warp.dim)) {
+	if (safeTeleport(player, warp.x, warp.y, warp.z, warp.dim)) {
 		player.tell("§e[传送] §a已传送到 §b" + warpName);
 	} else {
 		player.tell("§e[传送] §c传送失败，请稍后再试");
@@ -1326,13 +1325,44 @@ function teleportToDeathPoint(player, index) {
 		const z = point.z || 0;
 		const dimId = point.dimId || 0;
 
-		U.safeTeleport(player, x + 0.5, y, z + 0.5, dimId);
+		safeTeleport(player, x + 0.5, y, z + 0.5, dimId);
 		player.tell("§a已传送到死亡点 [" + dimName + "] (" + x + ", " + y + ", " + z + ")");
 		logger.info("[死亡点] 玩家 " + player.name + " 传送到死亡点：" + dimName + " (" + x + ", " + y + ", " + z + ")");
 	} catch (error) {
 		player.tell("§c传送失败：" + error.message);
 		logger.error("[死亡点] 传送玩家到死亡点失败：" + error.message);
 	}
+}
+
+/**
+ * 安全传送玩家到指定坐标，支持跨维度
+ * 先用 API 传送，失败则回退到 execute in 命令
+ * @param {Player} player
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @param {number} dim - 维度ID
+ * @returns {boolean}
+ */
+function safeTeleport(player, x, y, z, dim) {
+    dim = parseInt(dim, 10);
+    if (isNaN(dim)) dim = 0;
+    var dimNames = { 0: 'minecraft:overworld', 1: 'minecraft:nether', 2: 'minecraft:the_end' };
+    var dimName = dimNames[dim] || 'minecraft:overworld';
+    try {
+        player.teleport(new FloatPos(x, y, z, dim));
+        return true;
+    } catch (e) {
+        try {
+            mc.runcmdEx('execute in ' + dimName + ' run tp "' + player.realName + '" ' + x + ' ' + y + ' ' + z);
+            return true;
+        } catch (e2) {
+            try {
+                player.runcmd('tp ' + x + ' ' + y + ' ' + z);
+                return true;
+            } catch (e3) { return false; }
+        }
+    }
 }
 
 /**
@@ -1361,5 +1391,6 @@ module.exports = {
 	recordDeathPoint: recordDeathPoint,
 	showDeathPointMenu: showDeathPointMenu,
 	teleportToDeathPoint: teleportToDeathPoint,
-	getDeathPointData: function() { return deathPointData; }
+	getDeathPointData: function() { return deathPointData; },
+	safeTeleport: safeTeleport
 };
