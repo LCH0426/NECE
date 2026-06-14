@@ -35,9 +35,9 @@ var _rtpProtected = {};
 /** 注册RTP摔伤保护事件 */
 function registerRtpProtection() {
     mc.listen('onMobHurt', function(mob, source, damage, cause) {
-        if (cause === 5 && mob && mob.xuid && _rtpProtected[mob.xuid]) {
-            return false;
-        }
+        if (cause !== 5) return;
+        if (!mob || !mob.isPlayer || !mob.isPlayer()) return;
+        if (_rtpProtected[mob.xuid]) return false;
     });
 }
 
@@ -1232,7 +1232,13 @@ function recordDeathPoint(player) {
 			deathPoints.length = 10;
 		}
 
-		saveDeathPointData();
+		// 单条插入到数据库，自动保留最近10条
+		var db = _deps.database;
+		if (db && db.addDeathPointSQL) {
+			db.addDeathPointSQL(xuid, deathPoint);
+		} else {
+			saveDeathPointData();
+		}
 		logger.info('[死亡点] 玩家 ' + player.name + ' 死亡点已记录：' + dimName + ' (' + pos.x + ', ' + pos.y + ', ' + pos.z + ')');
 	} catch (error) {
 		logger.error('[死亡点] 记录死亡点失败：' + error.message);

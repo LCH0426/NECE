@@ -562,6 +562,12 @@ function setDeathPointsSQL(xuid, points) {
     }
 }
 
+function addDeathPointSQL(xuid, point) {
+    run(playerDb, 'INSERT INTO death_points (xuid, data) VALUES (?, ?)', [xuid, JSON.stringify(point)]);
+    // 保留最近10条，删除多余的
+    run(playerDb, 'DELETE FROM death_points WHERE xuid = ? AND id NOT IN (SELECT id FROM death_points WHERE xuid = ? ORDER BY id DESC LIMIT 10)', [xuid, xuid]);
+}
+
 function getFriendsSQL(xuid) {
     var friends = query(playerDb, 'SELECT friend_xuid, friend_name, add_time FROM friends WHERE xuid = ?', [xuid])
         .map(function(r) { return { xuid: r.friend_xuid, name: r.friend_name, addTime: r.add_time }; });
@@ -986,6 +992,7 @@ module.exports = {
     getDeathPointsSQL,
     getAllDeathPointsSQL,
     setDeathPointsSQL,
+    addDeathPointSQL,
     getFriendsSQL,
     getAllFriendsSQL,
     addFriendSQL,
