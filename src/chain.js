@@ -106,7 +106,9 @@ function savePlanData(xuid, planData) {
     var pd = _deps.getPlayerData ? _deps.getPlayerData() : null;
     if (!pd || !pd.players || !pd.players[xuid]) return;
     pd.players[xuid].chainPlan = planData;
-    if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
+    // 使用防抖保存代替立即保存，避免连锁挖矿时频繁IO
+    if (_deps.savePlayerData) _deps.savePlayerData();
+    else if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
 }
 
 /**
@@ -215,9 +217,10 @@ function purchasePlan(player, planName) {
 
         // 计算剩余天数
         var remainingDays = Math.ceil((planData.expireTime - now) / (1000 * 60 * 60 * 24));
+        var currentDuration = currentPlanInfo.duration || 7;
 
-        // 差价 = (新计划价格 - 旧计划价格) * 剩余天数 / 7
-        actualPrice = Math.ceil(priceDiff * remainingDays / 7);
+        // 差价 = (新计划价格 - 旧计划价格) * 剩余天数 / 旧计划周期天数
+        actualPrice = Math.ceil(priceDiff * remainingDays / currentDuration);
     }
 
     // 检查余额
@@ -271,7 +274,8 @@ function renewPlan(player, weeks) {
     }
 
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
-    var weeklyPrice = Math.ceil((planInfo.price || 0) / (planInfo.duration || 7) * 7);
+    // 续费价格直接使用一个周期的价格
+    var weeklyPrice = planInfo.price || 0;
     var totalPrice = weeklyPrice * weeks;
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
 
@@ -393,7 +397,8 @@ function showRenewMenu(player) {
     var currentPlan = planData.plan || 'free';
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
-    var weeklyPrice = Math.ceil((planInfo.price || 0) / (planInfo.duration || 7) * 7);
+    // 续费价格直接使用一个周期的价格
+    var weeklyPrice = planInfo.price || 0;
     var currentDisplayName = getPlanDisplayName(currentPlan);
 
     var fm = mc.newCustomForm();
@@ -450,13 +455,14 @@ function showUpgradeMenu(player) {
 
     var currentPlanInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
     var currentPrice = currentPlanInfo.price || 0;
+    var currentDuration = currentPlanInfo.duration || 7;
     var remainingDays = Math.ceil((planData.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
 
     for (var i = currentIndex + 1; i < planOrder.length; i++) {
         var pName = planOrder[i];
         var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
         var priceDiff = (pInfo.price || 0) - currentPrice;
-        var upgradePrice = Math.ceil(priceDiff * remainingDays / 7);
+        var upgradePrice = Math.ceil(priceDiff * remainingDays / currentDuration);
         var displayName = getPlanDisplayName(pName);
 
         upgradeOptions.push(displayName + ' - 每日' + pInfo.dailyLimit + '个 - 补差价' + upgradePrice + currencyName);
@@ -593,7 +599,7 @@ function showRenewConfirm(player, weeks) {
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
 
-    var weeklyPrice = Math.ceil((planInfo.price || 0) / (planInfo.duration || 7) * 7);
+    var weeklyPrice = planInfo.price || 0;
     var totalPrice = weeklyPrice * weeks;
     var displayName = getPlanDisplayName(currentPlan);
 

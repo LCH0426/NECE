@@ -128,6 +128,10 @@ function getPlayerExpByXuid(xuid) {
 function calculateAdventureLevel(exp) {
 	exp = Math.max(0, exp);
 	const maxLevel = _levelUpExp.length;
+	// 经验表未初始化时返回默认等级1
+	if (maxLevel === 0) {
+		return { level: 1, currentExp: exp, nextExp: 0, totalExp: exp };
+	}
 	// 二分查找：找到 exp >= _levelUpExp[mid] 的最大 mid
 	let lo = 0, hi = maxLevel - 1;
 	while (lo < hi) {
@@ -515,8 +519,8 @@ function showUidSearchResultForm(player, targetUid) {
 		formContent,
 		'§a返回搜索',
 		'§c关闭',
-		function(_, res) {
-			if (res === true) showUidSearchInputForm(player);
+		function(p, res) {
+			if (res === true) showUidSearchInputForm(p);
 		}
 	);
 }

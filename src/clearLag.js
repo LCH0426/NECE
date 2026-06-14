@@ -25,6 +25,10 @@ var _mainTimer = null;
 var _reminderTimer = null;
 var _deps = {};
 
+// 掉落物首次发现时间记录 { uniqueId: firstSeenTimestamp }
+var _itemFirstSeen = {};
+var ITEM_MIN_AGE_MS = 30000; // 掉落物至少存在30秒才会被清理
+
 /**
  * 初始化实体清理模块
  * @param {object} deps - 依赖对象（含 getConfig）
@@ -209,17 +213,18 @@ function executeCleanup() {
     if (!entities || entities.length === 0) return { killedMobs: 0, killedItems: 0, total: 0, protectedCount: 0, byType: {} };
 
     // 按类型分组，仅处理黑名单中的类型和掉落物
+    // 同时收集掉落物引用，避免二次遍历
     var typeGroups = {};
     var protectedCount = 0;
-    var itemCount = 0;
+    var droppedItems = [];
     for (var j = 0; j < entities.length; j++) {
         var entity = entities[j];
         if (!entity) continue;
         var type = '';
         try { type = entity.type || ''; } catch (e) { continue; }
-        // 统计掉落物
+        // 收集掉落物引用
         if (type === 'minecraft:item') {
-            itemCount++;
+            droppedItems.push(entity);
             continue;
         }
         if (!cleanSet[type]) {
@@ -250,20 +255,31 @@ function executeCleanup() {
         }
     }
 
-    // 清理掉落物
+    // 清理掉落物：先过滤掉存活时间不足的，再按数量限制清理
     var killedItems = 0;
-    try {
-        var itemEntities = mc.getAllEntities();
-        for (var m = 0; m < itemEntities.length; m++) {
-            var itemEntity = itemEntities[m];
-            if (itemEntity && itemEntity.type === 'minecraft:item') {
-                try {
-                    itemEntity.kill();
-                    killedItems++;
-                } catch (e) {}
-            }
+    var now = Date.now();
+    var eligibleItems = [];
+    for (var m = 0; m < droppedItems.length; m++) {
+        var item = droppedItems[m];
+        var itemId = item.uniqueId || (item.runtime_id || '') + '_' + (item.pos ? item.pos.x + ',' + item.pos.y + ',' + item.pos.z : m);
+        if (!_itemFirstSeen[itemId]) {
+            _itemFirstSeen[itemId] = now;
         }
-    } catch (e) {}
+        if (now - _itemFirstSeen[itemId] >= ITEM_MIN_AGE_MS) {
+            eligibleItems.push(item);
+        }
+    }
+    // 清理过期记录
+    for (var key in _itemFirstSeen) {
+        if (now - _itemFirstSeen[key] > 120000) delete _itemFirstSeen[key];
+    }
+    var itemsToKill = eligibleItems.length > maxPerType ? eligibleItems.slice(maxPerType) : [];
+    for (var n = 0; n < itemsToKill.length; n++) {
+        try {
+            itemsToKill[n].kill();
+            killedItems++;
+        } catch (e) {}
+    }
 
     // 广播清理完成消息
     if (killedMobs > 0 || killedItems > 0) {
