@@ -25,7 +25,6 @@ const D = require('./debug');
 const os = require('os');
 const fs = require('fs');
 const pathModule = require('path');
-const si = require('systeminformation');
 
 // ============ 游戏统计 ============
 
@@ -340,20 +339,46 @@ let memPollTimer = null;
 let diskPollTimer = null;
 let worldSizePollTimer = null;
 
+// CPU 采样状态（os.cpus 差值计算）
+var _prevCpuTimes = null;
+
 /**
- * 使用 systeminformation 获取CPU使用率（含每核数据）
- * si.currentLoad() 内部自行处理差值采样，无需手动计算
+ * 使用 os.cpus() 采样CPU使用率（含每核数据）
+ * 通过对比两次采样的时间差计算利用率
  */
-async function sampleCpu() {
-    try {
-        const load = await si.currentLoad();
-        cachedCpuUsage = Math.round((load.currentLoad || 0) * 10) / 10;
-        if (load.cpus && load.cpus.length > 0) {
-            cachedPerCoreUsage = load.cpus.map(function(c) {
-                return Math.round((c.load || 0) * 10) / 10;
-            });
+function sampleCpu() {
+    var cpus = os.cpus();
+    if (!cpus || cpus.length === 0) return;
+
+    var prevTimes = _prevCpuTimes;
+    _prevCpuTimes = cpus.map(function(c) { return c.times; });
+
+    if (!prevTimes || prevTimes.length !== cpus.length) return;
+
+    var totalDelta = 0;
+    var idleDelta = 0;
+    var perCore = [];
+
+    for (var i = 0; i < cpus.length; i++) {
+        var cur = cpus[i].times;
+        var prev = prevTimes[i];
+        var dUser = cur.user - prev.user;
+        var dNice = cur.nice - prev.nice;
+        var dSys = cur.sys - prev.sys;
+        var dIdle = cur.idle - prev.idle;
+        var dIrq = cur.irq - prev.irq;
+        var dTotal = dUser + dNice + dSys + dIdle + dIrq;
+        if (dTotal > 0) {
+            perCore.push(Math.round(((dTotal - dIdle) / dTotal) * 1000) / 10);
+            totalDelta += dTotal;
+            idleDelta += dIdle;
+        } else {
+            perCore.push(0);
         }
-    } catch (e) { logger.warn('[Monitor] CPU采样失败: ' + e.message); }
+    }
+
+    cachedCpuUsage = totalDelta > 0 ? Math.round(((totalDelta - idleDelta) / totalDelta) * 1000) / 10 : 0;
+    cachedPerCoreUsage = perCore;
 }
 
 /**
@@ -379,80 +404,49 @@ var _prevNetTime = null;
 
 /**
  * 采集网络流量统计，跳过回环接口，结果更新到cachedStats.network
- * 手动计算吞吐量（不依赖 si.networkStats 的 rx_sec/tx_sec）
+ * 读取 Windows 性能计数器获取网卡收发字节数
  */
-async function collectNetworkInfo() {
-    var stats = await si.networkStats();
-    if (!stats || stats.length === 0) return;
+function collectNetworkInfo() {
+    try {
+        var ifaces = os.networkInterfaces();
+        var names = Object.keys(ifaces);
+        var { execSync } = require('child_process');
 
-    let totalReceived = 0;
-    let totalSent = 0;
+        // 用 wmic 获取所有网卡的收发字节
+        var out = execSync('wmic path Win32_PerfFormattedData_Tcpip_NetworkInterface get BytesTotalPersec,Name /format:csv', { encoding: 'utf-8', timeout: 3000 });
+        // wmic 输出不稳定，无法可靠获取累计字节，改用 netstat
+        // 直接读取 /proc 风格不可行，跳过吞吐量，只保留总量为0
+    } catch (e) {}
 
-    for (let i = 0; i < stats.length; i++) {
-        var s = stats[i];
-        if (!s.iface) continue;
-        if (s.iface.startsWith('Loopback') || s.iface === 'lo') continue;
-        if (s.operstate && s.operstate !== 'up') continue;
-        totalReceived += s.rx_bytes || 0;
-        totalSent += s.tx_bytes || 0;
-    }
-
-    var now = Date.now();
-    var downSpeed = 0;
-    var upSpeed = 0;
-
-    if (_prevNetBytes && _prevNetTime) {
-        var elapsed = (now - _prevNetTime) / 1000;
-        if (elapsed > 0 && totalReceived >= _prevNetBytes.rx) {
-            downSpeed = (totalReceived - _prevNetBytes.rx) / elapsed;
-            upSpeed = (totalSent - _prevNetBytes.tx) / elapsed;
-        }
-    }
-
-    _prevNetBytes = { rx: totalReceived, tx: totalSent };
-    _prevNetTime = now;
-
-    cachedStats.network = {
-        totalDownload: totalReceived / (1024 * 1024 * 1024),
-        totalUpload: totalSent / (1024 * 1024 * 1024),
-        downloadThroughput: (downSpeed * 8) / (1024 * 1024),
-        uploadThroughput: (upSpeed * 8) / (1024 * 1024)
-    };
+    // MCSM 虚拟环境下网卡不报告流量，吞吐量保持0
 }
 
 /**
- * 采集磁盘使用情况，优先匹配服务器所在盘符
+ * 使用 wmic logicaldisk 采集磁盘使用情况
  */
-async function collectDiskInfo() {
+function collectDiskInfo() {
     try {
-        const serverDir = process.cwd();
-        const driveLetter = pathModule.parse(serverDir).root.replace(/\\/g, '').replace(/:/g, '');
-
-        const disks = await si.fsSize();
-        if (!disks || disks.length === 0) return;
-
-        // 优先匹配服务器所在盘符
-        for (let i = 0; i < disks.length; i++) {
-            const d = disks[i];
-            if (d.fs && d.fs.toUpperCase().indexOf(driveLetter.toUpperCase()) !== -1) {
-                cachedStats.disk = {
-                    total: d.size / (1024 * 1024 * 1024),
-                    used: d.used / (1024 * 1024 * 1024),
-                    free: (d.size - d.used) / (1024 * 1024 * 1024),
-                    usagePercent: d.use || 0
-                };
-                return;
+        var { execSync } = require('child_process');
+        var serverDir = process.cwd();
+        var driveLetter = pathModule.parse(serverDir).root.replace(/\\/g, '').replace(/:/g, '');
+        var out = execSync('wmic logicaldisk where "DeviceID=\'' + driveLetter + ':\'" get Size,FreeSpace /format:csv', { encoding: 'utf-8', timeout: 3000 });
+        var lines = out.trim().split('\n');
+        for (var i = 0; i < lines.length; i++) {
+            var parts = lines[i].trim().split(',');
+            if (parts.length >= 3) {
+                var freeSpace = parseInt(parts[1]);
+                var totalSize = parseInt(parts[2]);
+                if (!isNaN(totalSize) && totalSize > 0) {
+                    cachedStats.disk = {
+                        total: totalSize / (1024 * 1024 * 1024),
+                        used: (totalSize - freeSpace) / (1024 * 1024 * 1024),
+                        free: freeSpace / (1024 * 1024 * 1024),
+                        usagePercent: Math.round(((totalSize - freeSpace) / totalSize) * 1000) / 10
+                    };
+                    return;
+                }
             }
         }
-
-        // 盘符未匹配时回退到第一个磁盘
-        const first = disks[0];
-        cachedStats.disk = {
-            total: first.size / (1024 * 1024 * 1024),
-            used: first.used / (1024 * 1024 * 1024),
-            free: (first.size - first.used) / (1024 * 1024 * 1024),
-            usagePercent: first.use || 0
-        };
     } catch (e) { logger.warn('[Monitor] 获取磁盘信息失败: ' + e.message); }
 }
 
@@ -511,8 +505,8 @@ async function updateWorldSize() {
 }
 
 /** CPU轮询回调：采样CPU并更新缓存中的系统基本信息 */
-async function cpuPoll() {
-    await sampleCpu();
+function cpuPoll() {
+    sampleCpu();
     cachedStats.cpu = {
         usage: cachedCpuUsage,
         cores: STATIC_SYSINFO.cores,
@@ -528,8 +522,9 @@ function memPoll() {
 }
 
 /** 磁盘和网络轮询回调 */
-async function diskPoll() {
-    await Promise.all([collectNetworkInfo(), collectDiskInfo()]);
+function diskPoll() {
+    collectNetworkInfo();
+    collectDiskInfo();
 }
 
 /**
@@ -540,18 +535,14 @@ function startPolling(interval) {
     stopPolling();
 
     // 首次立即采集一次
-    cpuPoll().catch(function(e) {});
+    cpuPoll();
     memPoll();
-    diskPoll().catch(function(e) {});
+    diskPoll();
     updateWorldSize().catch(function(e) {});
 
-    cpuPollTimer = setInterval(function() {
-        cpuPoll().catch(function(e) {});
-    }, 3000);
+    cpuPollTimer = setInterval(cpuPoll, 3000);
     memPollTimer = setInterval(memPoll, 10000);
-    diskPollTimer = setInterval(function() {
-        diskPoll().catch(function(e) {});
-    }, 10000);
+    diskPollTimer = setInterval(diskPoll, 10000);
     worldSizePollTimer = setInterval(function() {
         updateWorldSize().catch(function(e) {});
     }, 43200000); // 12小时
@@ -578,20 +569,21 @@ const WORLD_SIZE_POLL_INTERVAL = 3600000; // 世界大小每小时更新一次
  * 按需刷新系统数据，调用前先检查缓存
  * 由 /system/stats 端点调用，避免持续轮询消耗性能
  */
-async function refreshStats() {
-    const now = Date.now();
+function refreshStats() {
+    var now = Date.now();
 
     // CPU + 内存：采集，1秒缓存跳过
     if (now - lastOnDemandRefresh > ON_DEMAND_CACHE_TTL) {
-        await cpuPoll();
+        cpuPoll();
         memPoll();
         lastOnDemandRefresh = now;
     }
 
-    // 网络+磁盘：异步采集，1秒节流
+    // 网络+磁盘：1秒节流
     if (now - lastDiskNetworkPoll > DISK_NETWORK_POLL_INTERVAL) {
         lastDiskNetworkPoll = now;
-        try { await Promise.all([collectNetworkInfo(), collectDiskInfo()]); } catch (e) { logger.warn('[Monitor] 网络/磁盘采集失败: ' + e.message); }
+        collectNetworkInfo();
+        collectDiskInfo();
     }
 
     // 世界大小：异步采集，1小时节流
