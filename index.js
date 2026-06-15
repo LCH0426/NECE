@@ -2030,26 +2030,27 @@ function initWebServer() {
 			addPlayerMoneyByXuid: economyModule.addPlayerMoneyByXuid,
 			getPlayerMoneyByXuid: economyModule.getPlayerMoneyByXuid
 		});
-		// JWT 密钥管理：优先从 data/.jwt_secret 读取，不存在则自动生成
+		// JWT 密钥管理：独立变量存储，不写入 config.json
+		var _jwtSecret, _jwtRefreshSecret;
 		(function loadOrGenerateJwtSecrets() {
 			var crypto = require('crypto');
 			var secretPath = 'plugins/NECE/data/.jwt_secret';
 			try {
 				if (fs.existsSync(secretPath)) {
 					var saved = JSON.parse(fs.readFileSync(secretPath, 'utf-8'));
-					webConfig._jwtSecret = saved.jwtSecret;
-					webConfig._jwtRefreshSecret = saved.jwtRefreshSecret;
+					_jwtSecret = saved.jwtSecret;
+					_jwtRefreshSecret = saved.jwtRefreshSecret;
 				} else {
 					throw new Error('no secret file');
 				}
 			} catch (e) {
-				webConfig._jwtSecret = crypto.randomBytes(48).toString('base64url');
-				webConfig._jwtRefreshSecret = crypto.randomBytes(48).toString('base64url');
+				_jwtSecret = crypto.randomBytes(48).toString('base64url');
+				_jwtRefreshSecret = crypto.randomBytes(48).toString('base64url');
 				try {
 					U.ensureDir(secretPath);
 					fs.writeFileSync(secretPath, JSON.stringify({
-						jwtSecret: webConfig._jwtSecret,
-						jwtRefreshSecret: webConfig._jwtRefreshSecret
+						jwtSecret: _jwtSecret,
+						jwtRefreshSecret: _jwtRefreshSecret
 					}, null, 2), 'utf-8');
 					logger.info('[安全] 已自动生成 JWT 密钥并保存到 data/.jwt_secret');
 				} catch (writeErr) {
@@ -2057,16 +2058,16 @@ function initWebServer() {
 				}
 			}
 		})();
-		// 移除 config.json 中残留的默认密钥
-		if (webConfig.jwtSecret || webConfig.jwtRefreshSecret) {
+		// 清除 config.json 中残留的密钥字段
+		if (webConfig.jwtSecret || webConfig.jwtRefreshSecret || webConfig._jwtSecret || webConfig._jwtRefreshSecret) {
 			delete webConfig.jwtSecret;
 			delete webConfig.jwtRefreshSecret;
+			delete webConfig._jwtSecret;
+			delete webConfig._jwtRefreshSecret;
 			config.set('web', webConfig);
 		}
-		// 从 .jwt_secret 加载的密钥设置到 webConfig 供服务器使用
-		// 此时 config.set 已执行过，后续不会再触发 _save()
-		webConfig.jwtSecret = webConfig._jwtSecret;
-		webConfig.jwtRefreshSecret = webConfig._jwtRefreshSecret;
+		webConfig.jwtSecret = _jwtSecret;
+		webConfig.jwtRefreshSecret = _jwtRefreshSecret;
 	webServer.startServer(webConfig);
 }
 
