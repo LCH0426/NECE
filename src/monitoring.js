@@ -373,8 +373,13 @@ function getMemoryInfo() {
     };
 }
 
+// 网络吞吐量手动计算状态
+var _prevNetBytes = null;
+var _prevNetTime = null;
+
 /**
  * 采集网络流量统计，跳过回环接口，结果更新到cachedStats.network
+ * 手动计算吞吐量（不依赖 si.networkStats 的 rx_sec/tx_sec）
  */
 async function collectNetworkInfo() {
     try {
@@ -383,25 +388,34 @@ async function collectNetworkInfo() {
 
         let totalReceived = 0;
         let totalSent = 0;
-        let currentDownSpeed = 0;
-        let currentUpSpeed = 0;
 
         for (let i = 0; i < stats.length; i++) {
             const s = stats[i];
-            // 跳过回环接口
             if (s.iface && (s.iface.startsWith('Loopback') || s.iface === 'lo')) continue;
             totalReceived += s.rx_bytes || 0;
             totalSent += s.tx_bytes || 0;
-            currentDownSpeed += s.rx_sec || 0;
-            currentUpSpeed += s.tx_sec || 0;
         }
 
-        // 转换为GB总量和Mbps瞬时速率
+        var now = Date.now();
+        var downSpeed = 0;
+        var upSpeed = 0;
+
+        if (_prevNetBytes && _prevNetTime) {
+            var elapsed = (now - _prevNetTime) / 1000;
+            if (elapsed > 0) {
+                downSpeed = Math.max(0, (totalReceived - _prevNetBytes.rx) / elapsed);
+                upSpeed = Math.max(0, (totalSent - _prevNetBytes.tx) / elapsed);
+            }
+        }
+
+        _prevNetBytes = { rx: totalReceived, tx: totalSent };
+        _prevNetTime = now;
+
         cachedStats.network = {
             totalDownload: totalReceived / (1024 * 1024 * 1024),
             totalUpload: totalSent / (1024 * 1024 * 1024),
-            downloadThroughput: (currentDownSpeed * 8) / (1024 * 1024),
-            uploadThroughput: (currentUpSpeed * 8) / (1024 * 1024)
+            downloadThroughput: (downSpeed * 8) / (1024 * 1024),
+            uploadThroughput: (upSpeed * 8) / (1024 * 1024)
         };
     } catch (e) { logger.warn('[Monitor] 获取网络信息失败: ' + e.message); }
 }
@@ -557,7 +571,7 @@ let lastOnDemandRefresh = 0;
 let lastDiskNetworkPoll = 0;
 let lastWorldSizePoll = 0;
 const ON_DEMAND_CACHE_TTL = 1000;       // CPU/内存缓存1秒
-const DISK_NETWORK_POLL_INTERVAL = 30000; // 磁盘/网络最多30秒采集一次
+const DISK_NETWORK_POLL_INTERVAL = 3000;  // 网络采集间隔3秒
 const WORLD_SIZE_POLL_INTERVAL = 3600000; // 世界大小每小时更新一次
 
 /**
@@ -574,10 +588,10 @@ async function refreshStats() {
         lastOnDemandRefresh = now;
     }
 
-    // 磁盘 + 网络：异步采集，30秒节流
+    // 网络：异步采集，3秒节流
     if (now - lastDiskNetworkPoll > DISK_NETWORK_POLL_INTERVAL) {
         lastDiskNetworkPoll = now;
-        diskPoll().catch(function(e) {});
+        await collectNetworkInfo().catch(function(e) {});
     }
 
     // 世界大小：异步采集，1小时节流
