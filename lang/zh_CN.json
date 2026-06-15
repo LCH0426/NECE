@@ -749,6 +749,7 @@
     "welcome": "§b进服提醒",
     "enable_welcome": "§e入服欢迎",
     "enable_actionbar": "§e右下角显示UID",
+    "actionbar_ping": "§e右下角显示延迟",
     "enable_ip_detector": "§e进服显示网络协议信息",
     "sidebar_title": "§b侧边栏显示",
     "sidebar_money": "§e侧边栏显示§e余额",
