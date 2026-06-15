@@ -171,6 +171,7 @@ function getUnreadMailInfo(xuid) {
     if (!mailData || !mailData.mails) return { count: 0, attachmentCount: 0, normalCount: 0 };
     const myMails = mailData.mails.filter(function(m) {
         if (m.scheduledTime) return false;
+        if (m.toXuid !== xuid && m.toXuid !== 'all') return false;
         return !m.read || !m.read[xuid];
     });
     // 区分含附件和普通邮件
