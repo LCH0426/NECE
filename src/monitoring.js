@@ -571,7 +571,7 @@ let lastOnDemandRefresh = 0;
 let lastDiskNetworkPoll = 0;
 let lastWorldSizePoll = 0;
 const ON_DEMAND_CACHE_TTL = 1000;       // CPU/内存缓存1秒
-const DISK_NETWORK_POLL_INTERVAL = 3000;  // 网络采集间隔3秒
+const DISK_NETWORK_POLL_INTERVAL = 1000;  // 网络采集间隔1秒
 const WORLD_SIZE_POLL_INTERVAL = 3600000; // 世界大小每小时更新一次
 
 /**
@@ -581,14 +581,16 @@ const WORLD_SIZE_POLL_INTERVAL = 3600000; // 世界大小每小时更新一次
 async function refreshStats() {
     const now = Date.now();
 
-    // CPU + 内存：采集，1秒缓存跳过
+    // CPU：采集，1秒缓存跳过
     if (now - lastOnDemandRefresh > ON_DEMAND_CACHE_TTL) {
-        await cpuPoll();
-        memPoll();
+        try { await cpuPoll(); } catch (e) {}
         lastOnDemandRefresh = now;
     }
 
-    // 网络：异步采集，3秒节流
+    // 内存：每次都采集（开销极小）
+    memPoll();
+
+    // 网络：异步采集，1秒节流
     if (now - lastDiskNetworkPoll > DISK_NETWORK_POLL_INTERVAL) {
         lastDiskNetworkPoll = now;
         await collectNetworkInfo().catch(function(e) {});
