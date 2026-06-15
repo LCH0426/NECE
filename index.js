@@ -2037,19 +2037,19 @@ function initWebServer() {
 			try {
 				if (fs.existsSync(secretPath)) {
 					var saved = JSON.parse(fs.readFileSync(secretPath, 'utf-8'));
-					webConfig.jwtSecret = saved.jwtSecret;
-					webConfig.jwtRefreshSecret = saved.jwtRefreshSecret;
+					webConfig._jwtSecret = saved.jwtSecret;
+					webConfig._jwtRefreshSecret = saved.jwtRefreshSecret;
 				} else {
 					throw new Error('no secret file');
 				}
 			} catch (e) {
-				webConfig.jwtSecret = crypto.randomBytes(48).toString('base64url');
-				webConfig.jwtRefreshSecret = crypto.randomBytes(48).toString('base64url');
+				webConfig._jwtSecret = crypto.randomBytes(48).toString('base64url');
+				webConfig._jwtRefreshSecret = crypto.randomBytes(48).toString('base64url');
 				try {
 					U.ensureDir(secretPath);
 					fs.writeFileSync(secretPath, JSON.stringify({
-						jwtSecret: webConfig.jwtSecret,
-						jwtRefreshSecret: webConfig.jwtRefreshSecret
+						jwtSecret: webConfig._jwtSecret,
+						jwtRefreshSecret: webConfig._jwtRefreshSecret
 					}, null, 2), 'utf-8');
 					logger.info('[安全] 已自动生成 JWT 密钥并保存到 data/.jwt_secret');
 				} catch (writeErr) {
@@ -2058,12 +2058,15 @@ function initWebServer() {
 			}
 		})();
 		// 移除 config.json 中残留的默认密钥
-		if (webConfig.jwtSecret === 'NECE_Default_Secret_Change_Me' || webConfig.jwtRefreshSecret === 'NECE_Default_Refresh_Secret_Change_Me') {
+		if (webConfig.jwtSecret || webConfig.jwtRefreshSecret) {
 			delete webConfig.jwtSecret;
 			delete webConfig.jwtRefreshSecret;
 			config.set('web', webConfig);
-			logger.info('[安全] 已清除 config.json 中的默认 JWT 密钥');
 		}
+		// 从 .jwt_secret 加载的密钥设置到 webConfig 供服务器使用
+		// 此时 config.set 已执行过，后续不会再触发 _save()
+		webConfig.jwtSecret = webConfig._jwtSecret;
+		webConfig.jwtRefreshSecret = webConfig._jwtRefreshSecret;
 	webServer.startServer(webConfig);
 }
 
