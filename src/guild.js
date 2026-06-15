@@ -1259,7 +1259,7 @@ function showPendingInvitesPanel(player) {
             if (inv.inviterXuid) {
                 sendSystemMail(inv.inviterXuid, '§a' + t('guild.invite_accepted_mail', guild.name));
             }
-            try { var tp = mc.getPlayer(inv.inviterName); if (tp) tp.tell(t('guild.tag_prefix') + ' §a' + t('guild.invite_accepted_notify')); } catch (e) {}
+            try { var tp = mc.getPlayer(inv.inviterXuid); if (tp) tp.tell(t('guild.tag_prefix') + ' §a' + t('guild.invite_accepted_notify')); } catch (e) {}
         } else {
             _guildInvites[xuid].splice(invIdx, 1);
             database.removeGuildInviteSQL(xuid, inv.guildId);
@@ -1267,7 +1267,7 @@ function showPendingInvitesPanel(player) {
             if (inv.inviterXuid) {
                 sendSystemMail(inv.inviterXuid, '§c' + t('guild.invite_rejected_mail', inv.guildName));
             }
-            try { var tp2 = mc.getPlayer(inv.inviterName); if (tp2) tp2.tell(t('guild.tag_prefix') + ' §c' + t('guild.invite_rejected_notify')); } catch (e) {}
+            try { var tp2 = mc.getPlayer(inv.inviterXuid); if (tp2) tp2.tell(t('guild.tag_prefix') + ' §c' + t('guild.invite_rejected_notify')); } catch (e) {}
         }
 
         var remaining = _guildInvites[xuid] || [];
@@ -1506,7 +1506,7 @@ function showOnlinePlayerSelectForm(player, guild) {
 
         player.sendForm(fm, function(p, id) {
             if (id === null) return;
-        if (id === candidates.length) { showInvitePlayerForm(p); return; }
+        if (id === candidates.length) { showInvitePlayerForm(p, guild); return; }
             if (id < candidates.length) {
                 var target = candidates[id];
                 p.sendModalForm(
@@ -1840,7 +1840,7 @@ function showAdminOnlinePlayerSelect(player, guild) {
 
         player.sendForm(fm, function(p, id) {
             if (id === null) return;
-        if (id === candidates.length) { showAdminInviteForm(p); return; }
+        if (id === candidates.length) { showAdminInviteForm(p, guild); return; }
             if (id < candidates.length) {
                 var target = candidates[id];
                 p.sendModalForm(
@@ -1954,7 +1954,7 @@ function showAdminTeleportManage(player, guild) {
 
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
-        if (id === 3) { showAdminGuildManage(p); return; }
+        if (id === 3) { showAdminGuildManage(p, guild); return; }
         switch (id) {
             case 0: showAdminAddTeleportForm(p, guild); break;
             case 1: showAdminDelTeleportForm(p, guild); break;

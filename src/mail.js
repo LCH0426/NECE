@@ -157,7 +157,8 @@ function getSystemLang() {
 function getUnreadMailCount(xuid) {
     if (!mailData || !mailData.mails) return 0;
     return mailData.mails.filter(function(m) {
-        if (m.scheduledTime) return false;  // 跳过尚未激活的定时邮件
+        if (m.scheduledTime) return false;
+        if (m.toXuid !== xuid && m.toXuid !== 'all') return false;
         return !m.read || !m.read[xuid];
     }).length;
 }
@@ -583,6 +584,10 @@ function claimMailAttachments(player, mail) {
         return;
     }
 
+    // 标记已领取（先标记防止货币重复发放）
+    if (!mail.claimed) mail.claimed = {};
+    mail.claimed[xuid] = true;
+
     // 发放货币奖励
     if (mail.starQian && mail.starQian > 0) {
         if (_deps.addPlayerMoney) {
@@ -667,18 +672,15 @@ function claimMailAttachments(player, mail) {
         });
     }
 
-    // 部分物品发放失败时不标记已领取，允许稍后重试
+    // 部分物品发放失败时提示（货币已发放，物品可重试）
     if (!allItemsSuccess) {
+        save();
         player.tell(t(lang, 'mail.err_partial_grant'));
         showMailDetailForm(player, mail);
         return;
     }
 
-    // 标记已领取
-    if (!mail.claimed) mail.claimed = {};
-    mail.claimed[xuid] = true;
     save();
-
     player.tell(t(lang, 'mail.claim_success'));
     showMailDetailForm(player, mail);
 }
