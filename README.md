@@ -76,7 +76,7 @@
 | **UID 显示**         | 在动作栏显示玩家 UID                     | ✅ 可用 |
 | **IP 检测器**         | 检测并通知玩家的 IPv4/IPv6 连接            | ✅ 可用 |
 | **连锁挖矿**          | 使用镐子/斧子/铲子/锄头时自动连锁破坏同类方块，支持玩家个性化配置 | ✅ 可用 |
-| **i18n 支持**        | 多语言国际化支持，玩家可自由选择语言               | ⚠️部分可用 |
+| **i18n 支持**        | 多语言国际化支持，20个模块已完成翻译，玩家可自由选择语言 | ✅ 可用 |
 | **领地系统**          | 玩家可创建和管理私人领地，设置权限和防护            | 🚧 计划中 |
 | **Endstone支持**        | Endstone 插件加载器支持                       | ❌ 短期无计划 |
 
@@ -198,34 +198,32 @@ NECE 内置基于 Express.js 的网页端管理后台，提供以下功能：
 
 NECE 支持多语言界面，语言文件位于 `lang/` 目录。通过 `config.json` 的 `language` 字段切换语言（默认 `zh_CN`）。
 
-### 已完成国际化的模块
+### 已完成国际化的模块（20个）
 
-| 模块 | 文件 | 命名空间 | 键数 | 状态 |
-|------|------|----------|------|------|
-| 邮件系统 | `src/mail.js` | `mail.*` | 137 | ✅ 已完成 |
-| 银行系统 | `src/bank.js` | `bank.*` | 79 | ✅ 已完成 |
-| 封禁系统 | `src/ban.js` | `ban.*` | 58 | ✅ 已完成 |
-| 备份系统 | `src/backup.js` | `backup.*` | 57 | ✅ 已完成 |
-| 留言板 | `src/messageBoard.js` | `mb.*` | 47 | ✅ 已完成 |
-| VIP系统 | `src/vip.js` | `vip.*` | 31 | ✅ 已完成 |
-| CDK兑换 | `src/cdk.js` | `cdk.*` | 20 | ✅ 已完成 |
-| 连锁计划 | `src/chain.js` | `chain_plan.*` | 24 | ✅ 已完成 |
-| 连锁挖矿 | `src/chain.js` | `chain.*` | 5 | ⏳ 部分完成 |
-| 行为日志 | `src/behaviorLog.js` | `behavior.*` | 23 | ✅ 已完成 |
-| 实体清理 | `src/clearLag.js` | `clearlag.*` | 2 | ⏳ 部分完成 |
-| 公会系统 | `src/guild.js` | `guild.*` | - | ⏳ 待完成 |
-| 好友系统 | `src/friend.js` | `friend.*` | - | ⏳ 待完成 |
-| 商店系统 | `src/shop.js` | `shop.*` | - | ⏳ 待完成 |
-| 传送系统 | `src/teleport.js` | `teleport.*` | - | ⏳ 待完成 |
-| 祈愿系统 | `src/wish.js` | `wish.*` | - | ⏳ 待完成 |
-| 经济系统 | `src/economy.js` | `economy.*` | - | ⏳ 待完成 |
-| 排行榜 | `src/rank.js` | `rank.*` | - | ⏳ 待完成 |
-| 个人中心 | `src/personalCenter.js` | `pc.*` | - | ⏳ 待完成 |
-| 聊天系统 | `src/chat.js` | `chat.*` | - | ⏳ 待完成 |
-| 侧边栏 | `src/sidebar.js` | `sidebar.*` | - | ⏳ 待完成 |
-| 菜单系统 | `src/menu.js` | `menu.*` | - | ⏳ 待完成 |
-| 个人数据 | `src/playerData.js` | `pd.*` | - | ⏳ 待完成 |
-| MOTD | `src/motd.js` | `motd.*` | - | ⏳ 待完成 |
+| 模块 | 文件 | 命名空间 | 状态 |
+|------|------|----------|------|
+| 商店系统 | `src/shop.js` | `shop.*` | ✅ 已完成 |
+| 好友系统 | `src/friend.js` | `friend.*` | ✅ 已完成 |
+| 传送系统 | `src/teleport.js` | `tp.*` | ✅ 已完成 |
+| 公会系统 | `src/guild.js` | `guild.*` | ✅ 已完成 |
+| 祈愿系统 | `src/wish.js` | `wish.*` | ✅ 已完成 |
+| 经济系统 | `src/economy.js` | `economy.*` | ✅ 已完成 |
+| 连锁挖矿 | `src/chain.js` | `chain.*` | ✅ 已完成 |
+| 聊天系统 | `src/chat.js` | `chat.*` | ✅ 已完成 |
+| 侧边栏 | `src/sidebar.js` | `sidebar.*` | ✅ 已完成 |
+| 个人中心 | `src/personalCenter.js` | `pc.*` | ✅ 已完成 |
+| 邮件系统 | `src/mail.js` | `mail.*` | ✅ 已完成 |
+| 银行系统 | `src/bank.js` | `bank.*` | ✅ 已完成 |
+| 封禁系统 | `src/ban.js` | `ban.*` | ✅ 已完成 |
+| 备份系统 | `src/backup.js` | `backup.*` | ✅ 已完成 |
+| 留言板 | `src/messageBoard.js` | `mb.*` | ✅ 已完成 |
+| VIP系统 | `src/vip.js` | `vip.*` | ✅ 已完成 |
+| CDK兑换 | `src/cdk.js` | `cdk.*` | ✅ 已完成 |
+| 行为日志 | `src/behaviorLog.js` | `behavior.*` | ✅ 已完成 |
+| 实体清理 | `src/clearLag.js` | `clearlag.*` | ✅ 已完成 |
+| 排行榜 | `src/rank.js` | `rank.*` | ✅ 已完成 |
+
+> `index.js`、`menu.js`、`server.js`、`routes/*.js` 尚未国际化。
 
 ### 添加新语言
 
@@ -256,7 +254,7 @@ NECE/
 │   ├── vip.js            # VIP 会员
 │   ├── wish.js           # 祈愿抽卡 + 赞助管理
 │   ├── guild.js          # 公会系统
-│   ├── monitoring.js     # 系统监控
+│   ├── monitoring.js     # 系统监控（CPU每核/内存/磁盘/网络，零外部依赖）
 │   ├── i18n.js           # 国际化模块
 │   ├── server.js         # Web 服务器
 │   └── routes/           # Web API 路由
@@ -264,7 +262,8 @@ NECE/
 │       ├── players.js    # 玩家列表/排行/详情
 │       └── ...           # 其他路由模块
 ├── lang/                 # 语言文件目录
-│   └── zh_CN.json        # 简体中文翻译
+│   ├── zh_CN.json        # 简体中文翻译
+│   └── zh_TW.json        # 繁体中文翻译
 ├── data/                 # 数据文件
 ├── public/               # Web 面板前端
 ├── manifest.json         # LSE 插件清单
@@ -283,8 +282,9 @@ NECE/
 | [cors](https://www.npmjs.com/package/cors)                           | ^2.8.5  | [MIT](https://github.com/expressjs/cors/blob/master/LICENSE)                   | 跨域资源共享           |
 | [svg-captcha](https://www.npmjs.com/package/svg-captcha)             | ^1.4.0  | [MIT](https://github.com/produck/svg-captcha/blob/1.x/LICENSE.md)              | 验证码生成            |
 | [csv-parser](https://www.npmjs.com/package/csv-parser)               | ^3.2.0  | [MIT](https://github.com/mafintosh/csv-parser/blob/master/LICENSE)             | CSV 日志解析         |
-| [systeminformation](https://www.npmjs.com/package/systeminformation) | ^5.31.6 | [MIT](https://github.com/sebhildebrandt/systeminformation/blob/master/LICENSE) | 系统监控             |
 | [7zip-min](https://www.npmjs.com/package/7zip-min)                   | ^3.0.1  | [MIT](https://github.com/onikienko/7zip-min/blob/master/LICENSE)               | 7zip 压缩（用于备份）    |
+
+> 系统监控使用 Node.js 内置 `os` 模块 + Windows 内置命令（`wmic`、`netstat`），零外部依赖。
 
 ### 前端
 
