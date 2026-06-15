@@ -2072,8 +2072,9 @@ function registerWebCommands() {
 	// passwd命令：游戏内无参数打开表单，控制台带参数直接设置密码
 	try {
 		const passwdCmd = mc.newCommand('passwd', '设置或修改Web登录密码', PermType.Any);
-		passwdCmd.mandatory('uid', ParamType.Int);
+		passwdCmd.optional('uid', ParamType.Int);
 		passwdCmd.optional('password', ParamType.RawText);
+		passwdCmd.overload([]);
 		passwdCmd.overload(['uid', 'password']);
 		passwdCmd.setCallback(function(_cmd, origin, output, results) {
 			if (results.uid === undefined || results.uid === null) {
