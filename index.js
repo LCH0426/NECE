@@ -1022,7 +1022,7 @@ function initAllConfigs() {
 		savePlayerDataNow: savePlayerDataNow,
 		getPlayerMoney: getPlayerMoney, reducePlayerMoney: reducePlayerMoney,
 		getCurrencyName: getCurrencyName, getConfig: function() { return config._data || {}; },
-		database: database
+		database: database, t: i18n.t, getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
 	chatModule.loadChatConfig();
 	chatModule.registerChatListener();
