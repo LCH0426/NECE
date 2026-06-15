@@ -28,19 +28,29 @@ function createRankModule(deps) {
     const playerData = deps.playerData;
     const getCurrencyName = deps.getCurrencyName;
     const getMoneyByXuid = deps.getMoneyByXuid;
+    const _t = deps.t || null;
+    const _getLang = deps.getSystemLanguage || function() { return 'zh_CN'; };
+
+    function t(key) {
+        if (!_t) return key;
+        var lang = _getLang();
+        var args = [lang];
+        for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+        return _t.apply(null, args);
+    }
 
     // 排行榜缓存 { type: { data, time } }
     var _rankCache = {};
 
     function showRankMainForm(player) {
         let fm = mc.newSimpleForm();
-        fm.setTitle("排行榜");
-        fm.addButton("经济排行榜", "textures/ui/icon_recipe_nature");
-        fm.addButton("存款排行榜", "textures/ui/icon_book_writable");
-        fm.addButton("击杀排行榜", "textures/items/diamond_sword");
-        fm.addButton("死亡排行榜", "textures/ui/bad_omen_effect");
-        fm.addButton("挖掘排行榜", "textures/items/diamond_pickaxe");
-        fm.addButton("关闭", "textures/ui/cancel");
+        fm.setTitle(t('rank.title'));
+        fm.addButton(t('rank.title_money'), "textures/ui/icon_recipe_nature");
+        fm.addButton(t('rank.title_bank'), "textures/ui/icon_book_writable");
+        fm.addButton(t('rank.title_kills'), "textures/items/diamond_sword");
+        fm.addButton(t('rank.title_deaths'), "textures/ui/bad_omen_effect");
+        fm.addButton(t('rank.title_mining'), "textures/items/diamond_pickaxe");
+        fm.addButton(t('rank.close'), "textures/ui/cancel");
         player.sendForm(fm, function(p, id) {
             if (id === null || id === 5) return;
             const types = ["money", "bank", "kills", "deaths", "mining"];
@@ -58,7 +68,7 @@ function createRankModule(deps) {
         Object.keys(players).forEach(function(xuid) {
             const p = players[xuid];
             if (!p) return;
-            const name = p.name || "未知";
+            const name = p.name || t('rank.unknown');
             let value = 0;
             switch (type) {
                 case "money":
@@ -90,22 +100,22 @@ function createRankModule(deps) {
 
     function getRankTitle(type) {
         const titles = {
-            money: "经济排行榜",
-            bank: "存款排行榜",
-            kills: "击杀排行榜",
-            deaths: "死亡排行榜",
-            mining: "挖掘排行榜"
+            money: t('rank.title_money'),
+            bank: t('rank.title_bank'),
+            kills: t('rank.title_kills'),
+            deaths: t('rank.title_deaths'),
+            mining: t('rank.title_mining')
         };
-        return titles[type] || "排行榜";
+        return titles[type] || t('rank.title');
     }
 
     function getRankUnit(type) {
         const units = {
             money: getCurrencyName(),
             bank: getCurrencyName(),
-            kills: "次",
-            deaths: "次",
-            mining: "个"
+            kills: t('rank.unit_times'),
+            deaths: t('rank.unit_times'),
+            mining: t('rank.unit_items')
         };
         return units[type] || "";
     }
@@ -121,18 +131,18 @@ function createRankModule(deps) {
         const end = Math.min(start + RANK_PAGE_SIZE, allData.length);
         const pageData = allData.slice(start, end);
 
-        let content = "第" + (page + 1) + "/" + totalPages + "页 共" + allData.length + "人\n\n";
+        let content = t('rank.page_info', page + 1, totalPages, allData.length);
 
         if (allData.length === 0) {
-            content = "暂无数据";
+            content = t('rank.no_data');
         } else {
             pageData.forEach(function(entry, idx) {
                 let rank = start + idx + 1;
                 let prefix = "";
-                if (rank === 1) prefix = "第一名 ";
-                else if (rank === 2) prefix = "第二名 ";
-                else if (rank === 3) prefix = "第三名 ";
-                else prefix = "第" + rank + "名 ";
+                if (rank === 1) prefix = t('rank.rank_1');
+                else if (rank === 2) prefix = t('rank.rank_2');
+                else if (rank === 3) prefix = t('rank.rank_3');
+                else prefix = t('rank.rank_n', rank);
                 content += prefix + entry.name + " " + entry.value + unit + "\n";
             });
         }
@@ -140,9 +150,9 @@ function createRankModule(deps) {
         const fm = mc.newSimpleForm();
         fm.setTitle(title);
         fm.setContent(content);
-        if (page > 0) fm.addButton("上一页", "textures/ui/arrow_left");
-        if (page < totalPages - 1) fm.addButton("下一页", "textures/ui/arrow_right");
-        fm.addButton("返回排行榜", "textures/ui/recap_glyph_desaturated");
+        if (page > 0) fm.addButton(t('rank.prev_page'), "textures/ui/arrow_left");
+        if (page < totalPages - 1) fm.addButton(t('rank.next_page'), "textures/ui/arrow_right");
+        fm.addButton(t('rank.back'), "textures/ui/recap_glyph_desaturated");
         player.sendForm(fm, function(p, id) {
             if (id === null) return;
             let btnIdx = 0;
