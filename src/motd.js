@@ -49,7 +49,7 @@ function start() {
     var lines = motdCfg.lines;
     if (!lines || lines.length === 0) return;
 
-    var interval = (motdCfg.interval || 10) * 1000;
+    var interval = ((motdCfg.interval !== undefined ? motdCfg.interval : 10)) * 1000;
     if (interval < 1000) interval = 1000;
 
     // 立即设置一次

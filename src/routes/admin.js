@@ -217,7 +217,7 @@ function registerRoutes(router, d) {
             }
 
             d.triggerReload('config');
-            var dataInterval = cfg.dataBackupInterval || 0;
+            var dataInterval = cfg.dataBackupInterval !== undefined ? cfg.dataBackupInterval : 0;
             if (dataInterval > 0) {
                 d.backupModule.startDataBackupScheduler(dataInterval * 3600 * 1000);
             } else {

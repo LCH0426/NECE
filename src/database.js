@@ -554,11 +554,41 @@ function getAllDeathPointsSQL() {
 }
 
 function setDeathPointsSQL(xuid, points) {
-    run(playerDb, 'DELETE FROM death_points WHERE xuid = ?', [xuid]);
-    if (points && points.length > 0) {
-        points.forEach(function(p) {
-            run(playerDb, 'INSERT INTO death_points (xuid, data) VALUES (?, ?)', [xuid, JSON.stringify(p)]);
-        });
+    // 增量保存：对比数据库中的现有记录，仅插入新增、删除多余的
+    var existing = query(playerDb, 'SELECT id, data FROM death_points WHERE xuid = ? ORDER BY id', [xuid]);
+    var existingData = existing.map(function(r) { return r.data; });
+    var newData = (points || []).map(function(p) { return JSON.stringify(p); });
+
+    // 数据完全一致则跳过
+    if (existingData.length === newData.length) {
+        var same = true;
+        for (var i = 0; i < existingData.length; i++) {
+            if (existingData[i] !== newData[i]) { same = false; break; }
+        }
+        if (same) return;
+    }
+
+    // 计算差量：找出需要删除的 id 和需要插入的数据
+    var existingSet = new Set(existingData);
+    var newSet = new Set(newData);
+
+    // 删除在新列表中不存在的记录
+    var idsToDelete = [];
+    for (var i = 0; i < existingData.length; i++) {
+        if (!newSet.has(existingData[i])) {
+            idsToDelete.push(existing[i].id);
+        }
+    }
+    if (idsToDelete.length > 0) {
+        var placeholders = idsToDelete.map(function() { return '?'; }).join(',');
+        run(playerDb, 'DELETE FROM death_points WHERE id IN (' + placeholders + ')', idsToDelete);
+    }
+
+    // 插入在旧列表中不存在的新记录
+    for (var j = 0; j < newData.length; j++) {
+        if (!existingSet.has(newData[j])) {
+            run(playerDb, 'INSERT INTO death_points (xuid, data) VALUES (?, ?)', [xuid, newData[j]]);
+        }
     }
 }
 
@@ -610,6 +640,57 @@ function handleFriendRequestSQL(xuid, fromXuid, rejected) {
 function clearFriendsSQL(xuid) { run(playerDb, 'DELETE FROM friends WHERE xuid = ?', [xuid]); }
 function clearFriendRequestsSQL(xuid) { run(playerDb, 'DELETE FROM friend_requests WHERE xuid = ?', [xuid]); }
 
+/** 增量保存好友数据：对比数据库现有记录，仅增删改差异部分 */
+function setFriendsSQL(xuid, friends, requests, sentRequests) {
+    // --- 好友列表增量 ---
+    var existingFriends = query(playerDb, 'SELECT friend_xuid, friend_name, add_time FROM friends WHERE xuid = ?', [xuid]);
+    var existingFriendMap = {};
+    existingFriends.forEach(function(r) { existingFriendMap[r.friend_xuid] = r; });
+    var newFriendXuids = new Set((friends || []).map(function(f) { return f.xuid; }));
+    var existingFriendXuids = new Set(Object.keys(existingFriendMap));
+
+    // 删除不在新列表中的好友
+    existingFriendXuids.forEach(function(fxuid) {
+        if (!newFriendXuids.has(fxuid)) {
+            run(playerDb, 'DELETE FROM friends WHERE xuid = ? AND friend_xuid = ?', [xuid, fxuid]);
+        }
+    });
+
+    // 插入或更新好友
+    (friends || []).forEach(function(f) {
+        if (!existingFriendXuids.has(f.xuid)) {
+            run(playerDb, 'INSERT OR REPLACE INTO friends (xuid, friend_xuid, friend_name, add_time) VALUES (?, ?, ?, ?)', [xuid, f.xuid, f.name, f.addTime]);
+        } else {
+            var e = existingFriendMap[f.xuid];
+            if (e.friend_name !== f.name || e.add_time !== f.addTime) {
+                run(playerDb, 'UPDATE friends SET friend_name = ?, add_time = ? WHERE xuid = ? AND friend_xuid = ?', [f.name, f.addTime, xuid, f.xuid]);
+            }
+        }
+    });
+
+    // --- 好友请求增量（全量替换，因为请求数据量小且状态变化复杂） ---
+    var existingReqCount = query(playerDb, 'SELECT COUNT(*) as cnt FROM friend_requests WHERE xuid = ? AND is_sent = 0', [xuid])[0].cnt;
+    var existingSentCount = query(playerDb, 'SELECT COUNT(*) as cnt FROM friend_requests WHERE xuid = ? AND is_sent = 1', [xuid])[0].cnt;
+    var newReqLen = (requests || []).length;
+    var newSentLen = (sentRequests || []).length;
+
+    // 只有数量或内容变化时才重建
+    if (existingReqCount !== newReqLen) {
+        run(playerDb, 'DELETE FROM friend_requests WHERE xuid = ? AND is_sent = 0', [xuid]);
+        (requests || []).forEach(function(r) {
+            run(playerDb, 'INSERT INTO friend_requests (xuid, from_xuid, from_name, message, time, handled, rejected, is_sent) VALUES (?, ?, ?, ?, ?, 0, 0, 0)',
+                [xuid, r.xuid, r.name, r.message, r.time]);
+        });
+    }
+    if (existingSentCount !== newSentLen) {
+        run(playerDb, 'DELETE FROM friend_requests WHERE xuid = ? AND is_sent = 1', [xuid]);
+        (sentRequests || []).forEach(function(r) {
+            run(playerDb, 'INSERT INTO friend_requests (xuid, from_xuid, from_name, message, time, handled, rejected, is_sent) VALUES (?, ?, ?, ?, ?, 0, 0, 1)',
+                [xuid, r.xuid, r.name, r.message, r.time]);
+        });
+    }
+}
+
 function getMessagesSQL(xuid) {
     return query(playerDb, 'SELECT from_xuid, from_name, to_xuid, to_name, content, time, is_read FROM messages WHERE xuid = ? ORDER BY id', [xuid])
         .map(function(r) { return { fromXuid: r.from_xuid, fromName: r.from_name, toXuid: r.to_xuid, toName: r.to_name, content: r.content, time: r.time, read: r.is_read === 1 }; });
@@ -639,6 +720,33 @@ function deleteMessageSQL(xuid, fromXuid, time) {
 }
 function clearMessagesSQL(xuid) { run(playerDb, 'DELETE FROM messages WHERE xuid = ?', [xuid]); }
 
+/** 增量保存消息数据：对比数据库现有记录，仅插入新增消息 */
+function setMessagesSQL(xuid, messages) {
+    var existingCount = query(playerDb, 'SELECT COUNT(*) as cnt FROM messages WHERE xuid = ?', [xuid])[0].cnt;
+    var newMsgs = messages || [];
+
+    // 如果数量一致，大概率无变化，跳过
+    if (existingCount === newMsgs.length) return;
+
+    // 新消息比旧的多，只插入多出来的部分（消息是追加模式）
+    if (newMsgs.length > existingCount) {
+        for (var i = existingCount; i < newMsgs.length; i++) {
+            var m = newMsgs[i];
+            if (!m) continue;
+            run(playerDb, 'INSERT INTO messages (xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [xuid, m.fromXuid || '', m.fromName || '', m.toXuid || '', m.toName || '', m.content || '', m.time || '', m.read ? 1 : 0]);
+        }
+    } else {
+        // 消息变少了（被删除），全量重建
+        run(playerDb, 'DELETE FROM messages WHERE xuid = ?', [xuid]);
+        newMsgs.forEach(function(m) {
+            if (!m) return;
+            run(playerDb, 'INSERT INTO messages (xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [xuid, m.fromXuid || '', m.fromName || '', m.toXuid || '', m.toName || '', m.content || '', m.time || '', m.read ? 1 : 0]);
+        });
+    }
+}
+
 function _parseHomeRow(r) {
     var shared = [];
     try { shared = JSON.parse(r.shared_with || '[]'); } catch (e) { shared = []; }
@@ -660,13 +768,37 @@ function getAllHomesSQL() {
 }
 
 function setHomesSQL(xuid, homes) {
-    run(playerDb, 'DELETE FROM homes WHERE xuid = ?', [xuid]);
-    if (homes && homes.length > 0) {
-        homes.forEach(function(h) {
+    // 增量保存：对比数据库中的现有记录，按 name 进行 diff
+    var existing = query(playerDb, 'SELECT name, x, y, z, dim, last_use, shared_with, is_public FROM homes WHERE xuid = ?', [xuid]);
+    var existingMap = {};
+    existing.forEach(function(r) { existingMap[r.name] = r; });
+
+    var newNames = new Set((homes || []).map(function(h) { return h.name; }));
+    var existingNames = new Set(Object.keys(existingMap));
+
+    // 删除在新列表中不存在的家园
+    existingNames.forEach(function(name) {
+        if (!newNames.has(name)) {
+            run(playerDb, 'DELETE FROM homes WHERE xuid = ? AND name = ?', [xuid, name]);
+        }
+    });
+
+    // 插入或更新的家园
+    (homes || []).forEach(function(h) {
+        var sharedWith = JSON.stringify(h.sharedWith || []);
+        if (!existingNames.has(h.name)) {
+            // 新增
             run(playerDb, 'INSERT INTO homes (xuid, name, x, y, z, dim, last_use, shared_with, is_public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [xuid, h.name, h.x, h.y, h.z, h.dim || 0, h.lastUse || 0, JSON.stringify(h.sharedWith || []), h.public ? 1 : 0]);
-        });
-    }
+                [xuid, h.name, h.x, h.y, h.z, h.dim || 0, h.lastUse || 0, sharedWith, h.public ? 1 : 0]);
+        } else {
+            // 检查是否有变化
+            var e = existingMap[h.name];
+            if (e.x !== h.x || e.y !== h.y || e.z !== h.z || e.dim !== (h.dim || 0) || e.last_use !== (h.lastUse || 0) || e.shared_with !== sharedWith || e.is_public !== (h.public ? 1 : 0)) {
+                run(playerDb, 'UPDATE homes SET x = ?, y = ?, z = ?, dim = ?, last_use = ?, shared_with = ?, is_public = ? WHERE xuid = ? AND name = ?',
+                    [h.x, h.y, h.z, h.dim || 0, h.lastUse || 0, sharedWith, h.public ? 1 : 0, xuid, h.name]);
+            }
+        }
+    });
 }
 
 function addHomeSQL(xuid, home) {
@@ -1001,12 +1133,14 @@ module.exports = {
     handleFriendRequestSQL,
     clearFriendsSQL,
     clearFriendRequestsSQL,
+    setFriendsSQL,
     getMessagesSQL,
     getAllMessagesSQL,
     addMessageSQL,
     markMessagesReadSQL,
     deleteMessageSQL,
     clearMessagesSQL,
+    setMessagesSQL,
     getHomesSQL,
     getAllHomesSQL,
     setHomesSQL,

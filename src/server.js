@@ -393,17 +393,18 @@ const ITEMS_CACHE_TTL = 60000;     // 物品缓存有效期 60 秒
 
 let _currencyNameCache = null;     // 货币名称缓存（仅配置重载时更新）
 
-/** 获取货币名称，首次调用时从配置加载，后续直接返回缓存值 */
+/** 获取货币名称，从语言文件的 _meta.currencyName 读取 */
 function getCurrencyName() {
     if (_currencyNameCache !== null) return _currencyNameCache;
     try {
-        if (_configRef) {
-            _currencyNameCache = _configRef.get('currencyName') || '星茜';
+        const lang = _configRef ? _configRef.get('language') || 'zh_CN' : 'zh_CN';
+        const langPath = pathModule.join(__dirname, '..', 'lang', lang + '.json');
+        const content = fs.readFileSync(langPath, 'utf-8');
+        const langData = JSON.parse(content);
+        if (langData && langData._meta && langData._meta.currencyName) {
+            _currencyNameCache = langData._meta.currencyName;
         } else {
-            const configPath = pathModule.join(__dirname, '..', 'config.json');
-            const content = fs.readFileSync(configPath, 'utf-8');
-            const cfg = JSON.parse(content);
-            _currencyNameCache = cfg.currencyName || '星茜';
+            _currencyNameCache = '星茜';
         }
     } catch (e) {
         _currencyNameCache = '星茜';
@@ -588,7 +589,7 @@ function createApp(webConfig) {
     app.use(express.json());
 
     // Debug 模式下打印 HTTP 请求日志
-    if (webConfig.debugMode || (_configRef && _configRef.get('debug'))) {
+    if ((webConfig.debugMode !== undefined ? webConfig.debugMode : (_configRef && _configRef.get('debug')))) {
         app.use(function(req, res, next) {
             const start = Date.now();
             res.on('finish', function() {
