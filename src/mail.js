@@ -1416,7 +1416,7 @@ function sendSystemMail(xuid, content) {
         addMail({
             id: mailId,
             fromXuid: 'system',
-            fromName: '系统',
+            fromName: t(getSystemLang(), 'mail.system_sender'),
             toXuid: String(xuid),
             content: content,
             time: timeStr,
@@ -1428,8 +1428,8 @@ function sendSystemMail(xuid, content) {
         try {
             var tp = mc.getPlayer(String(xuid));
             if (tp) {
-                tp.sendToast('§e新邮件提醒', '§a您收到了一封系统邮件');
-                tp.tell('§e[邮件] §a您收到了一封系统邮件，请在邮件系统中查看');
+                tp.sendToast(t(getSystemLang(), 'mail.new_mail_toast_title'), t(getSystemLang(), 'mail.new_mail_toast_body'));
+                tp.tell(t(getSystemLang(), 'mail.new_mail_tell'));
             }
         } catch (e) {}
     } catch (e) {}

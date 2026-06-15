@@ -22,6 +22,21 @@
 
 const D = require('./debug');
 
+var _t = null;
+var _getLang = null;
+
+function getLang() {
+    return _getLang ? _getLang() : 'zh_CN';
+}
+
+function t(key) {
+    if (!_t) return key;
+    var lang = getLang();
+    var args = [lang];
+    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    return _t.apply(null, args);
+}
+
 // 待处理的TPA请求，key为 requestId，value为请求详情对象
 const teleportPendingRequests = {};
 
@@ -29,7 +44,7 @@ const teleportPendingRequests = {};
 const teleportCooldowns = {};
 
 let _deps = {};
-// RTP 摔伤保护：记录刚RTP的玩家，5秒内取消摔伤
+// RTP 摔伤保护：记录刚RTP的玩家，60秒内取消掉落伤害
 var _rtpProtected = {};
 // 家园脏标记
 var _dirtyHomes = {};
@@ -40,8 +55,21 @@ var _dirtyDeathPoints = {};
 function registerRtpProtection() {
     mc.listen('onMobHurt', function(mob, source, damage, cause) {
         if (cause !== 5) return;
-        if (!mob || !mob.isPlayer || !mob.isPlayer()) return;
-        if (_rtpProtected[mob.xuid]) return false;
+        if (!mob) return;
+        // mob 是 Entity 对象，需要 toPlayer() 转为 Player 才能获取 xuid
+        var player = mob.toPlayer ? mob.toPlayer() : null;
+        var isPlayer = player !== null;
+        var debugOn = _deps.debugMode && _deps.debugMode();
+        if (debugOn) logger.info('[RTP保护] onMobHurt触发 cause=' + cause + ' damage=' + damage + ' isPlayer=' + isPlayer + ' name=' + (player ? player.name : (mob.name || 'N/A')) + ' xuid=' + (player ? player.xuid : 'N/A'));
+        if (!isPlayer) return;
+        var expireAt = _rtpProtected[player.xuid];
+        if (expireAt) {
+            if (Date.now() < expireAt) {
+                if (debugOn) logger.info('[RTP保护] 拦截玩家 ' + player.name + ' 的掉落伤害 (' + damage + ')，保护剩余：' + Math.round((expireAt - Date.now()) / 1000) + 's');
+                return false;
+            }
+            delete _rtpProtected[player.xuid];
+        }
     });
 }
 
@@ -53,16 +81,16 @@ function getTpConfig() {
         enableHome: c.enableHome !== undefined ? c.enableHome : true,
         enableWarp: c.enableWarp !== undefined ? c.enableWarp : true,
         enableTpa: c.enableTpa !== undefined ? c.enableTpa : true,
-        homeLimit: c.homeLimit || 10,
-        homeCooldown: c.homeCooldown || 10,
-        tpaCooldown: c.tpaCooldown || 30,
-        tpaTimeout: c.tpaTimeout || 30,
-        tpaCost: c.tpaCost || 0,
-        warpCost: c.warpCost || 0,
+        homeLimit: c.homeLimit !== undefined ? c.homeLimit : 10,
+        homeCooldown: c.homeCooldown !== undefined ? c.homeCooldown : 10,
+        tpaCooldown: c.tpaCooldown !== undefined ? c.tpaCooldown : 30,
+        tpaTimeout: c.tpaTimeout !== undefined ? c.tpaTimeout : 30,
+        tpaCost: c.tpaCost !== undefined ? c.tpaCost : 0,
+        warpCost: c.warpCost !== undefined ? c.warpCost : 0,
         enableRtp: c.enableRtp !== undefined ? c.enableRtp : true,
-        rtpRadius: c.rtpRadius || 10000,
-        rtpCooldown: c.rtpCooldown || 60,
-        rtpCost: c.rtpCost || 0
+        rtpRadius: c.rtpRadius !== undefined ? c.rtpRadius : 10000,
+        rtpCooldown: c.rtpCooldown !== undefined ? c.rtpCooldown : 60,
+        rtpCost: c.rtpCost !== undefined ? c.rtpCost : 0
     };
 }
 let homesData = {};       // 家园数据 { xuid: [{ name, x, y, z, dim, sharedWith, ... }] }
@@ -169,6 +197,8 @@ function saveWarpsData() {
 function init(_homesDM, _warpsDM, deps) {
 	D.debugLogModule('teleport')('init: 初始化完成');
 	_deps = deps || {};
+	_t = _deps.t || null;
+	_getLang = _deps.getSystemLanguage || null;
 	homesDM = _homesDM;
 	warpsDM = _warpsDM;
 
@@ -188,8 +218,8 @@ function init(_homesDM, _warpsDM, deps) {
 			if (now - req.timestamp > getTpConfig().tpaTimeout * 1000) {
 				const fromPlayer = mc.getPlayer(req.fromXuid);
 				const toPlayer = mc.getPlayer(req.toXuid);
-				if (fromPlayer) fromPlayer.tell("§e[传送] §c传送请求已超时");
-				if (toPlayer) toPlayer.tell("§e[传送] §c来自 " + req.fromName + " 的传送请求已超时");
+				if (fromPlayer) fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.request_timeout'));
+				if (toPlayer) toPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.request_timeout'));
 				delete teleportPendingRequests[reqId];
 			}
 		}
@@ -213,26 +243,26 @@ function init(_homesDM, _warpsDM, deps) {
  */
 function showTpgMainMenu(player, deps) {
 	if (!getTpConfig().enabled) {
-		player.tell("§e[传送] §c传送系统已关闭");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.disabled'));
 		return;
 	}
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§b传送系统");
-	fm.setContent("§a请选择传送功能");
+	fm.setTitle("§l§b" + t('tp.main_title'));
+	fm.setContent("§a" + t('tp.select_function'));
 
 	if (getTpConfig().enableHome) {
-		fm.addButton("§6家园系统", "textures/ui/icon_recipe_nature");
+		fm.addButton("§6" + t('tp.home_system'), "textures/ui/icon_recipe_nature");
 	}
 	if (getTpConfig().enableWarp) {
-		fm.addButton("§d公共传送点", "textures/ui/icon_multiplayer");
+		fm.addButton("§d" + t('tp.warp_system'), "textures/ui/icon_multiplayer");
 	}
 	if (getTpConfig().enableTpa) {
-		fm.addButton("§b互传系统", "textures/ui/dressing_room_skins");
+		fm.addButton("§b" + t('tp.tpa_system'), "textures/ui/dressing_room_skins");
 	}
 	var rtpCfg = _deps.getConfig ? _deps.getConfig() : {};
 	if (rtpCfg.enableRtp !== false) {
-		fm.addButton("§a随机传送", "textures/ui/icon_map");
+		fm.addButton("§a" + t('tp.random_teleport'), "textures/ui/icon_map");
 	}
 
 	// 通过累计 btnIndex 将表单按钮ID映射到实际功能，跳过被禁用的功能
@@ -265,7 +295,7 @@ function showTpgMainMenu(player, deps) {
  */
 function showTpaMainForm(player, deps) {
 	if (!getTpConfig().enableTpa) {
-		player.tell("§e[传送] §c互传系统已关闭");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.tpa_disabled'));
 		return;
 	}
 
@@ -276,7 +306,7 @@ function showTpaMainForm(player, deps) {
 	});
 
 	if (otherPlayers.length === 0) {
-		player.sendModalForm("§e互传系统", "§a当前没有其他在线玩家", "§a返回", "§c关闭", function(p, result) {
+		player.sendModalForm("§e" + t('tp.tpa_title'), "§a" + t('tp.no_online_players'), t('tp.back'), t('tp.close'), function(p, result) {
 			if (result) showTpgMainMenu(p, deps);
 		});
 		return;
@@ -285,10 +315,10 @@ function showTpaMainForm(player, deps) {
 	const playerNames = otherPlayers.map(function(p) { return p.name; });
 
 	const fm = mc.newCustomForm();
-	fm.setTitle("§l§b互传系统");
-	fm.addLabel("§a选择玩家和传送方式");
-	fm.addDropdown("目标玩家", playerNames, 0);
-	fm.addDropdown("传送方式", ["传送到其他玩家", "请其他玩家传送到我"], 0);
+	fm.setTitle("§l§b" + t('tp.tpa_title'));
+	fm.addLabel("§a" + t('tp.select_player'));
+	fm.addDropdown(t('tp.select_player'), playerNames, 0);
+	fm.addDropdown(t('tp.select_method'), [t('tp.tpa_type_to_you'), t('tp.tpa_type_to_them')], 0);
 
 	// 检查是否有发给当前玩家的待处理请求
 	let hasPending = false;
@@ -300,7 +330,7 @@ function showTpaMainForm(player, deps) {
 		}
 	}
 	if (hasPending) {
-		fm.addSwitch("§c处理待接请求", false);
+		fm.addSwitch("§c" + t('tp.handle_pending'), false);
 	}
 
 	player.sendForm(fm, function(p, data) {
@@ -321,7 +351,7 @@ function showTpaMainForm(player, deps) {
 		if (!targetXuid) return;
 		const target = mc.getPlayer(targetXuid);
 		if (!target) {
-			p.tell("§e[传送] §c目标玩家已下线");
+			p.tell(t('tp.tag_prefix') + " §c" + t('tp.target_offline'));
 			return;
 		}
 
@@ -341,31 +371,28 @@ function showTpaMainForm(player, deps) {
 function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 	const cd = checkTeleportCooldown(fromPlayer.xuid, 'tpa');
 	if (cd > 0) {
-		fromPlayer.tell("§e[传送] §c请等待 " + cd + " 秒后再发起传送请求");
+		fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.cooldown', cd));
 		return;
 	}
 
-	// 检查发起者余额是否足够支付传送费用
 	if (getTpConfig().tpaCost > 0) {
 		const bal = deps.getPlayerMoney(fromPlayer);
 		if (bal < getTpConfig().tpaCost) {
-			fromPlayer.tell("§e[传送] §c余额不足，需要 " + getTpConfig().tpaCost + " " + deps.getCurrencyName());
+			fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.insufficient_balance', getTpConfig().tpaCost, deps.getCurrencyName()));
 			return;
 		}
 	}
 
-	// 检查目标玩家是否开启了拒绝传送模式
 	const rejectMode = deps.getPlayerSetting(toPlayer.xuid, "enableTpaRejectMode");
 	if (rejectMode) {
-		fromPlayer.tell("§e[传送] §c该玩家已设置拒绝传送请求");
+		fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.player_reject'));
 		return;
 	}
 
-	// 防止对同一目标重复发送请求
 	for (const reqId in teleportPendingRequests) {
 		const existing = teleportPendingRequests[reqId];
 		if (existing.fromXuid === fromPlayer.xuid && existing.toXuid === toPlayer.xuid) {
-			fromPlayer.tell("§e[传送] §c你已经向该玩家发送了传送请求，请等待对方处理");
+			fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.already_sent'));
 			return;
 		}
 	}
@@ -380,18 +407,17 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 		timestamp: Date.now()
 	};
 
-	const typeDesc = type === 'tpa' ? "传送到你所在位置" : type === 'tpn' ? "请你传送到他所在位置" : "与你们互相传送到中点";
-	fromPlayer.tell("§e[传送] §a已向 " + toPlayer.name + " 发送传送请求（" + typeDesc + "），等待对方确认...");
+	const typeDesc = type === 'tpa' ? t('tp.tpa_type_to_you') : type === 'tpn' ? t('tp.tpa_type_to_them') : t('tp.tpa_type_mutual');
+	fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.request_sent', toPlayer.name, typeDesc));
 
-	// 同时发送文本通知，确保对方即使无法弹出表单也能看到请求
-	toPlayer.tell("§e[传送] §b" + fromPlayer.name + " §a请求" + typeDesc + " (输入 §a/tpy 同意, §c/tpn 拒绝)");
+	toPlayer.tell(t('tp.tag_prefix') + " §b" + fromPlayer.name + " §a" + t('tp.request_notify', fromPlayer.name, typeDesc));
 
 	// 弹窗给目标玩家，请求同意或拒绝
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§e传送请求");
-	fm.setContent("§a玩家 §b" + fromPlayer.name + " §a请求" + typeDesc);
-	fm.addButton("§a同意", "textures/ui/check");
-	fm.addButton("§c拒绝", "textures/ui/cancel");
+	fm.setTitle("§l§e" + t('tp.pending_requests'));
+	fm.setContent(t('tp.player_label') + fromPlayer.name + " §a" + t('tp.request_notify', fromPlayer.name, typeDesc));
+	fm.addButton("§a" + t('tp.accept'), "textures/ui/check");
+	fm.addButton("§c" + t('tp.deny'), "textures/ui/cancel");
 
 	// 保存发起者xuid，避免闭包中引用可能失效的player对象
 	const fromXuid = fromPlayer.xuid;
@@ -405,7 +431,7 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 			// 玩家关闭表单（ESC或被其他表单覆盖），不立即删除请求
 			// 请求会保留直到超时自动清理，玩家可以通过 /tpy /tpn 命令或菜单处理
 			const fromP = mc.getPlayer(fromXuid);
-			if (fromP) fromP.tell("§e[传送] §c" + p.name + " 未处理你的传送请求，请求仍在等待中");
+			if (fromP) fromP.tell(t('tp.tag_prefix') + " §c" + t('tp.request_pending', p.name));
 			return;
 		}
 		if (id === 0) {
@@ -425,15 +451,14 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 function acceptTpaRequest(reqId, byPlayer, deps) {
 	const req = teleportPendingRequests[reqId];
 	if (!req) {
-		byPlayer.tell("§e[传送] §c该传送请求已失效");
+		byPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.request_invalid'));
 		return;
 	}
 
-	// 二次校验请求是否超时（定时器可能还未触发清理）
 	const now = Date.now();
 	if (now - req.timestamp > getTpConfig().tpaTimeout * 1000) {
 		delete teleportPendingRequests[reqId];
-		byPlayer.tell("§e[传送] §c该传送请求已超时");
+		byPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.request_timeout'));
 		return;
 	}
 
@@ -441,34 +466,32 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 	const toPlayer = mc.getPlayer(req.toXuid);
 	if (!fromPlayer || !toPlayer) {
 		delete teleportPendingRequests[reqId];
-		byPlayer.tell("§e[传送] §c对方不在线，传送取消");
+		byPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.target_offline_cancel'));
 		return;
 	}
 
-	// 扣除传送费用（从发起者扣除）
 	if (getTpConfig().tpaCost > 0) {
 		const bal = deps.getPlayerMoney(fromPlayer);
 		if (bal < getTpConfig().tpaCost) {
 			delete teleportPendingRequests[reqId];
-			fromPlayer.tell("§e[传送] §c余额不足，传送取消");
+			fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.insufficient_cancel'));
 			return;
 		}
-		deps.reducePlayerMoney(fromPlayer, getTpConfig().tpaCost, "互传费用");
+		deps.reducePlayerMoney(fromPlayer, getTpConfig().tpaCost, t('tp.reason_mutual'));
 	}
 
 	delete teleportPendingRequests[reqId];
 
-	// 根据请求类型执行不同的传送逻辑
 	if (req.type === 'tpa') {
 		const toPos = toPlayer.pos;
 		safeTeleport(fromPlayer, toPos.x, toPos.y, toPos.z, toPos.dimid);
-		fromPlayer.tell("§e[传送] §a已传送到 " + toPlayer.name + " 的位置");
-		toPlayer.tell("§e[传送] §a" + fromPlayer.name + " 已传送到你的位置");
+		fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_to', toPlayer.name));
+		toPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_from', fromPlayer.name));
 	} else if (req.type === 'tpn') {
 		const fromPos = fromPlayer.pos;
 		safeTeleport(toPlayer, fromPos.x, fromPos.y, fromPos.z, fromPos.dimid);
-		fromPlayer.tell("§e[传送] §a" + toPlayer.name + " 已传送到你的位置");
-		toPlayer.tell("§e[传送] §a已传送到 " + fromPlayer.name + " 的位置");
+		fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_from', toPlayer.name));
+		toPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_to', fromPlayer.name));
 	}
 
 	setTeleportCooldown(fromPlayer.xuid, 'tpa', getTpConfig().tpaCooldown);
@@ -482,16 +505,16 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 function denyTpaRequest(reqId, byPlayer) {
 	const req = teleportPendingRequests[reqId];
 	if (!req) {
-		byPlayer.tell("§e[传送] §c该传送请求已失效");
+		byPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.request_invalid'));
 		return;
 	}
 
 	const fromPlayer = mc.getPlayer(req.fromXuid);
 	delete teleportPendingRequests[reqId];
 
-	byPlayer.tell("§e[传送] §a已拒绝传送请求");
+	byPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.denied'));
 	if (fromPlayer) {
-		fromPlayer.tell("§e[传送] §c" + byPlayer.name + " 拒绝了你的传送请求");
+		fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.denied_notify', byPlayer.name));
 	}
 }
 
@@ -510,16 +533,16 @@ function showTpaPendingRequests(player, deps) {
 	}
 
 	if (pending.length === 0) {
-		player.tell("§e[传送] §c没有待处理的传送请求");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.no_pending'));
 		showTpaMainForm(player, deps);
 		return;
 	}
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§e待处理传送请求");
+	fm.setTitle("§l§e" + t('tp.pending_requests'));
 
 	pending.forEach(function(item) {
-		const typeDesc = item.req.type === 'tpa' ? "传送到你" : item.req.type === 'tpn' ? "请你传送过去" : "互相传送";
+		const typeDesc = item.req.type === 'tpa' ? t('tp.tpa_type_short_to_you') : item.req.type === 'tpn' ? t('tp.tpa_type_short_to_them') : t('tp.tpa_type_short_mutual');
 		fm.addButton("§b" + item.req.fromName + " - " + typeDesc);
 	});
 
@@ -530,11 +553,11 @@ function showTpaPendingRequests(player, deps) {
 
 		// 选中某个请求后弹出详情确认窗
 		const subFm = mc.newSimpleForm();
-		subFm.setTitle("§l§e传送请求详情");
-		const typeDesc = item.req.type === 'tpa' ? "传送到你" : item.req.type === 'tpn' ? "请你传送过去" : "互相传送";
-		subFm.setContent("§a玩家 §b" + item.req.fromName + " §a请求" + typeDesc);
-		subFm.addButton("§a同意", "textures/ui/check");
-		subFm.addButton("§c拒绝", "textures/ui/cancel");
+		subFm.setTitle("§l§e" + t('tp.request_detail'));
+		const typeDesc = item.req.type === 'tpa' ? t('tp.tpa_type_short_to_you') : item.req.type === 'tpn' ? t('tp.tpa_type_short_to_them') : t('tp.tpa_type_short_mutual');
+		subFm.setContent(t('tp.player_request_label', item.req.fromName, typeDesc));
+		subFm.addButton("§a" + t('tp.accept'), "textures/ui/check");
+		subFm.addButton("§c" + t('tp.deny'), "textures/ui/cancel");
 
 		p.sendForm(subFm, function(p2, btnId) {
 			if (btnId == null) return;
@@ -559,16 +582,16 @@ function cancelTpaRequest(player) {
 		if (req.fromXuid === player.xuid) {
 			const toPlayer = mc.getPlayer(req.toXuid);
 			if (toPlayer) {
-				toPlayer.tell("§e[传送] §c" + player.name + " 取消了传送请求");
+				toPlayer.tell(t('tp.tag_prefix') + " §c" + player.name + " " + t('tp.cancel_tpa_notify'));
 			}
 			delete teleportPendingRequests[reqId];
 			found = true;
 		}
 	}
 	if (found) {
-		player.tell("§e[传送] §a已取消所有传送请求");
+		player.tell(t('tp.tag_prefix') + " §a" + t('tp.cancelled_all'));
 	} else {
-		player.tell("§e[传送] §c没有待处理的传送请求");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.no_pending'));
 	}
 }
 
@@ -592,7 +615,7 @@ function acceptTpaRequestByPlayer(player, deps) {
 		}
 	}
 	if (!foundReq) {
-		player.tell("§e[传送] §c没有待处理的传送请求");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.no_pending'));
 		return;
 	}
 	acceptTpaRequest(foundReqId, player, deps);
@@ -616,7 +639,7 @@ function denyTpaRequestByPlayer(player) {
 		}
 	}
 	if (!foundReq) {
-		player.tell("§e[传送] §c没有待处理的传送请求");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.no_pending'));
 		return;
 	}
 	denyTpaRequest(foundReqId, player);
@@ -629,7 +652,7 @@ function denyTpaRequestByPlayer(player) {
  */
 function showHomeMainForm(player, deps) {
 	if (!getTpConfig().enableHome) {
-		player.tell("§e[传送] §c家园系统已关闭");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.home_disabled'));
 		return;
 	}
 
@@ -638,12 +661,12 @@ function showHomeMainForm(player, deps) {
 	const sharedHomes = getSharedHomesForPlayer(player.name, deps);
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§6家园系统");
-	fm.setContent("§a你拥有 §e" + homes.length + "/" + getTpConfig().homeLimit + " §a个家园" + (sharedHomes.length > 0 ? "§a，共享家园 §e" + sharedHomes.length + " §a个" : ""));
+	fm.setTitle("§l§6" + t('tp.home_system'));
+	fm.setContent(t('tp.home_count_info', String(homes.length), String(getTpConfig().homeLimit)) + (sharedHomes.length > 0 ? t('tp.home_shared_count', String(sharedHomes.length)) : ""));
 
 	if (homes.length > 0) {
 		homes.forEach(function(home) {
-			const dimName = home.dim === 0 ? "主世界" : home.dim === 1 ? "下界" : "末地";
+			const dimName = home.dim === 0 ? t('tp.dim_overworld') : home.dim === 1 ? t('tp.dim_nether') : t('tp.dim_end');
 			fm.addButton("§b" + home.name + "\n" + dimName + " (" + Math.floor(home.x) + ", " + Math.floor(home.y) + ", " + Math.floor(home.z) + ")", "textures/ui/icon_recipe_nature");
 		});
 	}
@@ -651,13 +674,13 @@ function showHomeMainForm(player, deps) {
 	// 追加他人共享给自己的家园按钮
 	if (sharedHomes.length > 0) {
 		sharedHomes.forEach(function(item) {
-			const dimName = item.home.dim === 0 ? "主世界" : item.home.dim === 1 ? "下界" : "末地";
-			fm.addButton("§d" + item.home.name + " (来自" + item.ownerName + ")\n" + dimName, "textures/ui/FriendsIcon");
+			const dimName = item.home.dim === 0 ? t('tp.dim_overworld') : item.home.dim === 1 ? t('tp.dim_nether') : t('tp.dim_end');
+			fm.addButton("§d" + item.home.name + t('tp.from_label_btn', item.ownerName) + "\n" + dimName, "textures/ui/FriendsIcon");
 		});
 	}
 
-	fm.addButton("§a设置家园", "textures/ui/color_plus");
-	fm.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+	fm.addButton("§a" + t('tp.set_home'), "textures/ui/color_plus");
+	fm.addButton("§c" + t('tp.back'), "textures/ui/recap_glyph_desaturated");
 
 	const ownHomeCount = homes.length;
 	const sharedHomeCount = sharedHomes.length;
@@ -712,29 +735,29 @@ function showHomeSetForm(player, deps) {
 	const homes = getPlayerHomes(xuid);
 
 	if (homes.length >= getTpConfig().homeLimit) {
-		player.tell("§e[家园] §c已达到家园数量上限（" + getTpConfig().homeLimit + "个）");
+		player.tell(t('tp.home_tag_prefix') + " §c" + t('tp.home_limit', getTpConfig().homeLimit));
 		showHomeMainForm(player, deps);
 		return;
 	}
 
 	const fm = mc.newCustomForm();
-	fm.setTitle("§l§6设置家园");
-	fm.addInput("§a家园名称", "请输入家园名称");
-	fm.addSwitch("§a是否公开（允许其他玩家传送）", false);
+	fm.setTitle("§l§6" + t('tp.set_home'));
+	fm.addInput("§a" + t('tp.home_name'), t('tp.home_name_placeholder'));
+	fm.addSwitch("§a" + t('tp.is_public'), false);
 
 	player.sendForm(fm, function(p, data) {
 		if (data == null) { showHomeMainForm(p, deps); return; }
 
 		const name = String(data[0] || "").trim();
 		if (!name) {
-			p.tell("§e[家园] §c家园名称不能为空");
+			p.tell(t('tp.home_tag_prefix') + " §c" + t('tp.home_name_empty'));
 			showHomeSetForm(p, deps);
 			return;
 		}
 
 		const existing = homes.some(function(h) { return h.name === name; });
 		if (existing) {
-			p.tell("§e[家园] §c已存在同名家园");
+			p.tell(t('tp.home_tag_prefix') + " §c" + t('tp.home_name_duplicate'));
 			showHomeSetForm(p, deps);
 			return;
 		}
@@ -753,7 +776,7 @@ function showHomeSetForm(player, deps) {
 		});
 		markHomeDirty(p.xuid);
 		saveHomesData();
-		p.tell("§e[家园] §a家园 §b" + name + " §a设置成功！");
+		p.tell(t('tp.home_tag_prefix') + " §a" + t('tp.home_set_success', name));
 		showHomeMainForm(p, deps);
 	});
 }
@@ -766,21 +789,21 @@ function showHomeSetForm(player, deps) {
  * @param {object} deps - 依赖对象
  */
 function showHomeDetailForm(player, home, homeIndex, deps) {
-	const dimName = home.dim === 0 ? "主世界" : home.dim === 1 ? "下界" : "末地";
+	const dimName = home.dim === 0 ? t('tp.dim_overworld') : home.dim === 1 ? t('tp.dim_nether') : t('tp.dim_end');
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§6家园 - " + home.name);
+	fm.setTitle(t('tp.home_detail_title', home.name));
 	fm.setContent(
-		"§a名称：§f" + home.name + "\n" +
-		"§a位置：§f" + dimName + " (" + Math.floor(home.x) + ", " + Math.floor(home.y) + ", " + Math.floor(home.z) + ")\n" +
-		"§a公开：§f" + (home.public ? "是" : "否") + "\n" +
-		"§a共享玩家：§f" + (home.sharedWith && home.sharedWith.length > 0 ? home.sharedWith.join(", ") : "无")
+		t('tp.home_name_label') + home.name + "\n" +
+		t('tp.home_location_label') + dimName + " (" + Math.floor(home.x) + ", " + Math.floor(home.y) + ", " + Math.floor(home.z) + ")\n" +
+		"§a" + t('tp.home_public_label') + "§f" + (home.public ? t('tp.yes') : t('tp.no')) + "\n" +
+		"§a" + t('tp.home_shared_label') + "§f" + (home.sharedWith && home.sharedWith.length > 0 ? home.sharedWith.join(", ") : t('tp.none'))
 	);
 
-	fm.addButton("§a传送", "textures/ui/icon_recipe_nature");
-	fm.addButton("§e共享设置", "textures/ui/FriendsIcon");
-	fm.addButton("§c删除家园", "textures/ui/trash_default");
-	fm.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+	fm.addButton("§a" + t('tp.teleport'), "textures/ui/icon_recipe_nature");
+	fm.addButton("§e" + t('tp.share_settings'), "textures/ui/FriendsIcon");
+	fm.addButton("§c" + t('tp.delete_home'), "textures/ui/trash_default");
+	fm.addButton("§c" + t('tp.back'), "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
 		if (id == null) return;
@@ -801,7 +824,7 @@ function showHomeDetailForm(player, home, homeIndex, deps) {
 function teleportToHome(player, home) {
 	const cd = checkTeleportCooldown(player.xuid, 'home');
 	if (cd > 0) {
-		player.tell("§e[家园] §c请等待 " + cd + " 秒后再使用家园传送");
+		player.tell(t('tp.home_tag_prefix') + " §c" + t('tp.home_cooldown', cd));
 		return;
 	}
 
@@ -810,9 +833,9 @@ function teleportToHome(player, home) {
 		markHomeDirty(player.xuid);
 		saveHomesData();
 		setTeleportCooldown(player.xuid, 'home', getTpConfig().homeCooldown);
-		player.tell("§e[家园] §a已传送到家园 §b" + home.name);
+		player.tell(t('tp.home_tag_prefix') + " §a" + t('tp.home_teleported', home.name));
 	} else {
-		player.tell("§e[家园] §c传送失败，请稍后再试");
+		player.tell(t('tp.home_tag_prefix') + " §c" + t('tp.tp_failed'));
 	}
 }
 
@@ -825,20 +848,20 @@ function teleportToHome(player, home) {
  */
 function showHomeShareForm(player, home, homeIndex, deps) {
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§6共享设置 - " + home.name);
+	fm.setTitle(t('tp.share_settings_title', home.name));
 
 	const sharedList = home.sharedWith || [];
-	fm.setContent("§a当前共享玩家：§f" + (sharedList.length > 0 ? sharedList.join(", ") : "无"));
+	fm.setContent("§a" + t('tp.current_shared') + "§f" + (sharedList.length > 0 ? sharedList.join(", ") : t('tp.none')));
 
-	fm.addButton("§a添加共享玩家", "textures/ui/color_plus");
+	fm.addButton("§a" + t('tp.add_share'), "textures/ui/color_plus");
 
 	if (sharedList.length > 0) {
 		sharedList.forEach(function(name) {
-			fm.addButton("§c移除 " + name, "textures/ui/cancel");
+			fm.addButton(t('tp.remove_btn', name), "textures/ui/cancel");
 		});
 	}
 
-	fm.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+	fm.addButton("§c" + t('tp.back'), "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
 		if (id == null) return;
@@ -854,7 +877,7 @@ function showHomeShareForm(player, home, homeIndex, deps) {
 				home.sharedWith.splice(idx, 1);
 				markHomeDirty(p.xuid);
 				saveHomesData();
-				p.tell("§e[家园] §a已移除共享玩家 " + removeName);
+				p.tell(t('tp.home_tag_prefix') + " §a" + t('tp.share_removed', removeName));
 			}
 			showHomeShareForm(p, home, homeIndex, deps);
 		}
@@ -870,8 +893,8 @@ function showHomeShareForm(player, home, homeIndex, deps) {
  */
 function showHomeShareAddForm(player, home, homeIndex, deps) {
 	const fm = mc.newCustomForm();
-	fm.setTitle("§l§6添加共享玩家");
-	fm.addInput("§a玩家名称/UID/XUID", "输入玩家名称、UID或XUID");
+	fm.setTitle("§l§6" + t('tp.add_share'));
+	fm.addInput("§a" + t('tp.search_player'), t('tp.search_placeholder'));
 
 	player.sendForm(fm, function(p, data) {
 		if (data == null) { showHomeShareForm(p, home, homeIndex, deps); return; }
@@ -898,19 +921,19 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
 		}
 
 		if (results.length === 0) {
-			p.tell("§e[家园] §c未找到玩家 " + keyword);
+			p.tell(t('tp.home_tag_prefix') + " §c" + t('tp.player_not_found', keyword));
 			showHomeShareAddForm(p, home, homeIndex, deps);
 			return;
 		}
 
 		// 显示搜索结果列表供选择
 		var sf = mc.newSimpleForm();
-		sf.setTitle("§l§6搜索结果 - " + keyword);
-		sf.setContent("§a找到 " + results.length + " 个玩家，点击选择：");
+		sf.setTitle(t('tp.search_result_title', keyword));
+		sf.setContent(t('tp.found_players_select', String(results.length)));
 		results.forEach(function(r) {
 			sf.addButton("§e" + r.name + "\nUID: " + r.uid);
 		});
-		sf.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+		sf.addButton(t('tp.back'), "textures/ui/recap_glyph_desaturated");
 		p.sendForm(sf, function(p2, id) {
 			if (id === null || id === results.length) { showHomeShareAddForm(p2, home, homeIndex, deps); return; }
 			var selected = results[id];
@@ -919,9 +942,9 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
 				home.sharedWith.push(selected.name);
 				markHomeDirty(p2.xuid);
 				saveHomesData();
-				p2.tell("§e[家园] §a已将 " + selected.name + " 添加到家园共享列表");
+				p2.tell(t('tp.home_tag_prefix') + " §a" + t('tp.share_added', selected.name));
 			} else {
-				p2.tell("§e[家园] §c该玩家已在共享列表中");
+				p2.tell(t('tp.home_tag_prefix') + " §c" + t('tp.already_shared'));
 			}
 			showHomeShareForm(p2, home, homeIndex, deps);
 		});
@@ -937,11 +960,11 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
  */
 function showHomeDeleteConfirm(player, home, homeIndex, deps) {
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§c删除家园");
-	fm.setContent("§c确定要删除家园 §b" + home.name + " §c吗？\n此操作不可撤销！");
+	fm.setTitle("§l§c" + t('tp.delete_home'));
+	fm.setContent(t('tp.delete_confirm_msg', home.name));
 
-	fm.addButton("§c确认删除", "textures/ui/trash_default");
-	fm.addButton("§a取消", "textures/ui/recap_glyph_desaturated");
+	fm.addButton("§c" + t('tp.confirm_delete'), "textures/ui/trash_default");
+	fm.addButton("§a" + t('tp.cancel'), "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
 		if (id == null) return;
@@ -954,7 +977,7 @@ function showHomeDeleteConfirm(player, home, homeIndex, deps) {
 		homes.splice(homeIndex, 1);
 		markHomeDirty(p.xuid);
 		saveHomesData();
-		p.tell("§e[家园] §a已删除家园 §b" + home.name);
+		p.tell(t('tp.home_tag_prefix') + " §a" + t('tp.home_deleted', home.name));
 		showHomeMainForm(p, deps);
 	});
 }
@@ -966,29 +989,29 @@ function showHomeDeleteConfirm(player, home, homeIndex, deps) {
  */
 function showWarpMainForm(player, deps) {
 	if (!getTpConfig().enableWarp) {
-		player.tell("§e[传送] §c公共传送点系统已关闭");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.warp_disabled'));
 		return;
 	}
 
 	const warpNames = Object.keys(warpsData);
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§d公共传送点");
+	fm.setTitle("§l§d" + t('tp.warp_title'));
 
 	if (warpNames.length === 0) {
-		fm.setContent("§c暂无公共传送点");
+		fm.setContent("§c" + t('tp.no_warps'));
 	} else {
-		fm.setContent("§a共 §e" + warpNames.length + " §a个传送点");
+		fm.setContent(t('tp.warp_count_info', String(warpNames.length)));
 		warpNames.forEach(function(name) {
 			const warp = warpsData[name];
-			const dimName = warp.dim === 0 ? "主世界" : warp.dim === 1 ? "下界" : "末地";
+			const dimName = warp.dim === 0 ? t('tp.dim_overworld') : warp.dim === 1 ? t('tp.dim_nether') : t('tp.dim_end');
 			fm.addButton("§b" + name + "\n" + dimName + " (" + Math.floor(warp.x) + ", " + Math.floor(warp.y) + ", " + Math.floor(warp.z) + ")", "textures/ui/icon_multiplayer");
 		});
 	}
 
 	// permLevel > 0 表示管理员，显示管理按钮
 	if (player.permLevel > 0) {
-		fm.addButton("§6管理传送点（管理员）", "textures/ui/icon_setting");
+		fm.addButton("§6" + t('tp.admin_manage'), "textures/ui/icon_setting");
 	}
 
 	player.sendForm(fm, function(p, id) {
@@ -1011,7 +1034,7 @@ function showWarpMainForm(player, deps) {
 function teleportToWarp(player, warpName, deps) {
 	const warp = warpsData[warpName];
 	if (!warp) {
-		player.tell("§e[传送] §c传送点不存在");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.warp_not_exist'));
 		return;
 	}
 
@@ -1019,19 +1042,19 @@ function teleportToWarp(player, warpName, deps) {
 	if (getTpConfig().warpCost > 0) {
 		const bal = deps.getPlayerMoney(player);
 		if (bal < getTpConfig().warpCost) {
-			player.tell("§e[传送] §c余额不足，需要 " + getTpConfig().warpCost + " " + deps.getCurrencyName());
+			player.tell(t('tp.tag_prefix') + " §c" + t('tp.warp_insufficient', getTpConfig().warpCost, deps.getCurrencyName()));
 			return;
 		}
-		deps.reducePlayerMoney(player, getTpConfig().warpCost, "地标传送: " + warpName);
+		deps.reducePlayerMoney(player, getTpConfig().warpCost, t('tp.reason_warp', warpName));
 	}
 
 	if (safeTeleport(player, warp.x, warp.y, warp.z, warp.dim)) {
-		player.tell("§e[传送] §a已传送到 §b" + warpName);
+		player.tell(t('tp.tag_prefix') + " §a" + t('tp.warp_teleported', warpName));
 	} else {
-		player.tell("§e[传送] §c传送失败，请稍后再试");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.tp_failed'));
 		// 传送失败时退还费用
 		if (getTpConfig().warpCost > 0) {
-			deps.addPlayerMoney(player, getTpConfig().warpCost, "地标传送失败退款");
+			deps.addPlayerMoney(player, getTpConfig().warpCost, t('tp.reason_warp_refund'));
 		}
 	}
 }
@@ -1043,12 +1066,12 @@ function teleportToWarp(player, warpName, deps) {
  */
 function showWarpAdminForm(player, deps) {
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§6传送点管理");
-	fm.setContent("§a选择管理操作");
+	fm.setTitle("§l§6" + t('tp.warp_admin_title'));
+	fm.setContent("§a" + t('tp.select_action'));
 
-	fm.addButton("§a添加传送点", "textures/ui/color_plus");
-	fm.addButton("§c删除传送点", "textures/ui/trash_default");
-	fm.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+	fm.addButton("§a" + t('tp.add_warp'), "textures/ui/color_plus");
+	fm.addButton("§c" + t('tp.delete_warp'), "textures/ui/trash_default");
+	fm.addButton("§c" + t('tp.back'), "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
 		if (id == null) return;
@@ -1067,22 +1090,22 @@ function showWarpAdminForm(player, deps) {
  */
 function showWarpAddForm(player, deps) {
 	const fm = mc.newCustomForm();
-	fm.setTitle("§l§6添加传送点");
-	fm.addInput("§a传送点名称", "请输入名称");
-	fm.addInput("§a传送费用（0为免费）", "0");
+	fm.setTitle("§l§6" + t('tp.add_warp'));
+	fm.addInput("§a" + t('tp.warp_name'), t('tp.warp_name_placeholder'));
+	fm.addInput("§a" + t('tp.warp_cost'), "0");
 
 	player.sendForm(fm, function(p, data) {
 		if (data == null) { showWarpAdminForm(p, deps); return; }
 
 		const name = String(data[0] || "").trim();
 		if (!name) {
-			p.tell("§e[传送] §c传送点名称不能为空");
+			p.tell(t('tp.tag_prefix') + " §c" + t('tp.warp_name_empty'));
 			showWarpAddForm(p, deps);
 			return;
 		}
 
 		if (warpsData[name]) {
-			p.tell("§e[传送] §c已存在同名传送点");
+			p.tell(t('tp.tag_prefix') + " §c" + t('tp.warp_name_duplicate'));
 			showWarpAddForm(p, deps);
 			return;
 		}
@@ -1098,7 +1121,7 @@ function showWarpAddForm(player, deps) {
 			cost: cost
 		};
 		saveWarpsData();
-		p.tell("§e[传送] §a传送点 §b" + name + " §a添加成功！");
+		p.tell(t('tp.tag_prefix') + " §a" + t('tp.warp_add_success', name));
 		showWarpAdminForm(p, deps);
 	});
 }
@@ -1112,14 +1135,14 @@ function showWarpDeleteForm(player, deps) {
 	const warpNames = Object.keys(warpsData);
 
 	if (warpNames.length === 0) {
-		player.tell("§e[传送] §c暂无传送点可删除");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.no_warps_delete'));
 		showWarpAdminForm(player, deps);
 		return;
 	}
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§c删除传送点");
-	fm.setContent("§c选择要删除的传送点");
+	fm.setTitle("§l§c" + t('tp.delete_warp'));
+	fm.setContent("§c" + t('tp.select_warp'));
 
 	warpNames.forEach(function(name) {
 		fm.addButton("§c" + name);
@@ -1132,7 +1155,7 @@ function showWarpDeleteForm(player, deps) {
 		if (name && warpsData[name]) {
 			delete warpsData[name];
 			saveWarpsData();
-			p.tell("§e[传送] §a已删除传送点 §b" + name);
+			p.tell(t('tp.tag_prefix') + " §a" + t('tp.warp_deleted', name));
 		}
 		showWarpAdminForm(p, deps);
 	});
@@ -1264,7 +1287,7 @@ function recordDeathPoint(player) {
 		// 单条插入到数据库，自动保留最近10条
 		var db = _deps.database;
 		if (db && db.addDeathPointSQL) {
-			db.addDeathPointSQL(xuid, deathPoint);
+			db.addDeathPointSQL(xuid, deathPoints[0]);
 		} else {
 			saveDeathPointData();
 		}
@@ -1284,35 +1307,34 @@ function showDeathPointMenu(player) {
 
 	if (deathPoints.length === 0) {
 		player.sendModalForm(
-			"§c无死亡记录",
-			"您还没有死亡记录！",
-			"§a确定",
-			"§c关闭",
+			"§c" + t('tp.no_death_records'),
+			t('tp.no_death_content'),
+			t('tp.ok'),
+			t('tp.close'),
 			function() {}
 		);
 		return;
 	}
 
 	const menuForm = mc.newSimpleForm();
-	menuForm.setTitle("§c§l死亡点返回");
+	menuForm.setTitle("§c§l" + t('tp.death_title'));
 
 	let content = "-------------------------\n";
-	content += "§a您有 §e" + deathPoints.length + " §a条死亡记录\n";
-	content += "点击选择要传送的位置\n";
+	content += "§a" + t('tp.death_records', deathPoints.length) + "\n";
 	content += "-------------------------\n";
 
 	menuForm.setContent(content);
 
 	deathPoints.forEach(function(point, index) {
-		const timeStr = point.time || "未知时间";
-		const dimName = point.dimName || "未知维度";
+		const timeStr = point.time || t('tp.unknown_time');
+		const dimName = point.dimName || t('tp.unknown_dim');
 		menuForm.addButton(
 			"§c[" + (index + 1) + "] §f" + timeStr + "\n" + dimName + " §f(" + point.x + ", " + point.y + ", " + point.z + ")",
 			"textures/ui/heart_new"
 		);
 	});
 
-	menuForm.addButton("§c关闭", "textures/ui/cancel");
+	menuForm.addButton("§c" + t('tp.close'), "textures/ui/cancel");
 
 	player.sendForm(menuForm, function(p, buttonIndex) {
 		if (buttonIndex == null) return;
@@ -1322,29 +1344,25 @@ function showDeathPointMenu(player) {
 		}
 
 		if (buttonIndex < 0 || buttonIndex >= deathPoints.length) {
-			p.tell("§c错误：无效的死亡记录索引！");
+			p.tell("§c" + t('tp.death_error_index'));
 			return;
 		}
 
 		const selectedPoint = deathPoints[buttonIndex];
 
 		if (!selectedPoint) {
-			p.tell("§c错误：死亡记录数据不存在！");
+			p.tell("§c" + t('tp.death_error_data'));
 			return;
 		}
 
-		const dimName = selectedPoint.dimName || "未知维度";
-		const timeStr = selectedPoint.time || "未知时间";
+		const dimName = selectedPoint.dimName || t('tp.unknown_dim');
+		const timeStr = selectedPoint.time || t('tp.unknown_time');
 
-		// 弹出二次确认窗，防止误传
 		p.sendModalForm(
-			"§c确认传送",
-			"确定要传送到以下位置吗？\n\n" +
-			"维度：§f" + dimName + "\n" +
-			"坐标：§fX:" + selectedPoint.x + " Y:" + selectedPoint.y + " Z:" + selectedPoint.z + "\n" +
-			"时间：§f" + timeStr,
-			"§a确认传送",
-			"§c取消",
+			"§c" + t('tp.confirm_tp_title'),
+			t('tp.confirm_tp_content', dimName, selectedPoint.x, selectedPoint.y, selectedPoint.z, timeStr),
+			t('tp.confirm_tp_btn'),
+			t('tp.cancel'),
 			function(pl, result) {
 				if (result) {
 					teleportToDeathPoint(pl, buttonIndex);
@@ -1366,31 +1384,31 @@ function teleportToDeathPoint(player, index) {
 	const deathPoints = deathPointData.players[xuid] || [];
 
 	if (index < 0 || index >= deathPoints.length) {
-		player.tell("§c传送失败：无效的死亡记录！");
+		player.tell("§c" + t('tp.death_tp_failed'));
 		return;
 	}
 
 	const point = deathPoints[index];
 
 	if (!point) {
-		player.sendModalForm("§c死亡点", "§e死亡点数据不存在，可能已被清除。", "§a返回", "§c关闭", function(p, result) {
+		player.sendModalForm("§c" + t('tp.death_point'), "§e" + t('tp.death_data_missing'), t('tp.back'), t('tp.close'), function(p, result) {
 			if (result) showDeathPointMenu(p);
 		});
 		return;
 	}
 
 	try {
-		const dimName = point.dimName || "未知维度";
+		const dimName = point.dimName || t('tp.unknown_dim');
 		const x = point.x || 0;
 		const y = point.y || 64;
 		const z = point.z || 0;
 		const dimId = point.dimId || 0;
 
 		safeTeleport(player, x + 0.5, y, z + 0.5, dimId);
-		player.tell("§a已传送到死亡点 [" + dimName + "] (" + x + ", " + y + ", " + z + ")");
+		player.tell("§a" + t('tp.death_teleported', dimName, x, y, z));
 		logger.info("[死亡点] 玩家 " + player.name + " 传送到死亡点：" + dimName + " (" + x + ", " + y + ", " + z + ")");
 	} catch (error) {
-		player.tell("§c传送失败：" + error.message);
+		player.tell("§c" + t('tp.death_tp_error', error.message));
 		logger.error("[死亡点] 传送玩家到死亡点失败：" + error.message);
 	}
 }
@@ -1432,10 +1450,10 @@ function safeTeleport(player, x, y, z, dim) {
  * @returns {string} 维度中文名称
  */
 function getDimensionName(dimId) {
-	if (dimId === 0) return "主世界";
-	if (dimId === 1) return "下界";
-	if (dimId === 2) return "末地";
-	return "未知维度(" + dimId + ")";
+	if (dimId === 0) return t('tp.dim_overworld');
+	if (dimId === 1) return t('tp.dim_nether');
+	if (dimId === 2) return t('tp.dim_end');
+	return t('tp.dim_unknown', dimId);
 }
 
 /**
@@ -1446,24 +1464,23 @@ function showRtpConfirmForm(player) {
 	var cfg = _deps.getConfig ? _deps.getConfig() : {};
 	var rtpEnabled = cfg.enableRtp !== undefined ? cfg.enableRtp : true;
 	if (!rtpEnabled) {
-		player.tell("§e[传送] §c随机传送功能已关闭");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.rtp_disabled'));
 		return;
 	}
 	var cd = checkTeleportCooldown(player.xuid, 'rtp');
 	if (cd > 0) {
-		player.tell("§e[传送] §c请等待 " + cd + " 秒后再使用随机传送");
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.rtp_cooldown', cd));
 		return;
 	}
-	var cfg = _deps.getConfig ? _deps.getConfig() : {};
 	var cost = cfg.rtpCost !== undefined ? cfg.rtpCost : 0;
-	var radius = cfg.rtpRadius || 10000;
-	var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '金币';
-	var costText = cost > 0 ? "\n§a费用：§f" + cost + " " + currencyName : "";
+	var radius = cfg.rtpRadius !== undefined ? cfg.rtpRadius : 10000;
+	var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : t('tp.currency_fallback');
+	var costText = cost > 0 ? t('tp.cost_label') + cost + " " + currencyName : "";
 	player.sendModalForm(
-		"§a随机传送",
-		"§a即将传送到主世界随机位置\n§a范围：§f" + radius + " 格" + costText + "\n\n§c确认传送？",
-		"§a确认",
-		"§c取消",
+		"§a" + t('tp.rtp_title'),
+		"§a" + t('tp.rtp_confirm', radius, costText),
+		t('tp.confirm'),
+		t('tp.cancel'),
 		function(p, result) {
 			if (result !== true) return;
 			executeRtp(p, radius, cost);
@@ -1479,28 +1496,40 @@ function showRtpConfirmForm(player) {
  */
 function executeRtp(player, radius, cost) {
 	if (cost > 0) {
-		if (!_deps.reducePlayerMoney || !_deps.reducePlayerMoney(player, cost, "随机传送")) {
-			player.tell("§e[传送] §c余额不足，无法传送");
+		if (!_deps.reducePlayerMoney || !_deps.reducePlayerMoney(player, cost, t('tp.reason_rtp'))) {
+			player.tell(t('tp.tag_prefix') + " §c" + t('tp.rtp_insufficient'));
 			return;
 		}
 	}
 	var x = Math.floor(Math.random() * radius * 2) - radius;
 	var z = Math.floor(Math.random() * radius * 2) - radius;
-	var y = 320;
-	player.sendText("§e[传送] §a正在传送到随机位置...", 0);
-	if (safeTeleport(player, x + 0.5, y, z + 0.5, 0)) {
-		// 5秒内拦截摔伤
-		_rtpProtected[player.xuid] = true;
-		setTimeout(function() { delete _rtpProtected[player.xuid]; }, 5000);
-		var rtpCd = (_deps.getConfig ? _deps.getConfig() : {}).rtpCooldown || 60;
-		setTeleportCooldown(player.xuid, 'rtp', rtpCd);
-		player.tell("§e[传送] §a已传送到随机位置 (" + x + ", " + y + ", " + z + ")");
-	} else {
-		player.tell("§e[传送] §c传送失败，请稍后再试");
+	player.sendText(t('tp.tag_prefix') + " §a" + t('tp.rtp_teleporting'), 0);
+	// 先传送到高空强制加载区块，启用摔伤保护防止掉血
+	_rtpProtected[player.xuid] = Date.now() + 60000;
+	if (_deps.debugMode && _deps.debugMode()) logger.info('[RTP] 玩家 ' + player.name + ' 开始RTP，目标 (' + x + ', ' + z + ')，已启用60秒摔伤保护');
+	if (!safeTeleport(player, x + 0.5, 320, z + 0.5, 0)) {
+		delete _rtpProtected[player.xuid];
+		player.tell(t('tp.tag_prefix') + " §c" + t('tp.tp_failed'));
 		if (cost > 0 && _deps.addPlayerMoney) {
-			_deps.addPlayerMoney(player, cost, "随机传送失败退款");
+			_deps.addPlayerMoney(player, cost, t('tp.reason_rtp_refund'));
 		}
+		return;
 	}
+	// 区块已加载，寻找安全地面高度
+	var safeY = findSafeY(x, z, 0);
+	if (_deps.debugMode && _deps.debugMode()) logger.info('[RTP] 玩家 ' + player.name + ' findSafeY结果: ' + safeY);
+	if (safeY !== null) {
+		safeTeleport(player, x + 0.5, safeY, z + 0.5, 0);
+		player.tell(t('tp.tag_prefix') + " §a" + t('tp.rtp_success', x, safeY, z));
+	} else {
+		// 找不到安全位置但已在高空，保留摔伤保护让玩家缓慢降落
+		player.tell(t('tp.tag_prefix') + " §a" + t('tp.rtp_success2', x, z));
+	}
+	// 60秒后清理保护记录（onMobHurt 中也会自动清理过期的）
+	setTimeout(function() { delete _rtpProtected[player.xuid]; }, 60000);
+	var rtpCfg = _deps.getConfig ? _deps.getConfig() : {};
+	var rtpCd = rtpCfg.rtpCooldown !== undefined ? rtpCfg.rtpCooldown : 60;
+	setTeleportCooldown(player.xuid, 'rtp', rtpCd);
 }
 
 module.exports = {

@@ -33,6 +33,19 @@ let messageData = {
     players: {}
 };
 let _deps = {};
+
+function getLang() {
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+}
+
+function t(key) {
+    if (!_deps.t) return key;
+    var lang = getLang();
+    var args = [lang];
+    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    return _deps.t.apply(null, args);
+}
+
 // 消息脏标记
 var _dirtyMessages = {};
 
@@ -195,7 +208,7 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
     if (!isFriend && _deps.getPlayerSetting && !_deps.getPlayerSetting(toXuid, "acceptStrangerMessages")) {
         const fromPlayer = mc.getPlayer(fromXuid);
         if (fromPlayer) {
-            fromPlayer.tell("§e[好友] §c对方拒绝接受陌生人私信！");
+            fromPlayer.tell(t('friend.tag_friend') + " §c" + t('friend.reject_stranger'));
         }
         return false;
     }
@@ -213,7 +226,7 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
 
     // 解析接收者名称用于发送方记录
     const toPlayer = mc.getPlayer(toXuid);
-    const toName = toPlayer ? toPlayer.name : (_deps.getPlayerInfoByXuid ? (_deps.getPlayerInfoByXuid(toXuid) || {}).name : null) || "未知玩家";
+    const toName = toPlayer ? toPlayer.name : (_deps.getPlayerInfoByXuid ? (_deps.getPlayerInfoByXuid(toXuid) || {}).name : null) || t('friend.unknown_player');
 
     // 发送方消息记录
     const senderMessages = getPlayerMessageData(fromXuid);
@@ -234,9 +247,9 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
     // 在线时推送 toast 通知
     const targetPlayer = mc.getPlayer(toXuid);
     if (targetPlayer && _deps.getPlayerSetting && _deps.getPlayerSetting(toXuid, "enableMessageNotification")) {
-        const relationType = isFriend ? "好友" : "陌生人";
-        targetPlayer.sendToast("§e新消息提醒", "§a您收到了一条来自" + relationType + " §b" + fromName + " §a的私信");
-        targetPlayer.tell("§e[私信] §a您收到了一条来自" + relationType + " §b" + fromName + " §a的私信，请在好友系统中查看");
+        const relationType = isFriend ? t('friend.friend') : t('friend.stranger');
+        targetPlayer.sendToast("§e" + t('friend.msg_notify_toast'), "§a" + t('friend.msg_notify_body', fromName));
+        targetPlayer.tell(t('friend.tag_msg') + " §a" + t('friend.msg_notify_body', fromName));
     }
     return true;
 }
@@ -252,7 +265,7 @@ function showSendMessageForm(player, toXuid, toName, page) {
     page = page || 0;
     const xuid = player.xuid;
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§b发送消息");
+    gui.setTitle("§l§b" + t('friend.msg_title'));
 
     // 筛选与目标玩家的双向消息，构建聊天历史
     const myMsgData = getPlayerMessageData(xuid);
@@ -261,7 +274,7 @@ function showSendMessageForm(player, toXuid, toName, page) {
     myMsgData.messages.forEach(function(msg) {
         if (msg.fromXuid === xuid && msg.toXuid === toXuid) {
             chatHistory.push({
-                fromName: "我",
+                fromName: t('friend.me'),
                 fromXuid: xuid,
                 content: msg.content,
                 time: msg.time,
@@ -291,11 +304,11 @@ function showSendMessageForm(player, toXuid, toName, page) {
     const pageMessages = chatHistory.slice(startIndex, endIndex);
 
     let historyContent = "-------------------------\n";
-    historyContent += "§e与 §b" + toName + " §e的对话历史 (" + (currentPage + 1) + "/" + totalPages + ")\n";
+    historyContent += "§e" + t('friend.conversation_history', toName) + " (" + (currentPage + 1) + "/" + totalPages + ")\n";
     historyContent += "-------------------------\n";
 
     if (pageMessages.length === 0) {
-        historyContent += "暂无对话历史\n";
+        historyContent += t('friend.no_history') + "\n";
     } else {
         pageMessages.forEach(function(msg) {
             const nameColor = msg.isSelf ? "§a" : "§b";
@@ -310,12 +323,12 @@ function showSendMessageForm(player, toXuid, toName, page) {
     if (totalPages > 1) {
         const pageOptions = [];
         for (let i = 0; i < totalPages; i++) {
-            pageOptions.push("第 " + (i + 1) + " 页");
+            pageOptions.push(t('friend.page_label', i + 1));
         }
-        gui.addDropdown("选择页码", pageOptions, currentPage);
+        gui.addDropdown(t('friend.select_page'), pageOptions, currentPage);
     }
 
-    gui.addInput("消息内容", "请输入消息内容", "");
+    gui.addInput(t('friend.msg_content'), t('friend.msg_placeholder'), "");
 
     player.sendForm(gui, function(p, data) {
         if (data == null || data === undefined || !Array.isArray(data)) {
@@ -335,14 +348,14 @@ function showSendMessageForm(player, toXuid, toName, page) {
         }
 
         if (!content) {
-            p.tell("§e[好友] §c消息内容不能为空！");
+            p.tell(t('friend.tag_friend') + " §c" + t('friend.msg_empty'));
             showSendMessageForm(p, toXuid, toName, currentPage);
             return;
         }
 
         const success = sendMessage(p.xuid, p.name, toXuid, content);
         if (success) {
-            p.tell("§e[好友] §a消息已发送给 " + toName + "！");
+            p.tell(t('friend.tag_friend') + " §a" + t('friend.msg_sent', toName));
             showSendMessageForm(p, toXuid, toName, currentPage);
         } else {
             showSendMessageForm(p, toXuid, toName, currentPage);
@@ -367,7 +380,7 @@ function showMyMessagesForm(player) {
     const playerMap = new Map();
     sortedMessages.forEach(function(msg) {
         const otherXuid = msg.fromXuid === xuid ? msg.toXuid : msg.fromXuid;
-        const otherName = msg.fromXuid === xuid ? (msg.toName || "未知玩家") : msg.fromName;
+        const otherName = msg.fromXuid === xuid ? (msg.toName || t('friend.unknown_player')) : msg.fromName;
 
         if (!playerMap.has(otherXuid)) {
             playerMap.set(otherXuid, {
@@ -389,15 +402,15 @@ function showMyMessagesForm(player) {
     });
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b我的消息");
+    gui.setTitle("§l§b" + t('friend.my_messages'));
 
     if (playerList.length === 0) {
-        gui.setContent("暂无消息");
+        gui.setContent(t('friend.no_messages'));
     } else {
         const totalUnread = sortedMessages.filter(function(m) { return !m.read; }).length;
-        gui.setContent("§a共有 " + playerList.length + " 个对话\n§e未读消息: " + totalUnread + " 条\n点击对话查看详情");
+        gui.setContent("§a" + t('friend.conversations', playerList.length) + "\n§e" + t('friend.unread', totalUnread) + "\n" + t('friend.click_to_view'));
         playerList.forEach(function(playerData) {
-            const status = playerData.unreadCount > 0 ? "§e[" + playerData.unreadCount + "条新] " : "";
+            const status = playerData.unreadCount > 0 ? "§e[" + playerData.unreadCount + t('friend.new_msg') + "] " : "";
             // 消息预览截断到15字符
             const preview = playerData.latestMsg.content.length > 15 ?
                 playerData.latestMsg.content.substring(0, 15) + "..." :
@@ -407,7 +420,7 @@ function showMyMessagesForm(player) {
         });
     }
 
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -449,7 +462,7 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     saveMessageData();
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b与 " + targetName + " 的对话");
+    gui.setTitle("§l§b" + t('friend.conversation_with', targetName));
 
     const messagesPerPage = 5;
     const totalPages = Math.ceil(conversation.length / messagesPerPage) || 1;
@@ -459,15 +472,15 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     const pageMessages = conversation.slice(startIndex, endIndex);
 
     let content = "-------------------------\n";
-    content += "§e与 §b" + targetName + " §e的对话 (" + (currentPage + 1) + "/" + totalPages + ")\n";
+    content += t('friend.conversation_title', targetName, String(currentPage + 1), String(totalPages)) + "\n";
     content += "-------------------------\n";
 
     if (conversation.length === 0) {
-        content += "暂无对话历史\n";
+        content += t('friend.no_history') + "\n";
     } else {
         pageMessages.forEach(function(msg) {
             const nameColor = msg.isSelf ? "§a" : "§b";
-            const name = msg.isSelf ? "我" : msg.fromName;
+            const name = msg.isSelf ? t('friend.me') : msg.fromName;
             content += nameColor + name + " " + msg.time + "\n";
             content += "§f" + msg.content + "\n";
             content += "-------------------------\n";
@@ -477,14 +490,14 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     gui.setContent(content);
 
     if (currentPage < totalPages - 1) {
-        gui.addButton("§e下一页", "textures/ui/arrowRight");
+        gui.addButton(t('friend.next_page_btn'), "textures/ui/arrowRight");
     }
     if (currentPage > 0) {
-        gui.addButton("§e上一页", "textures/ui/arrowLeft");
+        gui.addButton(t('friend.prev_page_btn'), "textures/ui/arrowLeft");
     }
 
-    gui.addButton("§b发送消息", "textures/ui/backup_replace");
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton("§b" + t('friend.send_message'), "textures/ui/backup_replace");
+    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -527,19 +540,19 @@ function showMessageDetailForm(player, message) {
     saveMessageData();
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b消息详情");
+    gui.setTitle("§l§b" + t('friend.msg_detail'));
 
     let content = "-------------------------\n";
-    content += "§a来自：§f" + message.fromName + "\n";
-    content += "§a时间：§f" + message.time + "\n";
+    content += "§a" + t('friend.from') + "§f" + message.fromName + "\n";
+    content += "§a" + t('friend.time') + "§f" + message.time + "\n";
     content += "-------------------------\n";
     content += "§f" + message.content + "\n";
     content += "-------------------------\n";
 
     gui.setContent(content);
-    gui.addButton("§b回复", "textures/ui/icon_chat");
-    gui.addButton("§c删除", "textures/ui/trash_default");
-    gui.addButton("返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton("§b" + t('friend.reply'), "textures/ui/icon_chat");
+    gui.addButton("§c" + t('friend.delete'), "textures/ui/trash_default");
+    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -554,7 +567,7 @@ function showMessageDetailForm(player, message) {
             });
             _dirtyMessages[p.xuid] = true;
             saveMessageData();
-            p.tell("§e[好友] §c消息已删除");
+            p.tell(t('friend.tag_friend') + " §c" + t('friend.msg_deleted'));
             showMyMessagesForm(p);
         } else if (id === 2) {
             showMyMessagesForm(p);
@@ -574,28 +587,28 @@ function showMyFriendsForm(player) {
     const pendingCount = pendingRequests.length;
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§b我的好友");
+    gui.setTitle("§b" + t('friend.my_friends'));
 
     let content = "-------------------------\n";
-    content += "§a好友数量：§f" + myFriends.length + "\n";
-    content += "§a待处理请求：§f" + pendingCount + "\n";
+    content += "§a" + t('friend.friend_count') + "§f" + myFriends.length + "\n";
+    content += "§a" + t('friend.pending_requests') + "§f" + pendingCount + "\n";
     content += "-------------------------\n";
     gui.setContent(content);
 
-    gui.addButton("§e添加好友", "textures/ui/color_plus");
-    gui.addButton("§d好友请求" + (pendingCount > 0 ? " §c(" + pendingCount + ")" : ""), "textures/ui/icon_bell");
-    gui.addButton("§b我的消息", "textures/ui/Feedback");
+    gui.addButton("§e" + t('friend.add_friend'), "textures/ui/color_plus");
+    gui.addButton("§d" + t('friend.friend_requests') + (pendingCount > 0 ? " §c(" + pendingCount + ")" : ""), "textures/ui/icon_bell");
+    gui.addButton("§b" + t('friend.my_messages_btn'), "textures/ui/Feedback");
 
     if (myFriends.length > 0) {
         myFriends.forEach(function(friend) {
             const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
-            const onlineStatus = mc.getPlayer(friend.xuid) ? "§a[在线]" : "[离线]";
+            const onlineStatus = mc.getPlayer(friend.xuid) ? "§a[" + t('friend.online') + "]" : "[" + t('friend.offline') + "]";
             const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(friend.xuid) : "";
-            gui.addButton(onlineStatus + " §b" + (fi ? fi.name : "未知玩家") + "\n§6UID: " + (fi ? fi.uid : "未知"), avatarUrl);
+            gui.addButton(onlineStatus + " §b" + (fi ? fi.name : t('friend.unknown_player')) + "\n§6UID: " + (fi ? fi.uid : t('friend.unknown')), avatarUrl);
         });
     }
 
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -620,9 +633,9 @@ function showMyFriendsForm(player) {
  */
 function showSearchFriendForm(player) {
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§b搜索好友");
-    gui.addDropdown("搜索方式", ["玩家名称", "UID"], 0);
-    gui.addInput("搜索关键词", "输入玩家名称或UID", "");
+    gui.setTitle("§l§b" + t('friend.search_friend'));
+    gui.addDropdown(t('friend.search_method'), [t('friend.player_name'), t('friend.uid')], 0);
+    gui.addInput(t('friend.search_keyword'), t('friend.search_placeholder_friend'), "");
 
     player.sendForm(gui, function(p, data) {
         if (data == null || data === undefined || !Array.isArray(data) || data.length < 2) {
@@ -634,7 +647,7 @@ function showSearchFriendForm(player) {
         const keyword = (data[1] || "").trim();
 
         if (!keyword) {
-            p.tell("§e[好友] §c请输入搜索关键词！");
+            p.tell(t('friend.tag_friend') + " §c" + t('friend.input_keyword'));
             showSearchFriendForm(p);
             return;
         }
@@ -652,19 +665,19 @@ function showSearchFriendForm(player) {
  */
 function showSearchResultsForm(player, results, keyword) {
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b搜索结果");
+    gui.setTitle("§l§b" + t('friend.search_result'));
 
     if (results.length === 0) {
-        gui.setContent("§c未找到匹配 \"" + keyword + "\" 的玩家");
+        gui.setContent("§c" + t('friend.no_match', keyword));
     } else {
-        gui.setContent("§a找到 " + results.length + " 个匹配结果：\n点击玩家头像查看详情");
+        gui.setContent("§a" + t('friend.match_results', results.length) + "\n" + t('friend.click_to_view_detail'));
         results.forEach(function(p) {
             const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(p.xuid) : "";
             gui.addButton("§b" + p.name + "\n§6UID: " + p.uid, avatarUrl);
         });
     }
 
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -695,31 +708,31 @@ function showPlayerDetailForm(player, targetInfo) {
     gui.setTitle("§l§b" + targetInfo.name);
 
     let content = "-------------------------\n";
-    content += "§a玩家名称：§f" + targetInfo.name + "\n";
-    content += "§aUID：§f" + targetInfo.uid + "\n";
-    content += "§a注册时间：§f" + (targetInfo.registerTime || "未知") + "\n";
+    content += t('friend.player_name_label') + targetInfo.name + "\n";
+    content += t('friend.uid_label') + targetInfo.uid + "\n";
+    content += "§a" + t('friend.register_time') + "§f" + (targetInfo.registerTime || t('friend.unknown')) + "\n";
     content += "-------------------------\n";
 
     if (isSelf) {
-        content += "§c这是你自己\n";
+        content += "§c" + t('friend.is_self') + "\n";
     } else if (isFriend) {
-        content += "§a你们已经是好友了\n";
+        content += "§a" + t('friend.already_friends') + "\n";
     } else if (hasPendingRequest) {
-        content += "§e好友请求已发送，等待对方处理\n";
+        content += "§e" + t('friend.request_sent_pending') + "\n";
     } else if (wasRejected) {
-        content += "§c对方已拒绝您的好友请求\n";
+        content += "§c" + t('friend.request_rejected') + "\n";
     }
 
     gui.setContent(content);
 
     // 根据关系状态动态显示按钮
     if (!isSelf && !isFriend && !hasPendingRequest) {
-        gui.addButton("§a添加好友", "textures/ui/color_plus");
+        gui.addButton("§a" + t('friend.add_friend'), "textures/ui/color_plus");
     }
     if (!isSelf) {
-        gui.addButton("§b发送留言", "textures/ui/Feedback");
+        gui.addButton("§b" + t('friend.leave_message'), "textures/ui/Feedback");
     }
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -749,9 +762,9 @@ function showPlayerDetailForm(player, targetInfo) {
  */
 function showSendFriendRequestForm(player, targetInfo) {
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§a发送好友请求");
-    gui.addLabel("§e向 §b" + targetInfo.name + " §e发送好友请求");
-    gui.addInput("验证消息", "请输入验证消息（可选）", "我是" + player.name);
+    gui.setTitle("§l§a" + t('friend.send_request'));
+    gui.addLabel("§e" + t('friend.send_request') + " §b" + targetInfo.name);
+    gui.addInput(t('friend.verify_message'), t('friend.verify_placeholder'), t('friend.default_verify') + player.name);
 
     player.sendForm(gui, function(p, data) {
         if (data == null || !Array.isArray(data) || data.length < 2) {
@@ -759,11 +772,11 @@ function showSendFriendRequestForm(player, targetInfo) {
             return;
         }
 
-        const message = (data[1] || "").trim() || ("我是" + p.name);
+        const message = (data[1] || "").trim() || (t('friend.default_verify') + p.name);
 
         // 检查对方是否允许接收好友请求
         if (_deps.getPlayerSetting && !_deps.getPlayerSetting(targetInfo.xuid, "allowFriendRequests")) {
-            p.tell("§e[好友] §c对方拒绝接受好友请求！");
+            p.tell(t('friend.tag_friend') + " §c" + t('friend.reject_request'));
             showPlayerDetailForm(p, targetInfo);
             return;
         }
@@ -795,11 +808,11 @@ function showSendFriendRequestForm(player, targetInfo) {
         // 对方在线时推送通知
         const targetPlayer = mc.getPlayer(targetInfo.xuid);
         if (targetPlayer && _deps.getPlayerSetting && _deps.getPlayerSetting(targetInfo.xuid, "enableFriendRequestNotification")) {
-            targetPlayer.sendToast("§e好友请求", "§a玩家 §b" + p.name + " §a请求添加您为好友");
-            targetPlayer.tell("§e[好友] §a玩家 §b" + p.name + " §a请求添加您为好友，请在好友系统中查看");
+            targetPlayer.sendToast("§e" + t('friend.request_toast_title'), "§a" + t('friend.request_notify', p.name));
+            targetPlayer.tell(t('friend.tag_friend') + " §a" + t('friend.request_notify', p.name));
         }
 
-        p.tell("§e[好友] §a已向 " + targetInfo.name + " 发送好友请求！");
+        p.tell(t('friend.tag_friend') + " §a" + t('friend.request_sent_success', targetInfo.name));
         showMyFriendsForm(p);
     });
 }
@@ -814,19 +827,19 @@ function showFriendRequestsForm(player) {
     const pendingRequests = friendInfo.requests.filter(function(r) { return !r.handled; });
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§e好友请求");
+    gui.setTitle("§l§e" + t('friend.friend_request_title'));
 
     if (pendingRequests.length === 0) {
-        gui.setContent("暂无新的好友请求");
+        gui.setContent(t('friend.no_requests'));
     } else {
-        gui.setContent("§a您有 " + pendingRequests.length + " 个待处理的好友请求：");
+        gui.setContent("§a" + t('friend.pending_requests_label', pendingRequests.length));
         pendingRequests.forEach(function(req) {
             const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(req.xuid) : "";
             gui.addButton("§b" + req.name + "\n§6" + req.message, avatarUrl);
         });
     }
 
-    gui.addButton("§c返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -846,19 +859,19 @@ function showFriendRequestsForm(player) {
  */
 function showHandleRequestForm(player, request) {
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b处理好友请求");
+    gui.setTitle("§l§b" + t('friend.handle_request'));
 
     let content = "-------------------------\n";
-    content += "§a来自：§f" + request.name + "\n";
-    content += "§a验证消息：§f" + request.message + "\n";
-    content += "§a时间：§f" + request.time + "\n";
+    content += "§a" + t('friend.from_label') + "§f" + request.name + "\n";
+    content += "§a" + t('friend.verify_label') + "§f" + request.message + "\n";
+    content += "§a" + t('friend.time_label') + "§f" + request.time + "\n";
     content += "-------------------------\n";
-    content += "§e请选择操作：\n";
+    content += "§e" + t('friend.select_action') + "\n";
 
     gui.setContent(content);
-    gui.addButton("§a接受", "textures/ui/check");
-    gui.addButton("§c拒绝", "textures/ui/cancel");
-    gui.addButton("返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton("§a" + t('friend.accept'), "textures/ui/check");
+    gui.addButton("§c" + t('friend.reject'), "textures/ui/cancel");
+    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -892,7 +905,7 @@ function showHandleRequestForm(player, request) {
                 markFriendDirty(p.xuid);
                 markFriendDirty(request.xuid);
                 saveData();
-                p.tell("§e[好友] §a已接受 " + request.name + " 的好友请求！");
+                p.tell(t('friend.tag_friend') + " §a" + t('friend.accepted', request.name));
             }
         } else if (id === 1) {
             // 拒绝：彻底移除请求记录
@@ -908,8 +921,8 @@ function showHandleRequestForm(player, request) {
                 markFriendDirty(p.xuid);
                 markFriendDirty(request.xuid);
                 saveData();
-                sendSystemMail(request.xuid, '§c玩家§e' + p.name + '§c拒绝了你的好友申请');
-                p.tell("§e[好友] §c已拒绝 " + request.name + " 的好友请求");
+                sendSystemMail(request.xuid, t('friend.reject_reason', p.name));
+                p.tell(t('friend.tag_friend') + " §c" + t('friend.rejected', request.name));
             }
         }
 
@@ -924,25 +937,25 @@ function showHandleRequestForm(player, request) {
  */
 function showFriendDetailForm(player, friend) {
     const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
-    const friendName = fi ? fi.name : "未知玩家";
-    const friendUid = fi ? fi.uid : "未知";
+    const friendName = fi ? fi.name : t('friend.unknown_player');
+    const friendUid = fi ? fi.uid : t('friend.unknown');
     const isOnline = mc.getPlayer(friend.xuid);
-    const onlineStatus = isOnline ? "§a在线" : "离线";
+    const onlineStatus = isOnline ? "§a" + t('friend.online') : t('friend.offline');
 
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§b" + friendName);
 
     let content = "-------------------------\n";
-    content += "§a好友名称：§f" + friendName + "\n";
-    content += "§aUID：§f" + friendUid + "\n";
-    content += "§a状态：" + onlineStatus + "\n";
-    content += "§a添加时间：§f" + (friend.addTime || "未知") + "\n";
+    content += "§a" + t('friend.friend_name') + "§f" + friendName + "\n";
+    content += t('friend.uid_label') + friendUid + "\n";
+    content += "§a" + t('friend.status') + onlineStatus + "\n";
+    content += "§a" + t('friend.add_time') + "§f" + (friend.addTime || t('friend.unknown')) + "\n";
     content += "-------------------------\n";
 
     gui.setContent(content);
-    gui.addButton("§b发送消息", "textures/ui/backup_replace");
-    gui.addButton("§c删除好友", "textures/ui/trash_default");
-    gui.addButton("返回", "textures/ui/recap_glyph_desaturated");
+    gui.addButton("§b" + t('friend.send_message'), "textures/ui/backup_replace");
+    gui.addButton("§c" + t('friend.delete_friend'), "textures/ui/trash_default");
+    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -964,13 +977,13 @@ function showFriendDetailForm(player, friend) {
  */
 function showDeleteFriendConfirmForm(player, friend) {
     const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
-    const friendName = fi ? fi.name : "未知玩家";
+    const friendName = fi ? fi.name : t('friend.unknown_player');
 
     player.sendModalForm(
-        "§c删除好友",
-        "§c确定要删除好友 §f" + friendName + " §c吗？\n此操作不可恢复！",
-        "§c确认删除",
-        "§a取消",
+        t('friend.delete_confirm_title'),
+        t('friend.delete_confirm_body', friendName),
+        t('friend.confirm_delete'),
+        t('friend.cancel'),
         function(p, res) {
             if (res) {
                 // 双向从好友列表中移除，并清理相关请求记录
@@ -987,7 +1000,7 @@ function showDeleteFriendConfirmForm(player, friend) {
                 markFriendDirty(p.xuid);
                 markFriendDirty(friend.xuid);
                 saveData();
-                p.tell("§e[好友] §c已删除好友 " + friendName);
+                p.tell(t('friend.tag_friend') + " §c" + t('friend.delete_success', friendName));
             }
             showMyFriendsForm(p);
         }
@@ -1070,18 +1083,18 @@ function showAvatarSettingsForm(player) {
     const avatar = getPlayerAvatarData(xuid);
 
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§e个人头像设置");
+    gui.setTitle("§l§e" + t('friend.avatar_title'));
 
     let content = "-------------------------\n";
-    content += "§a当前头像类型：§f" + getAvatarTypeName(avatar.type) + "\n";
-    content += "§a当前头像值：§f" + (avatar.value || "未设置") + "\n";
+    content += "§a" + t('friend.avatar_type') + "§f" + getAvatarTypeName(avatar.type) + "\n";
+    content += "§a" + t('friend.avatar_value') + "§f" + (avatar.value || t('friend.avatar_not_set')) + "\n";
     content += "-------------------------\n";
-    content += "§e请选择头像设置方式并输入对应值：\n";
+    content += t('friend.avatar_select_hint');
 
     gui.addLabel(content);
-    gui.addDropdown("头像类型", ["QQ头像", "自定义链接"],
+    gui.addDropdown(t('friend.avatar_type'), [t('friend.qq_avatar'), t('friend.custom_link')],
         avatar.type === "qq" ? 0 : avatar.type === "link" ? 1 : 0);
-    gui.addInput("头像值", "QQ号码/图片链接", avatar.value || "");
+    gui.addInput(t('friend.avatar_input_label'), t('friend.avatar_input_placeholder'), avatar.value || "");
 
     player.sendForm(gui, function(p, data) {
         if (data == null || !Array.isArray(data)) {
@@ -1093,7 +1106,7 @@ function showAvatarSettingsForm(player) {
         const value = (data[2] || "").trim();
 
         if (!value) {
-            p.tell("§e[头像] §c请输入头像值！");
+            p.tell(t('friend.tag_avatar') + " §c" + t('friend.input_avatar_value'));
             showAvatarSettingsForm(p);
             return;
         }
@@ -1101,20 +1114,20 @@ function showAvatarSettingsForm(player) {
         let type, successMsg;
         if (typeIndex === 0) {
             if (!/^\d+$/.test(value)) {
-                p.tell("§e[头像] §c请输入有效的QQ号码（纯数字）！");
+                p.tell(t('friend.tag_avatar') + " §c" + t('friend.invalid_qq'));
                 showAvatarSettingsForm(p);
                 return;
             }
             type = "qq";
-            successMsg = "§e[头像] §aQQ头像设置成功！";
+            successMsg = t('friend.avatar_qq_success');
         } else {
             if (!value.startsWith("http")) {
-                p.tell("§e[头像] §c请输入有效的图片链接（以http开头）！");
+                p.tell(t('friend.tag_avatar') + " §c" + t('friend.invalid_url'));
                 showAvatarSettingsForm(p);
                 return;
             }
             type = "link";
-            successMsg = "§e[头像] §a自定义链接头像设置成功！";
+            successMsg = t('friend.avatar_custom_success');
         }
 
         setPlayerAvatar(p.xuid, type, value);
@@ -1126,9 +1139,9 @@ function showAvatarSettingsForm(player) {
 /** 将头像类型标识符转换为中文显示名称 */
 function getAvatarTypeName(type) {
     switch (type) {
-        case "qq": return "QQ头像";
-        case "link": return "自定义链接";
-        default: return "默认头像";
+        case "qq": return t('friend.avatar_type_qq');
+        case "link": return t('friend.avatar_type_custom');
+        default: return t('friend.avatar_type_default');
     }
 }
 

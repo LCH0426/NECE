@@ -25,6 +25,14 @@ let _fs = null;
 let _U = null;
 let _pathModule = null;
 
+/** 翻译辅助函数，带 fallback */
+function t(key) {
+    var fn = _deps.t;
+    if (!fn) return key;
+    var args = Array.prototype.slice.call(arguments, 1);
+    return fn.apply(null, ['chat.' + key].concat(args));
+}
+
 // 默认聊天配置
 const DEFAULT_CHAT_CFG = { enabled: true, format: "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e|§a<§r{name}§a> §r{msg}", wordFilter: true };
 
@@ -107,12 +115,12 @@ function resolveOrgName(xuid) {
         var database = _deps.database;
         if (database && database.isPlayerDbReady()) {
             var guild = database.getGuildByPlayer(String(xuid));
-            var name = (guild && guild.name) ? guild.name : '§c无§r';
+            var name = (guild && guild.name) ? guild.name : t('no_guild');
             _orgNameCache[xuid] = { name: name, expire: now + ORG_CACHE_TTL };
             return name;
         }
     } catch (e) {}
-    return '§c无§r';
+    return t('no_guild');
 }
 
 /** 清除指定玩家的公会名缓存 */
@@ -210,10 +218,10 @@ function getTitleShopConfig() {
 function showTitleMainForm(player) {
     try {
         var fm = mc.newSimpleForm();
-        fm.setTitle("§l§b称号系统");
-        fm.setContent("§a当前称号: §b" + getPlayerActiveTitle(player.xuid));
-        fm.addButton("§e设置称号", "textures/ui/icon_setting");
-        fm.addButton("§a购买称号", "textures/ui/anvil-plus");
+        fm.setTitle(t('title_system'));
+        fm.setContent(t('current_title', getPlayerActiveTitle(player.xuid)));
+        fm.addButton(t('btn_set_title'), "textures/ui/icon_setting");
+        fm.addButton(t('btn_buy_title'), "textures/ui/anvil-plus");
         player.sendForm(fm, function(p, id) {
             if (id === null) return;
             if (id === 0) showSetTitleForm(p);
@@ -232,12 +240,8 @@ function showSetTitleForm(player) {
         var max = getMaxTitles();
         var customCount = owned.filter(function(t) { return t !== '萌新' && t !== '无称号'; }).length;
         var fm = mc.newSimpleForm();
-        fm.setTitle("§l§e设置称号");
-        fm.setContent(
-            "§a当前称号: §b" + current + "\n" +
-            "§a已拥有: §e" + customCount + "/§e" + max + " (不含默认称号)\n" +
-            "§a点击称号可佩戴或删除（默认称号仅可佩戴）"
-        );
+        fm.setTitle(t('set_title_form'));
+        fm.setContent(t('set_title_content', current, customCount, max));
         owned.forEach(function(t) {
             fm.addButton((t === current ? "§b★ " : "") + t);
         });
@@ -248,10 +252,9 @@ function showSetTitleForm(player) {
             // 默认称号直接佩戴
             if (selected === '萌新' || selected === '无称号') {
                 setActiveTitle(p.xuid, selected);
-                p.tell("§e[称号] §a称号已设置为: §b" + selected);
+                p.tell(t('err_title_set', selected));
                 return;
             }
-            // 非默认称号：弹出佩戴/删除选择
             showTitleActionForm(p, selected);
         });
     } catch (e) {
@@ -265,16 +268,16 @@ function showTitleActionForm(player, titleName) {
     var isEquipped = (current === titleName);
     var fm = mc.newSimpleForm();
     fm.setTitle("§e" + titleName);
-    fm.setContent("§a当前称号: §b" + current);
-    fm.addButton((isEquipped ? "§b★ " : "§a") + "佩戴称号", "textures/ui/confirm");
-    fm.addButton("§c删除称号", "textures/ui/cancel");
-    fm.addButton("返回", "textures/ui/arrow_left");
+    fm.setContent(t('current_title', current));
+    fm.addButton((isEquipped ? "§b★ " : "§a") + t('btn_equip'), "textures/ui/confirm");
+    fm.addButton(t('btn_delete'), "textures/ui/cancel");
+    fm.addButton(t('btn_back'), "textures/ui/arrow_left");
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
         if (id === 2) { showSetTitleForm(p); return; }
         if (id === 0) {
             setActiveTitle(p.xuid, titleName);
-            p.tell("§e[称号] §a称号已设置为: §b" + titleName);
+            p.tell(t('err_title_set', titleName));
         } else if (id === 1) {
             showDeleteConfirmForm(p, titleName);
         }
@@ -284,16 +287,16 @@ function showTitleActionForm(player, titleName) {
 /** 删除称号二次确认 */
 function showDeleteConfirmForm(player, titleName) {
     var fm = mc.newSimpleForm();
-    fm.setTitle("§c确认删除");
-    fm.setContent("§c确定要删除称号「§b" + titleName + "§c」吗？\n§e删除后需要重新购买才能获得。");
-    fm.addButton("§a确认删除", "textures/ui/confirm");
-    fm.addButton("取消", "textures/ui/cancel");
+    fm.setTitle(t('confirm_delete_title'));
+    fm.setContent(t('confirm_delete_body', titleName));
+    fm.addButton(t('btn_confirm_delete'), "textures/ui/confirm");
+    fm.addButton(t('btn_cancel'), "textures/ui/cancel");
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
         if (id === 1) { showSetTitleForm(p); return; }
         if (id === 0) {
             removePlayerTitle(p.xuid, titleName);
-            p.tell("§e[称号] §a已删除称号: §b" + titleName);
+            p.tell(t('success_delete', titleName));
             showSetTitleForm(p);
         }
     });
@@ -351,20 +354,19 @@ function showBuyTitleForm(player) {
         var shopConfig = getTitleShopConfig();
         var shop = shopConfig.shop || [];
         var owned = getPlayerOwnedTitles(player.xuid);
-        var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '星茜';
+        var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : t('currency_fallback');
         var balance = 0;
         try { balance = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0; } catch (e) {}
 
-        // 过滤掉已拥有的称号
         var available = shop.filter(function(item) { return owned.indexOf(item.name) === -1; });
 
         var fm = mc.newSimpleForm();
-        fm.setTitle("§l§a购买称号");
-        fm.setContent("§a余额: §e" + balance + " " + currencyName + "\n选择预设称号或自定义称号");
+        fm.setTitle(t('buy_title_form'));
+        fm.setContent(t('buy_balance', balance, currencyName));
         available.forEach(function(item) {
             fm.addButton("§b" + item.name + " §e- " + item.cost + " " + currencyName);
         });
-        fm.addButton("§a✦ §l自定义称号 (§e" + shopConfig.perCharCost + " " + currencyName + "/字)");
+        fm.addButton(t('btn_custom_title', shopConfig.perCharCost, currencyName));
 
         player.sendForm(fm, function(p, id) {
             if (id === null) return;
@@ -391,36 +393,32 @@ function showBuyTitleForm(player) {
  * @param {string} type - 'preset' 或 'custom'
  */
 function showBuyConfirmForm(player, titleName, cost, type) {
-    var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '星茜';
+    var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : t('currency_fallback');
     var balance = 0;
     try { balance = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0; } catch (e) {}
 
-    // 重复购买检查
     var currentOwned = getPlayerOwnedTitles(player.xuid);
     if (currentOwned.indexOf(titleName) !== -1) {
-        player.tell("§e[称号] §c你已经拥有该称号！");
+        player.tell(t('err_already_owned'));
         return;
     }
 
-    // 称号上限检查
     var max = getMaxTitles();
-    var customCount = currentOwned.filter(function(t) { return t !== '萌新' && t !== '无称号'; }).length;
+    var customCount = currentOwned.filter(function(ti) { return ti !== '萌新' && ti !== '无称号'; }).length;
     if (customCount >= max) {
-        player.tell("§e[称号] §c称号数量已达上限（" + max + "个），请先删除不需要的称号");
+        player.tell(t('err_max_titles', max));
         return;
     }
 
     var insufficient = balance < cost;
     var fm = mc.newSimpleForm();
-    fm.setTitle("§e确认购买");
+    fm.setTitle(t('confirm_buy_title'));
     fm.setContent(
-        "§a称号: §b" + titleName + "\n" +
-        "§a费用: §e" + cost + " " + currencyName + "\n" +
-        "§a余额: §e" + balance + " " + currencyName + "\n\n" +
-        (insufficient ? "§c⚠ 余额不足！" : "§a确认购买？")
+        t('confirm_buy_body', titleName, cost, currencyName, balance, currencyName) +
+        (insufficient ? t('confirm_buy_no') : t('confirm_buy_yes'))
     );
-    fm.addButton("§a确认购买", "textures/ui/confirm");
-    fm.addButton("§c取消", "textures/ui/cancel");
+    fm.addButton(t('btn_confirm_buy'), "textures/ui/confirm");
+    fm.addButton("§c" + t('btn_cancel'), "textures/ui/cancel");
 
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
@@ -430,93 +428,80 @@ function showBuyConfirmForm(player, titleName, cost, type) {
         // 再次检查余额
         var bal = 0;
         try { bal = _deps.getPlayerMoney ? _deps.getPlayerMoney(p) : 0; } catch (e) {}
+        var cur = _deps.getCurrencyName ? _deps.getCurrencyName() : t('currency_fallback');
         if (bal < cost) {
-            p.tell("§e[称号] §c余额不足！需要 " + cost + " " + currencyName);
+            p.tell(t('err_insufficient', cost, cur));
             return;
         }
 
-        // 再次检查重复
         var owned = getPlayerOwnedTitles(p.xuid);
         if (owned.indexOf(titleName) !== -1) {
-            p.tell("§e[称号] §c你已经拥有该称号！");
+            p.tell(t('err_already_owned'));
             return;
         }
 
-        // 扣款
-        if (!_deps.reducePlayerMoney(p, cost, "购买称号: " + titleName)) {
-            p.tell("§e[称号] §c余额不足，无法购买称号");
+        if (!_deps.reducePlayerMoney(p, cost, t('reason_buy', titleName))) {
+            p.tell(t('err_insufficient_buy'));
             return;
         }
 
         addPlayerTitle(p.xuid, titleName);
         setActiveTitle(p.xuid, titleName);
-        p.tell("§e[称号] §a成功购买并设置称号: §b" + titleName);
+        p.tell(t('success_buy', titleName));
     });
 }
 
 /** 显示自定义称号输入表单 */
 function showCustomTitleForm(player) {
     var shopConfig = getTitleShopConfig();
-    var maxChars = shopConfig.maxChars || 10;
-    var perCharCost = shopConfig.perCharCost || 100;
-    var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '星茜';
+    var maxChars = shopConfig.maxChars !== undefined ? shopConfig.maxChars : 10;
+    var perCharCost = shopConfig.perCharCost !== undefined ? shopConfig.perCharCost : 100;
+    var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : t('currency_fallback');
 
     var fm = mc.newCustomForm();
-    fm.setTitle("§l§a自定义称号");
-    fm.addLabel(
-        "§a规则说明:\n" +
-        "- 最多 §e" + maxChars + " 个字符（不含颜色代码）\n" +
-        "- 每字 §e" + perCharCost + " " + currencyName + "\n" +
-        "- 支持颜色代码: §0黑色 §1深蓝色 §2深绿色 §3深青色 §4深红色 §5深紫色 §6金色 §8深灰色 §9蓝色 §a绿色 §b青色 §c红色 §d浅紫色 §e黄色 §f白色 §g金币色 §h石英色 §i铁色 §j下界合金色 §m红石色 §n铜色 §p金属金色 §q翡翠色 §s钻石色 §t青金石色 §u紫水晶色 §v树脂色\n" +
-        "- 不得包含违禁词\n" +
-        "- 不能与商店在售称号相同"
-    );
-    fm.addInput("称号内容", "输入称号，可用§加颜色代码", "");
+    fm.setTitle(t('custom_title_form'));
+    fm.addLabel(t('custom_rules', maxChars, perCharCost, currencyName));
+    fm.addInput(t('custom_input_label'), t('custom_input_placeholder'), "");
 
     player.sendForm(fm, function(p, data) {
         if (data == null) { showBuyTitleForm(p); return; }
 
         var input = (data[1] || '').trim();
         if (!input) {
-            p.tell("§e[称号] §c称号不能为空！");
+            p.tell(t('err_empty_title'));
             showCustomTitleForm(p);
             return;
         }
 
-        // 计算纯文本长度
         var plainLen = getPlainTextLength(input);
         if (plainLen === 0) {
-            p.tell("§e[称号] §c称号内容不能为空！");
+            p.tell(t('err_empty_content'));
             showCustomTitleForm(p);
             return;
         }
         if (plainLen > maxChars) {
-            p.tell("§e[称号] §c称号超过最大长度限制！当前 " + plainLen + " 字，上限 " + maxChars + " 字");
+            p.tell(t('err_too_long', plainLen, maxChars));
             showCustomTitleForm(p);
             return;
         }
 
-        // 违禁词检测
         if (isTitleForbidden(input)) {
-            p.tell("§e[称号] §c称号包含违禁词，请修改后重试");
+            p.tell(t('err_forbidden_word'));
             showCustomTitleForm(p);
             return;
         }
 
-        // 特殊保留称号检测
         if (isReservedTitle(input)) {
-            p.tell("§e[称号] §c该称号为保留称号或与商店在售称号重复，不可使用");
+            p.tell(t('err_reserved'));
             showCustomTitleForm(p);
             return;
         }
 
-        // 计算费用
         var cost = plainLen * perCharCost;
 
-        // 重复检查
         var owned = getPlayerOwnedTitles(p.xuid);
         if (owned.indexOf(input) !== -1) {
-            p.tell("§e[称号] §c你已经拥有该称号！");
+            p.tell(t('err_already_owned'));
             return;
         }
 
@@ -527,7 +512,7 @@ function showCustomTitleForm(player) {
 
 /** 注册 /titles 命令 */
 function registerTitleCommand(registerPlayerCommand) {
-    registerPlayerCommand("titles", "称号系统", function(p) { showTitleMainForm(p); });
+    registerPlayerCommand("titles", t('cmd_desc'), function(p) { showTitleMainForm(p); });
 }
 
 /**
@@ -542,8 +527,8 @@ function isBadWord(text) {
 
 // 聊天格式占位符映射表：{key} -> 对应的玩家信息获取函数
 const CHAT_PLACEHOLDER_MAP = {
-    dim: function(p) { return p.pos ? p.pos.dim : "未知"; },
-    os: function(p) { let d = p.getDevice(); const o = d ? d.os : "未知"; return o === "Win32" ? "GDK" : o; },
+    dim: function(p) { return p.pos ? p.pos.dim : t('unknown'); },
+    os: function(p) { let d = p.getDevice(); const o = d ? d.os : t('unknown'); return o === "Win32" ? "GDK" : o; },
     ping: function(p) { const d = p.getDevice(); return d ? d.avgPing : "N/A"; },
     org: function(p) { return resolveOrgName(p.xuid); },
     titles: function(p) { return getPlayerActiveTitle(p.xuid); },
@@ -730,7 +715,7 @@ function registerChatListener() {
         if (!getChatCfg().enabled) return true;
 
         if (isBadWord(msg)) {
-            pl.sendToast('§e消息拦截', '§f发送内容包含违规词语，已被系统过滤，请不要说脏话哦！');
+            pl.sendToast(t('intercept_title'), t('intercept_body'));
             return false;  // 阻止原始消息广播
         }
 
