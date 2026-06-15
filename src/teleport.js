@@ -577,6 +577,7 @@ function showTpaPendingRequests(player, deps) {
  */
 function cancelTpaRequest(player) {
 	let found = false;
+	const toDelete = [];
 	for (const reqId in teleportPendingRequests) {
 		const req = teleportPendingRequests[reqId];
 		if (req.fromXuid === player.xuid) {
@@ -584,9 +585,12 @@ function cancelTpaRequest(player) {
 			if (toPlayer) {
 				toPlayer.tell(t('tp.tag_prefix') + " §c" + player.name + " " + t('tp.cancel_tpa_notify'));
 			}
-			delete teleportPendingRequests[reqId];
+			toDelete.push(reqId);
 			found = true;
 		}
+	}
+	for (var i = 0; i < toDelete.length; i++) {
+		delete teleportPendingRequests[toDelete[i]];
 	}
 	if (found) {
 		player.tell(t('tp.tag_prefix') + " §a" + t('tp.cancelled_all'));
@@ -695,7 +699,7 @@ function showHomeMainForm(player, deps) {
 			showHomeDetailForm(p, homes[id], id, deps);
 		} else if (id >= ownHomeCount && id < ownHomeCount + sharedHomeCount) {
 			const sharedItem = sharedHomes[id - ownHomeCount];
-			teleportToHome(p, sharedItem.home);
+			teleportToHome(p, sharedItem.home, sharedItem.ownerXuid);
 		}
 	});
 }
@@ -821,7 +825,8 @@ function showHomeDetailForm(player, home, homeIndex, deps) {
  * @param {Player} player - 玩家
  * @param {object} home - 家园数据对象
  */
-function teleportToHome(player, home) {
+function teleportToHome(player, home, ownerXuid) {
+	var homeOwnerXuid = ownerXuid || player.xuid;
 	const cd = checkTeleportCooldown(player.xuid, 'home');
 	if (cd > 0) {
 		player.tell(t('tp.home_tag_prefix') + " §c" + t('tp.home_cooldown', cd));
@@ -830,7 +835,7 @@ function teleportToHome(player, home) {
 
 	if (safeTeleport(player, home.x, home.y, home.z, home.dim)) {
 		home.lastUse = Date.now();
-		markHomeDirty(player.xuid);
+		markHomeDirty(homeOwnerXuid);
 		saveHomesData();
 		setTeleportCooldown(player.xuid, 'home', getTpConfig().homeCooldown);
 		player.tell(t('tp.home_tag_prefix') + " §a" + t('tp.home_teleported', home.name));
