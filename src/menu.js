@@ -48,7 +48,7 @@ function loadConfig() {
         }
     }
     // 快捷菜单
-    quickMenuConfig = cfg.quickMenu || { items: [] };
+    quickMenuConfig = (cfg.menu && cfg.menu.quickMenu) || cfg.quickMenu || { items: [] };
     (quickMenuConfig.items || []).forEach(function(btn) {
         if (btn.name) btn.name = btn.name.replace(/星茜/g, cn);
     });
