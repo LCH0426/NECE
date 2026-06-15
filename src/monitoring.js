@@ -581,19 +581,17 @@ const WORLD_SIZE_POLL_INTERVAL = 3600000; // 世界大小每小时更新一次
 async function refreshStats() {
     const now = Date.now();
 
-    // CPU：采集，1秒缓存跳过
+    // CPU + 内存：采集，1秒缓存跳过
     if (now - lastOnDemandRefresh > ON_DEMAND_CACHE_TTL) {
-        try { await cpuPoll(); } catch (e) {}
+        await cpuPoll();
+        memPoll();
         lastOnDemandRefresh = now;
     }
 
-    // 内存：每次都采集（开销极小）
-    memPoll();
-
-    // 网络：异步采集，1秒节流
+    // 网络+磁盘：异步采集，1秒节流
     if (now - lastDiskNetworkPoll > DISK_NETWORK_POLL_INTERVAL) {
         lastDiskNetworkPoll = now;
-        await collectNetworkInfo().catch(function(e) {});
+        await Promise.all([collectNetworkInfo(), collectDiskInfo()]).catch(function(e) {});
     }
 
     // 世界大小：异步采集，1小时节流
