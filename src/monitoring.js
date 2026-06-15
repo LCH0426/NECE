@@ -558,24 +558,16 @@ function diskPoll() {
 }
 
 /**
- * 启动系统资源定时轮询
- * CPU每3秒采样、内存/磁盘每10秒、世界大小每12小时
+ * 启动系统资源采集，首次立即采集一次
+ * 之后由 refreshStats() 按需采集（API 请求触发）
  */
 function startPolling(interval) {
     stopPolling();
-
-    // 首次立即采集一次
+    // 首次采集一次，之后由 API 请求触发 refreshStats 按需采集
     cpuPoll();
     memPoll();
     diskPoll();
     updateWorldSize().catch(function(e) {});
-
-    cpuPollTimer = setInterval(cpuPoll, 3000);
-    memPollTimer = setInterval(memPoll, 10000);
-    diskPollTimer = setInterval(diskPoll, 3000);
-    worldSizePollTimer = setInterval(function() {
-        updateWorldSize().catch(function(e) {});
-    }, 43200000); // 12小时
 }
 
 /** 停止所有定时轮询 */
@@ -592,7 +584,7 @@ let lastOnDemandRefresh = 0;
 let lastDiskNetworkPoll = 0;
 let lastWorldSizePoll = 0;
 const ON_DEMAND_CACHE_TTL = 1000;       // CPU/内存缓存1秒
-const DISK_NETWORK_POLL_INTERVAL = 3000;  // 磁盘/网络采集间隔3秒
+const DISK_NETWORK_POLL_INTERVAL = 1000;  // 磁盘/网络采集间隔1秒
 const WORLD_SIZE_POLL_INTERVAL = 3600000; // 世界大小每小时更新一次
 
 /**

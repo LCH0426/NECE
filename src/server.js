@@ -848,8 +848,8 @@ function startServer(webConfig) {
         });
     }
 
-    // 按需监控：不再持续轮询，由 /system/stats 端点触发采集
-    monitoring.refreshStats().catch(function(e) {});
+    // 按需监控：由 /system/stats 端点触发采集
+    monitoring.refreshStats();
     monitoring.updateWorldSize().catch(function(e) {});
 
     // 启动限流记录定期清理
