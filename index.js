@@ -288,17 +288,7 @@ DataManager.prototype.save = function(immediate) {
 						dirtyXuids.forEach(function(xuid) {
 							const fd = frPlayers[xuid];
 							if (!fd) return;
-							database.clearFriendsSQL(xuid);
-							(fd.friends || []).forEach(function(f) {
-								database.addFriendSQL(xuid, f.xuid, f.name, f.addTime);
-							});
-							database.clearFriendRequestsSQL(xuid);
-							(fd.requests || []).forEach(function(r) {
-								database.addFriendRequestSQL(xuid, r.xuid, r.name, r.message, r.time, false);
-							});
-							(fd.sentRequests || []).forEach(function(r) {
-								database.addFriendRequestSQL(xuid, r.xuid, r.name, r.message, r.time, true);
-							});
+							database.setFriendsSQL(xuid, fd.friends || [], fd.requests || [], fd.sentRequests || []);
 						});
 						break;
 					case 'messages':
@@ -308,10 +298,7 @@ DataManager.prototype.save = function(immediate) {
 						dirtyMsg.forEach(function(xuid) {
 							var pd = msgPlayers[xuid];
 							if (!pd) return;
-							database.clearMessagesSQL(xuid);
-							(pd.messages || []).forEach(function(m) {
-								database.addMessageSQL(xuid, m);
-							});
+							database.setMessagesSQL(xuid, pd.messages || []);
 						});
 						break;
 					case 'homes':
@@ -705,9 +692,7 @@ function initRankConfig() {
 		"enableFrontend": true,
 		"port": 8080,
 		"host": "0.0.0.0",
-		"jwtSecret": "NECE_Default_Secret_Change_Me",
 		"jwtExpire": "15m",
-		"jwtRefreshSecret": "NECE_Default_Refresh_Secret_Change_Me",
 		"jwtRefreshExpire": "7d",
 		"trustProxy": false,
 		"proxyProtocol": false
@@ -1004,7 +989,9 @@ function initAllConfigs() {
 		getPlayerAvatarUrl: friendModule.getPlayerAvatarUrl,
 		getPlayerSetting: getPlayerSetting,
 		showPersonalCenterForm: personalCenter.showPersonalCenterForm,
-		mailApi: mailModule
+		mailApi: mailModule,
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
 	debugLog('banModule.init: 封禁模块初始化完成');
 	banModule.init(banDM, {
@@ -1084,7 +1071,9 @@ function initAllConfigs() {
 		getPlayerData: function() { return playerData; },
 		mailApi: mailModule,
 		chatModule: chatModule,
-		notifyEconomyChange: notifyEconomyChange
+		notifyEconomyChange: notifyEconomyChange,
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
 
 	// ============ 依赖注入与模块创建 ============
@@ -1099,6 +1088,9 @@ function initAllConfigs() {
 		getCurrencyName: getCurrencyName,     // () => string — 获取货币名称
 		notifyEconomyChange: notifyEconomyChange, // (Player, number, string?) => void — 发送余额变动通知
 		money: money,                         // LLMoney API: get(xuid)/add(xuid,n)/reduce(xuid,n)
+		// i18n
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; },
 		// 玩家数据
 		playerData: playerData,               // 内存中的玩家数据对象 { players: {}, nextUid: number }
 		savePlayerDataNow: savePlayerDataNow, // () => void — 立即保存所有玩家数据（关服用）
@@ -1115,11 +1107,13 @@ function initAllConfigs() {
 		openMainMenu: personalCenter.openMainMenu, // (Player) => void — 打开主菜单
 		// 配置
 		getConfig: function() { return config.get('teleport'); },
+		debugMode: function() { return config.get('debug'); },
 		// 数据库
 		database: database
 	};
 
 	teleportModule.init(homesDM, warpsDM, commonDeps);
+	shopModule.init(commonDeps);
 
 	// 初始化VIP模块
 	vipModule.init({
@@ -1149,7 +1143,9 @@ function initAllConfigs() {
 			vipModule: vipModule,
 			showPersonalCenterForm: personalCenter.showPersonalCenterForm,
 			getPlayerData: function() { return playerData; },
-			getPlayerSetting: getPlayerSetting
+			getPlayerSetting: getPlayerSetting,
+			t: i18n.t,
+			getSystemLanguage: function() { return config.language || 'zh_CN'; }
 		});
 	}
 	commonDeps.wishModule = wishModule;
@@ -1167,7 +1163,9 @@ function initAllConfigs() {
 	let rankModule = rankModuleCreator.create({
 		playerData: playerData,
 		getCurrencyName: getCurrencyName,
-		getMoneyByXuid: getPlayerMoneyByXuid
+		getMoneyByXuid: getPlayerMoneyByXuid,
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
 	commonDeps.rankModule = rankModule;
 
@@ -1206,7 +1204,8 @@ function initAllConfigs() {
 		commonDeps: commonDeps,
 		getSupportedLocales: i18n.getSupportedLocales,
 		loadLocale: i18n.loadLocale,
-		t: i18n.t
+		t: i18n.t,
+		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
 	personalCenter.setLevelUpExp(levelUpExp);
 	personalCenter.installPrototypeExtensions();
@@ -1690,7 +1689,7 @@ mc.listen("onServerStarted", async () => {
 	}
 	banModule.registerConsoleCommands();
 	banModule.registerGameCommands();
-	sidebarModule.init({ getConfig: function() { return config._data || {}; }, money: money, getCurrencyName: getCurrencyName, getPlayerSetting: getPlayerSetting, tpsData: tpsData });
+	sidebarModule.init({ getConfig: function() { return config._data || {}; }, money: money, getCurrencyName: getCurrencyName, getPlayerSetting: getPlayerSetting, tpsData: tpsData, t: i18n.t, getSystemLanguage: function() { return config.language || 'zh_CN'; } });
 	menuModule.registerCommands(registerPlayerCommand);
 	menuModule.registerCompassListener();
 	menuModule.registerClockListener();

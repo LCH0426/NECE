@@ -22,8 +22,9 @@
 
 const fs = require('fs');
 const U = require('./utils');
+const i18n = require('./i18n');
 
-let _currencyNameCache = null; // 货币名称缓存，避免重复读取配置
+let _currencyNameCache = null;
 let _deps = {};
 
 /** 初始化经济模块 */
@@ -31,7 +32,7 @@ function init(deps) {
     _currencyNameCache = null;
     _deps = deps;
 
-    // 每5分钟清理超过10分钟的转账去重记录，防止内存泄漏
+    // 每5分钟清理超过10分钟的转账去重记录
     setInterval(function() {
         var now = Date.now();
         for (var xuid in _recentTransfers) {
@@ -57,10 +58,24 @@ function getSystemLang() {
     return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
 }
 
+/**
+ * 本地翻译包装
+ * @param {string} key - 翻译键
+ * @param {...any} args - 替换参数
+ * @returns {string}
+ */
+function t(key) {
+    var lang = getSystemLang();
+    var args = [lang, key];
+    for (var i = 1; i < arguments.length; i++) {
+        args.push(arguments[i]);
+    }
+    return i18n.t.apply(null, args);
+}
+
 /** 获取货币名称 */
 function getCurrencyName() {
     if (_currencyNameCache !== null) return _currencyNameCache;
-    // 从语言文件的 _meta.currencyName 读取
     try {
         var langData = _deps.loadLocale ? _deps.loadLocale(getSystemLang()) : null;
         if (langData && langData._meta && langData._meta.currencyName) {
@@ -68,28 +83,28 @@ function getCurrencyName() {
             return _currencyNameCache;
         }
     } catch (e) {}
-    _currencyNameCache = "星茜";
+    _currencyNameCache = t('economy.currency_fallback');
     return _currencyNameCache;
 }
 
 /**
- * 向玩家发送货币变动通知（toast形式）
+ * 向玩家发送货币变动通知
  * @param {object} player - 目标玩家
- * @param {number} amount - 变动金额（正数为收入，负数为支出）
+ * @param {number} amount - 变动金额
  * @param {string} source - 变动来源描述
  */
 function notifyEconomyChange(player, amount, source) {
     try {
         const sign = amount >= 0 ? "+" : "";
         const line1 = sign + amount + getCurrencyName();
-        const line2 = source || "其他";
+        const line2 = source || t('economy.other');
         player.sendToast(line2, line1);
     } catch (e) { /* player可能已离线 */ }
 }
 
 /**
- * 获取玩家余额，包含完整的类型校验和异常处理
- * @param {object} player - 玩家对象（需包含xuid）
+ * 获取玩家余额
+ * @param {object} player - 玩家对象
  * @returns {number} 玩家余额，异常时返回0
  */
 function getPlayerMoney(player) {
@@ -129,8 +144,8 @@ function getPlayerMoney(player) {
 /**
  * 扣除玩家货币
  * @param {object} player - 玩家对象
- * @param {number} value - 扣除金额（自动取整）
- * @param {string} reason - 扣费原因（必填，用于日志和通知）
+ * @param {number} value - 扣除金额
+ * @param {string} reason - 扣费原因
  * @returns {boolean} 是否扣费成功
  */
 function reducePlayerMoney(player, value, reason) {
@@ -167,17 +182,15 @@ function reducePlayerMoney(player, value, reason) {
         if (_deps.getDebug && _deps.getDebug()) logger.info('减少货币后余额：' + afterMoney);
 
         if (success) {
-            // 统一日志
             writeEconomyLog({
                 action: 'reduce',
                 player: player.name || '',
                 xuid: xuid,
                 amount: intValue,
                 balance: afterMoney,
-                reason: reason || '系统扣费'
+                reason: reason || t('economy.reason_system_deduct')
             });
-            // 统一通知
-            notifyEconomyChange(player, -intValue, reason || '系统扣费');
+            notifyEconomyChange(player, -intValue, reason || t('economy.reason_system_deduct'));
             return true;
         } else {
             logger.error('减少玩家 ' + player.name + ' 货币失败！');
@@ -193,11 +206,10 @@ function reducePlayerMoney(player, value, reason) {
 }
 
 /**
- * 增加玩家货币（统一收入接口）
- * 自动写入经济日志 + 发送变动通知
+ * 增加玩家货币
  * @param {object} player - 玩家对象
- * @param {number} value - 增加金额（自动取整）
- * @param {string} reason - 收入原因（必填，用于日志和通知）
+ * @param {number} value - 增加金额
+ * @param {string} reason - 收入原因
  * @returns {boolean} 是否操作成功
  */
 function addPlayerMoney(player, value, reason) {
@@ -232,9 +244,9 @@ function addPlayerMoney(player, value, reason) {
                 xuid: xuid,
                 amount: intValue,
                 balance: afterMoney,
-                reason: reason || '系统收入'
+                reason: reason || t('economy.reason_system_income')
             });
-            notifyEconomyChange(player, intValue, reason || '系统收入');
+            notifyEconomyChange(player, intValue, reason || t('economy.reason_system_income'));
             return true;
         } else {
             logger.error('增加玩家 ' + player.name + ' 货币失败！');
@@ -250,7 +262,7 @@ function addPlayerMoney(player, value, reason) {
 }
 
 /**
- * 通过XUID获取余额（轻量版，不含日志和玩家对象，适用于离线查询）
+ * 通过XUID获取余额
  * @param {string} xuid - 玩家XUID
  * @returns {number} 余额，异常时返回0
  */
@@ -268,7 +280,7 @@ function getPlayerMoneyByXuid(xuid) {
 }
 
 /**
- * 通过XUID增加货币（玩家在线时自动发送通知）
+ * 通过XUID增加货币
  * @param {string} xuid - 玩家XUID
  * @param {number} value - 增加金额
  * @param {string} source - 收入来源描述
@@ -284,7 +296,7 @@ function addPlayerMoneyByXuid(xuid, value, source) {
         if (success) {
             const player = mc.getPlayer(xuid);
             if (player) {
-                notifyEconomyChange(player, intValue, source || "系统收入");
+                notifyEconomyChange(player, intValue, source || t('economy.reason_system_income'));
             }
         }
         return success;
@@ -294,7 +306,7 @@ function addPlayerMoneyByXuid(xuid, value, source) {
 }
 
 /**
- * 通过XUID减少货币（玩家在线时自动发送通知）
+ * 通过XUID减少货币
  * @param {string} xuid - 玩家XUID
  * @param {number} value - 扣除金额
  * @param {string} source - 扣费来源描述
@@ -310,7 +322,7 @@ function reducePlayerMoneyByXuid(xuid, value, source) {
         if (success) {
             const player = mc.getPlayer(xuid);
             if (player) {
-                notifyEconomyChange(player, -intValue, source || '系统扣费');
+                notifyEconomyChange(player, -intValue, source || t('economy.reason_system_deduct'));
             }
         }
         return success;
@@ -319,12 +331,12 @@ function reducePlayerMoneyByXuid(xuid, value, source) {
     }
 }
 
-// ============ 转账系统 (原 src/pay.js) ============
+// ============ 转账系统 ============
 
 
 /**
- * 写入统一经济日志（JSONL 格式，按日期分文件）
- * @param {object} entry - 日志条目 { action, player?, target?, amount?, balance?, item?, count?, price?, detail? }
+ * 写入统一经济日志
+ * @param {object} entry - 日志条目
  */
 function writeEconomyLog(entry) {
     try {
@@ -353,7 +365,7 @@ function writeEconomyLog(entry) {
 }
 
 /**
- * 写入转账日志（兼容旧接口，内部调用 writeEconomyLog）
+ * 写入转账日志
  */
 function _writeTransferLog(senderName, targetName, amount, senderBalance, targetBalance) {
     writeEconomyLog({
@@ -362,18 +374,18 @@ function _writeTransferLog(senderName, targetName, amount, senderBalance, target
         target: targetName,
         amount: amount,
         balance: senderBalance,
-        detail: '对方余额 ' + targetBalance
+        detail: t('economy.log_target_balance', targetBalance)
     });
 }
 
 /** 显示经济系统主界面 */
 function showMoneyMainForm(player) {
     let fm = mc.newSimpleForm();
-    fm.setTitle("经济系统");
+    fm.setTitle(t('economy.main_title'));
     let balance = getPlayerMoney(player);
-    fm.setContent("当前余额: " + balance + " " + getCurrencyName());
-    fm.addButton("转账", "textures/ui/icon_recipe_equipment");
-    fm.addButton("关闭", "textures/ui/cancel");
+    fm.setContent(t('economy.main_content', balance, getCurrencyName()));
+    fm.addButton(t('economy.main_btn_transfer'), "textures/ui/icon_recipe_equipment");
+    fm.addButton(t('economy.btn_close'), "textures/ui/cancel");
     player.sendForm(fm, function(p, id) {
         if (id === null || id === 1) return;
         if (id === 0) showTransferTypeForm(p);
@@ -383,12 +395,12 @@ function showMoneyMainForm(player) {
 /** 显示经济面板 */
 function showEconomyPanel(player) {
     let fm = mc.newSimpleForm();
-    fm.setTitle("§l§e经济面板");
+    fm.setTitle(t('economy.panel_title'));
     let balance = getPlayerMoney(player);
-    fm.setContent("§a余额: §e" + balance + " " + getCurrencyName());
-    fm.addButton("§a转账", "textures/ui/icon_recipe_equipment");
-    fm.addButton("§b查看账单", "textures/ui/icon_book_writable");
-    fm.addButton("关闭", "textures/ui/cancel");
+    fm.setContent(t('economy.panel_balance', balance, getCurrencyName()));
+    fm.addButton(t('economy.panel_btn_transfer'), "textures/ui/icon_recipe_equipment");
+    fm.addButton(t('economy.panel_btn_bill'), "textures/ui/icon_book_writable");
+    fm.addButton(t('economy.btn_close'), "textures/ui/cancel");
     player.sendForm(fm, function(p, id) {
         if (id === null || id === 2) return;
         if (id === 0) showTransferTypeForm(p);
@@ -399,11 +411,11 @@ function showEconomyPanel(player) {
 /** 显示转账对象类型选择 */
 function showTransferTypeForm(player) {
     let fm = mc.newSimpleForm();
-    fm.setTitle("转账");
-    fm.setContent("选择转账对象类型");
-    fm.addButton("在线玩家", "textures/ui/online");
-    fm.addButton("离线玩家", "textures/ui/offline");
-    fm.addButton("返回", "textures/ui/recap_glyph_desaturated");
+    fm.setTitle(t('economy.transfer_title'));
+    fm.setContent(t('economy.transfer_select_type'));
+    fm.addButton(t('economy.transfer_online'), "textures/ui/online");
+    fm.addButton(t('economy.transfer_offline'), "textures/ui/offline");
+    fm.addButton(t('economy.btn_back'), "textures/ui/recap_glyph_desaturated");
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
         if (id === 2) { showEconomyPanel(p); return; }
@@ -422,40 +434,40 @@ function showTransferOnlineForm(player) {
         }
     });
     if (names.length === 0) {
-        player.sendModalForm("转账", "当前没有其他在线玩家", "返回", "关闭", function(pl, ok) {
+        player.sendModalForm(t('economy.transfer_title'), t('economy.transfer_no_other_online'), t('economy.btn_back'), t('economy.btn_close'), function(pl, ok) {
             if (ok === true) showTransferTypeForm(pl);
         });
         return;
     }
     let fm = mc.newCustomForm();
-    fm.setTitle("转账给在线玩家");
-    fm.addDropdown("选择玩家", names, 0);
-    fm.addInput("输入转账金额", "正整数", "");
+    fm.setTitle(t('economy.transfer_to_online_title'));
+    fm.addDropdown(t('economy.transfer_select_player'), names, 0);
+    fm.addInput(t('economy.transfer_input_amount'), t('economy.transfer_input_placeholder'), "");
     player.sendForm(fm, function(p, data) {
         if (data == null || !Array.isArray(data)) return;
         const targetName = names[data[0]];
         let amountStr = (data[1] || "").trim();
         if (!amountStr || !U.isInteger(amountStr) || Number(amountStr) <= 0) {
-            p.tell("§e[经济] 请输入有效的转账金额");
+            p.tell(t('economy.transfer_invalid_amount'));
             showTransferOnlineForm(p);
             return;
         }
         let amount = Number(amountStr);
         let balance = getPlayerMoney(p);
         if (balance < amount) {
-            p.sendModalForm("余额不足", "需要 " + amount + " " + getCurrencyName() + "\n当前余额 " + balance + " " + getCurrencyName(), "返回重新选择", "关闭", function(pl, ok) {
+            p.sendModalForm(t('economy.transfer_insufficient_title'), t('economy.transfer_insufficient_body', amount, getCurrencyName(), balance, getCurrencyName()), t('economy.transfer_btn_reselect'), t('economy.btn_close'), function(pl, ok) {
                 if (ok === true) showTransferOnlineForm(pl);
             });
             return;
         }
         let target = mc.getPlayer(targetName);
         if (!target) {
-            p.sendModalForm("转账失败", "玩家已下线", "返回", "关闭", function(pl, ok) {
+            p.sendModalForm(t('economy.transfer_failed_title'), t('economy.transfer_player_offline'), t('economy.btn_back'), t('economy.btn_close'), function(pl, ok) {
                 if (ok === true) showTransferTypeForm(pl);
             });
             return;
         }
-        p.sendModalForm("确认转账", "转账给 " + targetName + "\n金额 " + amount + " " + getCurrencyName(), "确认转账", "取消", function(pl, ok) {
+        p.sendModalForm(t('economy.transfer_confirm_title'), t('economy.transfer_confirm_body', targetName, amount, getCurrencyName()), t('economy.transfer_btn_confirm'), t('economy.transfer_btn_cancel'), function(pl, ok) {
             if (!ok) return;
             _executeTransfer(pl, targetName, target.xuid, amount);
         });
@@ -465,18 +477,17 @@ function showTransferOnlineForm(player) {
 /** 显示离线玩家转账表单 */
 function showTransferOfflineForm(player) {
     let fm = mc.newCustomForm();
-    fm.setTitle("转账给离线玩家");
-    fm.addInput("输入玩家名称或UID", "", "");
+    fm.setTitle(t('economy.transfer_to_offline_title'));
+    fm.addInput(t('economy.transfer_input_name_uid'), "", "");
     player.sendForm(fm, function(p, data) {
         if (data == null || !Array.isArray(data)) return;
         const keyword = (data[0] || "").trim();
         if (!keyword) {
-            p.tell("§e[经济] 请输入搜索内容");
+            p.tell(t('economy.transfer_input_search_hint'));
             showTransferOfflineForm(p);
             return;
         }
         const results = [];
-        // 从玩家数据中模糊搜索名称和UID
         const players = _deps.getPlayerData ? (_deps.getPlayerData().players || {}) : {};
         Object.keys(players).forEach(function(xuid) {
             const info = players[xuid];
@@ -494,17 +505,17 @@ function showTransferOfflineForm(player) {
 /** 显示离线玩家搜索结果列表 */
 function _showTransferOfflineResultsForm(player, results, keyword) {
     let fm = mc.newSimpleForm();
-    fm.setTitle("搜索结果");
+    fm.setTitle(t('economy.transfer_search_title'));
     if (results.length === 0) {
-        fm.setContent("未找到匹配 \"" + keyword + "\" 的玩家");
+        fm.setContent(t('economy.transfer_no_match', keyword));
     } else {
-        fm.setContent("找到 " + results.length + " 个匹配结果\n点击选择转账对象");
+        fm.setContent(t('economy.transfer_match_results', results.length));
         results.forEach(function(r) {
             const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(r.xuid) : "textures/ui/icon_steve";
             fm.addButton(r.name + "\nUID: " + r.uid, avatarUrl);
         });
     }
-    fm.addButton("返回", "textures/ui/recap_glyph_desaturated");
+    fm.addButton(t('economy.btn_back'), "textures/ui/recap_glyph_desaturated");
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
         if (id >= results.length) {
@@ -519,26 +530,26 @@ function _showTransferOfflineResultsForm(player, results, keyword) {
 /** 显示离线玩家转账金额输入表单 */
 function _showTransferOfflineAmountForm(player, target) {
     const fm = mc.newCustomForm();
-    fm.setTitle("转账给 " + target.name);
-    fm.addLabel("目标: " + target.name + " (UID: " + target.uid + ")");
-    fm.addInput("输入转账金额", "正整数", "");
+    fm.setTitle(t('economy.transfer_to_name_title', target.name));
+    fm.addLabel(t('economy.transfer_target_label', target.name, target.uid));
+    fm.addInput(t('economy.transfer_input_amount'), t('economy.transfer_input_placeholder'), "");
     player.sendForm(fm, function(p, data) {
         if (data == null || !Array.isArray(data)) return;
         const amountStr = (data[1] || "").trim();
         if (!amountStr || !U.isInteger(amountStr) || Number(amountStr) <= 0) {
-            p.tell("§e[经济] 请输入有效的转账金额");
+            p.tell(t('economy.transfer_invalid_amount'));
             _showTransferOfflineAmountForm(p, target);
             return;
         }
         const amount = Number(amountStr);
         const balance = getPlayerMoney(p);
         if (balance < amount) {
-            p.sendModalForm("余额不足", "需要 " + amount + " " + getCurrencyName() + "\n当前余额 " + balance + " " + getCurrencyName(), "返回重新选择", "关闭", function(pl, ok) {
+            p.sendModalForm(t('economy.transfer_insufficient_title'), t('economy.transfer_insufficient_body', amount, getCurrencyName(), balance, getCurrencyName()), t('economy.transfer_btn_reselect'), t('economy.btn_close'), function(pl, ok) {
                 if (ok === true) _showTransferOfflineAmountForm(pl, target);
             });
             return;
         }
-        p.sendModalForm("确认转账", "转账给 " + target.name + "\n金额 " + amount + " " + getCurrencyName(), "确认转账", "取消", function(pl, ok) {
+        p.sendModalForm(t('economy.transfer_confirm_title'), t('economy.transfer_confirm_body', target.name, amount, getCurrencyName()), t('economy.transfer_btn_confirm'), t('economy.transfer_btn_cancel'), function(pl, ok) {
             if (!ok) return;
             _executeTransfer(pl, target.name, target.xuid, amount);
         });
@@ -546,39 +557,35 @@ function _showTransferOfflineAmountForm(player, target) {
 }
 
 /**
- * 执行转账核心逻辑：扣除发送者余额，增加接收者余额
- * 接收者在线则直接到账，离线则存入待领取队列
- * 内置去重机制，3秒内相同发送者+接收者+金额的转账会被拒绝
+ * 执行转账核心逻辑
  */
-const _recentTransfers = {};  // { senderXuid: { key: timestamp }
+const _recentTransfers = {};
 function _executeTransfer(sender, targetName, targetXuid, amount) {
-    // 去重：防止双击重复转账
     const transferKey = targetXuid + ':' + amount;
     const now = Date.now();
     const senderRecent = _recentTransfers[sender.xuid];
     if (senderRecent && senderRecent[transferKey] && now - senderRecent[transferKey] < 3000) {
-        sender.tell("§e[经济] 请勿重复转账，请稍后再试");
+        sender.tell(t('economy.transfer_duplicate'));
         return;
     }
     if (!senderRecent) _recentTransfers[sender.xuid] = {};
     _recentTransfers[sender.xuid][transferKey] = now;
-    if (!reducePlayerMoney(sender, amount, "转账给" + targetName)) {
-        sender.tell("§e[经济] 扣费失败，转账取消");
+    if (!reducePlayerMoney(sender, amount, t('economy.reason_transfer_to', targetName))) {
+        sender.tell(t('economy.transfer_deduct_failed'));
         return;
     }
     const targetPlayer = mc.getPlayer(targetXuid);
     if (targetPlayer) {
-        addPlayerMoney(targetPlayer, amount, "来自" + sender.realName + "的转账");
+        addPlayerMoney(targetPlayer, amount, t('economy.reason_transfer_from', sender.realName));
     } else {
-        // 接收者离线，暂存到数据库
         _deps.database.addPendingTransferSQL(targetXuid, sender.realName, sender.xuid, amount, new Date().toLocaleString());
         addPlayerMoneyByXuid(targetXuid, amount);
     }
     const senderBalance = getPlayerMoney(sender);
     const targetBalance = getPlayerMoneyByXuid(targetXuid);
     _writeTransferLog(sender.realName, targetName, amount, senderBalance, targetBalance);
-    sender.tell("§e[经济] 转账成功 向" + targetName + "转账" + amount + getCurrencyName() + " 余额" + senderBalance + getCurrencyName());
-    sender.sendModalForm("转账成功", "向" + targetName + "转账 " + amount + " " + getCurrencyName() + "\n余额 " + senderBalance + " " + getCurrencyName(), "继续转账", "关闭", function(pl, ok) {
+    sender.tell(t('economy.transfer_success_tell', targetName, amount, getCurrencyName(), senderBalance, getCurrencyName()));
+    sender.sendModalForm(t('economy.transfer_success_title'), t('economy.transfer_success_body', targetName, amount, getCurrencyName(), senderBalance, getCurrencyName()), t('economy.transfer_btn_continue'), t('economy.btn_close'), function(pl, ok) {
         if (ok === true) showTransferTypeForm(pl);
     });
 }
@@ -589,10 +596,10 @@ function checkPendingTransfers(player) {
     const xuid = player.xuid;
     const transfers = _deps.database.getPendingTransfersSQL(xuid);
     if (transfers.length === 0) return;
-    transfers.forEach(function(t) {
-        player.tell("§e[经济] 您在离线期间收到了一笔来自" + t.from + "的转账 数额为" + t.amount + getCurrencyName());
-        addPlayerMoney(player, t.amount, "来自" + t.from + "的转账");
-        notifyEconomyChange(player, t.amount, "来自" + t.from + "的转账");
+    transfers.forEach(function(tr) {
+        player.tell(t('economy.transfer_pending_notify', tr.from, tr.amount, getCurrencyName()));
+        addPlayerMoney(player, tr.amount, t('economy.reason_transfer_from', tr.from));
+        notifyEconomyChange(player, tr.amount, t('economy.reason_transfer_from', tr.from));
     });
     _deps.database.clearPendingTransfersSQL(xuid);
 }
@@ -601,9 +608,9 @@ function checkPendingTransfers(player) {
  * 统一账单确认弹窗
  * @param {Player} player - 玩家对象
  * @param {number} cost - 消费金额
- * @param {string} reason - 操作原因（必填，用于日志和通知）
- * @param {Function} onConfirm - 确认后的回调 (player) => void
- * @param {Function} [onCancel] - 取消后的回调 (player) => void
+ * @param {string} reason - 操作原因
+ * @param {Function} onConfirm - 确认后的回调
+ * @param {Function} [onCancel] - 取消后的回调
  */
 function confirmPurchase(player, cost, reason, onConfirm, onCancel) {
     var currencyName = getCurrencyName();
@@ -611,29 +618,29 @@ function confirmPurchase(player, cost, reason, onConfirm, onCancel) {
 
     if (balance < cost) {
         var fm = mc.newSimpleForm();
-        fm.setTitle("§c余额不足");
+        fm.setTitle(t('economy.bill_insufficient_title'));
         fm.setContent(
-            "§a操作: §f" + (reason || "未知操作") + "\n" +
-            "§a需要: §e" + cost + " " + currencyName + "\n" +
-            "§a当前余额: §e" + balance + " " + currencyName + "\n\n" +
-            "§c余额不足，无法完成操作"
+            t('economy.bill_op_label', reason || t('economy.bill_unknown_op')) + "\n" +
+            t('economy.bill_need_label', cost, currencyName) + "\n" +
+            t('economy.bill_balance_label', balance, currencyName) + "\n\n" +
+            t('economy.bill_insufficient_msg')
         );
-        fm.addButton("关闭");
+        fm.addButton(t('economy.btn_close'));
         player.sendForm(fm, function(p) { if (onCancel) onCancel(p); });
         return;
     }
 
     var remaining = balance - cost;
     var fm = mc.newSimpleForm();
-    fm.setTitle("§e确认账单");
+    fm.setTitle(t('economy.bill_confirm_title'));
     fm.setContent(
-        "§a操作: §f" + (reason || "未知操作") + "\n" +
-        "§a需要: §e" + cost + " " + currencyName + "\n" +
-        "§a您当前拥有: §e" + balance + " " + currencyName + "\n" +
-        "§a完成后还剩: §e" + remaining + " " + currencyName
+        t('economy.bill_op_label', reason || t('economy.bill_unknown_op')) + "\n" +
+        t('economy.bill_need_label', cost, currencyName) + "\n" +
+        t('economy.bill_own_label', balance, currencyName) + "\n" +
+        t('economy.bill_remaining_label', remaining, currencyName)
     );
-    fm.addButton("§a确认");
-    fm.addButton("§c取消");
+    fm.addButton(t('economy.btn_confirm'));
+    fm.addButton(t('economy.btn_cancel'));
     player.sendForm(fm, function(p, id) {
         if (id === null || id === 1) {
             if (onCancel) onCancel(p);
@@ -644,9 +651,9 @@ function confirmPurchase(player, cost, reason, onConfirm, onCancel) {
 }
 
 /**
- * 读取指定玩家的经济日志（从 JSONL 文件）
+ * 读取指定玩家的经济日志
  * @param {string} playerName - 玩家名称
- * @param {number} page - 页码（从1开始）
+ * @param {number} page - 页码
  * @param {number} pageSize - 每页条数
  * @returns {{ logs: Array, total: number, page: number, totalPages: number }}
  */
@@ -659,7 +666,7 @@ function readEconomyLog(playerName, page, pageSize) {
         var files = fs.readdirSync(logDir)
             .filter(function(f) { return f.endsWith('.jsonl'); })
             .sort().reverse()
-            .slice(0, 7); // 最多读7天
+            .slice(0, 7);
         var allLogs = [];
         files.forEach(function(f) {
             try {
@@ -688,7 +695,7 @@ function readEconomyLog(playerName, page, pageSize) {
 }
 
 /**
- * 显示玩家经济日志表单（/pay 命令调用）
+ * 显示玩家经济日志表单
  * @param {Player} player - 玩家对象
  * @param {number} page - 页码
  */
@@ -698,25 +705,25 @@ function showEconomyLogForm(player, page) {
     var currencyName = getCurrencyName();
     var balance = getPlayerMoney(player);
 
-    var content = "§a余额: §e" + balance + " " + currencyName + "\n";
-    content += "第 " + result.page + "/" + result.totalPages + " 页，共 " + result.total + " 条记录\n\n";
+    var content = t('economy.log_balance', balance, currencyName) + "\n";
+    content += t('economy.log_page_info', result.page, result.totalPages, result.total) + "\n\n";
 
     if (result.logs.length === 0) {
-        content += "暂无经济操作记录";
+        content += t('economy.log_no_records');
     } else {
         result.logs.forEach(function(log, i) {
             var actionIcon = log.action === 'reduce' ? '§c-' : '§a+';
-            var actionText = log.action === 'reduce' ? '支出' : '收入';
+            var actionText = log.action === 'reduce' ? t('economy.log_expense') : t('economy.log_income');
             content += actionIcon + log.amount + " " + actionText + " §f" + (log.reason || '') + " §8" + (log.time || '') + "\n";
         });
     }
 
     var fm = mc.newSimpleForm();
-    fm.setTitle("§l§e经济账单");
+    fm.setTitle(t('economy.log_title'));
     fm.setContent(content);
-    if (page > 1) fm.addButton("§a上一页");
-    if (page < result.totalPages) fm.addButton("§a下一页");
-    fm.addButton("关闭");
+    if (page > 1) fm.addButton(t('economy.btn_prev_page'));
+    if (page < result.totalPages) fm.addButton(t('economy.btn_next_page'));
+    fm.addButton(t('economy.btn_close'));
 
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
@@ -729,7 +736,6 @@ function showEconomyLogForm(player, page) {
             if (id === btnIdx) { showEconomyLogForm(p, page + 1); return; }
             btnIdx++;
         }
-        // 关闭按钮
         if (id === btnIdx) return;
     });
 }

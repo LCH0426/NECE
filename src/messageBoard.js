@@ -24,7 +24,15 @@
 
 const U = require('./utils');
 
-const MOOD_OPTIONS = ['开心', '难过', '平静', '兴奋', '生气'];
+const MOOD_VALUES = ['开心', '难过', '平静', '兴奋', '生气'];
+function getMoodOptions() {
+    if (!t) return MOOD_VALUES;
+    var lang = getSystemLang();
+    return MOOD_VALUES.map(function(v, i) {
+        var keys = ['mood_happy', 'mood_sad', 'mood_calm', 'mood_excited', 'mood_angry'];
+        return t(lang, 'mb.' + keys[i]);
+    });
+}
 const D = require('./debug');
 
 let messageBoardDM = null;
@@ -58,7 +66,7 @@ function init(dm, deps) {
             needFix = true;
         }
         if (!msg.mood) {
-            msg.mood = '平静';
+            msg.mood = MOOD_VALUES[2];
             needFix = true;
         }
     });
@@ -145,7 +153,7 @@ function createAddMessageForm(player) {
     let fm = mc.newCustomForm();
     fm.setTitle(t(lang, 'mb.add_title'));
     fm.addInput(t(lang, 'mb.add_content_label'), "string", "");
-    fm.addDropdown(t(lang, 'mb.mood_label'), MOOD_OPTIONS, 0);
+    fm.addDropdown(t(lang, 'mb.mood_label'), getMoodOptions(), 0);
 
     player.sendForm(fm, function(pl, data) {
         if (data == null || !Array.isArray(data)) {
@@ -166,7 +174,7 @@ function createAddMessageForm(player) {
             xuid: pl.xuid,
             playerName: pl.realName,
             msg: msg,
-            mood: MOOD_OPTIONS[moodIndex],
+            mood: MOOD_VALUES[moodIndex],
             time: U.getCurrentTimeString(),
             client: client,
             isDeleted: false

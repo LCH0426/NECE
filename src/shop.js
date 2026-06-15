@@ -25,7 +25,24 @@ const fs = require('fs');
 const U = require('./utils');
 const economyModule = require('./economy');
 
-const RECYCLE_PAGE_SIZE = 10; // 回收物品列表每页显示数量
+const RECYCLE_PAGE_SIZE = 10;
+var _deps = {};
+
+function init(deps) {
+    _deps = deps || {};
+}
+
+function getLang() {
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+}
+
+function t(key) {
+    if (!_deps.t) return key;
+    var lang = getLang();
+    var args = [lang];
+    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    return _deps.t.apply(null, args);
+}
 
 /**
  * 写入购买日志（JSONL 格式，统一输出到 economy 日志）
@@ -46,7 +63,7 @@ function writeShopLog(player, itemName, count, cost, balance) {
 			balance: balance
 		});
 	} catch (e) {
-		logger.error("写入商店日志失败: " + e.message);
+		logger.error(t('shop.log_write_failed') + e.message);
 	}
 }
 
@@ -69,7 +86,7 @@ function writeShopSellLog(player, itemName, count, income, balance) {
 			balance: balance
 		});
 	} catch (e) {
-		logger.error("写入商店日志失败: " + e.message);
+		logger.error(t('shop.log_write_failed') + e.message);
 	}
 }
 
@@ -166,7 +183,7 @@ function writeRecycleLog(player, items, totalValue, before, after) {
 			detail: itemsStr
 		});
 	} catch (e) {
-		logger.error("写入回收日志失败：" + e.message);
+		logger.error(t('shop.log_recycle_write_failed') + e.message);
 	}
 }
 
@@ -177,7 +194,7 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 	const totalValue = result.totalValue;
 
 	if (totalValue <= 0) {
-		player.sendModalForm("§e回收系统", "§a背包中没有可回收的物品", "§a返回商店", "§c关闭", function(p, result) {
+		player.sendModalForm(t('shop.recycle_title'), t('shop.recycle_empty'), t('shop.return_shop'), t('shop.close'), function(p, result) {
 			if (result) showShopMainForm(p, deps);
 		});
 		return;
@@ -186,9 +203,9 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 	// 构造物品摘要
 	var itemNames = Object.keys(recyclable).map(function(type) {
 		return getRecycleName(recycleConfig, type) + "×" + recyclable[type].count;
-	}).join("、");
+	}).join(t('shop.enum_separator'));
 
-	player.sendModalForm("§e确认回收", "§a确定要回收以下物品吗？\n\n" + itemNames + "\n\n§e预计获得: " + totalValue + " " + deps.getCurrencyName(), "§a确认回收", "§c取消", function(p, result) {
+	player.sendModalForm(t('shop.recycle_confirm'), t('shop.recycle_confirm_body') + itemNames + t('shop.expected_gain') + totalValue + " " + deps.getCurrencyName(), t('shop.confirm_recycle'), t('shop.cancel'), function(p, result) {
 		if (result !== true) return;
 		// 重新计算当前背包中实际可回收物品，防止确认期间背包变动
 		const actualResult = calculateRecyclableItems(p, recycleConfig);
@@ -196,7 +213,7 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 		const actualTotalValue = actualResult.totalValue;
 
 		if (actualTotalValue <= 0) {
-			p.tell("§e[商店] §c背包中没有可回收的物品了");
+			p.tell(t('shop.recycle_empty_now'));
 			return;
 		}
 
@@ -217,18 +234,18 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 		p.refreshItems();
 
 		if (actualEarned <= 0) {
-			p.tell("§e[商店] §c回收失败，物品可能已变动");
+			p.tell(t('shop.recycle_failed'));
 			return;
 		}
 
-		deps.addPlayerMoney(p, actualEarned, "一键回收");
+		deps.addPlayerMoney(p, actualEarned, t('shop.reason_recycle_all'));
 
 		const newBalance = deps.getPlayerMoney(p);
 
 		writeRecycleLog(p, actualRecyclable, actualEarned, currentBalance, newBalance);
 
-		p.tell("§e[商店] §a回收成功！");
-		p.tell("§e[商店] §e+" + actualEarned + " 点§c" + deps.getCurrencyName() + "§r §8| §b余额: " + newBalance + " 点§c" + deps.getCurrencyName() + "§r");
+		p.tell(t('shop.recycle_success'));
+		p.tell(t('shop.shop_tag') + actualEarned + t('shop.item_price_suffix') + deps.getCurrencyName() + t('shop.balance_inline') + newBalance + t('shop.item_price_suffix') + deps.getCurrencyName() + "§r");
 	});
 }
 
@@ -239,28 +256,28 @@ function showRecycleForm(player, recycleConfig, deps) {
 	const totalValue = result.totalValue;
 
 	if (Object.keys(recyclable).length === 0) {
-		player.sendModalForm("§a回收系统", "§c您的背包中没有可回收的物品！", "§a返回商店", "§c关闭", function(p, result) {
+		player.sendModalForm(t('shop.recycle_title'), t('shop.recycle_empty_msg'), t('shop.return_shop'), t('shop.close'), function(p, result) {
 			if (result) showShopMainForm(p, deps);
 		});
 		return;
 	}
 
-	let content = "§e背包中可回收的物品：\n§r\n";
+	let content = t('shop.recycle_items_title');
 
 	Object.keys(recyclable).forEach(function(itemType) {
 		const data = recyclable[itemType];
 		const itemName = getRecycleName(recycleConfig, itemType);
-		content += "§f" + itemName + " ×" + data.count + " §8| §e" + (data.count * data.price) + " 点§c" + deps.getCurrencyName() + "§r\n";
+		content += "§f" + itemName + " ×" + data.count + " §8| §e" + (data.count * data.price) + t('shop.item_price_suffix') + deps.getCurrencyName() + "§r\n";
 	});
 
-	content += "§r\n§6总价值: §e" + totalValue + " 点§c" + deps.getCurrencyName() + "§r";
+	content += t('shop.total_value') + totalValue + t('shop.item_price_suffix') + deps.getCurrencyName() + "§r";
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§a物品回收");
+	fm.setTitle(t('shop.item_recycle_title'));
 	fm.setContent(content);
-	fm.addButton("§b查看所有可回收项", "textures/ui/icon_book_writable");
-	fm.addButton("§a确认回收");
-	fm.addButton("§c取消");
+	fm.addButton(t('shop.view_all_recyclable'), "textures/ui/icon_book_writable");
+	fm.addButton(t('shop.confirm_recycle_btn'));
+	fm.addButton(t('shop.cancel_btn'));
 
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
@@ -278,9 +295,9 @@ function showAllRecyclableItems(player, recycleConfig, deps, page) {
 	const keys = Object.keys(recycleItems);
 	if (keys.length === 0) {
 		const fm = mc.newSimpleForm();
-		fm.setTitle("§a所有可回收项");
-		fm.setContent("§c暂无可回收物品配置");
-		fm.addButton("§a返回", "textures/ui/recap_glyph_desaturated");
+		fm.setTitle(t('shop.all_recyclable_title'));
+		fm.setContent(t('shop.no_recyclable_config'));
+		fm.addButton(t('shop.back'), "textures/ui/recap_glyph_desaturated");
 		player.sendForm(fm, function(p, id) {
 			if (id === 0) showRecycleForm(p, recycleConfig, deps);
 		});
@@ -296,22 +313,22 @@ function showAllRecyclableItems(player, recycleConfig, deps, page) {
 	const pageKeys = keys.slice(start, end);
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§a所有可回收项 (" + (page + 1) + "/" + totalPages + ")");
+	fm.setTitle(t('shop.all_recyclable_page') + (page + 1) + "/" + totalPages + ")");
 
 	pageKeys.forEach(function(itemType) {
 		const name = getRecycleName(recycleConfig, itemType);
 		const price = getRecyclePrice(recycleConfig, itemType);
 		const image = getRecycleImage(recycleConfig, itemType);
-		fm.addButton(name + "\n回收价 " + price + deps.getCurrencyName(), image || "");
+		fm.addButton(name + t('shop.recycle_price') + price + deps.getCurrencyName(), image || "");
 	});
 
 	if (page > 0) {
-		fm.addButton("§e上一页", "textures/ui/recap_glyph_desaturated");
+		fm.addButton(t('shop.prev_page'), "textures/ui/recap_glyph_desaturated");
 	}
 	if (page < totalPages - 1) {
-		fm.addButton("§e下一页", "textures/ui/recap_glyph_desaturated");
+		fm.addButton(t('shop.next_page'), "textures/ui/recap_glyph_desaturated");
 	}
-	fm.addButton("§a返回", "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t('shop.back'), "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
@@ -385,23 +402,23 @@ function showXPBuyForm(player, deps) {
 	const balance = deps.money.get(xuid) || 0;
 
 	const gui = mc.newCustomForm();
-	gui.setTitle("§l§b经验购买");
+	gui.setTitle(t('shop.xp_title'));
 
-	let content = "§a当前等级：§f" + currentLevel + " 级\n";
-	content += "§a当前等级进度：§f" + currentXPInLevel + " / " + xpToNextLevel + "\n";
-	content += "§a距离下一级：还需 §f" + needXPToCurrentNext + " 点经验\n";
-	content += "§a兑换比例：§f1 经验 = §e10 点" + deps.getCurrencyName() + "\n";
-	content += "§a您当前拥有：§f" + balance + " 点" + deps.getCurrencyName() + "\n";
+	let content = t('shop.current_level') + currentLevel + t('shop.level_suffix');
+	content += t('shop.current_progress') + currentXPInLevel + " / " + xpToNextLevel + "\n";
+	content += t('shop.next_level_need') + needXPToCurrentNext + t('shop.exp_suffix');
+	content += t('shop.exchange_rate') + deps.getCurrencyName() + "\n";
+	content += t('shop.you_have') + balance + t('shop.point_suffix') + deps.getCurrencyName() + "\n";
 
 	gui.addLabel(content);
 
-	const levelOptions = ["手动输入经验"];
+	const levelOptions = [t('shop.manual_input_exp')];
 	for (let i = 1; i <= 10; i++) {
-		levelOptions.push("升级" + i + "级");
+		levelOptions.push(t('shop.upgrade') + i + t('shop.level_unit'));
 	}
-	gui.addStepSlider("选择升级等级", levelOptions, 0, "选择要升级的等级数");
+	gui.addStepSlider(t('shop.select_upgrade_level'), levelOptions, 0, t('shop.select_upgrade_tip'));
 
-	gui.addInput("手动输入经验数量", "输入正整数（如100、500）", "");
+	gui.addInput(t('shop.input_exp_amount'), t('shop.input_exp_placeholder'), "");
 
 	player.sendForm(gui, function(p, data) {
 		if (data == null) return;
@@ -429,10 +446,10 @@ function showXPBuyForm(player, deps) {
 
 		if (xpAmount < 1) {
 			p.sendModalForm(
-				"§c输入错误",
-				"§c请选择升级等级或输入有效的经验数量！",
-				"§a重新输入",
-				"§c关闭",
+				t('shop.input_error_title'),
+				t('shop.input_error_body'),
+				t('shop.retry_input'),
+				t('shop.close'),
 				function(player, res) {
 					if (res === true) showXPBuyForm(player, deps);
 				}
@@ -445,10 +462,10 @@ function showXPBuyForm(player, deps) {
 
 		if (playerBalance < cost) {
 			p.sendModalForm(
-				"§c" + deps.getCurrencyName() + "不足",
-				"§c购买 §f" + xpAmount + " 点经验 §c需要 §e" + cost + " 点" + deps.getCurrencyName() + "\n§c您当前仅拥有 §e" + playerBalance + " 点" + deps.getCurrencyName() + "\n§c请先获取足够" + deps.getCurrencyName() + "后再尝试",
-				"§a返回",
-				"§c关闭",
+				"§c" + deps.getCurrencyName() + t('shop.currency_insufficient'),
+				t('shop.buy_exp_body') + xpAmount + t('shop.buy_exp_body2') + cost + t('shop.item_price_suffix') + deps.getCurrencyName() + t('shop.buy_exp_body3') + playerBalance + t('shop.item_price_suffix') + deps.getCurrencyName() + t('shop.buy_exp_body4') + deps.getCurrencyName() + t('shop.buy_exp_body5'),
+				t('shop.return_btn'),
+				t('shop.close'),
 				function(player, res) {
 					if (res === true) showXPBuyForm(player, deps);
 				}
@@ -465,10 +482,10 @@ function showXPBuyForm(player, deps) {
 /** 显示经验购买确认对话框 */
 function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 	player.sendModalForm(
-		"§a确认购买",
-		"§a购买经验：§f" + xpAmount + " 点\n§c消耗" + deps.getCurrencyName() + "：§e" + cost + " 点\n§c您当前" + deps.getCurrencyName() + "：§e" + playerBalance + " 点\n§c购买后剩余：§e" + (playerBalance - cost) + " 点",
-		"§a确认购买",
-		"§c取消",
+		t('shop.confirm_purchase_title'),
+		t('shop.confirm_purchase_exp') + xpAmount + t('shop.cost_label') + deps.getCurrencyName() + t('shop.cost_label2') + cost + t('shop.current_label') + deps.getCurrencyName() + t('shop.cost_label2') + playerBalance + t('shop.after_purchase') + (playerBalance - cost) + t('shop.item_price_suffix'),
+		t('shop.confirm_btn'),
+		t('shop.cancel'),
 		function(p, isConfirm) {
 			if (!p) return;
 			if (!isConfirm) {
@@ -477,7 +494,7 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 			}
 
 			const xuid = p.xuid;
-			const reduceSuccess = deps.reducePlayerMoney(p, cost, "购买经验");
+			const reduceSuccess = deps.reducePlayerMoney(p, cost, t('shop.reason_buy_exp'));
 
 			if (reduceSuccess) {
 				const addXPSuccess = p.addExperience(xpAmount);
@@ -487,10 +504,10 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 					const remainingBalance = deps.money.get(xuid) || 0;
 
 					p.sendModalForm(
-						"§a购买成功",
-						"§a成功购买 §f" + xpAmount + " 点经验！\n§a当前等级：§f" + newLevel + " 级\n§c消耗" + deps.getCurrencyName() + "：§e" + cost + " 点\n§c剩余" + deps.getCurrencyName() + "：§e" + remainingBalance + " 点",
-						"§a继续购买",
-						"§c完成",
+						t('shop.purchase_success'),
+						t('shop.purchase_success_exp') + xpAmount + t('shop.exp_suffix2') + newLevel + t('shop.level_suffix') + t('shop.cost_label_inline') + deps.getCurrencyName() + t('shop.cost_label2') + cost + t('shop.item_price_suffix') + t('shop.remaining_label') + deps.getCurrencyName() + t('shop.cost_label2') + remainingBalance + t('shop.item_price_suffix'),
+						t('shop.continue_buy'),
+						t('shop.done'),
 						function(pl, isContinue) {
 							if (!pl) return;
 							if (isContinue) showXPBuyForm(pl, deps);
@@ -498,12 +515,12 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 					);
 				} else {
 					// 经验添加失败，退还已扣除的货币
-					deps.addPlayerMoney(p, cost, "购买经验失败退还");
+					deps.addPlayerMoney(p, cost, t('shop.reason_refund_exp'));
 					p.sendModalForm(
-						"§c购买失败",
-						"§c系统错误：经验添加失败，已退还 " + cost + " 点" + deps.getCurrencyName(),
-						"§a确定",
-						"§c关闭",
+						t('shop.purchase_failed'),
+						t('shop.exp_add_failed_refund') + cost + t('shop.item_price_suffix') + deps.getCurrencyName(),
+						t('shop.confirm_ok'),
+						t('shop.close'),
 						function(pl, res) {
 							if (res === true) showXPBuyForm(pl, deps);
 						}
@@ -511,10 +528,10 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 				}
 			} else {
 				p.sendModalForm(
-					"§c购买失败",
-					"§c系统错误：扣除失败，请联系管理员",
-					"§a确定",
-					"§c关闭",
+					t('shop.purchase_failed'),
+					t('shop.deduct_failed'),
+					t('shop.confirm_ok'),
+					t('shop.close'),
 					function(pl, res) {
 						if (res === true) showXPBuyForm(pl, deps);
 					}
@@ -527,11 +544,11 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 /** 显示商店主界面 */
 function showShopMainForm(player, deps) {
 	const fm = mc.newSimpleForm();
-	fm.setTitle("商店");
-	fm.setContent("选择一个功能");
-	fm.addButton("物品购买", "textures/ui/icon_recipe_equipment");
-	fm.addButton("物品回收", "textures/ui/trash_default");
-	fm.addButton("关闭", "textures/ui/cancel");
+	fm.setTitle(t('shop.main_title'));
+	fm.setContent(t('shop.select_function'));
+	fm.addButton(t('shop.btn_buy'), "textures/ui/icon_recipe_equipment");
+	fm.addButton(t('shop.btn_sell'), "textures/ui/trash_default");
+	fm.addButton(t('shop.close'), "textures/ui/cancel");
 	player.sendForm(fm, function(p, id) {
 		if (id === null || id === 2) return;
 		if (id === 0) showBuyMenu(p, deps);
@@ -542,14 +559,14 @@ function showShopMainForm(player, deps) {
 /** 显示购买分类菜单 */
 function showBuyMenu(player, deps) {
 	const fm = mc.newSimpleForm();
-	fm.setTitle("物品购买");
-	fm.addButton("搜索物品", "textures/ui/magnifyingGlass");
+	fm.setTitle(t('shop.buy_title'));
+	fm.addButton(t('shop.search_items'), "textures/ui/magnifyingGlass");
 	if (deps.shopData && deps.shopData.Buy) {
 		deps.shopData.Buy.forEach(function(grp) {
 			fm.addButton(grp.name, grp.image || "");
 		});
 	}
-	fm.addButton("返回", "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t('shop.return_prev'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
 		if (id === 0) {
@@ -565,8 +582,8 @@ function showBuyMenu(player, deps) {
 /** 显示购买搜索输入表单 */
 function showBuySearchForm(player, deps) {
 	const fm = mc.newCustomForm();
-	fm.setTitle("搜索物品");
-	fm.addInput("输入物品名称或ID", "", "");
+	fm.setTitle(t('shop.search_title'));
+	fm.addInput(t('shop.search_placeholder'), "", "");
 	player.sendForm(fm, function(p, data) {
 		if (data == null || !data || !data[0]) {
 			showBuyMenu(p, deps);
@@ -591,15 +608,15 @@ function showBuySearchResults(player, keyword, deps) {
 		});
 	}
 	const fm = mc.newSimpleForm();
-	fm.setTitle("搜索: " + keyword);
+	fm.setTitle(t('shop.search_prefix') + keyword);
 	if (results.length === 0) {
-		fm.setContent("未找到匹配的物品");
+		fm.setContent(t('shop.no_match'));
 	}
 	results.forEach(function(it) {
-		fm.addButton(it.name + "\n售价 " + it.money + deps.getCurrencyName() + "/个", it.image || "");
+		fm.addButton(it.name + t('shop.price_prefix') + it.money + deps.getCurrencyName() + t('shop.per_unit'), it.image || "");
 	});
-	fm.addButton("重新搜索", "textures/ui/magnifyingGlass");
-	fm.addButton("返回上一级", "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t('shop.re_search'), "textures/ui/magnifyingGlass");
+	fm.addButton(t('shop.return_upper'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
 		if (id === results.length) showBuySearchForm(p, deps);
@@ -614,9 +631,9 @@ function showBuyGroupForm(player, group, deps) {
 	const fm = mc.newSimpleForm();
 	fm.setTitle(group.name);
 	items.forEach(function(it) {
-		fm.addButton(it.name + "\n售价 " + it.money + deps.getCurrencyName() + "/个", it.image || "");
+		fm.addButton(it.name + t('shop.price_prefix') + it.money + deps.getCurrencyName() + t('shop.per_unit'), it.image || "");
 	});
-	fm.addButton("返回", "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t('shop.return_prev'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null || id === items.length) {
 			showBuyMenu(p, deps);
@@ -639,19 +656,19 @@ function showBuyItemForm(player, item, deps) {
 	const balance = deps.getPlayerMoney(player);
 	const invSpace = calcInventorySpace(player, item.id);
 
-	let content = "物品id: " + item.id.replace("minecraft:", "") + "\n";
-	content += "售价: " + unitPrice + deps.getCurrencyName() + "/个\n";
+	let content = t('shop.item_id') + item.id.replace("minecraft:", "") + "\n";
+	content += t('shop.price_label') + unitPrice + deps.getCurrencyName() + t('shop.per_unit') + "\n";
 	if (hasVip) {
-		content += "优惠价: " + discountPrice + deps.getCurrencyName() + "/个\n";
+		content += t('shop.vip_price') + discountPrice + deps.getCurrencyName() + t('shop.per_unit') + "\n";
 	}
-	content += "余额: " + balance + " " + deps.getCurrencyName() + "\n";
-	content += "背包空间: " + invSpace + "格";
+	content += t('shop.balance_label') + balance + " " + deps.getCurrencyName() + "\n";
+	content += t('shop.inventory_space') + invSpace + t('shop.slot_unit');
 
 	const fm = mc.newCustomForm();
 	fm.setTitle(item.name);
 	fm.addLabel(content);
-	fm.addInput("输入购买数量", "正整数", "");
-	fm.addSlider("快速选择数量", 0, 128, 1, 0);
+	fm.addInput(t('shop.input_buy_count'), t('shop.positive_int'), "");
+	fm.addSlider(t('shop.quick_select_count'), 0, 128, 1, 0);
 	player.sendForm(fm, function(p, data) {
 		if (data == null || !Array.isArray(data)) return;
 		const inputStr = (data[1] || "").trim();
@@ -662,12 +679,12 @@ function showBuyItemForm(player, item, deps) {
 		} else if (inputStr && U.isInteger(inputStr) && Number(inputStr) > 0) {
 			count = Number(inputStr);
 		} else {
-			p.tell("§e[商店] 请输入有效的购买数量");
+			p.tell(t('shop.invalid_buy_count'));
 			showBuyItemForm(p, item, deps);
 			return;
 		}
 		if (count <= 0) {
-			p.tell("§e[商店] 购买数量必须大于0");
+			p.tell(t('shop.count_positive'));
 			showBuyItemForm(p, item, deps);
 			return;
 		}
@@ -678,19 +695,19 @@ function showBuyItemForm(player, item, deps) {
 		const currentSpace = calcInventorySpace(p, item.id);
 
 		if (currentBalance < totalCost) {
-			p.sendModalForm("余额不足", "需要 " + totalCost + " " + deps.getCurrencyName() + "\n当前余额 " + currentBalance + " " + deps.getCurrencyName(), "返回重新选择", "关闭", function(pl, ok) {
+			p.sendModalForm(t('shop.insufficient_balance'), t('shop.need_prefix') + totalCost + " " + deps.getCurrencyName() + t('shop.current_balance') + currentBalance + " " + deps.getCurrencyName(), t('shop.return_reselect'), t('shop.close'), function(pl, ok) {
 				if (ok === true) showBuyItemForm(pl, item, deps);
 			});
 			return;
 		}
 		if (currentSpace < count) {
-			p.sendModalForm("背包空间不足", "需要 " + count + "格空间\n当前可用 " + currentSpace + "格", "返回重新选择", "关闭", function(pl, ok) {
+			p.sendModalForm(t('shop.insufficient_inventory'), t('shop.need_space') + count + t('shop.space_suffix') + currentSpace + t('shop.slot_unit'), t('shop.return_reselect'), t('shop.close'), function(pl, ok) {
 				if (ok === true) showBuyItemForm(pl, item, deps);
 			});
 			return;
 		}
 
-		p.sendModalForm("确认购买", item.name + " x" + count + "\n花费 " + totalCost + " " + deps.getCurrencyName(), "确认购买", "取消", function(pl, ok) {
+		p.sendModalForm(t('shop.confirm_purchase'), item.name + " x" + count + "\n" + t('shop.cost_prefix') + totalCost + " " + deps.getCurrencyName(), t('shop.confirm_btn'), t('shop.cancel'), function(pl, ok) {
 			if (!ok) return;
 			executePurchase(pl, item, count, price, totalCost, hasVip, unitPrice, deps);
 		});
@@ -699,8 +716,8 @@ function showBuyItemForm(player, item, deps) {
 
 /** 执行购买逻辑：扣款、发放物品、VIP折扣累计、写日志 */
 function executePurchase(player, item, count, unitPrice, totalCost, hasVip, originalUnitPrice, deps) {
-	if (!deps.reducePlayerMoney(player, totalCost, "商店购买")) {
-		player.tell("§e[商店] 扣费失败，购买取消");
+	if (!deps.reducePlayerMoney(player, totalCost, t('shop.reason_buy'))) {
+		player.tell(t('shop.buy_deduct_failed'));
 		return;
 	}
 	deps.giveItemById(player, item.id, count);
@@ -716,8 +733,8 @@ function executePurchase(player, item, count, unitPrice, totalCost, hasVip, orig
 
 	const newBalance = deps.getPlayerMoney(player);
 	writeShopLog(player, item.name, count, totalCost, newBalance);
-	player.tell("§e[商店] 购买成功 " + item.name + " x" + count + " 花费" + totalCost + deps.getCurrencyName() + " 余额" + newBalance + deps.getCurrencyName());
-	player.sendModalForm("购买成功", item.name + " x" + count + "\n花费 " + totalCost + " " + deps.getCurrencyName() + "\n余额 " + newBalance + " " + deps.getCurrencyName(), "返回购物", "关闭", function(pl, ok) {
+	player.tell(t('shop.buy_success_msg') + item.name + " x" + count + t('shop.cost_msg') + totalCost + deps.getCurrencyName() + t('shop.balance_msg') + newBalance + deps.getCurrencyName());
+	player.sendModalForm(t('shop.buy_success_title'), item.name + " x" + count + "\n" + t('shop.cost_prefix') + totalCost + " " + deps.getCurrencyName() + "\n" + t('shop.balance_label') + newBalance + " " + deps.getCurrencyName(), t('shop.return_shopping'), t('shop.close'), function(pl, ok) {
 		if (ok === true) showBuyMenu(pl, deps);
 	});
 }
@@ -725,15 +742,15 @@ function executePurchase(player, item, count, unitPrice, totalCost, hasVip, orig
 /** 显示出售/回收菜单 */
 function showSellMenu(player, deps) {
 	const fm = mc.newSimpleForm();
-	fm.setTitle("物品回收");
-	fm.addButton("搜索物品", "textures/ui/magnifyingGlass");
-	fm.addButton("一键回收", "textures/ui/refresh");
+	fm.setTitle(t('shop.sell_title'));
+	fm.addButton(t('shop.search_items'), "textures/ui/magnifyingGlass");
+	fm.addButton(t('shop.one_click_recycle'), "textures/ui/refresh");
 	if (deps.shopData && deps.shopData.Sell) {
 		deps.shopData.Sell.forEach(function(grp) {
 			fm.addButton(grp.name, grp.image || "");
 		});
 	}
-	fm.addButton("返回", "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t('shop.return_prev'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
 		if (id === 0) {
@@ -751,8 +768,8 @@ function showSellMenu(player, deps) {
 /** 显示出售搜索输入表单 */
 function showSellSearchForm(player, deps) {
 	const fm = mc.newCustomForm();
-	fm.setTitle("搜索回收物品");
-	fm.addInput("输入物品名称或ID", "", "");
+	fm.setTitle(t('shop.search_recycle_title'));
+	fm.addInput(t('shop.search_placeholder'), "", "");
 	player.sendForm(fm, function(p, data) {
 		if (data == null || !data || !data[0]) {
 			showSellMenu(p, deps);
@@ -777,15 +794,15 @@ function showSellSearchResults(player, keyword, deps) {
 		});
 	}
 	const fm = mc.newSimpleForm();
-	fm.setTitle("搜索回收: " + keyword);
+	fm.setTitle(t('shop.search_recycle_prefix') + keyword);
 	if (results.length === 0) {
-		fm.setContent("未找到匹配的物品");
+		fm.setContent(t('shop.no_match'));
 	}
 	results.forEach(function(it) {
-		fm.addButton(it.name + "\n回收价 " + it.money + deps.getCurrencyName() + "/个", it.image || "");
+		fm.addButton(it.name + t('shop.recycle_price_label') + it.money + deps.getCurrencyName() + t('shop.per_unit'), it.image || "");
 	});
-	fm.addButton("重新搜索", "textures/ui/magnifyingGlass");
-	fm.addButton("返回上一级", "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t('shop.re_search'), "textures/ui/magnifyingGlass");
+	fm.addButton(t('shop.return_upper'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
 		if (id === results.length) showSellSearchForm(p, deps);
@@ -800,9 +817,9 @@ function showSellGroupForm(player, group, deps) {
 	const fm = mc.newSimpleForm();
 	fm.setTitle(group.name);
 	items.forEach(function(it) {
-		fm.addButton(it.name + "\n回收价 " + it.money + deps.getCurrencyName() + "/个", it.image || "");
+		fm.addButton(it.name + t('shop.recycle_price_label') + it.money + deps.getCurrencyName() + t('shop.per_unit'), it.image || "");
 	});
-	fm.addButton("返回", "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t('shop.return_prev'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null || id === items.length) {
 			showSellMenu(p, deps);
@@ -817,16 +834,16 @@ function showSellItemForm(player, item, deps) {
 	const balance = deps.getPlayerMoney(player);
 	const owned = countOwnedItems(player, item.id);
 
-	let content = "物品id: " + item.id.replace("minecraft:", "") + "\n";
-	content += "回收价: " + item.money + deps.getCurrencyName() + "/个\n";
-	content += "余额: " + balance + " " + deps.getCurrencyName() + "\n";
-	content += "持有数量: " + owned + "个";
+	let content = t('shop.item_id') + item.id.replace("minecraft:", "") + "\n";
+	content += t('shop.recycle_price_label2') + item.money + deps.getCurrencyName() + t('shop.per_unit') + "\n";
+	content += t('shop.balance_label') + balance + " " + deps.getCurrencyName() + "\n";
+	content += t('shop.owned_count') + owned + t('shop.count_unit');
 
 	const fm = mc.newCustomForm();
 	fm.setTitle(item.name);
 	fm.addLabel(content);
-	fm.addSwitch("全部出售", false);
-	fm.addInput("输入出售数量", "正整数", "");
+	fm.addSwitch(t('shop.sell_all'), false);
+	fm.addInput(t('shop.input_sell_count'), t('shop.positive_int'), "");
 	player.sendForm(fm, function(p, data) {
 		if (data == null || !Array.isArray(data)) return;
 		const sellAll = data[1] || false;
@@ -835,7 +852,7 @@ function showSellItemForm(player, item, deps) {
 		if (sellAll) {
 			const ownedCount = countOwnedItems(p, item.id);
 			if (ownedCount <= 0) {
-				p.sendModalForm("物品不足", "你没有该物品", "返回重新选择", "关闭", function(pl, ok) {
+				p.sendModalForm(t('shop.insufficient_items'), t('shop.no_item'), t('shop.return_reselect'), t('shop.close'), function(pl, ok) {
 					if (ok === true) showSellItemForm(pl, item, deps);
 				});
 				return;
@@ -844,32 +861,32 @@ function showSellItemForm(player, item, deps) {
 		} else if (inputStr && U.isInteger(inputStr) && Number(inputStr) > 0) {
 			count = Number(inputStr);
 		} else {
-			p.tell("§e[商店] 请输入有效的出售数量");
+			p.tell(t('shop.invalid_sell_count'));
 			showSellItemForm(p, item, deps);
 			return;
 		}
 		if (count <= 0) {
-			p.tell("§e[商店] 出售数量必须大于0");
+			p.tell(t('shop.sell_count_positive'));
 			showSellItemForm(p, item, deps);
 			return;
 		}
 
 		const currentOwned = countOwnedItems(p, item.id);
 		if (currentOwned === 0) {
-			p.sendModalForm("物品不足", "你没有该物品", "返回重新选择", "关闭", function(pl, ok) {
+			p.sendModalForm(t('shop.insufficient_items'), t('shop.no_item'), t('shop.return_reselect'), t('shop.close'), function(pl, ok) {
 				if (ok === true) showSellItemForm(pl, item, deps);
 			});
 			return;
 		}
 		if (count > currentOwned) {
-			p.sendModalForm("数量不足", "需要 " + count + "个\n当前持有 " + currentOwned + "个", "返回重新选择", "关闭", function(pl, ok) {
+			p.sendModalForm(t('shop.insufficient_count'), t('shop.need_count') + count + t('shop.current_held') + currentOwned + t('shop.count_unit'), t('shop.return_reselect'), t('shop.close'), function(pl, ok) {
 				if (ok === true) showSellItemForm(pl, item, deps);
 			});
 			return;
 		}
 
 		const income = count * item.money;
-		p.sendModalForm("确认回收", item.name + " x" + count + "\n获得 " + income + " " + deps.getCurrencyName(), "确认回收", "取消", function(pl, ok) {
+		p.sendModalForm(t('shop.recycle_confirm'), item.name + " x" + count + "\n" + t('shop.obtained') + income + " " + deps.getCurrencyName(), t('shop.confirm_recycle'), t('shop.cancel'), function(pl, ok) {
 			if (!ok) return;
 			executeSell(pl, item, count, income, deps);
 		});
@@ -879,21 +896,22 @@ function showSellItemForm(player, item, deps) {
 /** 执行出售逻辑：先增加货币，再移除物品，防止货币发放失败时物品丢失 */
 function executeSell(player, item, count, income, deps) {
 	// 先加钱，加钱失败则不扣物品
-	if (!deps.addPlayerMoney(player, income, "商店回收")) {
-		player.tell("§e[商店] §c回收失败：货币发放异常，物品未扣除");
+	if (!deps.addPlayerMoney(player, income, t('shop.reason_sell'))) {
+		player.tell(t('shop.sell_failed'));
 		return;
 	}
 	// 加钱成功后再移除物品
 	mc.runcmd('clear "' + player.realName + '" ' + item.id + ' 0 ' + count);
 	const newBalance = deps.getPlayerMoney(player);
 	writeShopSellLog(player, item.name, count, income, newBalance);
-	player.tell("§e[商店] 回收成功 " + item.name + " x" + count + " 获得" + income + deps.getCurrencyName() + " 余额" + newBalance + deps.getCurrencyName());
-	player.sendModalForm("回收成功", item.name + " x" + count + "\n获得 " + income + " " + deps.getCurrencyName() + "\n余额 " + newBalance + " " + deps.getCurrencyName(), "返回回收", "关闭", function(pl, ok) {
+	player.tell(t('shop.sell_success_msg') + item.name + " x" + count + t('shop.sell_obtained') + income + deps.getCurrencyName() + t('shop.balance_msg') + newBalance + deps.getCurrencyName());
+	player.sendModalForm(t('shop.recycle_success_title'), item.name + " x" + count + "\n" + t('shop.obtained') + income + " " + deps.getCurrencyName() + "\n" + t('shop.balance_label') + newBalance + " " + deps.getCurrencyName(), t('shop.return_recycle'), t('shop.close'), function(pl, ok) {
 		if (ok === true) showSellMenu(pl, deps);
 	});
 }
 
 module.exports = {
+	init: init,
 	showShopMainForm: showShopMainForm,
 	showRecycleForm: showRecycleForm,
 	showXPBuyForm: showXPBuyForm

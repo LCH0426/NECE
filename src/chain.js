@@ -23,6 +23,18 @@
 
 let _deps = {};
 let _debug = false;
+
+function getLang() {
+    return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+}
+
+function t(key) {
+    if (!_deps.t) return key;
+    var lang = getLang();
+    var args = [lang];
+    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    return _deps.t.apply(null, args);
+}
 let _onChainComplete = null;
 let _itemsMap = null;
 
@@ -181,11 +193,11 @@ function purchasePlan(player, planName) {
     var planConfig = getPlanConfig();
 
     if (!planConfig[planName]) {
-        return { success: false, message: '§c无效的计划' };
+        return { success: false, message: t('chain_plan.invalid_plan') };
     }
 
     if (planName === 'free') {
-        return { success: false, message: '§c不能购买免费计划' };
+        return { success: false, message: t('chain_plan.cannot_purchase_free') };
     }
 
     var planData = getPlayerPlanData(xuid);
@@ -194,7 +206,7 @@ function purchasePlan(player, planName) {
 
     // 检查是否已有相同计划且未过期
     if (currentPlan === planName && planData.expireTime > now) {
-        return { success: false, message: '§c您已有该计划且未过期，请使用续费功能' };
+        return { success: false, message: t('chain_plan.already_active') };
     }
 
     var planInfo = planConfig[planName];
@@ -212,7 +224,7 @@ function purchasePlan(player, planName) {
         var priceDiff = price - currentPrice;
 
         if (priceDiff <= 0) {
-            return { success: false, message: '§c不能降级或购买相同等级的计划' };
+            return { success: false, message: t('chain_plan.cannot_downgrade') };
         }
 
         // 计算剩余天数
@@ -226,7 +238,7 @@ function purchasePlan(player, planName) {
     // 检查余额
     var playerMoney = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0;
     if (playerMoney < actualPrice) {
-        return { success: false, message: '§c余额不足！需要 ' + actualPrice + ' ' + currencyName };
+        return { success: false, message: t('chain_plan.insufficient_balance', String(actualPrice), currencyName) };
     }
 
     // 扣费
@@ -237,7 +249,7 @@ function purchasePlan(player, planName) {
             'Block Plan 升级: ' + currentDisplayName + ' -> ' + displayName :
             'Block Plan 购买: ' + displayName;
         if (!_deps.reducePlayerMoney(player, actualPrice, reason)) {
-            return { success: false, message: '§c购买失败' };
+            return { success: false, message: t('chain_plan.purchase_failed') };
         }
     }
 
@@ -249,7 +261,7 @@ function purchasePlan(player, planName) {
     savePlanData(xuid, planData);
 
     var successDisplayName = getPlanDisplayName(planName);
-    return { success: true, message: '§a购买成功！计划: ' + successDisplayName + ', 时长: ' + duration + ' 天' };
+    return { success: true, message: t('chain_plan.purchase_success', successDisplayName, String(duration)) };
 }
 
 /**
@@ -266,11 +278,11 @@ function renewPlan(player, weeks) {
     var currentPlan = planData.plan || 'free';
 
     if (currentPlan === 'free') {
-        return { success: false, message: '§c免费计划无法续费，请先购买付费计划' };
+        return { success: false, message: t('chain_plan.cannot_renew_free') };
     }
 
     if (weeks < 1 || weeks > 3) {
-        return { success: false, message: '§c续费周数必须在1-3之间' };
+        return { success: false, message: t('chain_plan.invalid_weeks') };
     }
 
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
@@ -282,14 +294,14 @@ function renewPlan(player, weeks) {
     // 检查余额
     var playerMoney = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0;
     if (playerMoney < totalPrice) {
-        return { success: false, message: '§c余额不足！续费' + weeks + '周需要 ' + totalPrice + ' ' + currencyName };
+        return { success: false, message: t('chain_plan.renew_insufficient', String(weeks), String(totalPrice), currencyName) };
     }
 
     // 扣费
     if (_deps.reducePlayerMoney) {
         var displayName = getPlanDisplayName(currentPlan);
         if (!_deps.reducePlayerMoney(player, totalPrice, 'Block Plan 续费: ' + displayName + ' ' + weeks + '周')) {
-            return { success: false, message: '§c续费失败' };
+            return { success: false, message: t('chain_plan.renew_failed') };
         }
     }
 
@@ -300,7 +312,7 @@ function renewPlan(player, weeks) {
     savePlanData(xuid, planData);
 
     var displayName2 = getPlanDisplayName(currentPlan);
-    return { success: true, message: '§a续费成功！计划: ' + displayName2 + ', 延长: ' + addDays + ' 天' };
+    return { success: true, message: t('chain_plan.renew_success', displayName2, String(addDays)) };
 }
 
 /**
@@ -341,12 +353,12 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
     var remainingDays = Math.ceil((planData.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
     var planDisplayName = getPlanDisplayName(planData.plan || 'free');
 
-    var content = '§a当前计划：' + planDisplayName + '\n';
-    content += '§a今日用量：§f' + planData.dailyUsed + '/' + planInfo.dailyLimit + '\n';
-    content += '§a到期时间：§f' + expireDate.getFullYear() + '年' + (expireDate.getMonth() + 1) + '月' + expireDate.getDate() + '日\n';
-    content += '§a剩余天数：§f' + remainingDays + ' 天\n';
-    content += '\n§e§lBlock Plan 说明：\n';
-    content += '§r购买 Block Plan 可提升每日连锁方块上限\n\n';
+    var content = t('chain.current_plan_label') + planDisplayName + '\n';
+    content += t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + '\n';
+    content += t('chain.expire_time_label', String(expireDate.getFullYear()), String(expireDate.getMonth() + 1), String(expireDate.getDate())) + '\n';
+    content += t('chain.remaining_days_label', String(remainingDays)) + '\n';
+    content += '\n' + t('chain.plan_desc_title') + '\n';
+    content += t('chain.plan_desc_body') + '\n\n';
 
     var freeLimit = (planConfig.free || DEFAULT_PLANS.free).dailyLimit;
     var liteLimit = (planConfig.lite || DEFAULT_PLANS.lite).dailyLimit;
@@ -364,16 +376,16 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
     var proName = getPlanDisplayName('pro');
     var maxName = getPlanDisplayName('max');
 
-    content += freeName + ' 每日' + freeLimit + '的免费用量\n';
-    content += liteName + ' 每日' + liteLimit + '用量\n';
-    content += standardName + ' 每日' + standardRatio + '倍于' + liteName + '的用量\n';
-    content += proName + ' 每日' + proRatio + '倍于' + liteName + '的用量\n';
-    content += maxName + ' 每日' + maxRatio + '倍于' + liteName + '的用量\n';
+    content += t('chain.plan_free_desc', freeName, String(freeLimit)) + '\n';
+    content += t('chain.plan_tier_desc_base', liteName, String(liteLimit)) + '\n';
+    content += t('chain.plan_tier_desc', standardName, standardRatio, liteName) + '\n';
+    content += t('chain.plan_tier_desc', proName, proRatio, liteName) + '\n';
+    content += t('chain.plan_tier_desc', maxName, maxRatio, liteName) + '\n';
 
     fm.setContent(content);
-    fm.addButton('§a续费计划', "textures/ui/confirm");
-    fm.addButton('§b升级计划', "textures/ui/jump_boost_effect");
-    fm.addButton('§c返回', "textures/ui/recap_glyph_desaturated");
+    fm.addButton(t('chain.btn_renew'), "textures/ui/confirm");
+    fm.addButton(t('chain.btn_upgrade'), "textures/ui/jump_boost_effect");
+    fm.addButton(t('chain.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
@@ -402,17 +414,17 @@ function showRenewMenu(player) {
     var currentDisplayName = getPlanDisplayName(currentPlan);
 
     var fm = mc.newCustomForm();
-    fm.setTitle('§l§aBlock Plan - 续费');
+    fm.setTitle(t('chain_plan.renew_title'));
 
-    fm.addLabel('§a当前计划：' + currentDisplayName);
-    fm.addLabel('§a每周价格：§f' + weeklyPrice + ' ' + currencyName);
+    fm.addLabel(t('chain.current_plan_label') + currentDisplayName);
+    fm.addLabel(t('chain_plan.weekly_price', String(weeklyPrice), currencyName));
 
     var renewOptions = [
-        '1周 - ' + weeklyPrice + currencyName,
-        '2周 - ' + (weeklyPrice * 2) + currencyName,
-        '3周 - ' + (weeklyPrice * 3) + currencyName
+        t('chain_plan.renew_option', '1', String(weeklyPrice), currencyName),
+        t('chain_plan.renew_option', '2', String(weeklyPrice * 2), currencyName),
+        t('chain_plan.renew_option', '3', String(weeklyPrice * 3), currencyName)
     ];
-    fm.addDropdown('选择续费周数', renewOptions, 0);
+    fm.addDropdown(t('chain_plan.select_renew_weeks'), renewOptions, 0);
 
     player.sendForm(fm, function(p, data) {
         if (data == null) {
@@ -443,9 +455,9 @@ function showUpgradeMenu(player) {
     var currentDisplayName = getPlanDisplayName(currentPlan);
 
     var fm = mc.newCustomForm();
-    fm.setTitle('§l§bBlock Plan - 升级');
+    fm.setTitle(t('chain_plan.upgrade_title'));
 
-    fm.addLabel('§a当前计划：' + currentDisplayName);
+    fm.addLabel(t('chain.current_plan_label') + currentDisplayName);
 
     // 只显示比当前计划更高级的计划
     var planOrder = ['lite', 'standard', 'pro', 'max'];
@@ -465,14 +477,14 @@ function showUpgradeMenu(player) {
         var upgradePrice = Math.ceil(priceDiff * remainingDays / currentDuration);
         var displayName = getPlanDisplayName(pName);
 
-        upgradeOptions.push(displayName + ' - 每日' + pInfo.dailyLimit + '个 - 补差价' + upgradePrice + currencyName);
+        upgradeOptions.push(t('chain_plan.upgrade_option', displayName, String(pInfo.dailyLimit), String(upgradePrice), currencyName));
         upgradePlans.push(pName);
     }
 
     if (upgradeOptions.length === 0) {
-        fm.addLabel('§c您已是最高级别计划，无法继续升级');
+        fm.addLabel(t('chain_plan.max_level_plan'));
     } else {
-        fm.addDropdown('选择升级计划', upgradeOptions, 0);
+        fm.addDropdown(t('chain_plan.select_upgrade_plan'), upgradeOptions, 0);
     }
 
     player.sendForm(fm, function(p, data) {
@@ -502,8 +514,8 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
 
     // 显示当前计划信息
     var currentDisplayName = getPlanDisplayName(planData.plan || 'free');
-    fm.addLabel('§a当前计划：' + currentDisplayName);
-    fm.addLabel('§a今日用量：§f' + planData.dailyUsed + '/' + planInfo.dailyLimit);
+    fm.addLabel(t('chain.current_plan_label') + currentDisplayName);
+    fm.addLabel(t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit);
 
     // 添加描述文本
     var freeLimit = (planConfig.free || DEFAULT_PLANS.free).dailyLimit;
@@ -522,13 +534,13 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
     var proRatio = (proLimit / liteLimit).toFixed(0);
     var maxRatio = (maxLimit / liteLimit).toFixed(0);
 
-    fm.addLabel('§e§lBlock Plan 说明：\n' +
-        '§r购买 Block Plan 可提升每日连锁方块上限\n\n' +
-        freeName + ' 每日' + freeLimit + '的免费用量\n' +
-        liteName + ' 每日' + liteLimit + '用量\n' +
-        standardName + ' 每日' + standardRatio + '倍于' + liteName + '的用量\n' +
-        proName + ' 每日' + proRatio + '倍于' + liteName + '的用量\n' +
-        maxName + ' 每日' + maxRatio + '倍于' + liteName + '的用量');
+    fm.addLabel(t('chain.plan_desc_title') + '\n' +
+        t('chain.plan_desc_body') + '\n\n' +
+        t('chain.plan_free_desc', freeName, String(freeLimit)) + '\n' +
+        t('chain.plan_tier_desc_base', liteName, String(liteLimit)) + '\n' +
+        t('chain.plan_tier_desc', standardName, standardRatio, liteName) + '\n' +
+        t('chain.plan_tier_desc', proName, proRatio, liteName) + '\n' +
+        t('chain.plan_tier_desc', maxName, maxRatio, liteName));
 
     // 下拉菜单选择计划
     var planOptions = [];
@@ -538,10 +550,10 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
         var pName = planKeys[i];
         var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
         var displayName = getPlanDisplayName(pName);
-        planOptions.push(displayName + ' - 每日' + pInfo.dailyLimit + '个 - ' + (pInfo.price || 0) + currencyName + ' - ' + (pInfo.duration || 0) + '天');
+        planOptions.push(t('chain_plan.plan_option', displayName, String(pInfo.dailyLimit), String(pInfo.price || 0), currencyName, String(pInfo.duration || 0)));
     }
 
-    fm.addDropdown('选择计划', planOptions, 0);
+    fm.addDropdown(t('chain_plan.select_plan'), planOptions, 0);
 
     player.sendForm(fm, function(p, data) {
         if (data == null) return;
@@ -568,10 +580,10 @@ function showPurchaseConfirm(player, planName) {
     var displayName = getPlanDisplayName(planName);
 
     player.sendModalForm(
-        '§cBlock Plan - 确认购买',
-        '§a计划名称：' + displayName + '\n§a每日上限：§f' + planInfo.dailyLimit + ' 个\n§a价格：§f' + planInfo.price + ' ' + currencyName + '\n§a时长：§f' + planInfo.duration + ' 天\n\n§c确认购买？',
-        '§a确认购买',
-        '§c取消',
+        t('chain_plan.confirm_title'),
+        t('chain_plan.confirm_content', displayName, String(planInfo.dailyLimit), String(planInfo.price), currencyName, String(planInfo.duration)),
+        t('chain_plan.btn_confirm'),
+        t('chain_plan.btn_cancel'),
         function(p, result) {
             if (result === true) {
                 var purchaseResult = purchasePlan(p, planName);
@@ -604,10 +616,10 @@ function showRenewConfirm(player, weeks) {
     var displayName = getPlanDisplayName(currentPlan);
 
     player.sendModalForm(
-        '§cBlock Plan - 确认续费',
-        '§a当前计划：' + displayName + '\n§a续费周数：§f' + weeks + ' 周\n§a续费金额：§f' + totalPrice + ' ' + currencyName + '\n\n§c确认续费？',
-        '§a确认续费',
-        '§c取消',
+        t('chain_plan.renew_confirm_title'),
+        t('chain_plan.renew_confirm_content', displayName, String(weeks), String(totalPrice), currencyName),
+        t('chain_plan.btn_confirm_renew'),
+        t('chain_plan.btn_cancel'),
         function(p, result) {
             if (result === true) {
                 var renewResult = renewPlan(p, weeks);
@@ -856,15 +868,15 @@ function showChainSettingsForm(player) {
     var planDisplayName = getPlanDisplayName(chainCheck.plan);
 
     var fm = mc.newSimpleForm();
-    fm.setTitle('§l§6连锁挖矿 - Block Plan');
+    fm.setTitle(t('chain.settings_title') + ' - Block Plan');
 
-    var content = '§a当前计划：' + planDisplayName + '\n';
-    content += '§a今日用量：§f' + chainCheck.dailyUsed + '/' + chainCheck.dailyLimit + '\n';
+    var content = t('chain.current_plan_label') + planDisplayName + '\n';
+    content += t('chain.daily_usage_label') + chainCheck.dailyUsed + '/' + chainCheck.dailyLimit + '\n';
     content += '-------------------------\n';
     fm.setContent(content);
 
-    fm.addButton('§a连锁设置', "textures/ui/icon_setting");
-    fm.addButton('§bBlock Plan', "textures/ui/confirm");
+    fm.addButton(t('chain.btn_settings'), "textures/ui/icon_setting");
+    fm.addButton(t('chain.btn_plan'), "textures/ui/confirm");
 
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
@@ -882,15 +894,15 @@ function showChainConfigForm(player) {
     var playerCfg = getPlayerChainConfig(player.xuid);
 
     var fm = mc.newCustomForm();
-    fm.setTitle("§l§6连锁挖矿设置");
-    fm.addSwitch("§a连锁总开关", playerCfg.enabled);
-    fm.addSwitch("§c无视方块配置", playerCfg.mineAll);
-    fm.addSwitch("§e蹲下时才启用连锁", playerCfg.sneakOnly);
+    fm.setTitle(t('chain.config_title'));
+    fm.addSwitch(t('chain.switch_enabled'), playerCfg.enabled);
+    fm.addSwitch(t('chain.switch_mine_all'), playerCfg.mineAll);
+    fm.addSwitch(t('chain.switch_sneak_only'), playerCfg.sneakOnly);
 
     // 记录每个工具类型对应的方块ID列表
     var blockIdList = [];
     var toolTypes = ['pickaxe', 'axe', 'shovel', 'hoe'];
-    var toolNames = { pickaxe: '稿子', axe: '斧子', shovel: '铲子', hoe: '锄头' };
+    var toolNames = { pickaxe: t('chain.tool_pickaxe'), axe: t('chain.tool_axe'), shovel: t('chain.tool_shovel'), hoe: t('chain.tool_hoe') };
 
     for (var t = 0; t < toolTypes.length; t++) {
         var toolKey = toolTypes[t];
@@ -940,13 +952,13 @@ function showChainConfigForm(player) {
         }
 
         savePlayerChainConfig(p.xuid, newCfg);
-        p.tell("§e[连锁] §a连锁设置已保存！");
+        p.tell(t('chain.tag_prefix') + " §a" + t('chain.settings_saved'));
     });
 }
 
 /** 注册连锁命令 */
 function registerChainCommand(registerPlayerCommand) {
-    registerPlayerCommand("chain", "连锁挖矿设置", function(p) { showChainSettingsForm(p); });
+    registerPlayerCommand("chain", t('chain.cmd_chain_desc'), function(p) { showChainSettingsForm(p); });
     registerPlayerCommand("bp", "Block Plan", function(p) { showPlanMenu(p); });
 }
 
@@ -988,7 +1000,7 @@ function registerChainListener() {
             // 检查每日用量限制
             var chainCheck = checkCanChain(player.xuid);
             if (!chainCheck.canChain) {
-                player.sendText("§e[连锁] §c今日连锁用量已用完，请购买计划或等待明天重置", 4);
+                player.sendText(t('chain.tag_prefix') + " §c" + t('chain.daily_limit_msg'), 4);
                 return;
             }
 
@@ -1021,7 +1033,7 @@ function registerChainListener() {
                     logger.info('[Chain] 连锁方块数=' + result.count + '，延迟扣除耐久');
                 }
 
-                player.sendText("§e[连锁] §a共连锁 " + result.count + " 个方块，耗时 " + elapsed + "ms", 4);
+                player.sendText(t('chain.tag_prefix') + " §a" + t('chain.chain_complete', String(result.count), String(elapsed)), 4);
                 if (_onChainComplete) _onChainComplete(player, result.count);
             }
             if (_debug) {

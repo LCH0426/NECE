@@ -159,7 +159,7 @@ function waitForSaveHold(callback, maxRetries, retryInterval) {
                 }
                 // 前3次和每5次输出一次调试日志
                 if (retries <= 3 || retries % 5 === 0) {
-                    logger.info(t('backup.log_save_query_retry', retries, result.success, output.substring(0, 200) || '(空)'));
+                    logger.info(t('backup.log_save_query_retry', retries, result.success, output.substring(0, 200) || t('backup.placeholder_empty')));
                 }
             }
         } catch (e) {
@@ -213,7 +213,7 @@ function executeBackup(callback) {
                 // hold失败时恢复存档写入
                 try {
                     let resumeResult = mc.runcmdEx('save resume');
-                    logger.info(t('backup.log_save_resume_hold_fail', resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
+                    logger.info(t('backup.log_save_resume_hold_fail', resumeResult && resumeResult.output ? resumeResult.output.trim() : t('backup.placeholder_none')));
                 } catch (e) { logger.error(t('backup.log_save_resume_hold_fail_error', e.message)); }
                 isBackingUp = false;
                 callback({ error: t('backup.err_save_hold_timeout') });
@@ -231,7 +231,7 @@ function executeBackup(callback) {
                 }
 
                 // 限制压缩级别在0-9范围内
-                let compressionLevel = backupConfig.compressionLevel || 5;
+                let compressionLevel = backupConfig.compressionLevel !== undefined ? backupConfig.compressionLevel : 5;
                 if (compressionLevel < 0) compressionLevel = 0;
                 if (compressionLevel > 9) compressionLevel = 9;
 
@@ -308,7 +308,7 @@ function executeBackup(callback) {
                         // 复制完成，先恢复世界写入，再从临时目录压缩
                         try {
                             var resumeResult = mc.runcmdEx('save resume');
-                            logger.info(t('backup.log_save_resume_output', resumeResult && resumeResult.output ? resumeResult.output.trim() : '(无)'));
+                            logger.info(t('backup.log_save_resume_output', resumeResult && resumeResult.output ? resumeResult.output.trim() : t('backup.placeholder_none')));
                         } catch (e) { logger.error(t('backup.log_save_resume_error', e.message)); }
 
                         if (copyErrors.length > 0) {
