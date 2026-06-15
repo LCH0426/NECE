@@ -403,22 +403,52 @@ var _prevNetBytes = null;
 var _prevNetTime = null;
 
 /**
- * 采集网络流量统计，跳过回环接口，结果更新到cachedStats.network
- * 读取 Windows 性能计数器获取网卡收发字节数
+ * 使用 netstat -e 采集网络累计收发字节，手动计算吞吐量
  */
 function collectNetworkInfo() {
     try {
-        var ifaces = os.networkInterfaces();
-        var names = Object.keys(ifaces);
         var { execSync } = require('child_process');
+        var out = execSync('netstat -e', { encoding: 'utf-8', timeout: 3000 });
+        var lines = out.trim().split(/\r?\n/);
 
-        // 用 wmic 获取所有网卡的收发字节
-        var out = execSync('wmic path Win32_PerfFormattedData_Tcpip_NetworkInterface get BytesTotalPersec,Name /format:csv', { encoding: 'utf-8', timeout: 3000 });
-        // wmic 输出不稳定，无法可靠获取累计字节，改用 netstat
-        // 直接读取 /proc 风格不可行，跳过吞吐量，只保留总量为0
+        // 找到包含两个纯数字的行（字节数行）
+        var totalReceived = 0;
+        var totalSent = 0;
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            // 匹配 "字节  123456  789012" 或 "Bytes  123456  789012"
+            var match = line.match(/(\d+)\s+(\d+)\s*$/);
+            if (match) {
+                totalReceived = parseInt(match[1]);
+                totalSent = parseInt(match[2]);
+                break;
+            }
+        }
+
+        if (totalReceived === 0 && totalSent === 0) return;
+
+        var now = Date.now();
+        var downSpeed = 0;
+        var upSpeed = 0;
+
+        if (_prevNetBytes && _prevNetTime) {
+            var elapsed = (now - _prevNetTime) / 1000;
+            if (elapsed > 0 && totalReceived >= _prevNetBytes.rx) {
+                downSpeed = (totalReceived - _prevNetBytes.rx) / elapsed;
+                upSpeed = (totalSent - _prevNetBytes.tx) / elapsed;
+            }
+        }
+
+        _prevNetBytes = { rx: totalReceived, tx: totalSent };
+        _prevNetTime = now;
+
+        cachedStats.network = {
+            totalDownload: totalReceived / (1024 * 1024 * 1024),
+            totalUpload: totalSent / (1024 * 1024 * 1024),
+            downloadThroughput: (downSpeed * 8) / (1024 * 1024),
+            uploadThroughput: (upSpeed * 8) / (1024 * 1024)
+        };
     } catch (e) {}
-
-    // MCSM 虚拟环境下网卡不报告流量，吞吐量保持0
 }
 
 /**
