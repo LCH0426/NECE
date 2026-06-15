@@ -29,8 +29,10 @@ let _pathModule = null;
 function t(key) {
     var fn = _deps.t;
     if (!fn) return key;
-    var args = Array.prototype.slice.call(arguments, 1);
-    return fn.apply(null, ['chat.' + key].concat(args));
+    var lang = _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
+    var args = [lang, 'chat.' + key];
+    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
+    return fn.apply(null, args);
 }
 
 // 默认聊天配置
