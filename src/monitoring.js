@@ -572,7 +572,7 @@ function startPolling(interval) {
 
     cpuPollTimer = setInterval(cpuPoll, 3000);
     memPollTimer = setInterval(memPoll, 10000);
-    diskPollTimer = setInterval(diskPoll, 10000);
+    diskPollTimer = setInterval(diskPoll, 3000);
     worldSizePollTimer = setInterval(function() {
         updateWorldSize().catch(function(e) {});
     }, 43200000); // 12小时
@@ -592,7 +592,7 @@ let lastOnDemandRefresh = 0;
 let lastDiskNetworkPoll = 0;
 let lastWorldSizePoll = 0;
 const ON_DEMAND_CACHE_TTL = 1000;       // CPU/内存缓存1秒
-const DISK_NETWORK_POLL_INTERVAL = 1000;  // 网络采集间隔1秒
+const DISK_NETWORK_POLL_INTERVAL = 3000;  // 磁盘/网络采集间隔3秒
 const WORLD_SIZE_POLL_INTERVAL = 3600000; // 世界大小每小时更新一次
 
 /**
