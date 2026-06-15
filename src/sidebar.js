@@ -126,7 +126,7 @@ function startRenderLoop() {
 				_sidebarCache[xuid] = cached;
 			}
 
-			// ---- actionbar: 显示 UID ----
+			// ---- actionbar: 显示 UID + 延迟 ----
 			if (cached.enableActionbar) {
 				let uidText;
 				try {
@@ -136,8 +136,22 @@ function startRenderLoop() {
 				} catch (error) {
 					uidText = t('sidebar.fetch_failed');
 				}
+				let actionBar = "UID: " + uidText;
+				if (cached.sidebarSettings.enableActionbarPing) {
+					let device = _playerDeviceCache[xuid];
+					if (!device || now - (device._cacheTime || 0) > DEVICE_CACHE_TTL) {
+						device = pl.getDevice();
+						if (device) device._cacheTime = now;
+						_playerDeviceCache[xuid] = device;
+					}
+					if (device && device.lastPing !== undefined && device.lastPing !== null) {
+						const ping = device.lastPing;
+						const pingColor = ping > 200 ? "§m" : ping > 95 ? "§6" : "§a";
+						actionBar += " " + pingColor + ping + "ms";
+					}
+				}
 				// setTitle type=4 表示 actionbar 区域
-				pl.setTitle("UID: " + uidText, 4);
+				pl.setTitle(actionBar, 4);
 			}
 
 			// ---- 侧边栏面板 ----
