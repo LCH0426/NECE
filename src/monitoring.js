@@ -383,7 +383,7 @@ var _prevNetTime = null;
  */
 async function collectNetworkInfo() {
     var stats = await si.networkStats();
-    if (!stats || stats.length === 0) return;
+    if (!stats || stats.length === 0) { logger.info('[Monitor] networkStats 为空数组'); return; }
 
     let totalReceived = 0;
     let totalSent = 0;
