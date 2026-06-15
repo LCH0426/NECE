@@ -689,7 +689,7 @@ function showMainMenu(player) {
         fm.addButton('§b' + t('guild.btn_info'), 'textures/ui/icon_book_writable');
         fm.addButton('§a' + t('guild.btn_member_manage'), 'textures/ui/FriendsDiversity');
         fm.addButton('§e' + t('guild.btn_tp_manage'), 'textures/items/compass_item');
-        fm.addButton('§6' + t('guild.btn_treasury'), 'textures/ui/my_characters');
+        fm.addButton('§6' + t('guild.btn_treasury'), 'textures/items/gold_ingot');
         fm.addButton('§d' + t('guild.btn_tp_hq'), 'textures/items/bed_red');
         fm.addButton('§9' + t('guild.btn_guild_list'), 'textures/ui/icon_best3');
         if (role === 'owner' || role === 'admin') {
@@ -1159,7 +1159,6 @@ function showTreasuryPanel(player) {
         } else {
             doWithdraw(p, amount);
         }
-        showTreasuryPanel(p);
     });
 }
 
@@ -1646,7 +1645,7 @@ function showAdminGuildManage(player, guild) {
 
     fm.addButton('§a' + t('guild.admin_members'), 'textures/ui/FriendsDiversity');
     fm.addButton('§e' + t('guild.admin_tps'), 'textures/items/compass_item');
-    fm.addButton('§6' + t('guild.admin_funds'), 'textures/ui/my_characters');
+    fm.addButton('§6' + t('guild.admin_funds'), 'textures/items/gold_ingot');
     fm.addButton('§d' + t('guild.admin_invite'), 'textures/ui/color_plus');
     fm.addButton('§e' + t('guild.admin_rename'), 'textures/ui/book_edit_default');
     fm.addButton('§c' + t('guild.admin_disband'), 'textures/ui/hammer_l');
