@@ -379,22 +379,44 @@ var _prevNetTime = null;
 
 /**
  * 采集网络流量统计，跳过回环接口，结果更新到cachedStats.network
- * 手动计算吞吐量（不依赖 si.networkStats 的 rx_sec/tx_sec）
+ * 优先用 si.networkStats，失败时回退到 Windows netstat 命令
  */
 async function collectNetworkInfo() {
     try {
-        const stats = await si.networkStats();
-        if (!stats || stats.length === 0) return;
-
         let totalReceived = 0;
         let totalSent = 0;
+        let gotData = false;
 
-        for (let i = 0; i < stats.length; i++) {
-            const s = stats[i];
-            if (s.iface && (s.iface.startsWith('Loopback') || s.iface === 'lo')) continue;
-            totalReceived += s.rx_bytes || 0;
-            totalSent += s.tx_bytes || 0;
+        // 方案1: si.networkStats
+        try {
+            const stats = await si.networkStats();
+            if (stats && stats.length > 0) {
+                for (let i = 0; i < stats.length; i++) {
+                    const s = stats[i];
+                    if (s.iface && (s.iface.startsWith('Loopback') || s.iface === 'lo')) continue;
+                    totalReceived += s.rx_bytes || 0;
+                    totalSent += s.tx_bytes || 0;
+                }
+                if (totalReceived > 0 || totalSent > 0) gotData = true;
+            }
+        } catch (e) {}
+
+        // 方案2: Windows PowerShell 获取网络适配器统计
+        if (!gotData) {
+            try {
+                const { execSync } = require('child_process');
+                const out = execSync('powershell -Command "Get-NetAdapterStatistics | Select-Object -Property ReceivedBytes,SentBytes | ConvertTo-Json"', { encoding: 'utf-8', timeout: 5000 });
+                const parsed = JSON.parse(out);
+                const arr = Array.isArray(parsed) ? parsed : [parsed];
+                for (let i = 0; i < arr.length; i++) {
+                    totalReceived += arr[i].ReceivedBytes || 0;
+                    totalSent += arr[i].SentBytes || 0;
+                }
+                if (totalReceived > 0 || totalSent > 0) gotData = true;
+            } catch (e) {}
         }
+
+        if (!gotData) return;
 
         var now = Date.now();
         var downSpeed = 0;
