@@ -75,7 +75,7 @@ function init(deps) {
  * 遍历所有在线玩家，根据各自的侧边栏开关决定显示内容
  */
 function startRenderLoop() {
-	const SIDEBAR_SETTING_KEYS = ['enableActionbarPing', 'enableActionbarMoney', 'enableActionbarTime', 'enableActionbarTps', 'enableActionbarSpeed', 'enableActionbarBiome'];
+	const SIDEBAR_SETTING_KEYS = ['enableActionbarPing', 'enableActionbarMoney', 'enableActionbarTime', 'enableActionbarTps', 'enableActionbarSpeed', 'enableActionbarBiome', 'enableActionbarShowPing'];
 	const SIDEBAR_CACHE_TTL = 0;
 	const SIDEBAR_MONEY_CACHE_TTL = 0;
 
@@ -137,7 +137,7 @@ function startRenderLoop() {
 					uidText = t('sidebar.fetch_failed');
 				}
 				let actionBar = "UID: " + uidText;
-				if (cached.sidebarSettings.enableActionbarPing) {
+				if (cached.sidebarSettings.enableActionbarShowPing) {
 					let device = _playerDeviceCache[xuid];
 					if (!device || now - (device._cacheTime || 0) > DEVICE_CACHE_TTL) {
 						device = pl.getDevice();
