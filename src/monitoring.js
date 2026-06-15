@@ -382,10 +382,7 @@ var _prevNetTime = null;
  * 手动计算吞吐量（不依赖 si.networkStats 的 rx_sec/tx_sec）
  */
 async function collectNetworkInfo() {
-    var ifaces = await si.networkInterfaces();
-    logger.info('[Monitor] 网络接口: ' + JSON.stringify(ifaces.map(function(i) { return { name: i.iface, type: i.type, virtual: i.virtual }; })));
     var stats = await si.networkStats();
-    logger.info('[Monitor] networkStats原始: ' + JSON.stringify(stats));
     if (!stats || stats.length === 0) return;
 
     let totalReceived = 0;
