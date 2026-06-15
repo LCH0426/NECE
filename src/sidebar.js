@@ -126,17 +126,20 @@ function startRenderLoop() {
 				_sidebarCache[xuid] = cached;
 			}
 
-			// ---- actionbar: 显示 UID + 延迟 ----
-			if (cached.enableActionbar) {
-				let uidText;
-				try {
-					let uid = pl.uid;
-					uidText = uid === t('sidebar.config_error') ? t('sidebar.config_error') :
-						uid === t('pc.unregistered') ? t('sidebar.unregistered') : "" + uid;
-				} catch (error) {
-					uidText = t('sidebar.fetch_failed');
+			// ---- actionbar: UID 和延迟独立显示 ----
+			if (cached.enableActionbar || cached.sidebarSettings.enableActionbarShowPing) {
+				let actionBar = "";
+				if (cached.enableActionbar) {
+					let uidText;
+					try {
+						let uid = pl.uid;
+						uidText = uid === t('sidebar.config_error') ? t('sidebar.config_error') :
+							uid === t('pc.unregistered') ? t('sidebar.unregistered') : "" + uid;
+					} catch (error) {
+						uidText = t('sidebar.fetch_failed');
+					}
+					actionBar = "UID: " + uidText;
 				}
-				let actionBar = "UID: " + uidText;
 				if (cached.sidebarSettings.enableActionbarShowPing) {
 					let device = _playerDeviceCache[xuid];
 					if (!device || now - (device._cacheTime || 0) > DEVICE_CACHE_TTL) {
@@ -147,11 +150,14 @@ function startRenderLoop() {
 					if (device && device.lastPing !== undefined && device.lastPing !== null) {
 						const ping = device.lastPing;
 						const pingColor = ping > 200 ? "§m" : ping > 95 ? "§6" : "§a";
-						actionBar += " " + pingColor + ping + "ms";
+						if (actionBar) actionBar += " ";
+						actionBar += pingColor + ping + "ms";
 					}
 				}
-				// setTitle type=4 表示 actionbar 区域
-				pl.setTitle(actionBar, 4);
+				if (actionBar) {
+					// setTitle type=4 表示 actionbar 区域
+					pl.setTitle(actionBar, 4);
+				}
 			}
 
 			// ---- 侧边栏面板 ----
