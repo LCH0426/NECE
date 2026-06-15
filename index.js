@@ -2255,7 +2255,7 @@ function showSetPasswordForm(player) {
 	fm.addInput('确认密码', '请再次输入密码', '');
 
 	player.sendForm(fm, function(player, data) {
-		if (data === null) return;
+		if (data == null) return;
 		const pwd1 = data[0] || '';
 		const pwd2 = data[1] || '';
 
