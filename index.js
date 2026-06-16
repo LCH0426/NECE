@@ -698,6 +698,11 @@ function initRankConfig() {
 		"trustProxy": false,
 		"proxyProtocol": false
 	});
+	// 迁移：为已有配置补充新增字段
+	var _webCfg = config.get('web', {});
+	if (_webCfg.corsOrigin === undefined) { config.set('web.corsOrigin', ''); }
+	if (_webCfg.trustProxy === undefined) { config.set('web.trustProxy', false); }
+	if (_webCfg.proxyProtocol === undefined) { config.set('web.proxyProtocol', false); }
 	config.init("chat", {
 		"enabled": true,
 		"format": "§g[§r§d{dim}§r§g]§b{os}§e|§2{ping}ms§e|§c公会:§b{org}§r§e|§b{titles}§e|§a<§r{name}§a> §r{msg}",
