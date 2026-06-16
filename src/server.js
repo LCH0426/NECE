@@ -582,8 +582,9 @@ function createApp(webConfig) {
         app.set('trust proxy', true);
     }
 
+    var corsOrigin = webConfig.corsOrigin;
     app.use(cors({
-        origin: true,
+        origin: corsOrigin || true,
         credentials: true
     }));
     app.use(express.json());
