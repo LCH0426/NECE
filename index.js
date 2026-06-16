@@ -692,6 +692,7 @@ function initRankConfig() {
 		"enableFrontend": true,
 		"port": 8080,
 		"host": "0.0.0.0",
+		"corsOrigin": "",
 		"jwtExpire": "15m",
 		"jwtRefreshExpire": "7d",
 		"trustProxy": false,
