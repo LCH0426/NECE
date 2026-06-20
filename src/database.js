@@ -79,7 +79,7 @@ function run(session, sql, params) {
         } else {
             finalSql = sql;
         }
-        if (_debug && sql.indexOf('player_data') === -1) dbDebugLog('run:', finalSql.substring(0, 200));
+        if (_debug && sql.indexOf('player_data') === -1 && sql.indexOf('DELETE FROM captcha') === -1 && sql.indexOf('DELETE FROM refresh_tokens') === -1 && sql.indexOf('DELETE FROM access_token_blacklist') === -1) dbDebugLog('run:', finalSql.substring(0, 200));
         session.exec(finalSql);
         return {};
     } catch (e) {
