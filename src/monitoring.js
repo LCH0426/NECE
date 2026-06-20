@@ -452,32 +452,62 @@ function collectNetworkInfo() {
 }
 
 /**
- * 使用 wmic logicaldisk 采集磁盘使用情况
+ * 采集磁盘使用情况
+ * Windows: wmic logicaldisk | Linux/Wine: df -B1
  */
 function collectDiskInfo() {
     try {
         var { execSync } = require('child_process');
         var serverDir = process.cwd();
-        var driveLetter = pathModule.parse(serverDir).root.replace(/\\/g, '').replace(/:/g, '');
-        var out = execSync('wmic logicaldisk where "DeviceID=\'' + driveLetter + ':\'" get Size,FreeSpace /format:csv', { encoding: 'utf-8', timeout: 3000 });
-        var lines = out.trim().split('\n');
-        for (var i = 0; i < lines.length; i++) {
-            var parts = lines[i].trim().split(',');
-            if (parts.length >= 3) {
-                var freeSpace = parseInt(parts[1]);
-                var totalSize = parseInt(parts[2]);
-                if (!isNaN(totalSize) && totalSize > 0) {
-                    cachedStats.disk = {
-                        total: totalSize / (1024 * 1024 * 1024),
-                        used: (totalSize - freeSpace) / (1024 * 1024 * 1024),
-                        free: freeSpace / (1024 * 1024 * 1024),
-                        usagePercent: Math.round(((totalSize - freeSpace) / totalSize) * 1000) / 10
-                    };
-                    return;
+        var totalSize = 0, freeSpace = 0;
+
+        // Windows: wmic
+        try {
+            var driveLetter = pathModule.parse(serverDir).root.replace(/\\/g, '').replace(/:/g, '');
+            var out = execSync('wmic logicaldisk where "DeviceID=\'' + driveLetter + ':\'" get Size,FreeSpace /format:csv', { encoding: 'utf-8', timeout: 3000 });
+            var lines = out.trim().split('\n');
+            for (var i = 0; i < lines.length; i++) {
+                var parts = lines[i].trim().split(',');
+                if (parts.length >= 3) {
+                    freeSpace = parseInt(parts[1]);
+                    totalSize = parseInt(parts[2]);
+                    if (!isNaN(totalSize) && totalSize > 0) break;
+                    totalSize = 0;
                 }
             }
+        } catch (e) {}
+
+        // Linux/Wine 回退: df
+        if (!totalSize) {
+            try {
+                var dfOut = execSync('df -B1 "' + serverDir + '" 2>/dev/null | tail -1', { encoding: 'utf-8', timeout: 3000 });
+                var dfParts = dfOut.trim().split(/\s+/);
+                if (dfParts.length >= 4) {
+                    totalSize = parseInt(dfParts[1]);
+                    var used = parseInt(dfParts[2]);
+                    freeSpace = parseInt(dfParts[3]);
+                    if (!isNaN(totalSize) && totalSize > 0) {
+                        cachedStats.disk = {
+                            total: totalSize / (1024 * 1024 * 1024),
+                            used: used / (1024 * 1024 * 1024),
+                            free: freeSpace / (1024 * 1024 * 1024),
+                            usagePercent: Math.round((used / totalSize) * 1000) / 10
+                        };
+                        return;
+                    }
+                }
+            } catch (e) {}
         }
-    } catch (e) { logger.warn('[Monitor] 获取磁盘信息失败: ' + e.message); }
+
+        if (totalSize > 0) {
+            cachedStats.disk = {
+                total: totalSize / (1024 * 1024 * 1024),
+                used: (totalSize - freeSpace) / (1024 * 1024 * 1024),
+                free: freeSpace / (1024 * 1024 * 1024),
+                usagePercent: Math.round(((totalSize - freeSpace) / totalSize) * 1000) / 10
+            };
+        }
+    } catch (e) {}
 }
 
 /**
