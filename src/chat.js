@@ -466,7 +466,7 @@ function showCustomTitleForm(player) {
     fm.addInput(t('custom_input_label'), t('custom_input_placeholder'), "");
 
     player.sendForm(fm, function(p, data) {
-        if (data == null) { showBuyTitleForm(p); return; }
+        if (data == null) return;
 
         var input = (data[1] || '').trim();
         if (!input) {
