@@ -23,15 +23,19 @@
 
 function registerRoutes(router, d) {
 
+    // 确保查询参数为字符串（防止类型混淆注入）
+    function safeStr(val) { return typeof val === 'string' ? val : ''; }
+    function safeInt(val, def) { var n = parseInt(val); return isNaN(n) ? def : n; }
+
     // 获取当前用户的留言列表
     router.get('/messages/my', d.auth, function(req, res) {
         try {
             let userXuid = d.getXuidByUid(req.user.uid) || req.user.uid;
             let options = {
-                page: req.query.page,
-                pageSize: req.query.pageSize,
-                search: req.query.search,
-                mood: req.query.mood,
+                page: safeInt(req.query.page, 1),
+                pageSize: safeInt(req.query.pageSize, 20),
+                search: safeStr(req.query.search),
+                mood: safeStr(req.query.mood),
                 xuid: userXuid,
                 includeDeleted: req.query.includeDeleted === 'true'
             };
@@ -47,7 +51,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取我的留言列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取我的留言列表失败' });
         }
     });
 
@@ -57,11 +61,11 @@ function registerRoutes(router, d) {
             let userXuid = d.getXuidByUid(req.user.uid) || req.user.uid;
             const isAdminUser = d.database.isAdmin(req.user.uid);
             let options = {
-                page: req.query.page,
-                pageSize: req.query.pageSize,
-                search: req.query.search,
-                mood: req.query.mood,
-                xuid: req.query.xuid || '',
+                page: safeInt(req.query.page, 1),
+                pageSize: safeInt(req.query.pageSize, 20),
+                search: safeStr(req.query.search),
+                mood: safeStr(req.query.mood),
+                xuid: safeStr(req.query.xuid),
                 includeDeleted: false
             };
 
@@ -81,7 +85,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取留言列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取留言列表失败' });
         }
     });
 
@@ -107,7 +111,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取留言列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取留言列表失败' });
         }
     });
 
@@ -133,7 +137,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: msg });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取留言详情失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取留言详情失败' });
         }
     });
 
@@ -142,6 +146,14 @@ function registerRoutes(router, d) {
         try {
             let content = req.body.content;
             let mood = req.body.mood || '平静';
+
+            // 类型校验（防止 NoSQL 注入/类型混淆）
+            if (typeof content !== 'string') {
+                return res.status(400).json({ code: 400, msg: '留言内容类型错误' });
+            }
+            if (typeof mood !== 'string') {
+                return res.status(400).json({ code: 400, msg: '心情值类型错误' });
+            }
 
             if (!content || !content.trim()) {
                 return res.status(400).json({ code: 400, msg: '留言内容不能为空' });
@@ -155,6 +167,11 @@ function registerRoutes(router, d) {
             if (MOOD_OPTIONS.indexOf(mood) === -1) {
                 mood = '平静';
             }
+
+            // HTML 转义（防止存储型 XSS）
+            content = content.replace(/[&<>"']/g, function(m) {
+                return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m];
+            });
 
             let xuid = d.getXuidByUid(req.user.uid) || req.user.uid;
             const playerName = d.getPlayerNameByUid(req.user.uid);
@@ -174,7 +191,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '留言发布成功', data: { id: newMsg.id } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '发布留言失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '发布留言失败' });
         }
     });
 
@@ -211,7 +228,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '留言已删除' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除留言失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除留言失败: ' });
         }
     });
 }
