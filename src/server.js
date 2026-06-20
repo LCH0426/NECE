@@ -470,10 +470,10 @@ function parseCookies(req) {
     return cookies;
 }
 
-/** 设置 HttpOnly Refresh Token Cookie */
+/** 设置 HttpOnly Refresh Token Cookie（使用 append 避免覆盖同响应中的其它 Cookie） */
 function setRefreshTokenCookie(res, refreshToken, maxAge) {
     const isSecure = _webConfig && _webConfig.secureCookie === true;
-    res.setHeader('Set-Cookie', [
+    res.append('Set-Cookie', [
         'refresh_token=' + refreshToken,
         'Path=/api/v1',
         'HttpOnly',
@@ -486,7 +486,7 @@ function setRefreshTokenCookie(res, refreshToken, maxAge) {
 /** 设置 HttpOnly Access Token Cookie（用于文件下载等无法携带 Authorization Header 的场景） */
 function setAccessTokenCookie(res, accessToken, maxAge) {
     const isSecure = _webConfig && _webConfig.secureCookie === true;
-    res.setHeader('Set-Cookie', [
+    res.append('Set-Cookie', [
         'auth_token=' + accessToken,
         'Path=/api/v1',
         'HttpOnly',
@@ -498,7 +498,7 @@ function setAccessTokenCookie(res, accessToken, maxAge) {
 
 /** 通过设置 Max-Age=0 立即清除客户端的 Access Token Cookie */
 function clearAccessTokenCookie(res) {
-    res.setHeader('Set-Cookie', [
+    res.append('Set-Cookie', [
         'auth_token=',
         'Path=/api/v1',
         'HttpOnly',
@@ -509,7 +509,7 @@ function clearAccessTokenCookie(res) {
 
 /** 通过设置 Max-Age=0 立即清除客户端的 Refresh Token Cookie */
 function clearRefreshTokenCookie(res) {
-    res.setHeader('Set-Cookie', [
+    res.append('Set-Cookie', [
         'refresh_token=',
         'Path=/api/v1',
         'HttpOnly',
@@ -613,8 +613,9 @@ function createApp(webConfig) {
     });
 
     if (webConfig.enableFrontend !== false) {
-        app.use(globalApiLimiter, express.static(WEB_DIR));
-        app.get(/^\/(?!api).*/, globalApiLimiter, function(req, res) {
+        // 静态资源不套用 API 限流，避免加载前端资源（CSS/JS/图片）时触发 429
+        app.use(express.static(WEB_DIR));
+        app.get(/^\/(?!api).*/, function(req, res) {
             res.sendFile(pathModule.join(WEB_DIR, 'index.html'));
         });
     }
@@ -774,7 +775,8 @@ function createV1Routes(webConfig) {
         getErrorMessage: getErrorMessage,
         loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter, writeLimiter,
         hasWish: _hasWish,
-        generateDownloadToken, consumeDownloadToken
+        generateDownloadToken, consumeDownloadToken,
+        getConfig: function() { return _configRef; }
     };
 
     // 版本信息接口

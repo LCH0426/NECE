@@ -13,7 +13,6 @@
     "csv-parser": "^3.2.0",
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
-    "svg-captcha": "^1.4.0",
-    "systeminformation": "^5.31.6"
+    "svg-captcha": "^1.4.0"
   }
 }

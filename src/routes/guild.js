@@ -24,21 +24,20 @@ function registerRoutes(router, d) {
 
     var database = d.database;
 
-    // 缓存配置读取（30秒有效）
-    var _configCache = null;
-    var _configCacheTime = 0;
+    // 读取公会配置：优先使用注入的内存 config 对象，避免重复磁盘 IO 和缓存不一致
     function getGuildConfig() {
-        var now = Date.now();
-        if (!_configCache || now - _configCacheTime > 30000) {
-            try {
-                var cfgContent = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
-                _configCache = JSON.parse(cfgContent);
-                _configCacheTime = now;
-            } catch (e) {
-                _configCache = _configCache || {};
-            }
+        var cfg = d.getConfig && d.getConfig();
+        if (cfg) {
+            var guildCfg = cfg.get('guild', {});
+            return guildCfg || {};
         }
-        return _configCache;
+        // 兜底：config 不可用时直接读文件
+        try {
+            var cfgContent = d.fs.readFileSync(d.pathModule.join(__dirname, '..', '..', 'config.json'), 'utf-8');
+            return JSON.parse(cfgContent).guild || {};
+        } catch (e) {
+            return {};
+        }
     }
 
     // ==================== 管理员接口 ====================
