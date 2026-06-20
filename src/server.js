@@ -478,7 +478,7 @@ function setRefreshTokenCookie(res, refreshToken, maxAge) {
         'Path=/api/v1',
         'HttpOnly',
         isSecure ? 'Secure' : '',
-        'SameSite=Lax',
+        'SameSite=Strict',
         'Max-Age=' + Math.floor(maxAge / 1000)
     ].filter(Boolean).join('; '));
 }
@@ -491,7 +491,7 @@ function setAccessTokenCookie(res, accessToken, maxAge) {
         'Path=/api/v1',
         'HttpOnly',
         isSecure ? 'Secure' : '',
-        'SameSite=Lax',
+        'SameSite=Strict',
         'Max-Age=' + Math.floor(maxAge / 1000)
     ].filter(Boolean).join('; '));
 }
@@ -502,7 +502,7 @@ function clearAccessTokenCookie(res) {
         'auth_token=',
         'Path=/api/v1',
         'HttpOnly',
-        'SameSite=Lax',
+        'SameSite=Strict',
         'Max-Age=0'
     ].join('; '));
 }
@@ -513,7 +513,7 @@ function clearRefreshTokenCookie(res) {
         'refresh_token=',
         'Path=/api/v1',
         'HttpOnly',
-        'SameSite=Lax',
+        'SameSite=Strict',
         'Max-Age=0'
     ].join('; '));
 }
@@ -582,12 +582,46 @@ function createApp(webConfig) {
         app.set('trust proxy', true);
     }
 
+    // 禁用 X-Powered-By 头
+    app.disable('x-powered-by');
+
+    // 安全响应头
+    app.use(function(req, res, next) {
+        res.setHeader('X-Frame-Options', 'DENY');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-XSS-Protection', '1; mode=block');
+        res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+        res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+        next();
+    });
+
+    // CORS 白名单模式
     var corsOrigin = webConfig.corsOrigin;
-    app.use(cors({
-        origin: corsOrigin || true,
-        credentials: true
-    }));
-    app.use(express.json());
+    if (corsOrigin && corsOrigin.length > 0) {
+        var allowed = Array.isArray(corsOrigin) ? corsOrigin : [corsOrigin];
+        app.use(cors({
+            origin: function(origin, callback) {
+                if (!origin) return callback(null, true);
+                if (allowed.indexOf(origin) !== -1) callback(null, true);
+                else callback(new Error('CORS not allowed'));
+            },
+            credentials: true
+        }));
+    } else {
+        app.use(cors({ origin: false }));
+    }
+
+    // JSON 解析错误处理（防止堆栈泄露）
+    app.use(express.json({ limit: '1mb' }));
+    app.use(function(err, req, res, next) {
+        if (err.type === 'entity.parse.failed') {
+            return res.status(400).json({ code: 400, msg: '请求格式错误' });
+        }
+        if (err.message === 'CORS not allowed') {
+            return res.status(403).json({ code: 403, msg: '跨域请求被拒绝' });
+        }
+        next(err);
+    });
 
     // Debug 模式下打印 HTTP 请求日志
     if ((webConfig.debugMode !== undefined ? webConfig.debugMode : (_configRef && _configRef.get('debug')))) {
