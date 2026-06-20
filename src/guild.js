@@ -196,22 +196,33 @@ function doCreateGuild(player, name, description) {
     }
 
     var cost = cfg().createCost !== undefined ? cfg().createCost : 1000;
+    var maxMembers = cfg().maxMembers !== undefined ? cfg().maxMembers : 20;
+
+    function _doCreate(p) {
+        if (!reducePlayerMoney(p, cost, t('guild.create_cost'))) {
+            p.tell(t('guild.tag_prefix') + ' §c' + t('guild.create_failed'));
+            return;
+        }
+        var guildId = database.createGuild(name, description, p.xuid, maxMembers);
+        if (!guildId) {
+            addPlayerMoney(p, cost, t('guild.create_cost') + ' (退款)');
+            p.tell(t('guild.tag_prefix') + ' §c' + t('guild.create_failed'));
+            return;
+        }
+        p.tell(t('guild.tag_prefix') + ' §a' + t('guild.create_success', name));
+    }
+
     if (cost > 0 && confirmPurchase) {
-        confirmPurchase(player, cost, t('guild.create_cost'), function(p) {
-            if (!reducePlayerMoney(p, cost, t('guild.create_cost'))) {
-                p.tell(t('guild.tag_prefix') + ' §c' + t('guild.create_failed'));
-                return;
-            }
-            var maxMembers = cfg().maxMembers !== undefined ? cfg().maxMembers : 20;
-            var guildId = database.createGuild(name, description, p.xuid, maxMembers);
-            p.tell(t('guild.tag_prefix') + ' §a' + t('guild.create_success', name));
-        });
+        confirmPurchase(player, cost, t('guild.create_cost'), _doCreate);
         return;
     }
 
-    var maxMembers = cfg().maxMembers !== undefined ? cfg().maxMembers : 20;
-    var guildId = database.createGuild(name, description, xuid, maxMembers);
-    player.tell(t('guild.tag_prefix') + ' §a' + t('guild.create_success', name));
+    if (cost > 0) {
+        _doCreate(player);
+    } else {
+        var guildId = database.createGuild(name, description, xuid, maxMembers);
+        player.tell(t('guild.tag_prefix') + ' §a' + t('guild.create_success', name));
+    }
     logger.info('[Guild] 玩家 ' + player.name + ' 创建公会: ' + name + ' (ID:' + guildId + ')');
 }
 
@@ -436,7 +447,10 @@ function doWithdraw(player, amount) {
         player.tell(t('guild.tag_prefix') + ' §c' + t('guild.fund_insufficient')); return;
     }
 
-    addPlayerMoney(player, amount, t('guild.withdraw_label'));
+    if (!addPlayerMoney(player, amount, t('guild.withdraw_label'))) {
+        database.updateGuildFundAdd(guild.id, amount);
+        player.tell(t('guild.tag_prefix') + ' §c' + t('guild.deposit_failed')); return;
+    }
     player.tell(t('guild.tag_prefix') + ' §a' + t('guild.withdraw_success', amount.toFixed(2) + ' ' + getCurrencyName()));
     logger.info('[Guild] ' + player.name + ' 从公会"' + guild.name + '"取出 ' + amount);
 }
@@ -705,7 +719,6 @@ function showMainMenu(player) {
         var inviteStr = myInvites.length > 0 ? '\n§e' + t('guild.pending_invite_count', myInvites.length) : '';
         fm.setContent('§e' + t('guild.no_guild_msg') + inviteStr);
         fm.addButton('§9' + t('guild.btn_view_all'), 'textures/ui/icon_best3');
-        fm.addButton('§d' + t('guild.btn_handle'), 'textures/ui/FriendsDiversity');
         if (myInvites.length > 0) {
             fm.addButton('§e' + t('guild.btn_view_invites') + ' §c(' + myInvites.length + ')', 'textures/ui/icon_book_writable');
         }

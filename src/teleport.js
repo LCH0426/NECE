@@ -940,7 +940,7 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
 		});
 		sf.addButton(t('tp.back'), "textures/ui/recap_glyph_desaturated");
 		p.sendForm(sf, function(p2, id) {
-			if (id === null || id === results.length) { showHomeShareAddForm(p2, home, homeIndex, deps); return; }
+			if (id == null || id === results.length) { showHomeShareAddForm(p2, home, homeIndex, deps); return; }
 			var selected = results[id];
 			if (!home.sharedWith) home.sharedWith = [];
 			if (home.sharedWith.indexOf(selected.name) === -1) {
@@ -1186,15 +1186,13 @@ function findSafeY(x, z, dim) {
 				return null;
 			}
 
-			// 缓存上一层查询结果，每层从 3 次原生调用减为 2 次
-			let prevAbove = null;
-			let prevAbove2 = null;
+			// 缓存上一层查询结果，每层从 3 次原生调用减为 1 次
+			let prevBlock = null;
 			for (let y = 200; y >= -64; y--) {
-				const block = prevAbove || mc.getBlock(new IntPos(x, y, z, dim));
-				const blockAbove = prevAbove2 || mc.getBlock(new IntPos(x, y + 1, z, dim));
+				const block = prevBlock || mc.getBlock(new IntPos(x, y, z, dim));
+				const blockAbove = mc.getBlock(new IntPos(x, y + 1, z, dim));
 				const blockAbove2 = mc.getBlock(new IntPos(x, y + 2, z, dim));
-				prevAbove = blockAbove;
-				prevAbove2 = blockAbove2;
+				prevBlock = blockAbove;
 				if (block && blockAbove && blockAbove2) {
 					const isSolid = block.type !== "minecraft:air" && block.type !== "minecraft:water" && block.type !== "minecraft:lava";
 					const isAir1 = blockAbove.type === "minecraft:air";
@@ -1208,14 +1206,12 @@ function findSafeY(x, z, dim) {
 			}
 		} else if (dim === 1) {
 			// 下界：Y范围 0~127，不排除水（下界无水）
-			let prevAbove = null;
-			let prevAbove2 = null;
+			let prevBlock = null;
 			for (let y = 127; y >= 0; y--) {
-				const block = prevAbove || mc.getBlock(new IntPos(x, y, z, dim));
-				const blockAbove = prevAbove2 || mc.getBlock(new IntPos(x, y + 1, z, dim));
+				const block = prevBlock || mc.getBlock(new IntPos(x, y, z, dim));
+				const blockAbove = mc.getBlock(new IntPos(x, y + 1, z, dim));
 				const blockAbove2 = mc.getBlock(new IntPos(x, y + 2, z, dim));
-				prevAbove = blockAbove;
-				prevAbove2 = blockAbove2;
+				prevBlock = blockAbove;
 				if (block && blockAbove && blockAbove2) {
 					const isSolid = block.type !== "minecraft:air" && block.type !== "minecraft:lava";
 					const isAir1 = blockAbove.type === "minecraft:air";
@@ -1438,14 +1434,13 @@ function safeTeleport(player, x, y, z, dim) {
         return true;
     } catch (e) {
         try {
-            mc.runcmdEx('execute in ' + dimName + ' run tp "' + player.realName + '" ' + x + ' ' + y + ' ' + z);
-            return true;
-        } catch (e2) {
-            try {
-                player.runcmd('tp ' + x + ' ' + y + ' ' + z);
-                return true;
-            } catch (e3) { return false; }
-        }
+            var result = mc.runcmdEx('execute in ' + dimName + ' run tp "' + player.realName + '" ' + x + ' ' + y + ' ' + z);
+            if (result && result.success) return true;
+        } catch (e2) {}
+        try {
+            if (player.runcmd('tp ' + x + ' ' + y + ' ' + z)) return true;
+        } catch (e3) {}
+        return false;
     }
 }
 

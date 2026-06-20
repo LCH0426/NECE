@@ -486,19 +486,21 @@ function updatePlayTimeSQL(xuid, playTime) {
     run(playerDb, "UPDATE player_data SET count = json_set(COALESCE(count, '{}'), '$.playTime', ?) WHERE xuid = ?", [playTime, xuid]);
 }
 
+function _safeParse(str, fallback) {
+    try { return JSON.parse(str || '{}'); } catch (e) { return fallback || {}; }
+}
+
 function _parsePlayerRow(r) {
-    var dustshop = {};
-    try { dustshop = JSON.parse(r.dustshop || '{}'); } catch (e) { dustshop = {}; }
     return {
         uid: r.uid, name: r.name, uuid: r.uuid, registerTime: r.register_time,
         leavetime: r.leave_time, healthBonus: r.health_bonus, rw: r.rw,
-        taxdata: JSON.parse(r.tax_data || '{}'), bankdata: JSON.parse(r.bank_data || '{}'),
-        quickmenu: JSON.parse(r.quick_menu || '{}'), vipdata: JSON.parse(r.vip_data || '{}'),
-        avatar: JSON.parse(r.avatar || '{}'), count: JSON.parse(r.count || '{}'),
-        titles: JSON.parse(r.titles || '{}'), lastIp: r.last_ip || '', platform: r.platform || '',
-        chain: JSON.parse(r.chain || '{}'), chainPlan: JSON.parse(r.chain_plan || '{}'),
-        dustshop: dustshop,
-        sign: JSON.parse(r.sign || '{}')
+        taxdata: _safeParse(r.tax_data), bankdata: _safeParse(r.bank_data),
+        quickmenu: _safeParse(r.quick_menu), vipdata: _safeParse(r.vip_data),
+        avatar: _safeParse(r.avatar), count: _safeParse(r.count),
+        titles: _safeParse(r.titles), lastIp: r.last_ip || '', platform: r.platform || '',
+        chain: _safeParse(r.chain), chainPlan: _safeParse(r.chain_plan),
+        dustshop: _safeParse(r.dustshop),
+        sign: _safeParse(r.sign)
     };
 }
 
