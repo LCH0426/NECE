@@ -403,26 +403,45 @@ var _prevNetBytes = null;
 var _prevNetTime = null;
 
 /**
- * 使用 netstat -e 采集网络累计收发字节，手动计算吞吐量
+ * 采集网络累计收发字节，手动计算吞吐量
+ * Linux/Wine: 读 /proc/net/dev（零开销）
+ * Windows: netstat -e（spawn 进程）
  */
 function collectNetworkInfo() {
     try {
-        var { execSync } = require('child_process');
-        var out = execSync('netstat -e', { encoding: 'utf-8', timeout: 3000 });
-        var lines = out.trim().split(/\r?\n/);
-
-        // 找到包含两个纯数字的行（字节数行）
         var totalReceived = 0;
         var totalSent = 0;
-        for (var i = 0; i < lines.length; i++) {
-            var line = lines[i].trim();
-            // 匹配 "字节  123456  789012" 或 "Bytes  123456  789012"
-            var match = line.match(/(\d+)\s+(\d+)\s*$/);
-            if (match) {
-                totalReceived = parseInt(match[1]);
-                totalSent = parseInt(match[2]);
-                break;
+
+        // 方案1: Linux/Wine 读 /proc/net/dev
+        try {
+            var procNet = fs.readFileSync('/proc/net/dev', 'utf-8');
+            var lines = procNet.trim().split('\n');
+            for (var i = 2; i < lines.length; i++) {
+                var parts = lines[i].trim().split(/[:\s]+/);
+                if (parts[0] === 'lo' || parts[0] === 'Loopback') continue;
+                if (parts.length >= 10) {
+                    totalReceived += parseInt(parts[1]) || 0;
+                    totalSent += parseInt(parts[9]) || 0;
+                }
             }
+        } catch (e) {}
+
+        // 方案2: Windows netstat -e
+        if (totalReceived === 0 && totalSent === 0) {
+            try {
+                var { execSync } = require('child_process');
+                var out = execSync('netstat -e', { encoding: 'utf-8', timeout: 3000 });
+                var lines = out.trim().split(/\r?\n/);
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    var match = line.match(/(\d+)\s+(\d+)\s*$/);
+                    if (match) {
+                        totalReceived = parseInt(match[1]);
+                        totalSent = parseInt(match[2]);
+                        break;
+                    }
+                }
+            } catch (e) {}
         }
 
         if (totalReceived === 0 && totalSent === 0) return;
