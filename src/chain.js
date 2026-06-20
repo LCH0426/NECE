@@ -904,8 +904,8 @@ function showChainConfigForm(player) {
     var toolTypes = ['pickaxe', 'axe', 'shovel', 'hoe'];
     var toolNames = { pickaxe: t('chain.tool_pickaxe'), axe: t('chain.tool_axe'), shovel: t('chain.tool_shovel'), hoe: t('chain.tool_hoe') };
 
-    for (var t = 0; t < toolTypes.length; t++) {
-        var toolKey = toolTypes[t];
+    for (var ti = 0; ti < toolTypes.length; ti++) {
+        var toolKey = toolTypes[ti];
         var blocks = cfg[toolKey] || [];
         if (blocks.length > 0) {
             fm.addLabel(toolNames[toolKey]);

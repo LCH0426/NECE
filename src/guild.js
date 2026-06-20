@@ -109,7 +109,7 @@ function _loadGuildInvitesFromDB() {
         var all = database.getAllGuildInvitesSQL ? database.getAllGuildInvitesSQL() : [];
         all.forEach(function(r) {
             if (!_guildInvites[r.target_xuid]) _guildInvites[r.target_xuid] = [];
-            _guildInvites[r.target_xuid].push({ guildId: r.guild_id, guildName: r.guild_name, inviterName: r.inviter_name, time: r.time });
+            _guildInvites[r.target_xuid].push({ guildId: r.guild_id, guildName: r.guild_name, inviterName: r.inviter_name, inviterXuid: r.inviter_xuid, time: r.time });
         });
     } catch (e) {}
 }
@@ -1592,7 +1592,7 @@ function doSendInvite(player, guild, targetXuid) {
         inviterXuid: xuid,
         time: inviteTime
     });
-    database.addGuildInviteSQL(targetXuid, guild.id, guild.name, player.name, inviteTime);
+    database.addGuildInviteSQL(targetXuid, guild.id, guild.name, player.name, xuid, inviteTime);
 
     var targetName = getPlayerName(targetXuid);
     player.tell(t('guild.tag_prefix') + ' §a' + t('guild.invite_sent', targetName));
@@ -1921,7 +1921,7 @@ function doAdminSendInvite(player, guild, targetXuid) {
         inviterXuid: String(player.xuid),
         time: adminInviteTime
     });
-    database.addGuildInviteSQL(targetXuid, guild.id, guild.name, player.name, adminInviteTime);
+    database.addGuildInviteSQL(targetXuid, guild.id, guild.name, player.name, String(player.xuid), adminInviteTime);
 
     var targetName = getPlayerName(targetXuid);
     player.tell(t('guild.tag_prefix') + ' §a' + t('guild.invite_sent', targetName));
