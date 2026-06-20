@@ -579,10 +579,9 @@ function _executeTransfer(sender, targetName, targetXuid, amount) {
         addPlayerMoney(targetPlayer, amount, t('economy.reason_transfer_from', sender.realName));
     } else {
         _deps.database.addPendingTransferSQL(targetXuid, sender.realName, sender.xuid, amount, new Date().toLocaleString());
-        addPlayerMoneyByXuid(targetXuid, amount);
     }
     const senderBalance = getPlayerMoney(sender);
-    const targetBalance = getPlayerMoneyByXuid(targetXuid);
+    const targetBalance = targetPlayer ? getPlayerMoney(targetPlayer) : getPlayerMoneyByXuid(targetXuid);
     _writeTransferLog(sender.realName, targetName, amount, senderBalance, targetBalance);
     sender.tell(t('economy.transfer_success_tell', targetName, amount, getCurrencyName(), senderBalance, getCurrencyName()));
     sender.sendModalForm(t('economy.transfer_success_title'), t('economy.transfer_success_body', targetName, amount, getCurrencyName(), senderBalance, getCurrencyName()), t('economy.transfer_btn_continue'), t('economy.btn_close'), function(pl, ok) {
