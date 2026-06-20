@@ -1,6 +1,7 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { setupMocks, teardownMocks, createAndRegisterPlayer, createMockDM, lse } = require('../helpers/setup');
+const i18n = require('../../src/i18n');
 
 describe('friend', () => {
     let friendModule;
@@ -24,7 +25,10 @@ describe('friend', () => {
             getPlayerSetting: function() { return true; },
             getPlayerInfoByXuid: function(xuid) { return xuid === '10001' ? player1 : player2; },
             getPlayerAvatarUrl: function(xuid) { return 'textures/ui/icon_steve'; },
-            mailApi: null
+            mailApi: null,
+            // 注入真实 i18n，使 t() 能从 lang/zh_CN.json 读取翻译
+            t: i18n.t,
+            getSystemLanguage: function() { return 'zh_CN'; }
         });
     });
 

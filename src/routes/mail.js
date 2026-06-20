@@ -230,7 +230,9 @@ function registerRoutes(router, d) {
                     if (!it.id || typeof it.id !== 'string') {
                         return res.status(400).json({ code: 400, msg: '第' + (i + 1) + '个物品缺少id' });
                     }
-                    const count = Math.floor(Number(it.count)) || 1;
+                    var rawCount = Number(it.count);
+                    if (isNaN(rawCount)) rawCount = 1;
+                    const count = Math.floor(rawCount);
                     if (count < 1 || count > 2304) {
                         return res.status(400).json({ code: 400, msg: '第' + (i + 1) + '个物品数量无效(1-2304)' });
                     }

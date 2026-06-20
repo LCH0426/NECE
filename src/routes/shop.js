@@ -24,24 +24,10 @@ function registerRoutes(router, d) {
 
     const RECYCLE_PATH = d.pathModule.join(__dirname, '..', '..', 'data', 'Recycleitems.json');
     const SHOP_DATA_PATH_API = d.pathModule.join(__dirname, '..', '..', 'data', 'shopdata.json');
-    const ITEMS_PATH = d.pathModule.join(__dirname, '..', '..', 'public', 'textures', 'items.json');
 
-    // 加载物品贴图映射表
-    var _itemsMapCache = null;
-    var _itemsMapCacheTime = 0;
-    var ITEMS_MAP_CACHE_TTL = 60000;
+    // 复用 server.js 的 getItemsMap，消除重复缓存和 IO
     function loadItemsMap() {
-        var now = Date.now();
-        if (_itemsMapCache && now - _itemsMapCacheTime < ITEMS_MAP_CACHE_TTL) return _itemsMapCache;
-        try {
-            let content = d.fs.readFileSync(ITEMS_PATH, 'utf-8');
-            let data = JSON.parse(content);
-            _itemsMapCache = data.item || data;
-            _itemsMapCacheTime = now;
-            return _itemsMapCache;
-        } catch (e) {
-            return {};
-        }
+        return d.getItemsMap();
     }
 
     // 验证物品ID是否在items列表中，返回标准化的minecraft:前缀ID和物品信息

@@ -53,14 +53,14 @@ function registerRoutes(router, d) {
         d.setRefreshTokenCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now());
 
         // 设置 Access Token Cookie，供文件下载等无法携带 Authorization Header 的场景使用
-        var accessMaxAge = d.webConfig.jwtExpire ? undefined : 15 * 60 * 1000;
+        var accessMaxAge = null;
         try {
             var accessDecoded = d.jwt.decode(tokens.accessToken);
             if (accessDecoded && accessDecoded.exp) {
                 accessMaxAge = accessDecoded.exp * 1000 - Date.now();
             }
         } catch (e) {}
-        if (accessMaxAge) d.setAccessTokenCookie(res, tokens.accessToken, accessMaxAge);
+        if (accessMaxAge > 0) d.setAccessTokenCookie(res, tokens.accessToken, accessMaxAge);
 
         res.json({
             code: 200,
