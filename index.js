@@ -2206,7 +2206,7 @@ function registerWebCommands() {
 
 	// backup游戏命令：管理员在游戏内手动执行备份
 	try {
-		const backupCmd = mc.newCommand('backup', '手动执行世界备份', PermType.GameMasters);
+		const backupCmd = mc.newCommand('backup', '手动执行世界备份', PermType.Any);
 		backupCmd.overload([]);
 		backupCmd.setCallback(function(_cmd, origin, output, _results) {
 			const player = origin.player;
