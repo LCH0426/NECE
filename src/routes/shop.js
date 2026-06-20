@@ -94,7 +94,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: list });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取回收列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取回收列表失败: ' });
         }
     });
 
@@ -117,7 +117,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加回收物品', 'ID:' + v.fullId + ' 价格:' + price);
             res.json({ code: 200, msg: '添加成功', data: { id: v.fullId, name: v.name, image: v.image, price: price } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '添加回收物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加回收物品失败: ' });
         }
     });
 
@@ -140,7 +140,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改回收物品', 'ID:' + rawId + ' 价格:' + price);
             res.json({ code: 200, msg: '修改成功', data: { id: rawId, name: info.name, image: info.image, price: price } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改回收物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改回收物品失败: ' });
         }
     });
 
@@ -157,7 +157,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除回收物品', 'ID:' + rawId);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除回收物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除回收物品失败: ' });
         }
     });
 
@@ -187,7 +187,7 @@ function registerRoutes(router, d) {
                 res.json({ code: 200, data: data });
             }
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取商店数据失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取商店数据失败: ' });
         }
     });
 
@@ -204,7 +204,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: groups });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取商店分组失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取商店分组失败: ' });
         }
     });
 
@@ -228,7 +228,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加商店分组', '大组:' + group + ' 名称:' + name);
             res.json({ code: 200, msg: '添加成功', data: { index: data[group].length - 1, name: name } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '添加商店分组失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加商店分组失败: ' });
         }
     });
 
@@ -252,7 +252,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改商店分组', '索引:' + gIdx + ' 名称:' + list[gIdx].name);
             res.json({ code: 200, msg: '修改成功', data: { index: gIdx, name: list[gIdx].name } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改商店分组失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改商店分组失败: ' });
         }
     });
 
@@ -275,7 +275,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除商店分组', '名称:' + removed.name);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除商店分组失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除商店分组失败: ' });
         }
     });
 
@@ -307,7 +307,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取商店物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取商店物品失败: ' });
         }
     });
 
@@ -344,7 +344,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加商店物品', '大组:' + group + ' 分组:' + gIdx + ' ID:' + v.fullId);
             res.json({ code: 200, msg: '添加成功', data: { id: v.fullId, name: v.name, money: money } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '添加商店物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加商店物品失败: ' });
         }
     });
 
@@ -386,7 +386,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改商店物品', '大组:' + group + ' 分组:' + gIdx + ' 物品索引:' + iIdx);
             res.json({ code: 200, msg: '修改成功' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改商店物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改商店物品失败: ' });
         }
     });
 
@@ -418,7 +418,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除商店物品', 'ID:' + (removed.id || ''));
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除商店物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除商店物品失败: ' });
         }
     });
 }
