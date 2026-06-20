@@ -369,7 +369,7 @@ function showBanPlayerForm(player) {
 /** 注册控制台命令：ban、unban、banlist */
 function registerConsoleCommands() {
     try {
-        mc.regConsoleCmd('ban', t('ban.cmd_ban_desc'), function(args) {
+        mc.regConsoleCmd('pban', t('ban.cmd_ban_desc'), function(args) {
             if (args.length < 1) {
                 logger.info(t('ban.cmd_usage_ban'));
                 return;
@@ -380,11 +380,11 @@ function registerConsoleCommands() {
             logger.info(result.message);
         });
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'ban', error));
+        logger.error(t('ban.err_cmd_register', 'pban', error));
     }
 
     try {
-        mc.regConsoleCmd('unban', t('ban.cmd_unban_desc'), function(args) {
+        mc.regConsoleCmd('punban', t('ban.cmd_unban_desc'), function(args) {
             if (args.length < 1) {
                 logger.info(t('ban.cmd_usage_unban'));
                 return;
@@ -394,11 +394,11 @@ function registerConsoleCommands() {
             logger.info(result.message);
         });
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'unban', error));
+        logger.error(t('ban.err_cmd_register', 'punban', error));
     }
 
     try {
-        mc.regConsoleCmd('banlist', t('ban.cmd_banlist_desc'), function(args) {
+        mc.regConsoleCmd('pbanlist', t('ban.cmd_banlist_desc'), function(args) {
             const banList = getBanList();
             if (banList.length === 0) {
                 logger.info(t('ban.cmd_banlist_empty'));
@@ -410,14 +410,14 @@ function registerConsoleCommands() {
             });
         });
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'banlist', error));
+        logger.error(t('ban.err_cmd_register', 'pbanlist', error));
     }
 }
 
-/** 注册游戏内命令：/ban、/unban、/banlist */
+/** 注册游戏内命令：/pban、/punban、/pbanlist */
 function registerGameCommands() {
     try {
-        const banCmd = mc.newCommand('ban', t('ban.game_cmd_ban'), PermType.GameMasters);
+        const banCmd = mc.newCommand('pban', t('ban.game_cmd_ban'), PermType.GameMasters);
         banCmd.mandatory('target', ParamType.RawText);
         banCmd.optional('reason', ParamType.RawText);
         banCmd.overload(['target', 'reason']);
@@ -437,11 +437,11 @@ function registerGameCommands() {
         });
         banCmd.setup();
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'ban', error));
+        logger.error(t('ban.err_cmd_register', 'pban', error));
     }
 
     try {
-        const unbanCmd = mc.newCommand('unban', t('ban.game_cmd_unban'), PermType.GameMasters);
+        const unbanCmd = mc.newCommand('punban', t('ban.game_cmd_unban'), PermType.GameMasters);
         unbanCmd.mandatory('target', ParamType.RawText);
         unbanCmd.overload(['target']);
         unbanCmd.setCallback(function(_cmd, origin, output, results) {
@@ -458,11 +458,11 @@ function registerGameCommands() {
         });
         unbanCmd.setup();
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'unban', error));
+        logger.error(t('ban.err_cmd_register', 'punban', error));
     }
 
     try {
-        const banlistCmd = mc.newCommand('banlist', t('ban.game_cmd_banlist'), PermType.GameMasters);
+        const banlistCmd = mc.newCommand('pbanlist', t('ban.game_cmd_banlist'), PermType.GameMasters);
         banlistCmd.overload([]);
         banlistCmd.setCallback(function(_cmd, origin, output, results) {
             const player = origin.player;
@@ -482,7 +482,7 @@ function registerGameCommands() {
         });
         banlistCmd.setup();
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'banlist', error));
+        logger.error(t('ban.err_cmd_register', 'pbanlist', error));
     }
 }
 
