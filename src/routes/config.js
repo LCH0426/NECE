@@ -54,7 +54,7 @@ function registerRoutes(router, d) {
             let config = loadWishConfig();
             res.json({ code: 200, data: config });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取祈愿配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取祈愿配置失败: ' });
         }
     });
 
@@ -67,7 +67,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改卡池信息', 'Banner已更新');
             res.json({ code: 200, msg: '修改成功', data: { banner: config.banner } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改卡池信息失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改卡池信息失败: ' });
         }
     });
 
@@ -88,7 +88,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加四星奖励', '名称:' + name);
             res.json({ code: 200, msg: '添加成功', data: item });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '添加四星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加四星奖励失败: ' });
         }
     });
 
@@ -108,7 +108,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改四星奖励', '索引:' + idx + ' 名称:' + list[idx].name);
             res.json({ code: 200, msg: '修改成功', data: list[idx] });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改四星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改四星奖励失败: ' });
         }
     });
 
@@ -127,7 +127,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除四星奖励', '名称:' + removed.name);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除四星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除四星奖励失败: ' });
         }
     });
 
@@ -148,7 +148,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加五星奖励', '名称:' + name);
             res.json({ code: 200, msg: '添加成功', data: item });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '添加五星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加五星奖励失败: ' });
         }
     });
 
@@ -168,7 +168,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改五星奖励', '索引:' + idx + ' 名称:' + list[idx].name);
             res.json({ code: 200, msg: '修改成功', data: list[idx] });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改五星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改五星奖励失败: ' });
         }
     });
 
@@ -187,7 +187,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除五星奖励', '名称:' + removed.name);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除五星奖励失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除五星奖励失败: ' });
         }
     });
 
@@ -208,7 +208,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加核心兑换物品', '名称:' + name);
             res.json({ code: 200, msg: '添加成功', data: item });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '添加核心兑换物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '添加核心兑换物品失败: ' });
         }
     });
 
@@ -231,7 +231,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改核心兑换物品', '索引:' + idx + ' 名称:' + list[idx].name);
             res.json({ code: 200, msg: '修改成功', data: list[idx] });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改核心兑换物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改核心兑换物品失败: ' });
         }
     });
 
@@ -250,7 +250,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除核心兑换物品', '名称:' + removed.name);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除核心兑换物品失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '删除核心兑换物品失败: ' });
         }
     });
 
@@ -277,7 +277,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改三星物品配置', JSON.stringify(cfg.rewards.threeStar));
             res.json({ code: 200, msg: '修改成功', data: cfg.rewards.threeStar });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改三星物品配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改三星物品配置失败: ' });
         }
     });
 
@@ -317,7 +317,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改祈愿概率配置', JSON.stringify(cfg.rates));
             res.json({ code: 200, msg: '修改成功', data: cfg.rates });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改祈愿概率配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改祈愿概率配置失败: ' });
         }
     });
 
@@ -340,7 +340,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改祈愿花费配置', JSON.stringify(cfg.cost));
             res.json({ code: 200, msg: '修改成功', data: cfg.cost });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改祈愿花费配置失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改祈愿花费配置失败: ' });
         }
     });
 
@@ -355,7 +355,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改祈愿系统说明', 'description已更新');
             res.json({ code: 200, msg: '修改成功', data: { description: cfg.description } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改祈愿系统说明失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改祈愿系统说明失败: ' });
         }
     });
 

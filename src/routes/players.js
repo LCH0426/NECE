@@ -92,7 +92,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: { players: players, count: players.length } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取在线玩家失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取在线玩家失败: ' });
         }
     });
 
@@ -119,7 +119,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '已踢出玩家 ' + playerName });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '踢出玩家失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '踢出玩家失败: ' });
         }
     });
 
@@ -210,7 +210,7 @@ function registerRoutes(router, d) {
                 res.status(500).json({ code: 500, msg: '经济操作失败，余额可能不足' });
             }
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '经济操作失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '经济操作失败: ' });
         }
     });
 
@@ -249,7 +249,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '弹窗已发送给 ' + playerName });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '发送弹窗失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '发送弹窗失败: ' });
         }
     });
 
@@ -314,7 +314,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取玩家列表失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取玩家列表失败: ' });
         }
     });
 
@@ -371,7 +371,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取UID排行失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取UID排行失败: ' });
         }
     });
 
@@ -428,7 +428,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取在线时间排行失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取在线时间排行失败: ' });
         }
     });
 
@@ -481,7 +481,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取余额排行失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取余额排行失败: ' });
         }
     });
 
@@ -553,7 +553,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取玩家详情失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取玩家详情失败: ' });
         }
     });
 
@@ -609,7 +609,7 @@ function registerRoutes(router, d) {
                 data: { name: playerName, xuid: xuid, oldMode: oldMode, oldModeName: oldModeName, newMode: modeInfo.id, newModeName: modeInfo.name }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改游戏模式失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '修改游戏模式失败: ' });
         }
     });
 
@@ -620,7 +620,7 @@ function registerRoutes(router, d) {
             let stats = d.monitoring.getSystemStats();
             res.json({ code: 200, data: stats });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取系统信息失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取系统信息失败: ' });
         }
     });
 
@@ -645,7 +645,7 @@ function registerRoutes(router, d) {
             let data = d.monitoring.getTps();
             res.json({ code: 200, data: data });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取TPS失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取TPS失败: ' });
         }
     });
 
@@ -655,7 +655,7 @@ function registerRoutes(router, d) {
             let data = d.monitoring.getAllMoney();
             res.json({ code: 200, data: data });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取全服余额失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取全服余额失败: ' });
         }
     });
 
@@ -665,7 +665,7 @@ function registerRoutes(router, d) {
             let data = d.monitoring.getEconomyRank();
             res.json({ code: 200, data: data });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取经济排行失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取经济排行失败: ' });
         }
     });
     // 获取单个玩家背包
@@ -756,7 +756,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取背包数据失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取背包数据失败: ' });
         }
     });
 
@@ -824,7 +824,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取在线背包数据失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '获取在线背包数据失败: ' });
         }
     });
 
@@ -852,7 +852,7 @@ function registerRoutes(router, d) {
                 res.status(500).json({ code: 500, msg: '执行失败' });
             }
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '操作失败: ' + e.message });
+            res.status(500).json({ code: 500, msg: '操作失败: ' });
         }
     });
 }
