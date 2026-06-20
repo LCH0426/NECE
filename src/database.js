@@ -420,7 +420,8 @@ function initPlayerDatabase() {
     createGuildTables();
     // 公会申请/邀请表
     playerDb.exec('CREATE TABLE IF NOT EXISTS guild_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, xuid TEXT NOT NULL, name TEXT, time INTEGER NOT NULL)');
-    playerDb.exec('CREATE TABLE IF NOT EXISTS guild_invites (id INTEGER PRIMARY KEY AUTOINCREMENT, target_xuid TEXT NOT NULL, guild_id INTEGER NOT NULL, guild_name TEXT, inviter_name TEXT, time INTEGER NOT NULL)');
+    playerDb.exec('CREATE TABLE IF NOT EXISTS guild_invites (id INTEGER PRIMARY KEY AUTOINCREMENT, target_xuid TEXT NOT NULL, guild_id INTEGER NOT NULL, guild_name TEXT, inviter_name TEXT, inviter_xuid TEXT, time INTEGER NOT NULL)');
+    try { playerDb.exec('ALTER TABLE guild_invites ADD COLUMN inviter_xuid TEXT'); } catch (e) {}
     // 待领取转账表
     playerDb.exec('CREATE TABLE IF NOT EXISTS pending_transfers (id INTEGER PRIMARY KEY AUTOINCREMENT, target_xuid TEXT NOT NULL, from_name TEXT, from_xuid TEXT, amount REAL NOT NULL, time TEXT)');
     createPlayerCountTable();
@@ -873,16 +874,16 @@ function clearGuildRequestsSQL(guildId) {
 }
 
 function getGuildInvitesSQL(targetXuid) {
-    return query(playerDb, 'SELECT guild_id, guild_name, inviter_name, time FROM guild_invites WHERE target_xuid = ?', [targetXuid])
-        .map(function(r) { return { guildId: r.guild_id, guildName: r.guild_name, inviterName: r.inviter_name, time: r.time }; });
+    return query(playerDb, 'SELECT guild_id, guild_name, inviter_name, inviter_xuid, time FROM guild_invites WHERE target_xuid = ?', [targetXuid])
+        .map(function(r) { return { guildId: r.guild_id, guildName: r.guild_name, inviterName: r.inviter_name, inviterXuid: r.inviter_xuid, time: r.time }; });
 }
 
 function getAllGuildInvitesSQL() {
-    return query(playerDb, 'SELECT target_xuid, guild_id, guild_name, inviter_name, time FROM guild_invites');
+    return query(playerDb, 'SELECT target_xuid, guild_id, guild_name, inviter_name, inviter_xuid, time FROM guild_invites');
 }
 
-function addGuildInviteSQL(targetXuid, guildId, guildName, inviterName, time) {
-    run(playerDb, 'INSERT INTO guild_invites (target_xuid, guild_id, guild_name, inviter_name, time) VALUES (?, ?, ?, ?, ?)', [targetXuid, guildId, guildName, inviterName, time]);
+function addGuildInviteSQL(targetXuid, guildId, guildName, inviterName, inviterXuid, time) {
+    run(playerDb, 'INSERT INTO guild_invites (target_xuid, guild_id, guild_name, inviter_name, inviter_xuid, time) VALUES (?, ?, ?, ?, ?, ?)', [targetXuid, guildId, guildName, inviterName, inviterXuid || '', time]);
 }
 
 function removeGuildInviteSQL(targetXuid, guildId) {

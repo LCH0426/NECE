@@ -599,7 +599,6 @@ function checkPendingTransfers(player) {
     transfers.forEach(function(tr) {
         player.tell(t('economy.transfer_pending_notify', tr.from, tr.amount, getCurrencyName()));
         addPlayerMoney(player, tr.amount, t('economy.reason_transfer_from', tr.from));
-        notifyEconomyChange(player, tr.amount, t('economy.reason_transfer_from', tr.from));
     });
     _deps.database.clearPendingTransfersSQL(xuid);
 }
