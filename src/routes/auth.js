@@ -104,7 +104,17 @@ function registerRoutes(router, d) {
             // 检测重放攻击：已被撤销的Token再次使用时，作废整个Token家族
             if (storedToken.isRevoked) {
                 d.database.revokeFamilyTokens(storedToken.familyId);
+                // 同时吊销当前 Access Token
+                const cookies = d.parseCookies(req);
+                const accessToken = cookies.auth_token;
+                if (accessToken) {
+                    try {
+                        const accessDecoded = d.jwt.verify(accessToken, d.webConfig.jwtSecret);
+                        d.database.blacklistAccessToken(accessDecoded.jti, accessDecoded.exp * 1000);
+                    } catch (e) {}
+                }
                 d.clearRefreshTokenCookie(res);
+                d.clearAccessTokenCookie(res);
                 return res.status(401).json({ code: 401, msg: '检测到重放攻击，该登录链路所有 Token 已作废' });
             }
 
