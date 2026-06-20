@@ -63,15 +63,18 @@ function createBankModule(deps) {
         const p = playerData.players[xuid];
         if (!p) return null;
         if (!p.bankdata) {
-            p.bankdata = {
-                current: {
-                    balance: 0,
-                    lastInterestTime: U.getCurrentTimeString(),
-                    totalInterest: 0
-                },
-                fixed: []
+            p.bankdata = { current: null, fixed: [] };
+        }
+        if (!p.bankdata.current) {
+            p.bankdata.current = {
+                balance: 0,
+                lastInterestTime: U.getCurrentTimeString(),
+                totalInterest: 0
             };
             savePlayerDataNow();
+        }
+        if (!Array.isArray(p.bankdata.fixed)) {
+            p.bankdata.fixed = [];
         }
         return p.bankdata;
     }
@@ -79,24 +82,10 @@ function createBankModule(deps) {
     /** 获取银行账户，若不存在则自动创建 */
     function ensureBankAccount(player) {
         let xuid = player.xuid;
-        let account = getPlayerBankAccount(xuid);
-        if (!account) {
-            // 玩家数据被删除但玩家仍在线，重建数据
-            if (!playerData.players[xuid]) {
-                playerData.players[xuid] = {};
-            }
-            playerData.players[xuid].bankdata = {
-                current: {
-                    balance: 0,
-                    lastInterestTime: U.getCurrentTimeString(),
-                    totalInterest: 0
-                },
-                fixed: []
-            };
-            savePlayerDataNow();
-            account = playerData.players[xuid].bankdata;
+        if (!playerData.players[xuid]) {
+            playerData.players[xuid] = {};
         }
-        return account;
+        return getPlayerBankAccount(xuid);
     }
 
     /**
