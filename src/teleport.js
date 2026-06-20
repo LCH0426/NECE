@@ -56,20 +56,15 @@ function registerRtpProtection() {
     mc.listen('onMobHurt', function(mob, source, damage, cause) {
         if (cause !== 5) return;
         if (!mob) return;
-        // mob 是 Entity 对象，需要 toPlayer() 转为 Player 才能获取 xuid
         var player = mob.toPlayer ? mob.toPlayer() : null;
-        var isPlayer = player !== null;
-        var debugOn = _deps.debugMode && _deps.debugMode();
-        if (debugOn) logger.info('[RTP保护] onMobHurt触发 cause=' + cause + ' damage=' + damage + ' isPlayer=' + isPlayer + ' name=' + (player ? player.name : (mob.name || 'N/A')) + ' xuid=' + (player ? player.xuid : 'N/A'));
-        if (!isPlayer) return;
-        var expireAt = _rtpProtected[player.xuid];
-        if (expireAt) {
-            if (Date.now() < expireAt) {
-                if (debugOn) logger.info('[RTP保护] 拦截玩家 ' + player.name + ' 的掉落伤害 (' + damage + ')，保护剩余：' + Math.round((expireAt - Date.now()) / 1000) + 's');
-                return false;
-            }
-            delete _rtpProtected[player.xuid];
+        if (!player || !player.xuid) return;
+        var xuid = player.xuid;
+        var expireAt = _rtpProtected[xuid];
+        if (!expireAt) return;
+        if (Date.now() < expireAt) {
+            return false;
         }
+        delete _rtpProtected[xuid];
     });
 }
 
