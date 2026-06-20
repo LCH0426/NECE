@@ -452,59 +452,20 @@ function collectNetworkInfo() {
 }
 
 /**
- * 采集磁盘使用情况
- * Windows: wmic logicaldisk | Linux/Wine: df -B1
+ * 采集磁盘使用情况，使用 Node.js 内置 fs.statfsSync
  */
 function collectDiskInfo() {
     try {
-        var { execSync } = require('child_process');
-        var serverDir = process.cwd();
-        var totalSize = 0, freeSpace = 0;
-
-        // Windows: wmic
-        try {
-            var driveLetter = pathModule.parse(serverDir).root.replace(/\\/g, '').replace(/:/g, '');
-            var out = execSync('wmic logicaldisk where "DeviceID=\'' + driveLetter + ':\'" get Size,FreeSpace /format:csv', { encoding: 'utf-8', timeout: 3000 });
-            var lines = out.trim().split('\n');
-            for (var i = 0; i < lines.length; i++) {
-                var parts = lines[i].trim().split(',');
-                if (parts.length >= 3) {
-                    freeSpace = parseInt(parts[1]);
-                    totalSize = parseInt(parts[2]);
-                    if (!isNaN(totalSize) && totalSize > 0) break;
-                    totalSize = 0;
-                }
-            }
-        } catch (e) {}
-
-        // Linux/Wine 回退: df
-        if (!totalSize) {
-            try {
-                var dfOut = execSync('df -B1 "' + serverDir + '" 2>/dev/null | tail -1', { encoding: 'utf-8', timeout: 3000 });
-                var dfParts = dfOut.trim().split(/\s+/);
-                if (dfParts.length >= 4) {
-                    totalSize = parseInt(dfParts[1]);
-                    var used = parseInt(dfParts[2]);
-                    freeSpace = parseInt(dfParts[3]);
-                    if (!isNaN(totalSize) && totalSize > 0) {
-                        cachedStats.disk = {
-                            total: totalSize / (1024 * 1024 * 1024),
-                            used: used / (1024 * 1024 * 1024),
-                            free: freeSpace / (1024 * 1024 * 1024),
-                            usagePercent: Math.round((used / totalSize) * 1000) / 10
-                        };
-                        return;
-                    }
-                }
-            } catch (e) {}
-        }
-
-        if (totalSize > 0) {
+        var stats = fs.statfsSync(process.cwd());
+        var total = stats.blocks * stats.bsize;
+        var free = stats.bavail * stats.bsize;
+        var used = total - free;
+        if (total > 0) {
             cachedStats.disk = {
-                total: totalSize / (1024 * 1024 * 1024),
-                used: (totalSize - freeSpace) / (1024 * 1024 * 1024),
-                free: freeSpace / (1024 * 1024 * 1024),
-                usagePercent: Math.round(((totalSize - freeSpace) / totalSize) * 1000) / 10
+                total: total / (1024 * 1024 * 1024),
+                used: used / (1024 * 1024 * 1024),
+                free: free / (1024 * 1024 * 1024),
+                usagePercent: Math.round((used / total) * 1000) / 10
             };
         }
     } catch (e) {}
