@@ -202,9 +202,11 @@ function initDatabase() {
     db.exec('CREATE INDEX IF NOT EXISTS idx_refresh_tokens_jti ON refresh_tokens(token_jti)');
     db.exec(`CREATE TABLE IF NOT EXISTS access_token_blacklist (
         jti TEXT PRIMARY KEY,
-        expires_at INTEGER NOT NULL
+        expires_at INTEGER NOT NULL,
+        uid TEXT
     )`);
     db.exec('CREATE INDEX IF NOT EXISTS idx_blacklist_expires ON access_token_blacklist(expires_at)');
+    try { db.exec('ALTER TABLE access_token_blacklist ADD COLUMN uid TEXT'); } catch (e) {}
 
     dbDebugLog('initDatabase: 认证数据库就绪');
     return db;
@@ -353,8 +355,22 @@ function revokeFamilyTokens(familyId) { run(db, 'UPDATE refresh_tokens SET is_re
 function revokeAllUserTokens(uid) { run(db, 'UPDATE refresh_tokens SET is_revoked = 1 WHERE uid = ?', [uid]); }
 function cleanExpiredRefreshTokens() { run(db, 'DELETE FROM refresh_tokens WHERE expires_at < ?', [Date.now()]); }
 
-function blacklistAccessToken(jti, expiresAt) {
-    run(db, 'INSERT OR IGNORE INTO access_token_blacklist (jti, expires_at) VALUES (?, ?)', [jti, expiresAt]);
+function blacklistAccessToken(jti, expiresAt, uid) {
+    run(db, 'INSERT OR IGNORE INTO access_token_blacklist (jti, expires_at, uid) VALUES (?, ?, ?)', [jti, expiresAt, uid || '']);
+}
+
+function blacklistAllUserAccessTokens(uid) {
+    // 吊销该用户所有刷新令牌
+    var tokens = query(db, 'SELECT family_id FROM refresh_tokens WHERE uid = ? AND is_revoked = 0', [String(uid)]);
+    for (var i = 0; i < tokens.length; i++) {
+        run(db, 'UPDATE refresh_tokens SET is_revoked = 1 WHERE family_id = ?', [tokens[i].family_id]);
+    }
+    // 用一个特殊标记让 verifyAccessToken 检测到该用户被全局吊销
+    run(db, 'INSERT OR IGNORE INTO access_token_blacklist (jti, expires_at, uid) VALUES (?, ?, ?)', ['__revoke_all_' + uid, Date.now() + 86400000, uid]);
+}
+
+function isUserTokenRevoked(uid) {
+    return query(db, 'SELECT jti FROM access_token_blacklist WHERE uid = ? AND jti LIKE ?', [String(uid), '__revoke_all_%']).length > 0;
 }
 
 function isAccessTokenBlacklisted(jti) {
@@ -1106,7 +1122,9 @@ module.exports = {
     revokeAllUserTokens,
     cleanExpiredRefreshTokens,
     blacklistAccessToken,
+    blacklistAllUserAccessTokens,
     isAccessTokenBlacklisted,
+    isUserTokenRevoked,
     cleanExpiredBlacklist,
     // 玩家数据SQL
     initPlayerDatabase,
