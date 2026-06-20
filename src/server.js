@@ -592,6 +592,9 @@ function createApp(webConfig) {
         res.setHeader('X-XSS-Protection', '1; mode=block');
         res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
         res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+        if (webConfig.secureCookie) {
+            res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
         next();
     });
 
@@ -646,6 +649,11 @@ function createApp(webConfig) {
         res.status(410).json({ code: 410, msg: 'API已迁移，请使用 /api/v1/ 前缀' });
     });
 
+    // API 404 处理（不泄露路径）
+    app.use('/api', function(req, res) {
+        res.status(404).json({ code: 404, msg: '接口不存在' });
+    });
+
     if (webConfig.enableFrontend !== false) {
         // 静态资源不套用 API 限流，避免加载前端资源（CSS/JS/图片）时触发 429
         app.use(express.static(WEB_DIR));
@@ -653,6 +661,12 @@ function createApp(webConfig) {
             res.sendFile(pathModule.join(WEB_DIR, 'index.html'));
         });
     }
+
+    // 全局错误处理（不泄露路径和堆栈）
+    app.use(function(err, req, res, next) {
+        logger.error('[HTTP] ' + req.method + ' ' + req.originalUrl + ' ' + (err.message || err));
+        res.status(500).json({ code: 500, msg: '服务器内部错误' });
+    });
 
     return app;
 }
@@ -690,6 +704,11 @@ function verifyAccessToken(req, webConfig, callback) {
         }
 
         if (user.jti && database.isAccessTokenBlacklisted(user.jti)) { // 登出/换令牌时旧 jti 会被加入黑名单
+            return callback({ code: 403, msg: 'Token 已被吊销' });
+        }
+
+        // 检查该用户是否因重放攻击被全局吊销
+        if (user.uid && database.isUserTokenRevoked && database.isUserTokenRevoked(user.uid)) {
             return callback({ code: 403, msg: 'Token 已被吊销' });
         }
 

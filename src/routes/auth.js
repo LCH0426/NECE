@@ -101,18 +101,19 @@ function registerRoutes(router, d) {
                 return res.status(401).json({ code: 401, msg: 'Refresh Token 不存在' });
             }
 
-            // 检测重放攻击：已被撤销的Token再次使用时，作废整个Token家族
+            // 检测重放攻击：已被撤销的Token再次使用时，作废该用户所有Token
             if (storedToken.isRevoked) {
                 d.database.revokeFamilyTokens(storedToken.familyId);
-                // 同时吊销当前 Access Token
+                // 黑名单当前 AT + 全局吊销该用户所有 AT
                 const cookies = d.parseCookies(req);
                 const accessToken = cookies.auth_token;
                 if (accessToken) {
                     try {
                         const accessDecoded = d.jwt.verify(accessToken, d.webConfig.jwtSecret);
-                        d.database.blacklistAccessToken(accessDecoded.jti, accessDecoded.exp * 1000);
+                        d.database.blacklistAccessToken(accessDecoded.jti, accessDecoded.exp * 1000, String(storedToken.uid));
                     } catch (e) {}
                 }
+                d.database.blacklistAllUserAccessTokens(storedToken.uid);
                 d.clearRefreshTokenCookie(res);
                 d.clearAccessTokenCookie(res);
                 return res.status(401).json({ code: 401, msg: '检测到重放攻击，该登录链路所有 Token 已作废' });
