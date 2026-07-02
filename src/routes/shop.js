@@ -336,9 +336,7 @@ function registerRoutes(router, d) {
             if (gIdx < 0 || gIdx >= groups.length) {
                 return res.status(404).json({ code: 404, msg: '分组不存在' });
             }
-            const newItem = { id: v.fullId, money: money };
-            if (req.body.name) newItem.name = req.body.name;
-            if (req.body.image) newItem.image = req.body.image;
+            const newItem = { id: v.fullId, money: money, name: v.name, image: v.image };
             if (!groups[gIdx].items) groups[gIdx].items = [];
             groups[gIdx].items.push(newItem);
             data[group] = groups;
@@ -371,21 +369,19 @@ function registerRoutes(router, d) {
             if (iIdx < 0 || iIdx >= items.length) {
                 return res.status(404).json({ code: 404, msg: '物品不存在' });
             }
-            // 修改ID时需重新验证物品有效性
+            // 修改ID时需重新验证物品有效性，同时更新name和image
             if (req.body.id !== undefined) {
                 const v = validateItemId(req.body.id);
                 if (!v.valid) {
                     return res.status(400).json({ code: 400, msg: '物品ID无效，不在items列表中' });
                 }
                 items[iIdx].id = v.fullId;
+                items[iIdx].name = v.name;
+                items[iIdx].image = v.image;
             }
             if (req.body.money !== undefined) {
                 items[iIdx].money = req.body.money;
             }
-            if (req.body.name !== undefined) {
-                items[iIdx].name = req.body.name;
-            }
-            if (req.body.image !== undefined) {
                 items[iIdx].image = req.body.image;
             }
             groups[gIdx].items = items;
