@@ -382,8 +382,6 @@ function registerRoutes(router, d) {
             if (req.body.money !== undefined) {
                 items[iIdx].money = req.body.money;
             }
-                items[iIdx].image = req.body.image;
-            }
             groups[gIdx].items = items;
             data[group] = groups;
             saveShopData(data);
