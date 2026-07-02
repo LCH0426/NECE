@@ -337,6 +337,8 @@ function registerRoutes(router, d) {
                 return res.status(404).json({ code: 404, msg: '分组不存在' });
             }
             const newItem = { id: v.fullId, money: money };
+            if (req.body.name) newItem.name = req.body.name;
+            if (req.body.image) newItem.image = req.body.image;
             if (!groups[gIdx].items) groups[gIdx].items = [];
             groups[gIdx].items.push(newItem);
             data[group] = groups;
@@ -379,6 +381,12 @@ function registerRoutes(router, d) {
             }
             if (req.body.money !== undefined) {
                 items[iIdx].money = req.body.money;
+            }
+            if (req.body.name !== undefined) {
+                items[iIdx].name = req.body.name;
+            }
+            if (req.body.image !== undefined) {
+                items[iIdx].image = req.body.image;
             }
             groups[gIdx].items = items;
             data[group] = groups;
