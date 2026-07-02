@@ -585,7 +585,7 @@ function showBuySearchForm(player, deps) {
 	fm.setTitle(t('shop.search_title'));
 	fm.addInput(t('shop.search_placeholder'), "", "");
 	player.sendForm(fm, function(p, data) {
-		if (data == null || !data || !data[0]) {
+		if (data == null || !data || typeof data[0] !== 'string' || !data[0].trim()) {
 			showBuyMenu(p, deps);
 			return;
 		}
@@ -601,6 +601,7 @@ function showBuySearchResults(player, keyword, deps) {
 	if (deps.shopData && deps.shopData.Buy) {
 		deps.shopData.Buy.forEach(function(grp) {
 			(grp.items || []).forEach(function(it) {
+				if (!it.name || !it.id) return;
 				if (it.name.toLowerCase().indexOf(keyword) >= 0 || it.id.toLowerCase().indexOf(keyword) >= 0) {
 					results.push(it);
 				}
@@ -771,7 +772,7 @@ function showSellSearchForm(player, deps) {
 	fm.setTitle(t('shop.search_recycle_title'));
 	fm.addInput(t('shop.search_placeholder'), "", "");
 	player.sendForm(fm, function(p, data) {
-		if (data == null || !data || !data[0]) {
+		if (data == null || !data || typeof data[0] !== 'string' || !data[0].trim()) {
 			showSellMenu(p, deps);
 			return;
 		}
@@ -787,6 +788,7 @@ function showSellSearchResults(player, keyword, deps) {
 	if (deps.shopData && deps.shopData.Sell) {
 		deps.shopData.Sell.forEach(function(grp) {
 			(grp.items || []).forEach(function(it) {
+				if (!it.name || !it.id) return;
 				if (it.name.toLowerCase().indexOf(keyword) >= 0 || it.id.toLowerCase().indexOf(keyword) >= 0) {
 					results.push(it);
 				}
