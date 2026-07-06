@@ -1197,6 +1197,7 @@ function initAllConfigs() {
 		getPlayerData: function() { return playerData; },
 		savePlayerDataNow: savePlayerDataNow,
 		money: money,
+		addPlayerMoney: addPlayerMoney,
 		getCurrencyName: getCurrencyName,
 		notifyEconomyChange: notifyEconomyChange,
 		getPlayerSetting: getPlayerSetting,
