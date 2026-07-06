@@ -584,6 +584,10 @@ function claimMailAttachments(player, mail) {
         return;
     }
 
+    // 标记已读（领取即视为已读）
+    if (!mail.read) mail.read = {};
+    mail.read[xuid] = true;
+
     // 标记已领取（先标记防止货币重复发放）
     if (!mail.claimed) mail.claimed = {};
     mail.claimed[xuid] = true;
