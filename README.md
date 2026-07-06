@@ -271,6 +271,64 @@ NECE/
 └── LICENSE                # GPL-3.0 许可证
 ```
 
+## 插件 API（供其他 LSE 插件调用）
+
+NECE 通过 `ll.export` 导出以下 API，其他 LSE 插件可通过 `ll.import` 调用。
+
+### 获取玩家数据
+
+```javascript
+const neceGetPlayerData = ll.import('NECE_getPlayerData');
+// 按 XUID
+const data = neceGetPlayerData({ xuid: '123456' });
+// 按 UID
+const data = neceGetPlayerData({ uid: 10001 });
+// 按玩家名
+const data = neceGetPlayerData({ name: 'Steve' });
+// 返回: 玩家数据对象 或 null
+```
+
+### 更新玩家数据
+
+```javascript
+const neceUpdatePlayerData = ll.import('NECE_updatePlayerData');
+const success = neceUpdatePlayerData({ xuid: '123456' }, { healthBonus: 10 });
+// 返回: true / false
+```
+
+### 获取在线玩家
+
+```javascript
+const neceGetOnlinePlayers = ll.import('NECE_getOnlinePlayers');
+const players = neceGetOnlinePlayers();
+// 返回: [{ xuid, uid, name }, ...]
+```
+
+### 经济操作
+
+```javascript
+const neceGetBalance = ll.import('NECE_getBalance');
+neceGetBalance('123456'); // 余额
+
+const neceAddBalance = ll.import('NECE_addBalance');
+neceAddBalance('123456', 1000, '奖励'); // 增加
+
+const neceReduceBalance = ll.import('NECE_reduceBalance');
+neceReduceBalance('123456', 500, '购买'); // 扣除
+
+const neceGetCurrencyName = ll.import('NECE_getCurrencyName');
+neceGetCurrencyName(); // "星茜"
+```
+
+### 版本信息
+
+```javascript
+const neceGetVersion = ll.import('NECE_getVersion');
+neceGetVersion(); // { version: '1.0.0', name: 'NECE' }
+```
+
+---
+
 ## 依赖项
 
 ### 运行时依赖

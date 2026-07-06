@@ -1713,6 +1713,9 @@ mc.listen("onServerStarted", async () => {
 	// 定时检查计划发送的邮件
 	setInterval(function() { mailModule.checkScheduledMails(); }, 30000);
 
+	// ============ 对外 API（供其他 LSE 插件调用） ============
+	registerExternalAPI();
+
 	const mem = process.memoryUsage();
 	logger.info('[内存使用] - 堆已用: ' + (mem.heapUsed / 1024 / 1024).toFixed(2) + 'MB, 堆总量: ' + (mem.heapTotal / 1024 / 1024).toFixed(2) + 'MB, RSS: ' + (mem.rss / 1024 / 1024).toFixed(2) + 'MB');
 });
@@ -1888,6 +1891,106 @@ function searchPlayers(keyword, searchType) {
 	}
 
 	return results;
+}
+
+// ============ 对外 API（ll.export 导出） ============
+
+/**
+ * 注册对外 API，供其他 LSE 插件通过 ll.import 调用
+ *
+ * 使用方式（其他插件）：
+ *   const neceGetPlayerData = ll.import('NECE_getPlayerData');
+ *   const data = neceGetPlayerData({ xuid: '123456' });
+ *
+ *   const neceUpdatePlayerData = ll.import('NECE_updatePlayerData');
+ *   neceUpdatePlayerData({ xuid: '123456' }, { healthBonus: 10 });
+ */
+function registerExternalAPI() {
+    try {
+        ll.export(function(query) {
+            if (!query || typeof query !== 'object') return null;
+            try {
+                if (query.xuid) {
+                    var data = database.getPlayerDataSQL(String(query.xuid));
+                    return data || null;
+                }
+                if (query.uid !== undefined) {
+                    return database.getPlayerDataByUidSQL(query.uid);
+                }
+                if (query.name) {
+                    return database.getPlayerDataByNameSQL(query.name);
+                }
+            } catch (e) { logger.error('[API] getPlayerData 错误: ' + e.message); }
+            return null;
+        }, 'NECE_getPlayerData');
+
+        ll.export(function(query, fields) {
+            if (!query || !fields || typeof query !== 'object' || typeof fields !== 'object') return false;
+            try {
+                var xuid = query.xuid ? String(query.xuid) : null;
+                if (!xuid && query.uid !== undefined) {
+                    var byUid = database.getPlayerDataByUidSQL(query.uid);
+                    if (byUid) xuid = byUid.xuid;
+                }
+                if (!xuid && query.name) {
+                    var byName = database.getPlayerDataByNameSQL(query.name);
+                    if (byName) xuid = byName.xuid;
+                }
+                if (!xuid) return false;
+                var current = database.getPlayerDataSQL(xuid);
+                if (!current) return false;
+                for (var key in fields) {
+                    if (fields.hasOwnProperty(key)) {
+                        current[key] = fields[key];
+                    }
+                }
+                database.setPlayerDataSQL(xuid, current);
+                database.requestSavePlayerDb();
+                return true;
+            } catch (e) { logger.error('[API] updatePlayerData 错误: ' + e.message); return false; }
+        }, 'NECE_updatePlayerData');
+
+        ll.export(function() {
+            try {
+                var players = mc.getOnlinePlayers();
+                return players.map(function(p) {
+                    return { xuid: p.xuid, uid: p.uid, name: p.realName };
+                });
+            } catch (e) { return []; }
+        }, 'NECE_getOnlinePlayers');
+
+        ll.export(function(xuid) {
+            try { return money.get(String(xuid)) || 0; } catch (e) { return 0; }
+        }, 'NECE_getBalance');
+
+        ll.export(function(xuid, amount, reason) {
+            try {
+                var p = mc.getPlayer(String(xuid));
+                if (p) return economyModule.addPlayerMoney(p, amount, reason || '外部API');
+                return economyModule.addPlayerMoneyByXuid(String(xuid), amount);
+            } catch (e) { return false; }
+        }, 'NECE_addBalance');
+
+        ll.export(function(xuid, amount, reason) {
+            try {
+                var p = mc.getPlayer(String(xuid));
+                if (p) return economyModule.reducePlayerMoney(p, amount, reason || '外部API');
+                return economyModule.reducePlayerMoneyByXuid(String(xuid), amount);
+            } catch (e) { return false; }
+        }, 'NECE_reduceBalance');
+
+        ll.export(function() {
+            return getCurrencyName();
+        }, 'NECE_getCurrencyName');
+
+        ll.export(function() {
+            return { version: '1.0.0', name: 'NECE' };
+        }, 'NECE_getVersion');
+
+        logger.info('[API] 对外 API 注册完成');
+    } catch (e) {
+        logger.error('[API] 对外 API 注册失败: ' + e.message);
+    }
 }
 
 /** 玩家加入时检查并提醒未读私信、邮件和好友请求 */

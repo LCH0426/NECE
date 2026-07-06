@@ -527,6 +527,24 @@ function getAllPlayerDataSQL() {
     return players;
 }
 
+function getPlayerDataByUidSQL(uid) {
+    var rows = query(playerDb, 'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop, sign FROM player_data WHERE uid = ?', [uid]);
+    if (rows.length === 0) return null;
+    var row = rows[0];
+    var data = _parsePlayerRow(row);
+    data.xuid = row.xuid;
+    return data;
+}
+
+function getPlayerDataByNameSQL(name) {
+    var rows = query(playerDb, 'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop, sign FROM player_data WHERE name = ?', [name]);
+    if (rows.length === 0) return null;
+    var row = rows[0];
+    var data = _parsePlayerRow(row);
+    data.xuid = row.xuid;
+    return data;
+}
+
 function getNextUidSQL() {
     var rows = query(playerDb, 'SELECT MAX(uid) as maxuid FROM player_data');
     if (rows.length === 0 || rows[0].maxuid === null) return 10000;
@@ -1134,6 +1152,8 @@ module.exports = {
     requestSavePlayerDb,
     cancelPendingSave,
     getPlayerDataSQL,
+    getPlayerDataByUidSQL,
+    getPlayerDataByNameSQL,
     setPlayerDataSQL,
     updateLeaveTimeSQL,
     updatePlayTimeSQL,
