@@ -98,8 +98,8 @@ function registerRoutes(router, d) {
                     isScheduled: !!m.scheduledTime,
                     scheduledTime: m.scheduledTime || null,
                     readCount: readCount,
-                    // 个人邮件read为布尔值，全局邮件为已读玩家对象
-                    read: m.toXuid === 'all' ? readCount : !!m.read,
+                    // 个人邮件read为布尔值，全局邮件为已读人数
+                    read: m.toXuid === 'all' ? readCount : !!(m.read && m.read[m.toXuid]),
                     claimedCount: m.toXuid === 'all' && m.claimed && typeof m.claimed === 'object' ? Object.keys(m.claimed).length : 0
                 };
             });
@@ -140,14 +140,28 @@ function registerRoutes(router, d) {
 
             // 全局邮件：构建已领取玩家列表；个人邮件：claimed为布尔值
             let claimedList = [];
+            let claimedData;
             if (mail.toXuid === 'all' && mail.claimed && typeof mail.claimed === 'object') {
                 Object.keys(mail.claimed).forEach(function(xuid) {
                     if (mail.claimed[xuid]) {
                         claimedList.push({ xuid: xuid, name: d.getPlayerName(xuid) });
                     }
                 });
+                claimedData = mail.claimed;
             } else if (mail.toXuid !== 'all') {
-                claimedList = mail.claimed ? [{ xuid: mail.toXuid, name: toName }] : [];
+                const isClaimed = !!(mail.claimed && mail.claimed[mail.toXuid]);
+                claimedList = isClaimed ? [{ xuid: mail.toXuid, name: toName }] : [];
+                claimedData = isClaimed;
+            } else {
+                claimedData = {};
+            }
+
+            // 个人邮件read返回布尔值，全局邮件返回已读对象
+            let readData;
+            if (mail.toXuid === 'all') {
+                readData = mail.read || {};
+            } else {
+                readData = !!(mail.read && mail.read[mail.toXuid]);
             }
 
             res.json({
@@ -175,9 +189,9 @@ function registerRoutes(router, d) {
                     isGlobal: mail.toXuid === 'all',
                     isScheduled: !!mail.scheduledTime,
                     scheduledTime: mail.scheduledTime || null,
-                    read: mail.read,
+                    read: readData,
                     readList: readList,
-                    claimed: mail.claimed,
+                    claimed: claimedData,
                     claimedList: claimedList
                 }
             });
@@ -273,11 +287,10 @@ function registerRoutes(router, d) {
                 toXuid: toXuid,
                 content: content.trim(),
                 time: d.mailApi.formatMailTime(),
-                read: false,
+                read: {},
                 starQian: intStarQian,
                 items: validatedItems,
-                // 全局邮件的claimed为对象，个人邮件为布尔值
-                claimed: toXuid === 'all' ? {} : false
+                claimed: {}
             };
 
             if (scheduledTime) {
