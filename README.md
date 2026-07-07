@@ -327,6 +327,48 @@ const neceGetVersion = ll.import('NECE_getVersion');
 neceGetVersion(); // { version: '1.0.0', name: 'NECE' }
 ```
 
+### 签到
+
+```javascript
+const neceSignPlayer = ll.import('NECE_signPlayer');
+
+// 通过玩家姓名签到
+const result = neceSignPlayer('Steve');
+// 通过XUID签到
+const result = neceSignPlayer('123456789');
+
+// result: { success, reward, oldBalance, newBalance, consecutive }
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | Boolean | 是否成功 |
+| `reward` | Number | 签到获得的奖励 |
+| `oldBalance` | Number | 原余额 |
+| `newBalance` | Number | 现在余额 |
+| `consecutive` | Number | 连续签到天数 |
+
+### 获取玩家余额
+
+```javascript
+const neceGetPlayerBalance = ll.import('NECE_getPlayerBalance');
+neceGetPlayerBalance('123456789'); // 返回: Number
+```
+
+### 获取玩家数据
+
+```javascript
+const neceGetPlayerInfo = ll.import('NECE_getPlayerInfo');
+neceGetPlayerInfo('123456789'); // 返回: Object 或 null
+```
+
+### 获取货币名称
+
+```javascript
+const neceGetCurrencyName = ll.import('NECE_getCurrencyName');
+neceGetCurrencyName(); // 返回: String
+```
+
 ---
 
 ## 依赖项

@@ -1420,8 +1420,10 @@ function onJoinHandler(player) {
 				form.addButton(i18n.t(lang, 'pc.ip_verify_btn'), reportUrl);
 				player.sendForm(form, function(pl, id) {
 					if (id === null) return;
-					// 点击按钮后打开个人设置
-					personalCenter.showPlayerSettingsForm(pl);
+					if (id === 0) {
+						// 点击按钮后打开个人设置
+						personalCenter.showPlayerSettingsForm(pl);
+					}
 				});
 			}
 		} catch (error) {
@@ -1918,6 +1920,88 @@ function handleSignCommand(player) {
 
 	var currencyName = getCurrencyName();
 	player.tell("§e[签到] §a您已成功签到！获得" + reward + currencyName + "，已连续签到" + consecutive + "天。");
+}
+
+/**
+ * 签到API函数（供其他插件调用）
+ * @param {string} identifier - 玩家姓名或XUID
+ * @returns {Object} { success, reward, oldBalance, newBalance, consecutive }
+ */
+function signPlayer(identifier) {
+	var signCfg = config.get('sign', { enabled: true, minReward: 100, maxReward: 8000 });
+	if (!signCfg.enabled) {
+		return { success: false, reward: 0, oldBalance: 0, newBalance: 0, consecutive: 0 };
+	}
+
+	// 通过姓名或XUID查找玩家
+	var xuid = null;
+	for (var _xuid in playerData.players) {
+		var _p = playerData.players[_xuid];
+		if (_p.name === identifier || _xuid === identifier) {
+			xuid = _xuid;
+			break;
+		}
+	}
+	if (!xuid) {
+		return { success: false, reward: 0, oldBalance: 0, newBalance: 0, consecutive: 0 };
+	}
+
+	var pd = playerData.players[xuid];
+	if (!pd) return { success: false, reward: 0, oldBalance: 0, newBalance: 0, consecutive: 0 };
+	if (!pd.sign) pd.sign = {};
+
+	var now = new Date();
+	var today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+	var yesterday = new Date(now.getTime() - 86400000);
+	var yesterdayStr = yesterday.getFullYear() + '-' + String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + String(yesterday.getDate()).padStart(2, '0');
+
+	if (pd.sign.lastDate === today) {
+		return { success: false, reward: 0, oldBalance: 0, newBalance: 0, consecutive: 0 };
+	}
+
+	// 计算连续签到天数
+	var consecutive = 0;
+	if (pd.sign.lastDate === yesterdayStr) {
+		consecutive = (pd.sign.consecutive || 0) + 1;
+	} else {
+		consecutive = 1;
+	}
+
+	// 随机奖励
+	var minR = signCfg.minReward || 100;
+	var maxR = signCfg.maxReward || 8000;
+	var reward = Math.floor(Math.random() * (maxR - minR + 1)) + minR;
+
+	// 获取原余额
+	var oldBalance = 0;
+	try {
+		if (getPlayerMoneyByXuid) oldBalance = getPlayerMoneyByXuid(xuid) || 0;
+	} catch (e) {}
+
+	// 发放奖励
+	if (addPlayerMoneyByXuid) {
+		addPlayerMoneyByXuid(xuid, reward, "Sign");
+	}
+
+	// 保存签到记录
+	pd.sign.lastDate = today;
+	pd.sign.consecutive = consecutive;
+	playerDataModule.markPlayerDirty(xuid);
+	savePlayerDataNow();
+
+	// 获取新余额
+	var newBalance = 0;
+	try {
+		if (getPlayerMoneyByXuid) newBalance = getPlayerMoneyByXuid(xuid) || 0;
+	} catch (e) {}
+
+	return {
+		success: true,
+		reward: reward,
+		oldBalance: oldBalance,
+		newBalance: newBalance,
+		consecutive: consecutive
+	};
 }
 
 // ============ 头像系统代理 ============
@@ -2450,6 +2534,20 @@ function showSetPasswordForm(player) {
 		player.tell('§aWeb登录密码设置成功！你的UID为: §e' + uid);
 		player.tell('请使用UID和密码登录Web管理面板');
 	});
+}
+
+// ============ 导出API供其他插件使用 ============
+
+if (typeof ll !== 'undefined' && ll.export) {
+	ll.export(signPlayer, 'NECE_signPlayer');
+	ll.export(function(xuid) {
+		try { return getPlayerMoney ? getPlayerMoney(xuid) : 0; } catch (e) { return 0; }
+	}, 'NECE_getPlayerBalance');
+	ll.export(function(xuid) {
+		return playerData.players[xuid] || null;
+	}, 'NECE_getPlayerInfo');
+	ll.export(getCurrencyName, 'NECE_getCurrencyName');
+	logger.info('[API] Exported: NECE_signPlayer, NECE_getPlayerBalance, NECE_getPlayerInfo, NECE_getCurrencyName');
 }
 
 // ============ 插件卸载钩子 ============

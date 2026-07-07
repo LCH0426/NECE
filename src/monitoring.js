@@ -416,7 +416,7 @@ function getBdsMemory() {
     try {
         var { execSync } = require('child_process');
         var pid = process.pid;
-        var out = execSync('wmic process where ProcessId=' + pid + ' get WorkingSetSize /format:csv', { encoding: 'utf-8', timeout: 3000 });
+        var out = execSync('wmic process where ProcessId=' + pid + ' get WorkingSetSize /format:csv', { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'ignore'] });
         // 过滤掉错误信息，只处理有效行
         var lines = out.trim().split(/\r?\n/);
         for (var i = 0; i < lines.length; i++) {
@@ -478,7 +478,7 @@ function collectNetworkInfo() {
             try {
                 var { execSync } = require('child_process');
                 // 获取非回环适配器的流量统计
-                var out = execSync('wmic path Win32_PerfFormattedData_Tcpip_NetworkInterface get BytesReceivedPersec,BytesSentPersec,Name /format:csv', { encoding: 'utf-8', timeout: 3000 });
+                var out = execSync('wmic path Win32_PerfFormattedData_Tcpip_NetworkInterface get BytesReceivedPersec,BytesSentPersec,Name /format:csv', { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'ignore'] });
                 var lines = out.trim().split(/\r?\n/);
                 var maxSpeed = 0;
                 for (var i = 0; i < lines.length; i++) {
@@ -516,7 +516,7 @@ function collectNetworkInfo() {
         if (totalReceived === 0 && totalSent === 0) {
             try {
                 var { execSync } = require('child_process');
-                var out = execSync('netstat -e', { encoding: 'utf-8', timeout: 3000 });
+                var out = execSync('netstat -e', { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'ignore'] });
                 var lines = out.trim().split(/\r?\n/);
                 // 只取第一个 Bytes 行（主适配器）
                 var foundBytes = false;
