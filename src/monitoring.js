@@ -417,10 +417,11 @@ function getBdsMemory() {
         var { execSync } = require('child_process');
         var pid = process.pid;
         var out = execSync('wmic process where ProcessId=' + pid + ' get WorkingSetSize /format:csv', { encoding: 'utf-8', timeout: 3000 });
+        // 过滤掉错误信息，只处理有效行
         var lines = out.trim().split(/\r?\n/);
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i].trim();
-            if (!line || line.indexOf('Node') === 0) continue;
+            if (!line || line.indexOf('Node') === 0 || line.indexOf('ERROR') !== -1 || line.indexOf('Description') !== -1) continue;
             var parts = line.split(',');
             if (parts.length >= 2) {
                 var bytes = parseInt(parts[1]) || 0;
@@ -482,7 +483,7 @@ function collectNetworkInfo() {
                 var maxSpeed = 0;
                 for (var i = 0; i < lines.length; i++) {
                     var line = lines[i].trim();
-                    if (!line || line.indexOf('Node') === 0) continue;
+                    if (!line || line.indexOf('Node') === 0 || line.indexOf('ERROR') !== -1 || line.indexOf('Description') !== -1) continue;
                     var parts = line.split(',');
                     if (parts.length >= 4) {
                         var rx = parseInt(parts[1]) || 0;

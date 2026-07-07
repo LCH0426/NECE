@@ -1420,8 +1420,8 @@ function onJoinHandler(player) {
 				form.addButton(i18n.t(lang, 'pc.ip_verify_btn'), reportUrl);
 				player.sendForm(form, function(pl, id) {
 					if (id === null) return;
-					// 点击按钮后打开个人中心
-					personalCenter.showPersonalCenterForm(pl);
+					// 点击按钮后打开个人设置
+					personalCenter.showPlayerSettingsForm(pl);
 				});
 			}
 		} catch (error) {
