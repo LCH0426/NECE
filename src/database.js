@@ -53,13 +53,19 @@ function dbDebugLog() {
 }
 
 /**
- * 转义SQL字符串值（单引号转义）
+ * 转义SQL字符串值（单引号转义 + 反斜杠转义）
  */
 function sqlEscape(val) {
     if (val === null || val === undefined) return 'NULL';
-    if (typeof val === 'number') return String(val);
+    if (typeof val === 'number') {
+        if (!isFinite(val)) return 'NULL';
+        return String(val);
+    }
     if (typeof val === 'boolean') return val ? '1' : '0';
-    return "'" + String(val).replace(/'/g, "''") + "'";
+    var str = String(val);
+    // 转义反斜杠和单引号，防止SQL注入
+    str = str.replace(/\\/g, '\\\\').replace(/'/g, "''");
+    return "'" + str + "'";
 }
 
 /**
@@ -74,6 +80,12 @@ function run(session, sql, params) {
     try {
         var finalSql;
         if (params && params.length > 0) {
+            // 验证占位符数量与参数数量匹配
+            var placeholderCount = (sql.match(/\?/g) || []).length;
+            if (placeholderCount !== params.length) {
+                logger.error('[DB] SQL参数数量不匹配: 占位符' + placeholderCount + '个, 参数' + params.length + '个 | SQL: ' + sql.substring(0, 100));
+                return null;
+            }
             var idx = 0;
             finalSql = sql.replace(/\?/g, function() { return sqlEscape(params[idx++]); });
         } else {

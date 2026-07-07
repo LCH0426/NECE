@@ -210,6 +210,7 @@ function doCreateGuild(player, name, description) {
             return;
         }
         p.tell(t('guild.tag_prefix') + ' §a' + t('guild.create_success', name));
+        logger.info('[Guild] 玩家 ' + p.name + ' 创建公会: ' + name + ' (ID:' + guildId + ')');
     }
 
     if (cost > 0 && confirmPurchase) {
@@ -221,9 +222,13 @@ function doCreateGuild(player, name, description) {
         _doCreate(player);
     } else {
         var guildId = database.createGuild(name, description, xuid, maxMembers);
-        player.tell(t('guild.tag_prefix') + ' §a' + t('guild.create_success', name));
+        if (guildId) {
+            player.tell(t('guild.tag_prefix') + ' §a' + t('guild.create_success', name));
+            logger.info('[Guild] 玩家 ' + player.name + ' 创建公会: ' + name + ' (ID:' + guildId + ')');
+        } else {
+            player.tell(t('guild.tag_prefix') + ' §c' + t('guild.create_failed'));
+        }
     }
-    logger.info('[Guild] 玩家 ' + player.name + ' 创建公会: ' + name + ' (ID:' + guildId + ')');
 }
 
 /** 解散公会 */
