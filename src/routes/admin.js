@@ -731,6 +731,58 @@ function registerRoutes(router, d) {
             res.status(500).json({ code: 500, msg: '生成验证码失败: ' });
         }
     });
+
+    // ==================== 维护模式 API ====================
+
+    // 查询维护模式状态
+    router.get('/maintenance/status', d.adminAuth, function(req, res) {
+        try {
+            if (!d.getMaintenanceMode) {
+                return res.status(500).json({ code: 500, msg: 'Maintenance mode function not available' });
+            }
+            var status = d.getMaintenanceMode();
+            var onlineCount = 0;
+            try {
+                onlineCount = d.mc.getOnlinePlayers().length;
+            } catch (e) {}
+            res.json({
+                code: 200,
+                data: {
+                    enabled: status.enabled,
+                    reason: status.reason || '',
+                    onlinePlayers: onlineCount
+                }
+            });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: 'Failed to get maintenance status: ' + e.message });
+        }
+    });
+
+    // 切换维护模式
+    router.post('/maintenance/toggle', d.adminAuth, d.writeLimiter, function(req, res) {
+        try {
+            if (!d.setMaintenanceMode) {
+                return res.status(500).json({ code: 500, msg: 'Maintenance mode function not available' });
+            }
+            var enable = req.body.enable;
+            var reason = req.body.reason || '';
+
+            if (typeof enable !== 'boolean') {
+                return res.status(400).json({ code: 400, msg: 'Missing or invalid "enable" field (boolean required)' });
+            }
+
+            var result = d.setMaintenanceMode(enable, reason);
+            d.adminLog.log(req.user.uid, enable ? 'Enable maintenance mode' : 'Disable maintenance mode', reason || 'No reason');
+
+            res.json({
+                code: 200,
+                msg: enable ? 'Maintenance mode enabled' : 'Maintenance mode disabled',
+                data: result
+            });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: 'Failed to toggle maintenance mode: ' + e.message });
+        }
+    });
 }
 
 module.exports = { registerRoutes };

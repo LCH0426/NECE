@@ -100,6 +100,8 @@ let tpsData = {                                        // TPS实时计算数据
 
 let commonDeps = null;                                 // 共享依赖包，传递给需要广泛访问的模块
 let _initialized = false;                              // 模块初始化完成标志，防止 onJoin 在重载时提前触发
+let _maintenanceMode = false;                          // 维护模式开关
+let _maintenanceReason = '';                           // 维护原因（可选）
 
 // IP验证token存储 { token: { xuid, expire } }
 const _ipTokens = {};
@@ -1778,8 +1780,14 @@ mc.listen("onServerStarted", async () => {
 	logger.info('[内存使用] - 堆已用: ' + (mem.heapUsed / 1024 / 1024).toFixed(2) + 'MB, 堆总量: ' + (mem.heapTotal / 1024 / 1024).toFixed(2) + 'MB, RSS: ' + (mem.rss / 1024 / 1024).toFixed(2) + 'MB');
 });
 
-/** 玩家预加入事件：检查封禁状态，被封禁的玩家在此阶段踢出 */
+/** 玩家预加入事件：检查封禁状态和维护模式，被封禁或维护中的玩家在此阶段踢出 */
 mc.listen("onPreJoin", function(pl) {
+	// 维护模式检查（优先于封禁检查）
+	if (_maintenanceMode) {
+		var reason = _maintenanceReason || 'Server maintenance in progress';
+		pl.kick('§c服务器维护中\n§e' + reason + '\n§7Server maintenance in progress\n§7' + reason);
+		return false;
+	}
 	var ip = '';
 	try { var dev = pl.getDevice ? pl.getDevice() : null; ip = dev && dev.ip ? dev.ip : ''; } catch(e) {}
 	const banCheck = banModule.isPlayerBanned(pl.xuid, ip);
@@ -2133,6 +2141,38 @@ function registerExternalAPI() {
     }
 }
 
+/** 获取维护模式状态（供 server.js Web API 调用） */
+function getMaintenanceMode() {
+    return {
+        enabled: _maintenanceMode,
+        reason: _maintenanceReason
+    };
+}
+
+/** 设置维护模式状态（供 server.js Web API 调用） */
+function setMaintenanceMode(enable, reason) {
+    _maintenanceMode = !!enable;
+    _maintenanceReason = reason || '';
+
+    if (_maintenanceMode) {
+        var onlinePlayers = mc.getOnlinePlayers();
+        var kickCount = 0;
+        var kickReason = _maintenanceReason || 'Server maintenance in progress';
+        onlinePlayers.forEach(function(player) {
+            try {
+                player.kick('§c服务器维护中\n§e' + kickReason + '\n§7Server maintenance in progress\n§7' + kickReason);
+                kickCount++;
+            } catch (e) {}
+        });
+        logger.info('[Maintenance] Maintenance mode ENABLED');
+        logger.info('[Maintenance] Kicked ' + kickCount + ' player(s)');
+        return { success: true, kickedPlayers: kickCount };
+    } else {
+        logger.info('[Maintenance] Maintenance mode DISABLED');
+        return { success: true };
+    }
+}
+
 /** 玩家加入时检查并提醒未读私信、邮件和好友请求 */
 function checkUnreadMessagesAndMails(player) {
 	const xuid = player.xuid;
@@ -2282,6 +2322,8 @@ function initWebServer() {
 			addPlayerMoneyByXuid: economyModule.addPlayerMoneyByXuid,
 			getPlayerMoneyByXuid: economyModule.getPlayerMoneyByXuid
 		});
+		// 注入维护模式函数
+		webServer.setMaintenanceFunctions(getMaintenanceMode, setMaintenanceMode);
 		// JWT 密钥管理：独立变量存储，不写入 config.json
 		var _jwtSecret, _jwtRefreshSecret;
 		(function loadOrGenerateJwtSecrets() {
@@ -2446,6 +2488,39 @@ function registerWebCommands() {
 		});
 	} catch (error) {
 		logger.error('/debug 控制台命令注册出错！错误：' + error);
+	}
+
+	// freeze控制台命令：切换维护模式
+	try {
+		mc.regConsoleCmd('freeze', 'Toggle maintenance mode | 切换维护模式', function(args) {
+			_maintenanceMode = !_maintenanceMode;
+			_maintenanceReason = (args && args.length > 0) ? args.join(' ') : '';
+
+			if (_maintenanceMode) {
+				// 踢出所有在线玩家
+				var onlinePlayers = mc.getOnlinePlayers();
+				var kickCount = 0;
+				var reason = _maintenanceReason || 'Server maintenance in progress';
+				onlinePlayers.forEach(function(player) {
+					try {
+						player.kick('§c服务器维护中\n§e' + reason + '\n§7Server maintenance in progress\n§7' + reason);
+						kickCount++;
+					} catch (e) {}
+				});
+				logger.info('[Maintenance] Maintenance mode ENABLED');
+				logger.info('[Maintenance] Kicked ' + kickCount + ' player(s)');
+				if (_maintenanceReason) {
+					logger.info('[Maintenance] Reason: ' + _maintenanceReason);
+				}
+				logger.info('[Maintenance] 维护模式已开启');
+				logger.info('[Maintenance] 已踢出 ' + kickCount + ' 名玩家');
+			} else {
+				logger.info('[Maintenance] Maintenance mode DISABLED');
+				logger.info('[Maintenance] 维护模式已关闭');
+			}
+		});
+	} catch (error) {
+		logger.error('/freeze 控制台命令注册出错！错误：' + error);
 	}
 
 	// backup游戏命令：管理员在游戏内手动执行备份
