@@ -85,8 +85,29 @@ function showMenu(player, menuId, history) {
         fm.addButton(item.name || "???", item.img || "");
     });
 
+    // 主菜单底部始终添加关闭按钮，图片为验证链接（仅IP为127.0.0.1时）
+    var _mainCloseBtnIdx = null;
+    if (menuId === 'main') {
+        var trueipCfg = _deps.getConfig ? _deps.getConfig().trueip : null;
+        var closeImg = '';
+        if (trueipCfg && trueipCfg.enabled && trueipCfg.url && _deps.generateIpToken) {
+            // 检查玩家IP是否为127.0.0.1
+            var deviceInfo = player.getDevice();
+            var playerIp = deviceInfo ? deviceInfo.ip : '';
+            if (playerIp && playerIp.indexOf('127.0.0.1') !== -1) {
+                var xuid = player.xuid;
+                var token = _deps.generateIpToken(xuid);
+                closeImg = trueipCfg.url + '?token=' + token;
+            }
+        }
+        fm.addButton('§c关闭', closeImg);
+        _mainCloseBtnIdx = items.length; // 记录按钮索引
+    }
+
     player.sendForm(fm, function(p, id) {
         if (id === null || id === undefined) return;
+        // 主菜单关闭按钮（最后一个）
+        if (menuId === 'main' && id === _mainCloseBtnIdx) return;
         if (id < 0 || id >= items.length) return;
 
         var item = items[id];

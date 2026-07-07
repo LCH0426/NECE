@@ -101,6 +101,35 @@ let tpsData = {                                        // TPS实时计算数据
 let commonDeps = null;                                 // 共享依赖包，传递给需要广泛访问的模块
 let _initialized = false;                              // 模块初始化完成标志，防止 onJoin 在重载时提前触发
 
+// IP验证token存储 { token: { xuid, expire } }
+const _ipTokens = {};
+
+/**
+ * 生成IP验证token（5秒有效）
+ * @param {string} xuid - 玩家XUID
+ * @returns {string} token
+ */
+function generateIpToken(xuid) {
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(16).toString('hex');
+    _ipTokens[token] = { xuid: xuid, expire: Date.now() + 5000 };
+    setTimeout(function() { delete _ipTokens[token]; }, 6000);
+    return token;
+}
+
+/**
+ * 验证并消费IP token
+ * @param {string} token
+ * @returns {string|null} xuid 或 null（无效/过期）
+ */
+function consumeIpToken(token) {
+    var data = _ipTokens[token];
+    if (!data) return null;
+    delete _ipTokens[token];
+    if (Date.now() > data.expire) return null;
+    return data.xuid;
+}
+
 // Debug 模式
 let _debugMode = false;
 const debugLog = debugModule.debugLog;
@@ -737,6 +766,7 @@ function initRankConfig() {
 	});
 	config.init("menu", {});
 	config.init("quickMenu", { "items": [] });
+	config.init("trueip", { "enabled": false, "url": "" });
 	// 旧键迁移：将旧格式的 enable* 标志和 *Config 键迁移到新的嵌套结构
 	_migrateOldConfigKeys();
 }
@@ -1023,7 +1053,7 @@ function initAllConfigs() {
 		t: i18n.t,
 		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
-	menuModule.init({ getConfig: function() { return config._data || {}; }, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData, getPlayerSetting: getPlayerSetting });
+	menuModule.init({ getConfig: function() { return config._data || {}; }, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData, getPlayerSetting: getPlayerSetting, generateIpToken: generateIpToken, showPersonalCenterForm: personalCenter.showPersonalCenterForm });
 	menuModule.loadConfig();
 	chatModule.init({ fs: fs, U: U, badWordsPath: BAD_WORDS_PATH, webServer: webServer,
 		getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData,
@@ -1372,7 +1402,32 @@ function onJoinHandler(player) {
 		}
 	}
 
-
+	// 内网穿透IP验证（仅当IP为127.0.0.1时生效）
+	var trueipCfg = config.get('trueip', { enabled: false, url: '' });
+	if (trueipCfg.enabled && trueipCfg.url && getPlayerSetting(xuid, "enableIpVerify")) {
+		try {
+			var deviceInfo = player.getDevice();
+			var playerIp = deviceInfo ? deviceInfo.ip : '';
+			var cleanIp = playerIp ? U.stripIpPort(playerIp) : '';
+			// 只有IP为127.0.0.1时才显示验证表单
+			if (cleanIp === '127.0.0.1') {
+				var token = generateIpToken(playerXUID);
+				var reportUrl = trueipCfg.url + '?token=' + token;
+				var lang = getPlayerSetting(xuid, 'locale') || 'zh_CN';
+				var form = mc.newSimpleForm();
+				form.setTitle(i18n.t(lang, 'pc.ip_verify_title'));
+				form.setContent(i18n.t(lang, 'pc.ip_verify_content'));
+				form.addButton(i18n.t(lang, 'pc.ip_verify_btn'), reportUrl);
+				player.sendForm(form, function(pl, id) {
+					if (id === null) return;
+					// 点击按钮后打开个人中心
+					personalCenter.showPersonalCenterForm(pl);
+				});
+			}
+		} catch (error) {
+			logger.error(`处理IP验证时出错：${error.message}`);
+		}
+	}
 
 	// 检查定期存款到期情况
 	try {
@@ -2134,6 +2189,7 @@ function initWebServer() {
 		});
 		webServer.setPlayerDataRef(playerData);
 		webServer.setConfigRef(config);
+		webServer.setConsumeIpToken(consumeIpToken);
 		webServer.setHasWish(hasWish, hasWish ? wishModule : null, economyModule.writeEconomyLog);
 		webServer.setEconomyFunctions({
 			getPlayerMoney: economyModule.getPlayerMoney,

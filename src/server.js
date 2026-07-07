@@ -110,6 +110,9 @@ const configLimiter = createRateLimiter(60000, 10);
 // 写操作限流：每IP每分钟最多30次
 const writeLimiter = createRateLimiter(60000, 30);
 
+// IP验证token消费函数（由index.js注入）
+let _consumeIpToken = null;
+
 // 临时下载令牌存储：token -> { filename, createdAt, expiresAt }
 const _downloadTokens = new Map();
 const DOWNLOAD_TOKEN_TTL = 6 * 3600 * 1000; // 6小时有效期
@@ -371,6 +374,11 @@ function setHasWish(val, wishModule, economyWriteLog) {
 let _economyFunctions = null;
 function setEconomyFunctions(funcs) {
     _economyFunctions = funcs || null;
+}
+
+/** 注入IP验证token消费函数 */
+function setConsumeIpToken(fn) {
+    _consumeIpToken = fn;
 }
 
 /**
@@ -829,6 +837,7 @@ function createV1Routes(webConfig) {
         loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter, writeLimiter,
         hasWish: _hasWish,
         generateDownloadToken, consumeDownloadToken,
+        consumeIpToken: _consumeIpToken,
         getConfig: function() { return _configRef; }
     };
 
@@ -972,5 +981,6 @@ module.exports = {
     setPlayerDataRef,
     setConfigRef,
     setHasWish,
-    setEconomyFunctions
+    setEconomyFunctions,
+    setConsumeIpToken
 };

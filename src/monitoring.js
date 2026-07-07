@@ -398,6 +398,52 @@ function getMemoryInfo() {
     };
 }
 
+// BDS内存缓存
+var _bdsMemoryCache = { value: 0, timestamp: 0 };
+var BDS_MEMORY_CACHE_TTL = 1000; // 1秒缓存
+
+/**
+ * 获取BDS进程内存占用（单位MB）
+ * @returns {number} 工作集内存大小
+ */
+function getBdsMemory() {
+    var now = Date.now();
+    if (now - _bdsMemoryCache.timestamp < BDS_MEMORY_CACHE_TTL) {
+        return _bdsMemoryCache.value;
+    }
+
+    var result = 0;
+    try {
+        var { execSync } = require('child_process');
+        var pid = process.pid;
+        var out = execSync('wmic process where ProcessId=' + pid + ' get WorkingSetSize /format:csv', { encoding: 'utf-8', timeout: 3000 });
+        var lines = out.trim().split(/\r?\n/);
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (!line || line.indexOf('Node') === 0) continue;
+            var parts = line.split(',');
+            if (parts.length >= 2) {
+                var bytes = parseInt(parts[1]) || 0;
+                if (bytes > 0) {
+                    result = Math.round(bytes / (1024 * 1024));
+                    break;
+                }
+            }
+        }
+    } catch (e) {}
+
+    if (result === 0) {
+        try {
+            var mem = process.memoryUsage();
+            result = Math.round(mem.heapUsed / (1024 * 1024));
+        } catch (e) {}
+    }
+
+    _bdsMemoryCache.value = result;
+    _bdsMemoryCache.timestamp = now;
+    return result;
+}
+
 // 网络吞吐量手动计算状态
 var _prevNetBytes = null;
 var _prevNetTime = null;
@@ -405,7 +451,7 @@ var _prevNetTime = null;
 /**
  * 采集网络累计收发字节，手动计算吞吐量
  * Linux/Wine: 读 /proc/net/dev（零开销）
- * Windows: netstat -e（spawn 进程）
+ * Windows: wmic path Win32_PerfFormattedData_Tcpip_NetworkInterface（精准单接口）
  */
 function collectNetworkInfo() {
     try {
@@ -426,19 +472,63 @@ function collectNetworkInfo() {
             }
         } catch (e) {}
 
-        // 方案2: Windows netstat -e
+        // 方案2: Windows - 使用 wmic 获取主网络适配器流量
+        if (totalReceived === 0 && totalSent === 0) {
+            try {
+                var { execSync } = require('child_process');
+                // 获取非回环适配器的流量统计
+                var out = execSync('wmic path Win32_PerfFormattedData_Tcpip_NetworkInterface get BytesReceivedPersec,BytesSentPersec,Name /format:csv', { encoding: 'utf-8', timeout: 3000 });
+                var lines = out.trim().split(/\r?\n/);
+                var maxSpeed = 0;
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (!line || line.indexOf('Node') === 0) continue;
+                    var parts = line.split(',');
+                    if (parts.length >= 4) {
+                        var rx = parseInt(parts[1]) || 0;
+                        var tx = parseInt(parts[2]) || 0;
+                        var name = parts[3] || '';
+                        // 跳过回环接口
+                        if (name.indexOf('Loopback') !== -1 || name.indexOf('lo') !== -1) continue;
+                        // 选择流量最大的适配器
+                        if (rx + tx > maxSpeed) {
+                            maxSpeed = rx + tx;
+                            totalReceived = rx;
+                            totalSent = tx;
+                        }
+                    }
+                }
+                // wmic 返回的是每秒速度，直接使用
+                if (totalReceived > 0 || totalSent > 0) {
+                    cachedStats.network = {
+                        totalDownload: cachedStats.network.totalDownload,
+                        totalUpload: cachedStats.network.totalUpload,
+                        downloadThroughput: (totalReceived * 8) / (1000 * 1000),
+                        uploadThroughput: (totalSent * 8) / (1000 * 1000)
+                    };
+                    return;
+                }
+            } catch (e) {}
+        }
+
+        // 方案3: Windows - 降级使用 netstat -e
         if (totalReceived === 0 && totalSent === 0) {
             try {
                 var { execSync } = require('child_process');
                 var out = execSync('netstat -e', { encoding: 'utf-8', timeout: 3000 });
                 var lines = out.trim().split(/\r?\n/);
+                // 只取第一个 Bytes 行（主适配器）
+                var foundBytes = false;
                 for (var i = 0; i < lines.length; i++) {
                     var line = lines[i].trim();
-                    var match = line.match(/(\d+)\s+(\d+)\s*$/);
-                    if (match) {
-                        totalReceived = parseInt(match[1]);
-                        totalSent = parseInt(match[2]);
-                        break;
+                    if (line.indexOf('Bytes') === 0 && !foundBytes) {
+                        var match = line.match(/Bytes\s+(\d+)\s+(\d+)/);
+                        if (match) {
+                            totalReceived = parseInt(match[1]);
+                            totalSent = parseInt(match[2]);
+                            foundBytes = true;
+                            break;
+                        }
                     }
                 }
             } catch (e) {}
@@ -464,8 +554,8 @@ function collectNetworkInfo() {
         cachedStats.network = {
             totalDownload: totalReceived / (1024 * 1024 * 1024),
             totalUpload: totalSent / (1024 * 1024 * 1024),
-            downloadThroughput: (downSpeed * 8) / (1024 * 1024),
-            uploadThroughput: (upSpeed * 8) / (1024 * 1024)
+            downloadThroughput: (downSpeed * 8) / (1000 * 1000),
+            uploadThroughput: (upSpeed * 8) / (1000 * 1000)
         };
     } catch (e) {}
 }
@@ -627,7 +717,7 @@ function refreshStats() {
 
 /**
  * 获取当前系统资源快照
- * @returns {Object} 包含cpu、memory、network、disk、worldSize、uptime等字段
+ * @returns {Object} 包含cpu、memory、network、disk、worldSize、uptime、bdsmemory等字段
  */
 function getSystemStats() {
     return {
@@ -638,7 +728,8 @@ function getSystemStats() {
         worldSize: cachedStats.worldSize,
         uptime: cachedStats.uptime,
         platform: cachedStats.platform,
-        hostname: cachedStats.hostname
+        hostname: cachedStats.hostname,
+        bdsmemory: getBdsMemory()
     };
 }
 
@@ -678,6 +769,7 @@ module.exports = {
     refreshStats: refreshStats,
     getSystemStats: getSystemStats,
     getMemoryInfo: getMemoryInfo,
+    getBdsMemory: getBdsMemory,
     getWorldSize: getWorldSize,
     updateWorldSize: updateWorldSize
 };

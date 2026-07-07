@@ -23,6 +23,7 @@
 let _database = null;         // database.js 模块引用
 const DEFAULT_PLAYER_SETTINGS = {
     enableWelcome: true, enableActionbar: true, enableIpDetector: true,
+    enableIpVerify: true,
     enableActionbarPing: true, enableActionbarMoney: true, enableActionbarTime: false,
     enableActionbarTps: true, enableActionbarSpeed: false, enableActionbarBiome: false,
     enableBankNotice: true, enableDeathTeleportPopup: true, enableGiveClock: true,
