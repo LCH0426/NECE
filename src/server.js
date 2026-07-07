@@ -381,6 +381,16 @@ function setConsumeIpToken(fn) {
     _consumeIpToken = fn;
 }
 
+// 维护模式函数引用（由 index.js 注入）
+let _getMaintenanceMode = null;
+let _setMaintenanceMode = null;
+
+/** 注入维护模式函数 */
+function setMaintenanceFunctions(getFn, setFn) {
+    _getMaintenanceMode = getFn || null;
+    _setMaintenanceMode = setFn || null;
+}
+
 /**
  * 获取错误消息（debug 模式返回详细信息，否则返回通用消息）
  * @param {Error} e - 错误对象
@@ -838,7 +848,9 @@ function createV1Routes(webConfig) {
         hasWish: _hasWish,
         generateDownloadToken, consumeDownloadToken,
         consumeIpToken: _consumeIpToken,
-        getConfig: function() { return _configRef; }
+        getConfig: function() { return _configRef; },
+        getMaintenanceMode: _getMaintenanceMode || null,
+        setMaintenanceMode: _setMaintenanceMode || null
     };
 
     // 版本信息接口
@@ -982,5 +994,6 @@ module.exports = {
     setConfigRef,
     setHasWish,
     setEconomyFunctions,
-    setConsumeIpToken
+    setConsumeIpToken,
+    setMaintenanceFunctions
 };
