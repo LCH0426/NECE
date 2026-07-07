@@ -390,6 +390,10 @@
     "maxCount": 0,
     "dataBackupInterval": 0
   },
+  "trueip": {
+    "enabled": false,
+    "url": ""
+  },
   "web": {
     "enabled": true,
     "enableFrontend": true,

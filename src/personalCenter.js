@@ -30,6 +30,7 @@ function getPlayerSettingsSchema() {
         { key: 'enableActionbar', label: '§e' + t('pc.enable_actionbar') },
         { key: 'enableActionbarShowPing', label: '§e' + t('pc.actionbar_ping') },
         { key: 'enableIpDetector', label: '§e' + t('pc.enable_ip_detector') },
+        { key: 'enableIpVerify', label: '§e' + t('pc.enable_ip_verify') },
         { type: 'label', text: '§b' + t('pc.sidebar_title') },
         { key: 'enableActionbarMoney', label: '§e' + t('pc.sidebar_money') },
         { key: 'enableActionbarPing', label: '§e' + t('pc.sidebar_ping') },

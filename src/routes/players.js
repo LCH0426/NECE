@@ -855,6 +855,49 @@ function registerRoutes(router, d) {
             res.status(500).json({ code: 500, msg: '操作失败: ' });
         }
     });
+
+    // 获取玩家真实IP（公共接口，需要token验证）
+    router.get('/player/report-ip', function(req, res) {
+        try {
+            let token = (req.query.token || '').trim();
+            if (!token || !d.consumeIpToken) {
+                return res.status(403).json({ code: 403 });
+            }
+
+            let xuid = d.consumeIpToken(token);
+            if (!xuid) {
+                return res.status(403).json({ code: 403 });
+            }
+
+            // 获取客户端真实IP
+            let clientIp = req.ip || req.connection.remoteAddress || '';
+            clientIp = clientIp.replace(/^::ffff:/, '');
+
+            if (!clientIp) {
+                return res.json({ code: 200 });
+            }
+
+            // 获取玩家数据
+            let playerData = d.getPlayerData();
+            if (!playerData || !playerData.players || !playerData.players[xuid]) {
+                return res.status(404).json({ code: 404 });
+            }
+
+            let playerName = playerData.players[xuid].name || xuid;
+            let oldIp = playerData.players[xuid].lastIp || '';
+
+            // 更新lastIp
+            playerData.players[xuid].lastIp = clientIp;
+            d.database.setPlayerDataSQL(xuid, playerData.players[xuid]);
+
+            // 控制台输出
+            logger.info('[IP] 已获取到玩家 ' + playerName + '(' + xuid + ') 的真实IP: ' + clientIp + (oldIp ? ' (原IP: ' + oldIp + ')' : ''));
+
+            res.json({ code: 200 });
+        } catch (e) {
+            res.status(500).json({ code: 500 });
+        }
+    });
 }
 
 module.exports = { registerRoutes };
