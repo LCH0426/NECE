@@ -563,13 +563,22 @@ const _recentTransfers = {};
 function _executeTransfer(sender, targetName, targetXuid, amount) {
     const transferKey = targetXuid + ':' + amount;
     const now = Date.now();
-    const senderRecent = _recentTransfers[sender.xuid];
-    if (senderRecent && senderRecent[transferKey] && now - senderRecent[transferKey] < 3000) {
+    const senderXuid = sender.xuid;
+
+    // 初始化发送者的转账记录（如果不存在）
+    if (!_recentTransfers[senderXuid]) {
+        _recentTransfers[senderXuid] = {};
+    }
+
+    // 检查是否在3秒内重复转账
+    const lastTransferTime = _recentTransfers[senderXuid][transferKey];
+    if (lastTransferTime && (now - lastTransferTime) < 3000) {
         sender.tell(t('economy.transfer_duplicate'));
         return;
     }
-    if (!senderRecent) _recentTransfers[sender.xuid] = {};
-    _recentTransfers[sender.xuid][transferKey] = now;
+
+    // 记录本次转账时间
+    _recentTransfers[senderXuid][transferKey] = now;
     if (!reducePlayerMoney(sender, amount, t('economy.reason_transfer_to', targetName))) {
         sender.tell(t('economy.transfer_deduct_failed'));
         return;
