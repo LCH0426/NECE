@@ -45,7 +45,7 @@ const personalCenter = require('./src/personalCenter');
 const guildModule = require('./src/guild');
 const motdModule = require('./src/motd');
 const clearLagModule = require('./src/clearLag');
-const chainModule = require('./src/chain');
+const blockModule = require('./src/block');
 const i18n = require('./src/i18n');
 
 
@@ -1066,7 +1066,7 @@ function initAllConfigs() {
 	});
 	chatModule.loadChatConfig();
 	chatModule.registerChatListener();
-	chainModule.init({
+	blockModule.init({
 		getConfig: function() { return config.get('chain', {}); },
 		getDebug: function() { return _debugMode; },
 		getPlayerData: function() { return playerData; },
@@ -1080,11 +1080,14 @@ function initAllConfigs() {
 		getCurrencyName: getCurrencyName,
 		openMainMenu: personalCenter.openMainMenu
 	});
-	chainModule.setOnChainComplete(function(player, extraCount) {
+	blockModule.setDebugMode(_debugMode);
+	blockModule.setOnChainComplete(function(player, extraCount) {
 		if (extraCount > 0) personalCenter.bumpStat(player.xuid, 'mining', extraCount);
 	});
-	chainModule.registerChainListener();
-	chainModule.registerChainCommand(registerPlayerCommand);
+	blockModule.setOnQuickBuildComplete(function(player, count) {
+		if (count > 0) personalCenter.bumpStat(player.xuid, 'placing', count);
+	});
+	blockModule.registerBlockCommand(registerPlayerCommand);
 	initNarConfig();
 	backupModule.init({
 		getConfig: function() { return config.get('backup'); },
@@ -2484,6 +2487,7 @@ function registerWebCommands() {
 			_debugMode = !_debugMode;
 			database.setDebugMode(_debugMode);
 			debugModule.setDebugMode(_debugMode);
+			blockModule.setDebugMode(_debugMode);
 			logger.info('Debug模式已' + (_debugMode ? '开启' : '关闭'));
 		});
 	} catch (error) {
@@ -2492,18 +2496,26 @@ function registerWebCommands() {
 
 	// freeze控制台命令：切换维护模式
 	try {
-		mc.regConsoleCmd('freeze', 'Toggle maintenance mode | 切换维护模式', function(args) {
+		const freezeCmd = mc.newCommand('freeze', 'Toggle maintenance mode | 切换维护模式', PermType.GameMasters);
+		freezeCmd.optional('reason', ParamType.RawText);
+		freezeCmd.overload(['reason']);
+		freezeCmd.setCallback(function(_cmd, origin, output, results) {
+			if (origin.player) {
+				output.error('freeze 命令仅控制台可用！');
+				return;
+			}
+
 			_maintenanceMode = !_maintenanceMode;
-			_maintenanceReason = (args && args.length > 0) ? args.join(' ') : '';
+			_maintenanceReason = (results.reason || '').trim();
 
 			if (_maintenanceMode) {
 				// 踢出所有在线玩家
 				var onlinePlayers = mc.getOnlinePlayers();
 				var kickCount = 0;
-				var reason = _maintenanceReason || 'Server maintenance in progress';
+				var kickReason = _maintenanceReason || 'Server maintenance in progress';
 				onlinePlayers.forEach(function(player) {
 					try {
-						player.kick('§c服务器维护中\n§e' + reason + '\n§7Server maintenance in progress\n§7' + reason);
+						player.kick('§c服务器维护中\n§e' + kickReason + '\n§7Server maintenance in progress\n§7' + kickReason);
 						kickCount++;
 					} catch (e) {}
 				});
@@ -2519,6 +2531,7 @@ function registerWebCommands() {
 				logger.info('[Maintenance] 维护模式已关闭');
 			}
 		});
+		freezeCmd.setup();
 	} catch (error) {
 		logger.error('/freeze 控制台命令注册出错！错误：' + error);
 	}

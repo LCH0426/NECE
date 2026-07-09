@@ -456,107 +456,78 @@ var _prevNetTime = null;
  */
 function collectNetworkInfo() {
     try {
-        var totalReceived = 0;
-        var totalSent = 0;
-
-        // 方案1: Linux/Wine 读 /proc/net/dev
-        try {
-            var procNet = fs.readFileSync('/proc/net/dev', 'utf-8');
-            var lines = procNet.trim().split('\n');
-            for (var i = 2; i < lines.length; i++) {
-                var parts = lines[i].trim().split(/[:\s]+/);
-                if (parts[0] === 'lo' || parts[0] === 'Loopback') continue;
-                if (parts.length >= 10) {
-                    totalReceived += parseInt(parts[1]) || 0;
-                    totalSent += parseInt(parts[9]) || 0;
-                }
-            }
-        } catch (e) {}
-
-        // 方案2: Windows - 使用 wmic 获取主网络适配器流量
-        if (totalReceived === 0 && totalSent === 0) {
+        // Linux/Wine 读 /proc/net/dev
+        if (os.platform() !== 'win32') {
             try {
-                var { execSync } = require('child_process');
-                // 获取非回环适配器的流量统计
-                var out = execSync('wmic path Win32_PerfFormattedData_Tcpip_NetworkInterface get BytesReceivedPersec,BytesSentPersec,Name /format:csv', { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'ignore'] });
-                var lines = out.trim().split(/\r?\n/);
-                var maxSpeed = 0;
-                for (var i = 0; i < lines.length; i++) {
-                    var line = lines[i].trim();
-                    if (!line || line.indexOf('Node') === 0 || line.indexOf('ERROR') !== -1 || line.indexOf('Description') !== -1) continue;
-                    var parts = line.split(',');
-                    if (parts.length >= 4) {
-                        var rx = parseInt(parts[1]) || 0;
-                        var tx = parseInt(parts[2]) || 0;
-                        var name = parts[3] || '';
-                        // 跳过回环接口
-                        if (name.indexOf('Loopback') !== -1 || name.indexOf('lo') !== -1) continue;
-                        // 选择流量最大的适配器
-                        if (rx + tx > maxSpeed) {
-                            maxSpeed = rx + tx;
-                            totalReceived = rx;
-                            totalSent = tx;
-                        }
+                var totalReceived = 0;
+                var totalSent = 0;
+                var procNet = fs.readFileSync('/proc/net/dev', 'utf-8');
+                var lines = procNet.trim().split('\n');
+                for (var i = 2; i < lines.length; i++) {
+                    var parts = lines[i].trim().split(/[:\s]+/);
+                    if (parts[0] === 'lo' || parts[0] === 'Loopback') continue;
+                    if (parts.length >= 10) {
+                        totalReceived += parseInt(parts[1]) || 0;
+                        totalSent += parseInt(parts[9]) || 0;
                     }
                 }
-                // wmic 返回的是每秒速度，直接使用
-                if (totalReceived > 0 || totalSent > 0) {
-                    cachedStats.network = {
-                        totalDownload: cachedStats.network.totalDownload,
-                        totalUpload: cachedStats.network.totalUpload,
-                        downloadThroughput: (totalReceived * 8) / (1000 * 1000),
-                        uploadThroughput: (totalSent * 8) / (1000 * 1000)
-                    };
-                    return;
-                }
-            } catch (e) {}
-        }
-
-        // 方案3: Windows - 降级使用 netstat -e
-        if (totalReceived === 0 && totalSent === 0) {
-            try {
-                var { execSync } = require('child_process');
-                var out = execSync('netstat -e', { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'ignore'] });
-                var lines = out.trim().split(/\r?\n/);
-                // 只取第一个 Bytes 行（主适配器）
-                var foundBytes = false;
-                for (var i = 0; i < lines.length; i++) {
-                    var line = lines[i].trim();
-                    if (line.indexOf('Bytes') === 0 && !foundBytes) {
-                        var match = line.match(/Bytes\s+(\d+)\s+(\d+)/);
-                        if (match) {
-                            totalReceived = parseInt(match[1]);
-                            totalSent = parseInt(match[2]);
-                            foundBytes = true;
-                            break;
-                        }
+                if (totalReceived === 0 && totalSent === 0) return;
+                var now = Date.now();
+                var downSpeed = 0;
+                var upSpeed = 0;
+                if (_prevNetBytes && _prevNetTime) {
+                    var elapsed = (now - _prevNetTime) / 1000;
+                    if (elapsed > 0) {
+                        var dRx = totalReceived - _prevNetBytes.rx;
+                        var dTx = totalSent - _prevNetBytes.tx;
+                        if (dRx >= 0) downSpeed = dRx / elapsed;
+                        if (dTx >= 0) upSpeed = dTx / elapsed;
                     }
                 }
+                _prevNetBytes = { rx: totalReceived, tx: totalSent };
+                _prevNetTime = now;
+                cachedStats.network = {
+                    totalDownload: totalReceived / (1024 * 1024 * 1024),
+                    totalUpload: totalSent / (1024 * 1024 * 1024),
+                    downloadThroughput: (downSpeed * 8) / (1000 * 1000),
+                    uploadThroughput: (upSpeed * 8) / (1000 * 1000)
+                };
             } catch (e) {}
+            return;
         }
 
-        if (totalReceived === 0 && totalSent === 0) return;
-
-        var now = Date.now();
-        var downSpeed = 0;
-        var upSpeed = 0;
-
-        if (_prevNetBytes && _prevNetTime) {
-            var elapsed = (now - _prevNetTime) / 1000;
-            if (elapsed > 0 && totalReceived >= _prevNetBytes.rx) {
-                downSpeed = (totalReceived - _prevNetBytes.rx) / elapsed;
-                upSpeed = (totalSent - _prevNetBytes.tx) / elapsed;
-            }
+        // Windows: typeperf 读性能计数器（execFileSync 绕过 shell）
+        var cp = require('child_process');
+        var out = cp.execFileSync('typeperf', [
+            '\\Network Interface(*)\\Bytes Received/sec',
+            '\\Network Interface(*)\\Bytes Sent/sec',
+            '-sc', '1', '-y'
+        ], { encoding: 'utf-8', timeout: 15000, stdio: ['pipe', 'pipe', 'ignore'] });
+        var lines = out.trim().split(/\r?\n/);
+        var headerLine = -1;
+        var dataLine = -1;
+        for (var i = 0; i < lines.length; i++) {
+            if (lines[i].indexOf('PDH-CSV') !== -1) headerLine = i;
+            else if (headerLine >= 0 && lines[i].match(/^"\d/)) dataLine = i;
         }
-
-        _prevNetBytes = { rx: totalReceived, tx: totalSent };
-        _prevNetTime = now;
-
+        if (headerLine < 0 || dataLine < 0) return;
+        var headerParts = lines[headerLine].match(/"[^"]*"/g);
+        var dataParts = lines[dataLine].match(/"[^"]*"/g);
+        if (!headerParts || !dataParts) return;
+        var sumRx = 0;
+        var sumTx = 0;
+        for (var h = 1; h < headerParts.length; h++) {
+            var path = headerParts[h].replace(/"/g, '');
+            if (path.indexOf('Loopback') !== -1) continue;
+            var val = parseFloat(dataParts[h].replace(/"/g, '')) || 0;
+            if (path.indexOf('Bytes Received') !== -1) sumRx += val;
+            else if (path.indexOf('Bytes Sent') !== -1) sumTx += val;
+        }
         cachedStats.network = {
-            totalDownload: totalReceived / (1024 * 1024 * 1024),
-            totalUpload: totalSent / (1024 * 1024 * 1024),
-            downloadThroughput: (downSpeed * 8) / (1000 * 1000),
-            uploadThroughput: (upSpeed * 8) / (1000 * 1000)
+            totalDownload: cachedStats.network.totalDownload,
+            totalUpload: cachedStats.network.totalUpload,
+            downloadThroughput: (sumRx * 8) / (1000 * 1000),
+            uploadThroughput: (sumTx * 8) / (1000 * 1000)
         };
     } catch (e) {}
 }
