@@ -160,20 +160,6 @@ function showMainMenu(player) {
 
 /** 注册右键钟表监听 */
 function registerClockListener() {
-    mc.listen("onUseItem", function(player, item) {
-        if (!item || item.type !== "minecraft:clock") return;
-        var cfg = _deps.getConfig ? _deps.getConfig() : {};
-        if (!cfg.menu || !cfg.menu.enabled) return;
-
-        var xuid = player.xuid;
-        var now = Date.now();
-        if (now - (clockCooldown[xuid] || 0) < 1000) return false;
-        clockCooldown[xuid] = now;
-
-        showMainMenu(player);
-        return false;
-    });
-
     mc.listen("onUseItemOn", function(player, item) {
         if (!item || item.type !== "minecraft:clock") return;
         var cfg = _deps.getConfig ? _deps.getConfig() : {};

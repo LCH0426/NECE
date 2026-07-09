@@ -16,13 +16,53 @@
  */
 
 /**
- * NECE 连锁挖矿模块
- * 使用工具挖掘时自动连锁破坏相邻同类方块
- * 按工具类型配置可连锁方块，通过命名空间自动识别工具
+ * NECE 方块功能模块
+ * 包含连锁挖矿和快速建造两个功能
  */
 
-let _deps = {};
-let _debug = false;
+var _deps = {};
+var _debug = false;
+
+// iland API（懒加载）
+var _ilandChecked = false;
+var _ilandAvailable = false;
+var _ilAPI_PosGetLand = null;
+var _ilAPI_IsLandOwner = null;
+var _ilAPI_IsPlayerTrusted = null;
+
+function initIlandAPI() {
+    if (_ilandChecked) return;
+    _ilandChecked = true;
+    try {
+        var fn = ll.import('ILAPI_PosGetLand');
+        if (typeof fn === 'function') {
+            _ilAPI_PosGetLand = fn;
+            _ilAPI_IsLandOwner = ll.import('ILAPI_IsLandOwner');
+            _ilAPI_IsPlayerTrusted = ll.import('ILAPI_IsPlayerTrusted');
+            _ilandAvailable = true;
+            logger.info('[block] iland API 已加载');
+        }
+    } catch (e) {}
+}
+
+/**
+ * 检查玩家是否可以在指定位置建造
+ * @param {Player} player
+ * @param {object} pos - {x, y, z, dimid}
+ * @returns {boolean}
+ */
+function canPlayerBuildAt(player, pos) {
+    initIlandAPI();
+    if (!_ilandAvailable) return true;
+    try {
+        var landId = _ilAPI_PosGetLand({ x: pos.x, y: pos.y, z: pos.z, dimid: pos.dimid });
+        if (landId === -1 || landId === '-1') return true;
+        var xuid = player.xuid;
+        if (_ilAPI_IsLandOwner(landId, xuid)) return true;
+        if (_ilAPI_IsPlayerTrusted(landId, xuid)) return true;
+        return false;
+    } catch (e) { return true; }
+}
 
 function getLang() {
     return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
@@ -35,16 +75,18 @@ function t(key) {
     for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
     return _deps.t.apply(null, args);
 }
-let _onChainComplete = null;
-let _itemsMap = null;
+
+// ============ 连锁挖矿部分 ============
+
+var _onChainComplete = null;
+var _onQuickBuildComplete = null;
+var _itemsMap = null;
 
 // 连锁冷却记录 { xuid: timestamp }
-const _chainCooldowns = {};
-
-// ============ 连锁计划系统 ============
+var _chainCooldowns = {};
 
 // 默认计划配置
-const DEFAULT_PLANS = {
+var DEFAULT_PLANS = {
     free: { dailyLimit: 1000, price: 0, duration: 0 },
     lite: { dailyLimit: 2000, price: 7000, duration: 7 },
     standard: { dailyLimit: 5000, price: 20000, duration: 7 },
@@ -53,7 +95,7 @@ const DEFAULT_PLANS = {
 };
 
 // 套餐名称格式
-const PLAN_NAME_FORMAT = {
+var PLAN_NAME_FORMAT = {
     free: '§l§i[Free]§r',
     lite: '§l§h[Lite]§r',
     standard: '§l§q[Standard]§r',
@@ -61,29 +103,49 @@ const PLAN_NAME_FORMAT = {
     max: '§l§p[Max]§r'
 };
 
-/**
- * 获取套餐显示名称
- * @param {string} planName - 计划名称
- * @returns {string}
- */
 function getPlanDisplayName(planName) {
     return PLAN_NAME_FORMAT[planName] || planName;
 }
 
+// ============ 快速建造部分 ============
+
+// 玩家启用状态 { xuid: true/false }
+var _enabledPlayers = {};
+
+// 玩家选点状态 { xuid: { pointA: {x,y,z,dimid}, pointB: {x,y,z,dimid} } }
+var _playerSelections = {};
+
+// 选点冷却 { xuid: timestamp }
+var _selectCooldown = {};
+
+
+
+// ============ 初始化 ============
+
 function init(deps) {
     _deps = deps || {};
-    _debug = deps.getDebug ? deps.getDebug() : false;
+    registerChainListener();
+    registerBlockPlaceListener();
+    startBlockTipTimer();
+    // 延迟到服务器启动后加载iland API
+    mc.listen('onServerStarted', function() {
+        initIlandAPI();
+    });
 }
 
-/** 获取连锁全局配置 */
+function dlog() {
+    if (!_debug) return;
+    var args = ['[DEBUG][block]'];
+    for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+    logger.info(args.join(' '));
+}
+
+// ============ 连锁挖矿功能 ============
+
 function getChainConfig() {
     return _deps.getConfig ? _deps.getConfig() : {};
 }
 
-/**
- * 获取计划配置
- * @returns {object}
- */
 function getPlanConfig() {
     var chainCfg = getChainConfig();
     if (chainCfg.plans) {
@@ -92,11 +154,6 @@ function getPlanConfig() {
     return DEFAULT_PLANS;
 }
 
-/**
- * 获取玩家连锁计划数据
- * @param {string} xuid
- * @returns {object}
- */
 function getPlayerPlanData(xuid) {
     var pd = _deps.getPlayerData ? _deps.getPlayerData() : null;
     if (!pd || !pd.players || !pd.players[xuid]) {
@@ -109,24 +166,14 @@ function getPlayerPlanData(xuid) {
     return player.chainPlan;
 }
 
-/**
- * 保存玩家连锁计划数据
- * @param {string} xuid
- * @param {object} planData
- */
 function savePlanData(xuid, planData) {
     var pd = _deps.getPlayerData ? _deps.getPlayerData() : null;
     if (!pd || !pd.players || !pd.players[xuid]) return;
     pd.players[xuid].chainPlan = planData;
-    // 使用防抖保存代替立即保存，避免连锁挖矿时频繁IO
     if (_deps.savePlayerData) _deps.savePlayerData();
     else if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
 }
 
-/**
- * 重置每日用量（凌晨重置）
- * @param {object} planData
- */
 function resetDailyUsage(planData) {
     var now = new Date();
     var today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
@@ -136,11 +183,6 @@ function resetDailyUsage(planData) {
     }
 }
 
-/**
- * 检查玩家是否可以继续连锁
- * @param {string} xuid
- * @returns {{ canChain: boolean, remaining: number, plan: string, dailyLimit: number }}
- */
 function checkCanChain(xuid) {
     var planData = getPlayerPlanData(xuid);
     resetDailyUsage(planData);
@@ -149,7 +191,6 @@ function checkCanChain(xuid) {
     var plan = planData.plan || 'free';
     var planInfo = planConfig[plan] || DEFAULT_PLANS.free;
 
-    // 检查付费计划是否过期
     if (plan !== 'free' && planData.expireTime > 0 && Date.now() > planData.expireTime) {
         planData.plan = 'free';
         planData.expireTime = 0;
@@ -170,11 +211,6 @@ function checkCanChain(xuid) {
     };
 }
 
-/**
- * 增加每日用量
- * @param {string} xuid
- * @param {number} count - 连锁方块数
- */
 function addDailyUsage(xuid, count) {
     var planData = getPlayerPlanData(xuid);
     resetDailyUsage(planData);
@@ -182,12 +218,6 @@ function addDailyUsage(xuid, count) {
     savePlanData(xuid, planData);
 }
 
-/**
- * 购买/升级计划
- * @param {object} player - 玩家对象
- * @param {string} planName - 计划名称
- * @returns {{ success: boolean, message: string }}
- */
 function purchasePlan(player, planName) {
     var xuid = player.xuid;
     var planConfig = getPlanConfig();
@@ -204,7 +234,6 @@ function purchasePlan(player, planName) {
     var now = Date.now();
     var currentPlan = planData.plan || 'free';
 
-    // 检查是否已有相同计划且未过期
     if (currentPlan === planName && planData.expireTime > now) {
         return { success: false, message: t('chain_plan.already_active') };
     }
@@ -214,11 +243,9 @@ function purchasePlan(player, planName) {
     var duration = planInfo.duration || 7;
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
 
-    // 计算实际价格（如果是升级，补差价）
     var actualPrice = price;
 
     if (currentPlan !== 'free' && planData.expireTime > now) {
-        // 已有付费计划且未过期，计算差价
         var currentPlanInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
         var currentPrice = currentPlanInfo.price || 0;
         var priceDiff = price - currentPrice;
@@ -227,21 +254,17 @@ function purchasePlan(player, planName) {
             return { success: false, message: t('chain_plan.cannot_downgrade') };
         }
 
-        // 计算剩余天数
         var remainingDays = Math.ceil((planData.expireTime - now) / (1000 * 60 * 60 * 24));
         var currentDuration = currentPlanInfo.duration || 7;
 
-        // 差价 = (新计划价格 - 旧计划价格) * 剩余天数 / 旧计划周期天数
         actualPrice = Math.ceil(priceDiff * remainingDays / currentDuration);
     }
 
-    // 检查余额
     var playerMoney = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0;
     if (playerMoney < actualPrice) {
         return { success: false, message: t('chain_plan.insufficient_balance', String(actualPrice), currencyName) };
     }
 
-    // 扣费
     if (_deps.reducePlayerMoney) {
         var displayName = getPlanDisplayName(planName);
         var currentDisplayName = getPlanDisplayName(currentPlan);
@@ -253,7 +276,6 @@ function purchasePlan(player, planName) {
         }
     }
 
-    // 更新计划（新计划替换旧计划）
     var expireTime = now + (duration * 24 * 60 * 60 * 1000);
 
     planData.plan = planName;
@@ -264,12 +286,6 @@ function purchasePlan(player, planName) {
     return { success: true, message: t('chain_plan.purchase_success', successDisplayName, String(duration)) };
 }
 
-/**
- * 续费当前计划
- * @param {object} player - 玩家对象
- * @param {number} weeks - 续费周数（1-3）
- * @returns {{ success: boolean, message: string }}
- */
 function renewPlan(player, weeks) {
     var xuid = player.xuid;
     var planConfig = getPlanConfig();
@@ -286,18 +302,15 @@ function renewPlan(player, weeks) {
     }
 
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
-    // 续费价格直接使用一个周期的价格
     var weeklyPrice = planInfo.price || 0;
     var totalPrice = weeklyPrice * weeks;
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
 
-    // 检查余额
     var playerMoney = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0;
     if (playerMoney < totalPrice) {
         return { success: false, message: t('chain_plan.renew_insufficient', String(weeks), String(totalPrice), currencyName) };
     }
 
-    // 扣费
     if (_deps.reducePlayerMoney) {
         var displayName = getPlanDisplayName(currentPlan);
         if (!_deps.reducePlayerMoney(player, totalPrice, 'Block Plan 续费: ' + displayName + ' ' + weeks + '周')) {
@@ -305,7 +318,6 @@ function renewPlan(player, weeks) {
         }
     }
 
-    // 延长到期时间
     var baseTime = planData.expireTime > now ? planData.expireTime : now;
     var addDays = weeks * 7;
     planData.expireTime = baseTime + (addDays * 24 * 60 * 60 * 1000);
@@ -315,10 +327,6 @@ function renewPlan(player, weeks) {
     return { success: true, message: t('chain_plan.renew_success', displayName2, String(addDays)) };
 }
 
-/**
- * 显示连锁计划主界面
- * @param {Player} player
- */
 function showPlanMenu(player) {
     var xuid = player.xuid;
     var planData = getPlayerPlanData(xuid);
@@ -331,19 +339,13 @@ function showPlanMenu(player) {
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
     var isActive = currentPlan !== 'free' && planData.expireTime > Date.now();
 
-    // 根据是否已购买计划显示不同界面
     if (isActive) {
-        // 已购买且未到期：显示两个独立按钮（续费和升级）
         showActivePlanMenu(player, planData, planInfo, checkResult, currencyName);
     } else {
-        // 未购买或已到期：显示下拉菜单选择购买
         showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyName, planConfig);
     }
 }
 
-/**
- * 显示已激活计划的界面（续费和升级按钮）
- */
 function showActivePlanMenu(player, planData, planInfo, checkResult, currencyName) {
     var fm = mc.newSimpleForm();
     fm.setTitle('§l§bBlock Plan');
@@ -357,8 +359,6 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
     content += t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + '\n';
     content += t('chain.expire_time_label', String(expireDate.getFullYear()), String(expireDate.getMonth() + 1), String(expireDate.getDate())) + '\n';
     content += t('chain.remaining_days_label', String(remainingDays)) + '\n';
-    content += '\n' + t('chain.plan_desc_title') + '\n';
-    content += t('chain.plan_desc_body') + '\n\n';
 
     var freeLimit = (planConfig.free || DEFAULT_PLANS.free).dailyLimit;
     var liteLimit = (planConfig.lite || DEFAULT_PLANS.lite).dailyLimit;
@@ -399,9 +399,6 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
     });
 }
 
-/**
- * 显示续费界面
- */
 function showRenewMenu(player) {
     var xuid = player.xuid;
     var planData = getPlayerPlanData(xuid);
@@ -409,7 +406,6 @@ function showRenewMenu(player) {
     var currentPlan = planData.plan || 'free';
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
-    // 续费价格直接使用一个周期的价格
     var weeklyPrice = planInfo.price || 0;
     var currentDisplayName = getPlanDisplayName(currentPlan);
 
@@ -432,7 +428,6 @@ function showRenewMenu(player) {
             return;
         }
 
-        // 找到下拉菜单的索引
         for (var i = 0; i < data.length; i++) {
             if (typeof data[i] === 'number') {
                 var weeks = data[i] + 1;
@@ -443,9 +438,6 @@ function showRenewMenu(player) {
     });
 }
 
-/**
- * 显示升级界面
- */
 function showUpgradeMenu(player) {
     var xuid = player.xuid;
     var planData = getPlayerPlanData(xuid);
@@ -459,7 +451,6 @@ function showUpgradeMenu(player) {
 
     fm.addLabel(t('chain.current_plan_label') + currentDisplayName);
 
-    // 只显示比当前计划更高级的计划
     var planOrder = ['lite', 'standard', 'pro', 'max'];
     var currentIndex = planOrder.indexOf(currentPlan);
     var upgradeOptions = [];
@@ -505,19 +496,14 @@ function showUpgradeMenu(player) {
     });
 }
 
-/**
- * 显示购买计划界面（未购买或已到期时）
- */
 function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyName, planConfig) {
     var fm = mc.newCustomForm();
     fm.setTitle('§l§bBlock Plan');
 
-    // 显示当前计划信息
     var currentDisplayName = getPlanDisplayName(planData.plan || 'free');
     fm.addLabel(t('chain.current_plan_label') + currentDisplayName);
     fm.addLabel(t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit);
 
-    // 添加描述文本
     var freeLimit = (planConfig.free || DEFAULT_PLANS.free).dailyLimit;
     var liteLimit = (planConfig.lite || DEFAULT_PLANS.lite).dailyLimit;
     var standardLimit = (planConfig.standard || DEFAULT_PLANS.standard).dailyLimit;
@@ -534,15 +520,12 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
     var proRatio = (proLimit / liteLimit).toFixed(0);
     var maxRatio = (maxLimit / liteLimit).toFixed(0);
 
-    fm.addLabel(t('chain.plan_desc_title') + '\n' +
-        t('chain.plan_desc_body') + '\n\n' +
-        t('chain.plan_free_desc', freeName, String(freeLimit)) + '\n' +
+    fm.addLabel(t('chain.plan_free_desc', freeName, String(freeLimit)) + '\n' +
         t('chain.plan_tier_desc_base', liteName, String(liteLimit)) + '\n' +
         t('chain.plan_tier_desc', standardName, standardRatio, liteName) + '\n' +
         t('chain.plan_tier_desc', proName, proRatio, liteName) + '\n' +
         t('chain.plan_tier_desc', maxName, maxRatio, liteName));
 
-    // 下拉菜单选择计划
     var planOptions = [];
     var planKeys = ['lite', 'standard', 'pro', 'max'];
 
@@ -568,11 +551,6 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
     });
 }
 
-/**
- * 显示购买确认界面
- * @param {Player} player
- * @param {string} planName
- */
 function showPurchaseConfirm(player, planName) {
     var planConfig = getPlanConfig();
     var planInfo = planConfig[planName] || DEFAULT_PLANS[planName];
@@ -598,11 +576,6 @@ function showPurchaseConfirm(player, planName) {
     );
 }
 
-/**
- * 显示续费确认界面
- * @param {Player} player
- * @param {number} weeks - 续费周数
- */
 function showRenewConfirm(player, weeks) {
     var xuid = player.xuid;
     var planData = getPlayerPlanData(xuid);
@@ -634,11 +607,6 @@ function showRenewConfirm(player, weeks) {
     );
 }
 
-/**
- * 获取工具最大耐久度
- * @param {Player} player
- * @returns {number}
- */
 function getMaxDurability(player) {
     try {
         var item = player.getHand();
@@ -649,11 +617,6 @@ function getMaxDurability(player) {
     }
 }
 
-/**
- * 获取玩家手持工具当前剩余耐久度
- * @param {Player} player
- * @returns {number}
- */
 function getDurability(player) {
     try {
         var item = player.getHand();
@@ -667,28 +630,19 @@ function getDurability(player) {
     }
 }
 
-/**
- * 获取耐久附魔等级
- * BDS使用tag.ench，附魔ID为数字格式
- * @param {Item} item
- * @returns {number} 附魔等级，无附魔返回0
- */
 function getUnbreakingLevel(item) {
     try {
         var nbt = item.getNbt();
         if (!nbt) return 0;
 
-        // BDS: tag.ench 是 NbtList of NbtCompound
         var tag = nbt.getTag('tag');
         if (!tag) return 0;
         var ench = tag.getTag('ench');
         if (!ench) return 0;
 
-        // 转换为数组读取
         var enchArray = ench.toArray();
         for (var i = 0; i < enchArray.length; i++) {
             var e = enchArray[i];
-            // BDS附魔: {id: 17, lvl: 3}
             if (e.id === 17) {
                 return e.lvl || 0;
             }
@@ -696,20 +650,12 @@ function getUnbreakingLevel(item) {
         return 0;
     } catch (e) {
         if (_debug) {
-            logger.info('[Chain] getUnbreakingLevel 异常: ' + e.message);
+            logger.info('[Block] getUnbreakingLevel 异常: ' + e.message);
         }
         return 0;
     }
 }
 
-/**
- * 设置玩家手持工具耐久度
- * 延迟执行以确保游戏自身耐久扣除已完成
- * 考虑耐久附魔：每次消耗概率为 1/(等级+1)
- * @param {Player} player
- * @param {number} chainCount - 连锁破坏的方块数
- * @param {number} unbreakingLevel - 耐久附魔等级
- */
 function applyChainDurability(player, chainCount, unbreakingLevel) {
     setTimeout(function() {
         try {
@@ -718,7 +664,6 @@ function applyChainDurability(player, chainCount, unbreakingLevel) {
             var maxDur = item.maxDamage || 0;
             if (maxDur <= 0) return;
 
-            // 按概率计算实际消耗的耐久
             var actualDamage = 0;
             var chance = 1 / (unbreakingLevel + 1);
             for (var i = 0; i < chainCount; i++) {
@@ -735,22 +680,16 @@ function applyChainDurability(player, chainCount, unbreakingLevel) {
             item.setDamage(newDamage);
             player.refreshItems();
             if (_debug) {
-                logger.info('[Chain] 延迟设置耐久: currentDamage=' + currentDamage + ' chainCount=' + chainCount + ' actualDamage=' + actualDamage + ' newDamage=' + newDamage + ' maxDur=' + maxDur + ' unbreaking=' + unbreakingLevel);
+                logger.info('[Block] 延迟设置耐久: currentDamage=' + currentDamage + ' chainCount=' + chainCount + ' actualDamage=' + actualDamage + ' newDamage=' + newDamage + ' maxDur=' + maxDur + ' unbreaking=' + unbreakingLevel);
             }
         } catch (e) {
             if (_debug) {
-                logger.info('[Chain] applyChainDurability 异常: ' + e.message);
+                logger.info('[Block] applyChainDurability 异常: ' + e.message);
             }
         }
     }, 50);
 }
 
-/**
- * 根据手持物品ID判断工具类型
- * 通过命名空间后缀判断，支持所有材质（木/石/铁/金/钻/下界合金）
- * @param {string} itemId - 物品ID，如 minecraft:diamond_pickaxe
- * @returns {string|null} 工具类型：pickaxe/axe/shovel/hoe，或 null
- */
 function getToolType(itemId) {
     if (!itemId) return null;
     var id = itemId.toLowerCase();
@@ -761,12 +700,6 @@ function getToolType(itemId) {
     return null;
 }
 
-/**
- * 检查指定工具类型是否可以连锁指定方块
- * @param {string} toolType - 工具类型
- * @param {string} blockType - 方块类型
- * @returns {boolean}
- */
 function canToolMineBlock(toolType, blockType) {
     var cfg = getChainConfig();
     var blocks = cfg[toolType] || [];
@@ -776,10 +709,6 @@ function canToolMineBlock(toolType, blockType) {
     return false;
 }
 
-/**
- * 获取所有可连锁的方块列表（合并所有工具类型）
- * @returns {string[]}
- */
 function getAllAllowedBlocks() {
     var cfg = getChainConfig();
     var allBlocks = [];
@@ -795,7 +724,6 @@ function getAllAllowedBlocks() {
     return allBlocks;
 }
 
-/** 获取玩家连锁个人配置，默认全部启用 */
 function getPlayerChainConfig(xuid) {
     var pd = _deps.getPlayerData ? _deps.getPlayerData() : null;
     var defaultCfg = { enabled: true, mineAll: false, sneakOnly: true, blocks: {} };
@@ -811,15 +739,12 @@ function getPlayerChainConfig(xuid) {
     return p.chain;
 }
 
-/** 保存玩家连锁配置，只保存被禁用的方块以节省空间 */
 function savePlayerChainConfig(xuid, cfg) {
     var pd = _deps.getPlayerData ? _deps.getPlayerData() : null;
     if (!pd || !pd.players || !pd.players[xuid]) return;
 
-    // 获取当前配置中的所有方块
     var allBlocks = getAllAllowedBlocks();
 
-    // 只保存被禁用的方块
     var disabledBlocks = {};
     for (var i = 0; i < allBlocks.length; i++) {
         var blockId = allBlocks[i];
@@ -828,7 +753,6 @@ function savePlayerChainConfig(xuid, cfg) {
         }
     }
 
-    // 保存精简配置
     var chainData = {
         enabled: cfg.enabled === true,
         mineAll: cfg.mineAll === true,
@@ -837,13 +761,11 @@ function savePlayerChainConfig(xuid, cfg) {
     };
     pd.players[xuid].chain = chainData;
 
-    // 立即写入数据库
     if (_deps.savePlayerDataNow) {
         _deps.savePlayerDataNow();
     }
 }
 
-/** 获取方块的中文名 */
 function getBlockName(blockId) {
     if (!_itemsMap) {
         try {
@@ -860,7 +782,6 @@ function getBlockName(blockId) {
     return key;
 }
 
-/** 显示连锁设置表单 */
 function showChainSettingsForm(player) {
     var cfg = getChainConfig();
     var playerCfg = getPlayerChainConfig(player.xuid);
@@ -877,6 +798,7 @@ function showChainSettingsForm(player) {
 
     fm.addButton(t('chain.btn_settings'), "textures/ui/icon_setting");
     fm.addButton(t('chain.btn_plan'), "textures/ui/confirm");
+    fm.addButton('§b快速建造', "textures/ui/icon_recipe_item");
 
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
@@ -884,11 +806,12 @@ function showChainSettingsForm(player) {
             showChainConfigForm(p);
         } else if (id === 1) {
             showPlanMenu(p);
+        } else if (id === 2) {
+            showBlockForm(p);
         }
     });
 }
 
-/** 显示连锁配置表单 */
 function showChainConfigForm(player) {
     var cfg = getChainConfig();
     var playerCfg = getPlayerChainConfig(player.xuid);
@@ -899,7 +822,6 @@ function showChainConfigForm(player) {
     fm.addSwitch(t('chain.switch_mine_all'), playerCfg.mineAll);
     fm.addSwitch(t('chain.switch_sneak_only'), playerCfg.sneakOnly);
 
-    // 记录每个工具类型对应的方块ID列表
     var blockIdList = [];
     var toolTypes = ['pickaxe', 'axe', 'shovel', 'hoe'];
     var toolNames = { pickaxe: t('chain.tool_pickaxe'), axe: t('chain.tool_axe'), shovel: t('chain.tool_shovel'), hoe: t('chain.tool_hoe') };
@@ -925,8 +847,6 @@ function showChainConfigForm(player) {
             return;
         }
 
-        // CustomForm 返回数组：[switch0, switch1, switch2, ...]
-        // 去掉 label 后，直接按顺序读取
         var switches = [];
         for (var i = 0; i < data.length; i++) {
             if (typeof data[i] === 'boolean') {
@@ -934,7 +854,6 @@ function showChainConfigForm(player) {
             }
         }
 
-        // switches[0] = 总开关, switches[1] = 无视方块配置, switches[2] = 蹲下启用
         var newCfg = {
             enabled: !!switches[0],
             mineAll: !!switches[1],
@@ -942,7 +861,6 @@ function showChainConfigForm(player) {
             blocks: {}
         };
 
-        // 从索引3开始是方块开关
         for (var i = 0; i < blockIdList.length; i++) {
             var blockId = blockIdList[i];
             var isEnabled = !!switches[i + 3];
@@ -956,96 +874,6 @@ function showChainConfigForm(player) {
     });
 }
 
-/** 注册连锁命令 */
-function registerChainCommand(registerPlayerCommand) {
-    registerPlayerCommand("chain", t('chain.cmd_chain_desc'), function(p) { showChainSettingsForm(p); });
-    registerPlayerCommand("bp", "Block Plan", function(p) { showPlanMenu(p); });
-}
-
-/** 注册连锁挖矿事件监听 */
-function registerChainListener() {
-    mc.listen('onDestroyBlock', function(player, block) {
-        try {
-            if (!player || !block) return;
-
-            var cfg = getChainConfig();
-            if (!cfg.enabled) return;
-
-            // 检查玩家个人配置
-            var playerCfg = getPlayerChainConfig(player.xuid);
-            if (!playerCfg.enabled) return;
-
-            // 检查蹲下状态
-            if (playerCfg.sneakOnly && !player.isSneaking) return;
-
-            // 简化冷却检查：只按玩家冷却
-            var now = Date.now();
-            if (_chainCooldowns[player.xuid] && now - _chainCooldowns[player.xuid] < 200) return;
-            _chainCooldowns[player.xuid] = now;
-
-            // 检查手持工具类型
-            var item = player.getHand();
-            if (!item || item.isNull()) return;
-            var toolId = item.type;
-            var toolType = getToolType(toolId);
-            if (!toolType) return;
-
-            // 检查方块类型
-            var blockType = block.type;
-            if (!playerCfg.mineAll) {
-                if (!canToolMineBlock(toolType, blockType)) return;
-                if (playerCfg.blocks[blockType] === false) return;
-            }
-
-            // 检查每日用量限制
-            var chainCheck = checkCanChain(player.xuid);
-            if (!chainCheck.canChain) {
-                player.sendText(t('chain.tag_prefix') + " §c" + t('chain.daily_limit_msg'), 4);
-                return;
-            }
-
-            // 获取当前工具耐久和附魔
-            var maxDurability = getMaxDurability(player);
-            var currentDurability = getDurability(player);
-            var unbreakingLevel = getUnbreakingLevel(item);
-            if (_debug) {
-                logger.info('[Chain] 工具=' + toolId + ' 类型=' + toolType + ' 方块=' + blockType);
-                logger.info('[Chain] 最大耐久=' + maxDurability + ' 当前耐久=' + currentDurability + ' 耐久附魔=' + unbreakingLevel);
-            }
-            if (currentDurability <= 0) return;
-
-            // 连锁上限：考虑耐久附魔和每日用量限制
-            var cfgMaxBlocks = cfg.maxBlocks || 64;
-            var effectiveDurability = currentDurability * (unbreakingLevel + 1);
-            var maxBlocks = Math.min(cfgMaxBlocks, effectiveDurability, chainCheck.remaining);
-
-            // 执行连锁
-            var startTime = Date.now();
-            var result = doChainMine(player, block, blockType, maxBlocks);
-            var elapsed = Date.now() - startTime;
-
-            if (result.count > 0) {
-                // 延迟扣除工具耐久，按概率计算实际消耗
-                applyChainDurability(player, result.count, unbreakingLevel);
-                // 记录每日用量
-                addDailyUsage(player.xuid, result.count);
-                if (_debug) {
-                    logger.info('[Chain] 连锁方块数=' + result.count + '，延迟扣除耐久');
-                }
-
-                player.sendText(t('chain.tag_prefix') + " §a" + t('chain.chain_complete', String(result.count), String(elapsed)), 4);
-                if (_onChainComplete) _onChainComplete(player, result.count);
-            }
-            if (_debug) {
-                logger.info('[Chain] 连锁完成: 方块数=' + result.count + ' 耗时=' + elapsed + 'ms');
-            }
-        } catch (e) {
-            logger.error('[Chain] 连锁挖矿异常: ' + e.message);
-        }
-    });
-}
-
-/** 执行连锁挖矿 BFS */
 function doChainMine(player, startBlock, blockType, maxBlocks) {
     var visited = new Set();
     var startPos = startBlock.pos;
@@ -1055,11 +883,9 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
     var dirs = [1,0,0, -1,0,0, 0,1,0, 0,-1,0, 0,0,1, 0,0,-1];
     var queueIdx = 0;
 
-    // 坐标编码（偏移避免负数碰撞）
     var encode = function(x, y, z) { return (x + 65536) * 4294967296 + (y + 64) * 65536 + (z + 65536); };
     visited.add(encode(startPos.x, startPos.y, startPos.z));
 
-    // BFS 遍历相邻方块，不包括起始方块
     while (queueIdx < queue.length && count < maxBlocks) {
         var qx = queue[queueIdx], qy = queue[queueIdx+1], qz = queue[queueIdx+2];
         queueIdx += 3;
@@ -1077,19 +903,16 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
             try { b.destroy(true); count++; } catch (e) { continue; }
             queue.push(nx, ny, nz);
 
-            // 达到上限立即停止
             if (count >= maxBlocks) break;
         }
     }
 
-    // 传送掉落物到玩家脚下（只传送近距离的掉落物，避免影响其他玩家）
     if (count > 1) {
         try {
             var ppos = player.pos;
             var entities = mc.getAllEntities();
             for (var i = 0; i < entities.length; i++) {
                 var e = entities[i];
-                // 只传送10格内的掉落物，避免误传送其他玩家的物品
                 if (e.type === 'minecraft:item' && e.distanceTo(player) < 10) {
                     e.teleport(ppos);
                 }
@@ -1100,15 +923,422 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
     return { count: count, durabilityUsed: count };
 }
 
+function registerChainListener() {
+    mc.listen('onDestroyBlock', function(player, block) {
+        try {
+            if (!player || !block) return;
+
+            var cfg = getChainConfig();
+            if (!cfg.enabled) return;
+
+            var playerCfg = getPlayerChainConfig(player.xuid);
+            if (!playerCfg.enabled) return;
+
+            if (playerCfg.sneakOnly && !player.isSneaking) return;
+
+            var now = Date.now();
+            if (_chainCooldowns[player.xuid] && now - _chainCooldowns[player.xuid] < 200) return;
+            _chainCooldowns[player.xuid] = now;
+
+            var item = player.getHand();
+            if (!item || item.isNull()) return;
+            var toolId = item.type;
+            var toolType = getToolType(toolId);
+            if (!toolType) return;
+
+            var blockType = block.type;
+            if (!playerCfg.mineAll) {
+                if (!canToolMineBlock(toolType, blockType)) return;
+                if (playerCfg.blocks[blockType] === false) return;
+            }
+
+            var chainCheck = checkCanChain(player.xuid);
+            if (!chainCheck.canChain) {
+                player.sendText(t('chain.tag_prefix') + " §c" + t('chain.daily_limit_msg'), 4);
+                return;
+            }
+
+            var maxDurability = getMaxDurability(player);
+            var currentDurability = getDurability(player);
+            var unbreakingLevel = getUnbreakingLevel(item);
+            if (_debug) {
+                logger.info('[Block] 工具=' + toolId + ' 类型=' + toolType + ' 方块=' + blockType);
+                logger.info('[Block] 最大耐久=' + maxDurability + ' 当前耐久=' + currentDurability + ' 耐久附魔=' + unbreakingLevel);
+            }
+            if (currentDurability <= 0) return;
+
+            var cfgMaxBlocks = cfg.maxBlocks || 64;
+            var effectiveDurability = currentDurability * (unbreakingLevel + 1);
+            var maxBlocks = Math.min(cfgMaxBlocks, effectiveDurability, chainCheck.remaining);
+
+            var startTime = Date.now();
+            var result = doChainMine(player, block, blockType, maxBlocks);
+            var elapsed = Date.now() - startTime;
+
+            if (result.count > 0) {
+                applyChainDurability(player, result.count, unbreakingLevel);
+                addDailyUsage(player.xuid, result.count);
+                if (_debug) {
+                    logger.info('[Block] 连锁方块数=' + result.count + '，延迟扣除耐久');
+                }
+
+                player.sendText(t('chain.tag_prefix') + " §a" + t('chain.chain_complete', String(result.count), String(elapsed)), 4);
+                if (_onChainComplete) _onChainComplete(player, result.count);
+            }
+            if (_debug) {
+                logger.info('[Block] 连锁完成: 方块数=' + result.count + ' 耗时=' + elapsed + 'ms');
+            }
+        } catch (e) {
+            logger.error('[Block] 连锁挖矿异常: ' + e.message);
+        }
+    });
+}
+
+// ============ 快速建造功能 ============
+
+/** 构建提示文本 */
+function buildBlockTip(xuid) {
+    var sel = _playerSelections[xuid] || {};
+    var tip = '§a' + t('quick_build.title');
+    if (sel.pointA) {
+        tip += ' | §eA: [' + sel.pointA.x + ',' + sel.pointA.y + ',' + sel.pointA.z + ']';
+    }
+    if (sel.pointB) {
+        tip += ' | §eB: [' + sel.pointB.x + ',' + sel.pointB.y + ',' + sel.pointB.z + ']';
+    }
+    if (!sel.pointA) {
+        tip += ' | §f' + t('quick_build.usage_step1').replace('1. ', '') + ' | §c' + t('quick_build.usage_cancel_hint').replace('§c', '');
+    } else if (!sel.pointB) {
+        tip += ' | §f' + t('quick_build.usage_step2').replace('2. ', '') + ' | §c' + t('quick_build.usage_cancel_hint').replace('§c', '');
+    }
+    return tip;
+}
+
+/** 启动提示刷新定时器 */
+function startBlockTipTimer() {
+    setInterval(function() {
+        var players = mc.getOnlinePlayers();
+        for (var i = 0; i < players.length; i++) {
+            var p = players[i];
+            if (_enabledPlayers[p.xuid]) {
+                p.tell(buildBlockTip(p.xuid), 4);
+            }
+        }
+    }, 1000);
+}
+
+function toggleBlockMode(player) {
+    var xuid = player.xuid;
+    if (_enabledPlayers[xuid]) {
+        _enabledPlayers[xuid] = false;
+        delete _playerSelections[xuid];
+        player.tell(t('quick_build.mode_closed'));
+        dlog(player.name + ' 关闭快速建造');
+    } else {
+        _enabledPlayers[xuid] = true;
+        _playerSelections[xuid] = {};
+        player.tell(t('quick_build.status_enabled') + '，' + t('quick_build.usage_step1').substring(3));
+        player.tell(buildBlockTip(xuid), 4);
+        dlog(player.name + ' 开启快速建造');
+    }
+}
+
+function getSelectionSize(sel) {
+    var dx = Math.abs(sel.pointA.x - sel.pointB.x) + 1;
+    var dy = Math.abs(sel.pointA.y - sel.pointB.y) + 1;
+    var dz = Math.abs(sel.pointA.z - sel.pointB.z) + 1;
+    return { dx: dx, dy: dy, dz: dz, volume: dx * dy * dz };
+}
+
+function countItemInInventory(player, itemName) {
+    var total = 0;
+    var inv = player.getInventory();
+    var size = inv.size;
+    for (var i = 0; i < size; i++) {
+        var item = inv.getItem(i);
+        if (item && item.type === itemName) {
+            total += item.count;
+        }
+    }
+    return total;
+}
+
+function removeItemFromInventory(player, itemName, needCount) {
+    var remaining = needCount;
+    var inv = player.getInventory();
+    var size = inv.size;
+    for (var i = 0; i < size && remaining > 0; i++) {
+        var item = inv.getItem(i);
+        if (item && item.type === itemName) {
+            if (item.count <= remaining) {
+                remaining -= item.count;
+                inv.removeItem(i, item.count);
+            } else {
+                inv.removeItem(i, remaining);
+                remaining = 0;
+            }
+        }
+    }
+    return remaining === 0;
+}
+
+function fillSelection(player, sel, blockType, tileData) {
+    var minX = Math.min(sel.pointA.x, sel.pointB.x);
+    var minY = Math.min(sel.pointA.y, sel.pointB.y);
+    var minZ = Math.min(sel.pointA.z, sel.pointB.z);
+    var maxX = Math.max(sel.pointA.x, sel.pointB.x);
+    var maxY = Math.max(sel.pointA.y, sel.pointB.y);
+    var maxZ = Math.max(sel.pointA.z, sel.pointB.z);
+    var dimid = sel.pointA.dimid;
+
+    var size = getSelectionSize(sel);
+    var count = 0;
+    dlog(player.name + ' 开始填充选区 [' + minX + ',' + minY + ',' + minZ + '] -> [' + maxX + ',' + maxY + ',' + maxZ + '] 方块:' + blockType + ' 数量:' + size.volume);
+
+    for (var x = minX; x <= maxX; x++) {
+        for (var y = minY; y <= maxY; y++) {
+            for (var z = minZ; z <= maxZ; z++) {
+                mc.setBlock(x, y, z, dimid, blockType, tileData);
+                count++;
+            }
+        }
+    }
+
+    dlog(player.name + ' 填充完成，共放置 ' + count + ' 个方块');
+}
+
+/** 创造模式直接填充 */
+function doCreativeFill(player) {
+    var xuid = player.xuid;
+    var sel = _playerSelections[xuid];
+    if (!sel || !sel.pointA || !sel.pointB) return;
+
+    var mainhand = player.getHand();
+    var blockType = mainhand ? mainhand.type : '';
+    var tileData = mainhand ? mainhand.aux : 0;
+
+    if (!blockType || blockType === 'minecraft:air') {
+        player.tell(t('quick_build.hold_block_first'));
+        _playerSelections[xuid] = {};
+        return;
+    }
+
+    var size = getSelectionSize(sel);
+    fillSelection(player, sel, blockType, tileData);
+    if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
+    player.tell(t('quick_build.fill_success_creative', String(size.volume)));
+    _playerSelections[xuid] = {};
+}
+
+function showFillConfirmForm(player) {
+    var xuid = player.xuid;
+    var sel = _playerSelections[xuid];
+    if (!sel || !sel.pointA || !sel.pointB) return;
+
+    var size = getSelectionSize(sel);
+    var mainhand = player.getHand();
+    var blockType = mainhand ? mainhand.type : '';
+    var blockName = mainhand ? mainhand.name : '无';
+    var tileData = mainhand ? mainhand.aux : 0;
+
+    if (!blockType || blockType === 'minecraft:air') {
+        player.tell(t('quick_build.hold_block_first'));
+        return;
+    }
+
+    // 检查Block Plan额度
+    var quotaNeed = Math.ceil(size.volume / 2);
+    var chainCheck = checkCanChain(xuid);
+    var quotaEnough = chainCheck.remaining >= quotaNeed;
+    var planDisplayName = getPlanDisplayName(chainCheck.plan);
+
+    var haveCount = countItemInInventory(player, blockType);
+    var enough = haveCount >= size.volume;
+
+    var content = t('quick_build.fill_selection_info') + '\n';
+    content += t('quick_build.fill_a_point', String(sel.pointA.x), String(sel.pointA.y), String(sel.pointA.z)) + '\n';
+    content += t('quick_build.fill_b_point', String(sel.pointB.x), String(sel.pointB.y), String(sel.pointB.z)) + '\n';
+    content += t('quick_build.fill_size', String(size.dx), String(size.dy), String(size.dz)) + '\n';
+    content += t('quick_build.fill_need_blocks', String(size.volume)) + '\n\n';
+    content += t('quick_build.fill_block_type', blockName) + '\n';
+    content += t('quick_build.fill_inventory_count', (enough ? '§a' : '§c') + haveCount + '§r') + '\n';
+    content += t('quick_build.fill_plan_info', planDisplayName) + '\n';
+    content += t('quick_build.fill_quota_need', String(quotaNeed), (quotaEnough ? '§a' : '§c') + chainCheck.remaining + '§r') + '\n';
+
+    if (!enough) {
+        content += '\n' + t('quick_build.fill_insufficient_blocks');
+    }
+    if (!quotaEnough) {
+        content += '\n' + t('quick_build.fill_insufficient_quota');
+    }
+
+    var isCreative = player.gameMode === 1;
+    var canFill = isCreative || (enough && quotaEnough);
+
+    player.sendModalForm(
+        t('quick_build.fill_confirm_title'),
+        content,
+        canFill ? t('quick_build.btn_confirm_fill') : t('quick_build.btn_cannot_fill'),
+        t('quick_build.btn_cancel_fill'),
+        function(pl, result) {
+            _playerSelections[pl.xuid] = {};
+            if (result === null) return;
+            if (!result) {
+                pl.tell(t('quick_build.fill_cancelled'));
+                return;
+            }
+            if (isCreative) {
+                fillSelection(pl, sel, blockType, tileData);
+                if (_onQuickBuildComplete) _onQuickBuildComplete(pl, size.volume);
+                pl.tell(t('quick_build.fill_success_creative', String(size.volume)));
+                return;
+            }
+            // 二次检查额度
+            var check2 = checkCanChain(pl.xuid);
+            if (check2.remaining < quotaNeed) {
+                pl.tell(t('quick_build.fill_quota_insufficient', String(quotaNeed), String(check2.remaining)));
+                return;
+            }
+            if (!enough) {
+                pl.tell(t('quick_build.fill_blocks_insufficient', String(size.volume), String(haveCount)));
+                return;
+            }
+            if (removeItemFromInventory(pl, blockType, size.volume)) {
+                pl.refreshItems();
+                addDailyUsage(pl.xuid, quotaNeed);
+                fillSelection(pl, sel, blockType, tileData);
+                if (_onQuickBuildComplete) _onQuickBuildComplete(pl, size.volume);
+                pl.tell(t('quick_build.fill_success', String(size.volume), String(quotaNeed)));
+            } else {
+                pl.tell(t('quick_build.fill_failed'));
+            }
+        }
+    );
+}
+
+/** 判断物品是否为方块 */
+function isBlockItem(item) {
+    if (!item || !item.type) return false;
+    var t = item.type;
+    if (t === 'minecraft:air') return false;
+    // 排除常见非方块物品
+    if (t.endsWith('_sword') || t.endsWith('_pickaxe') || t.endsWith('_axe') ||
+        t.endsWith('_shovel') || t.endsWith('_hoe') || t.endsWith('_helmet') ||
+        t.endsWith('_chestplate') || t.endsWith('_leggings') || t.endsWith('_boots') ||
+        t.endsWith('_shield') || t.indexOf('_spawn_egg') !== -1) return false;
+    return true;
+}
+
+function registerBlockPlaceListener() {
+    mc.listen('onUseItemOn', function(player, item, block, side, pos) {
+        try {
+            var xuid = player.xuid;
+            if (!_enabledPlayers[xuid]) return;
+            if (!_playerSelections[xuid]) return;
+
+            var sel = _playerSelections[xuid];
+
+            // 空手右键：取消选区/退出模式
+            if (!item || !isBlockItem(item)) {
+                var now2 = Date.now();
+                if (_selectCooldown[xuid] && now2 - _selectCooldown[xuid] < 1000) return;
+                _selectCooldown[xuid] = now2;
+                if (sel.pointA || sel.pointB) {
+                    _playerSelections[xuid] = {};
+                    player.tell(t('quick_build.selection_cancelled'));
+                } else {
+                    _enabledPlayers[xuid] = false;
+                    delete _playerSelections[xuid];
+                    player.tell(t('quick_build.mode_closed'));
+                }
+                return;
+            }
+
+            // 冷却防连点
+            var now = Date.now();
+            if (_selectCooldown[xuid] && now - _selectCooldown[xuid] < 500) return;
+            _selectCooldown[xuid] = now;
+
+            // 选点
+            var placePos = { x: block.pos.x, y: block.pos.y, z: block.pos.z, dimid: block.pos.dimid };
+            if (side === 0) placePos.y -= 1;
+            else if (side === 1) placePos.y += 1;
+            else if (side === 2) placePos.z -= 1;
+            else if (side === 3) placePos.z += 1;
+            else if (side === 4) placePos.x -= 1;
+            else if (side === 5) placePos.x += 1;
+
+            // 检查领地权限
+            if (!canPlayerBuildAt(player, placePos)) {
+                player.tell(t('quick_build.land_no_permission'));
+                return false;
+            }
+
+            if (!sel.pointA) {
+                sel.pointA = placePos;
+                player.tell(t('quick_build.a_marked', String(placePos.x), String(placePos.y), String(placePos.z)));
+                return false;
+            }
+            if (!sel.pointB) {
+                sel.pointB = placePos;
+                player.tell(t('quick_build.b_marked', String(placePos.x), String(placePos.y), String(placePos.z)));
+                if (player.gameMode === 1) {
+                    doCreativeFill(player);
+                } else {
+                    showFillConfirmForm(player);
+                }
+                return false;
+            }
+            return false;
+        } catch (e) { logger.error('[block] onUseItemOn异常: ' + e.message); }
+    });
+}
+
+function showBlockForm(player) {
+    var xuid = player.xuid;
+    var enabled = !!_enabledPlayers[xuid];
+    var status = enabled ? t('quick_build.status_enabled') : t('quick_build.status_disabled');
+
+    var content = '§6' + t('quick_build.title') + '§r\n\n';
+    content += t('quick_build.status_enabled').replace('§a', '') + ': ' + status + '\n\n';
+    content += t('quick_build.usage_title') + '\n';
+    content += t('quick_build.usage_step1') + '\n';
+    content += t('quick_build.usage_step2') + '\n';
+    content += t('quick_build.usage_step3') + '\n';
+    content += t('quick_build.usage_fill_block') + '\n\n';
+    content += t('quick_build.usage_cancel_hint');
+
+    player.sendSimpleForm(
+        t('quick_build.title'),
+        content,
+        [enabled ? t('quick_build.btn_disable') : t('quick_build.btn_enable'), t('quick_build.btn_cancel')],
+        ['', ''],
+        function(pl, id) {
+            if (id === null) return;
+            if (id === 0) toggleBlockMode(pl);
+        }
+    );
+}
+
+// ============ 命令注册 ============
+
+function registerBlockCommand(registerPlayerCommand) {
+    registerPlayerCommand('block', 'Block功能菜单', function(player) {
+        showChainSettingsForm(player);
+    });
+    registerPlayerCommand('bp', 'Block Plan', function(p) { showPlanMenu(p); });
+}
+
 function setDebugMode(enabled) { _debug = !!enabled; }
 function setOnChainComplete(fn) { _onChainComplete = fn; }
+function setOnQuickBuildComplete(fn) { _onQuickBuildComplete = fn; }
 
 module.exports = {
     init: init,
-    registerChainListener: registerChainListener,
-    registerChainCommand: registerChainCommand,
+    registerBlockCommand: registerBlockCommand,
     setDebugMode: setDebugMode,
     setOnChainComplete: setOnChainComplete,
+    setOnQuickBuildComplete: setOnQuickBuildComplete,
     checkCanChain: checkCanChain,
     addDailyUsage: addDailyUsage,
     purchasePlan: purchasePlan,
