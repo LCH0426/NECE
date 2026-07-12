@@ -109,8 +109,17 @@ function getPlanDisplayName(planName) {
 
 // ============ 快速建造部分 ============
 
+// 建造模式枚举
+var BUILD_MODES = ['fill', 'clear', 'water', 'lava'];
+
+// 非填充模式最大方块数量
+var MAX_NON_FILL_BLOCKS = 512;
+
 // 玩家启用状态 { xuid: true/false }
 var _enabledPlayers = {};
+
+// 玩家建造模式 { xuid: 'fill' | 'clear' | 'water' | 'lava' }
+var _playerBuildModes = {};
 
 // 玩家选点状态 { xuid: { pointA: {x,y,z,dimid}, pointB: {x,y,z,dimid} } }
 var _playerSelections = {};
@@ -356,7 +365,7 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
     var planDisplayName = getPlanDisplayName(planData.plan || 'free');
 
     var content = t('chain.current_plan_label') + planDisplayName + '\n';
-    content += t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + '\n';
+    content += t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + ' Credits' + '\n';
     content += t('chain.expire_time_label', String(expireDate.getFullYear()), String(expireDate.getMonth() + 1), String(expireDate.getDate())) + '\n';
     content += t('chain.remaining_days_label', String(remainingDays)) + '\n';
 
@@ -502,7 +511,7 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
 
     var currentDisplayName = getPlanDisplayName(planData.plan || 'free');
     fm.addLabel(t('chain.current_plan_label') + currentDisplayName);
-    fm.addLabel(t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit);
+    fm.addLabel(t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + ' Credits');
 
     var freeLimit = (planConfig.free || DEFAULT_PLANS.free).dailyLimit;
     var liteLimit = (planConfig.lite || DEFAULT_PLANS.lite).dailyLimit;
@@ -792,7 +801,7 @@ function showChainSettingsForm(player) {
     fm.setTitle(t('chain.settings_title') + ' - Block Plan');
 
     var content = t('chain.current_plan_label') + planDisplayName + '\n';
-    content += t('chain.daily_usage_label') + chainCheck.dailyUsed + '/' + chainCheck.dailyLimit + '\n';
+    content += t('chain.daily_usage_label') + chainCheck.dailyUsed + '/' + chainCheck.dailyLimit + ' Credits' + '\n';
     content += '-------------------------\n';
     fm.setContent(content);
 
@@ -931,7 +940,11 @@ function registerChainListener() {
             var cfg = getChainConfig();
             if (!cfg.enabled) return;
 
-            var playerCfg = getPlayerChainConfig(player.xuid);
+            // 快速建造非填充模式下禁用连锁
+            var xuid = player.xuid;
+            if (_enabledPlayers[xuid] && _playerBuildModes[xuid] !== 'fill') return;
+
+            var playerCfg = getPlayerChainConfig(xuid);
             if (!playerCfg.enabled) return;
 
             if (playerCfg.sneakOnly && !player.isSneaking) return;
@@ -999,7 +1012,11 @@ function registerChainListener() {
 /** 构建提示文本 */
 function buildBlockTip(xuid) {
     var sel = _playerSelections[xuid] || {};
-    var tip = '§a' + t('quick_build.title');
+    var buildMode = _playerBuildModes[xuid] || 'fill';
+    var isFillMode = buildMode === 'fill';
+    var actionText = isFillMode ? '放置' : '破坏';
+
+    var tip = '§a' + t('quick_build.title') + ' [' + getBuildModeName(buildMode) + ']';
     if (sel.pointA) {
         tip += ' | §eA: [' + sel.pointA.x + ',' + sel.pointA.y + ',' + sel.pointA.z + ']';
     }
@@ -1007,9 +1024,9 @@ function buildBlockTip(xuid) {
         tip += ' | §eB: [' + sel.pointB.x + ',' + sel.pointB.y + ',' + sel.pointB.z + ']';
     }
     if (!sel.pointA) {
-        tip += ' | §f' + t('quick_build.usage_step1').replace('1. ', '') + ' | §c' + t('quick_build.usage_cancel_hint').replace('§c', '');
+        tip += ' | §f' + actionText + '方块选择A点 | §c空手取消';
     } else if (!sel.pointB) {
-        tip += ' | §f' + t('quick_build.usage_step2').replace('2. ', '') + ' | §c' + t('quick_build.usage_cancel_hint').replace('§c', '');
+        tip += ' | §f' + actionText + '方块选择B点 | §c空手取消';
     }
     return tip;
 }
@@ -1027,7 +1044,7 @@ function startBlockTipTimer() {
     }, 1000);
 }
 
-function toggleBlockMode(player) {
+function toggleBlockMode(player, mode) {
     var xuid = player.xuid;
     if (_enabledPlayers[xuid]) {
         _enabledPlayers[xuid] = false;
@@ -1036,10 +1053,19 @@ function toggleBlockMode(player) {
         dlog(player.name + ' 关闭快速建造');
     } else {
         _enabledPlayers[xuid] = true;
+        _playerBuildModes[xuid] = mode || 'fill';
         _playerSelections[xuid] = {};
-        player.tell(t('quick_build.status_enabled') + '，' + t('quick_build.usage_step1').substring(3));
+
+        var buildMode = _playerBuildModes[xuid];
+        if (buildMode !== 'fill') {
+            player.tell('§e连锁挖矿已临时关闭，退出快速建造后自动恢复');
+        }
+
+        var modeName = getBuildModeName(buildMode);
+        var actionText = buildMode === 'fill' ? '放置' : '破坏';
+        player.tell(t('quick_build.status_enabled') + '，当前模式: §b' + modeName + '§r，' + actionText + '第一个方块标记A点');
         player.tell(buildBlockTip(xuid), 4);
-        dlog(player.name + ' 开启快速建造');
+        dlog(player.name + ' 开启快速建造，模式: ' + modeName);
     }
 }
 
@@ -1113,20 +1139,44 @@ function doCreativeFill(player) {
     var sel = _playerSelections[xuid];
     if (!sel || !sel.pointA || !sel.pointB) return;
 
-    var mainhand = player.getHand();
-    var blockType = mainhand ? mainhand.type : '';
-    var tileData = mainhand ? mainhand.aux : 0;
+    var buildMode = _playerBuildModes[xuid] || 'fill';
+    var size = getSelectionSize(sel);
 
-    if (!blockType || blockType === 'minecraft:air') {
-        player.tell(t('quick_build.hold_block_first'));
+    // 非填充模式限制最大方块数量
+    if (buildMode !== 'fill' && size.volume > MAX_NON_FILL_BLOCKS) {
+        var modeName = getBuildModeName(buildMode);
+        player.tell('§c选区过大，' + modeName + '最大支持 ' + MAX_NON_FILL_BLOCKS + ' 个方块');
         _playerSelections[xuid] = {};
         return;
     }
 
-    var size = getSelectionSize(sel);
-    fillSelection(player, sel, blockType, tileData);
-    if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
-    player.tell(t('quick_build.fill_success_creative', String(size.volume)));
+    if (buildMode === 'clear') {
+        fillSelection(player, sel, 'minecraft:air', 0);
+        if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
+        player.tell('§a破坏成功，共破坏 ' + size.volume + ' 个方块');
+    } else if (buildMode === 'water') {
+        fillSelection(player, sel, 'minecraft:water', 0);
+        if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
+        player.tell('§a水源填充成功，共填充 ' + size.volume + ' 个方块');
+    } else if (buildMode === 'lava') {
+        fillSelection(player, sel, 'minecraft:lava', 0);
+        if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
+        player.tell('§a岩浆填充成功，共填充 ' + size.volume + ' 个方块');
+    } else {
+        var mainhand = player.getHand();
+        var blockType = mainhand ? mainhand.type : '';
+        var tileData = mainhand ? mainhand.aux : 0;
+
+        if (!blockType || blockType === 'minecraft:air') {
+            player.tell(t('quick_build.hold_block_first'));
+            _playerSelections[xuid] = {};
+            return;
+        }
+
+        fillSelection(player, sel, blockType, tileData);
+        if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
+        player.tell(t('quick_build.fill_success_creative', String(size.volume)));
+    }
     _playerSelections[xuid] = {};
 }
 
@@ -1136,6 +1186,73 @@ function showFillConfirmForm(player) {
     if (!sel || !sel.pointA || !sel.pointB) return;
 
     var size = getSelectionSize(sel);
+    var buildMode = _playerBuildModes[xuid] || 'fill';
+
+    // 清空/水源/岩浆模式
+    if (buildMode !== 'fill') {
+        var modeName = getBuildModeName(buildMode);
+
+        // 限制最大方块数量
+        if (size.volume > MAX_NON_FILL_BLOCKS) {
+            player.tell('§c选区过大，' + modeName + '最大支持 ' + MAX_NON_FILL_BLOCKS + ' 个方块');
+            _playerSelections[xuid] = {};
+            return;
+        }
+
+        // 额度计算：破坏 1/方块，水源/岩浆 2/方块
+        var quotaPerBlock = (buildMode === 'clear') ? 1 : 2;
+        var quotaNeed = size.volume * quotaPerBlock;
+        var chainCheck = checkCanChain(xuid);
+        var quotaEnough = chainCheck.remaining >= quotaNeed;
+        var planDisplayName = getPlanDisplayName(chainCheck.plan);
+
+        var content = '§6' + modeName + '§r\n\n';
+        content += t('quick_build.fill_selection_info') + '\n';
+        content += t('quick_build.fill_a_point', String(sel.pointA.x), String(sel.pointA.y), String(sel.pointA.z)) + '\n';
+        content += t('quick_build.fill_b_point', String(sel.pointB.x), String(sel.pointB.y), String(sel.pointB.z)) + '\n';
+        content += t('quick_build.fill_size', String(size.dx), String(size.dy), String(size.dz)) + '\n';
+        content += t('quick_build.fill_need_blocks', String(size.volume)) + '\n\n';
+        content += t('quick_build.fill_plan_info', planDisplayName) + '\n';
+        content += t('quick_build.fill_quota_need', String(quotaNeed), (quotaEnough ? '§a' : '§c') + chainCheck.remaining + '§r') + '\n';
+
+        if (!quotaEnough) {
+            content += '\n' + t('quick_build.fill_insufficient_quota');
+        }
+
+        var canFill = quotaEnough;
+
+        player.sendModalForm(
+            modeName + '确认',
+            content,
+            canFill ? t('quick_build.btn_confirm_fill') : t('quick_build.btn_cannot_fill'),
+            t('quick_build.btn_cancel_fill'),
+            function(pl, result) {
+                _playerSelections[pl.xuid] = {};
+                if (result === null) return;
+                if (!result) {
+                    pl.tell(t('quick_build.fill_cancelled'));
+                    return;
+                }
+                var check2 = checkCanChain(pl.xuid);
+                if (check2.remaining < quotaNeed) {
+                    pl.tell(t('quick_build.fill_quota_insufficient', String(quotaNeed), String(check2.remaining)));
+                    return;
+                }
+                var blockType = buildMode === 'clear' ? 'minecraft:air' :
+                               buildMode === 'water' ? 'minecraft:water' : 'minecraft:lava';
+                addDailyUsage(pl.xuid, quotaNeed);
+                fillSelection(pl, sel, blockType, 0);
+                if (_onQuickBuildComplete) _onQuickBuildComplete(pl, size.volume);
+                var msg = buildMode === 'clear' ? '§a破坏成功，共破坏 ' + size.volume + ' 个方块' :
+                         buildMode === 'water' ? '§a水源填充成功，共填充 ' + size.volume + ' 个方块' :
+                         '§a岩浆填充成功，共填充 ' + size.volume + ' 个方块';
+                pl.tell(msg);
+            }
+        );
+        return;
+    }
+
+    // 填充模式
     var mainhand = player.getHand();
     var blockType = mainhand ? mainhand.type : '';
     var blockName = mainhand ? mainhand.name : '无';
@@ -1146,8 +1263,7 @@ function showFillConfirmForm(player) {
         return;
     }
 
-    // 检查Block Plan额度
-    var quotaNeed = Math.ceil(size.volume / 2);
+    var quotaNeed = Math.ceil(size.volume * 0.5);
     var chainCheck = checkCanChain(xuid);
     var quotaEnough = chainCheck.remaining >= quotaNeed;
     var planDisplayName = getPlanDisplayName(chainCheck.plan);
@@ -1193,7 +1309,6 @@ function showFillConfirmForm(player) {
                 pl.tell(t('quick_build.fill_success_creative', String(size.volume)));
                 return;
             }
-            // 二次检查额度
             var check2 = checkCanChain(pl.xuid);
             if (check2.remaining < quotaNeed) {
                 pl.tell(t('quick_build.fill_quota_insufficient', String(quotaNeed), String(check2.remaining)));
@@ -1230,6 +1345,48 @@ function isBlockItem(item) {
 }
 
 function registerBlockPlaceListener() {
+    // 清空/水源/岩浆模式：左键选点
+    mc.listen('onDestroyBlock', function(player, block) {
+        try {
+            var xuid = player.xuid;
+            if (!_enabledPlayers[xuid]) return;
+            if (!_playerSelections[xuid]) return;
+
+            var buildMode = _playerBuildModes[xuid] || 'fill';
+            if (buildMode === 'fill') return;
+
+            var sel = _playerSelections[xuid];
+            var now = Date.now();
+            if (_selectCooldown[xuid] && now - _selectCooldown[xuid] < 500) return;
+            _selectCooldown[xuid] = now;
+
+            var placePos = { x: block.pos.x, y: block.pos.y, z: block.pos.z, dimid: block.pos.dimid };
+
+            if (!canPlayerBuildAt(player, placePos)) {
+                player.tell(t('quick_build.land_no_permission'));
+                return false;
+            }
+
+            if (!sel.pointA) {
+                sel.pointA = placePos;
+                player.tell('§aA点已标记: [' + placePos.x + ',' + placePos.y + ',' + placePos.z + ']，破坏第二个方块标记B点');
+                return false;
+            }
+            if (!sel.pointB) {
+                sel.pointB = placePos;
+                player.tell('§aB点已标记: [' + placePos.x + ',' + placePos.y + ',' + placePos.z + ']');
+                if (player.gameMode === 1) {
+                    doCreativeFill(player);
+                } else {
+                    showFillConfirmForm(player);
+                }
+                return false;
+            }
+            return false;
+        } catch (e) { logger.error('[block] onDestroyBlock异常: ' + e.message); }
+    });
+
+    // 右键事件：空手取消（所有模式）+ 填充模式选点
     mc.listen('onUseItemOn', function(player, item, block, side, pos) {
         try {
             var xuid = player.xuid;
@@ -1238,7 +1395,7 @@ function registerBlockPlaceListener() {
 
             var sel = _playerSelections[xuid];
 
-            // 空手右键：取消选区/退出模式
+            // 空手右键：取消选区/退出模式（所有模式生效）
             if (!item || !isBlockItem(item)) {
                 var now2 = Date.now();
                 if (_selectCooldown[xuid] && now2 - _selectCooldown[xuid] < 1000) return;
@@ -1254,12 +1411,14 @@ function registerBlockPlaceListener() {
                 return;
             }
 
-            // 冷却防连点
+            // 非填充模式不处理右键选点
+            var buildMode = _playerBuildModes[xuid] || 'fill';
+            if (buildMode !== 'fill') return;
+
             var now = Date.now();
             if (_selectCooldown[xuid] && now - _selectCooldown[xuid] < 500) return;
             _selectCooldown[xuid] = now;
 
-            // 选点
             var placePos = { x: block.pos.x, y: block.pos.y, z: block.pos.z, dimid: block.pos.dimid };
             if (side === 0) placePos.y -= 1;
             else if (side === 1) placePos.y += 1;
@@ -1268,7 +1427,6 @@ function registerBlockPlaceListener() {
             else if (side === 4) placePos.x -= 1;
             else if (side === 5) placePos.x += 1;
 
-            // 检查领地权限
             if (!canPlayerBuildAt(player, placePos)) {
                 player.tell(t('quick_build.land_no_permission'));
                 return false;
@@ -1294,30 +1452,55 @@ function registerBlockPlaceListener() {
     });
 }
 
+function getBuildModeName(mode) {
+    var names = { fill: '填充模式', clear: '破坏模式', water: '水源模式', lava: '岩浆模式' };
+    return names[mode] || '填充模式';
+}
+
 function showBlockForm(player) {
     var xuid = player.xuid;
+    var currentMode = _playerBuildModes[xuid] || 'fill';
     var enabled = !!_enabledPlayers[xuid];
     var status = enabled ? t('quick_build.status_enabled') : t('quick_build.status_disabled');
 
-    var content = '§6' + t('quick_build.title') + '§r\n\n';
-    content += t('quick_build.status_enabled').replace('§a', '') + ': ' + status + '\n\n';
-    content += t('quick_build.usage_title') + '\n';
-    content += t('quick_build.usage_step1') + '\n';
-    content += t('quick_build.usage_step2') + '\n';
-    content += t('quick_build.usage_step3') + '\n';
-    content += t('quick_build.usage_fill_block') + '\n\n';
-    content += t('quick_build.usage_cancel_hint');
+    var fm = mc.newCustomForm();
+    fm.setTitle(t('quick_build.title'));
 
-    player.sendSimpleForm(
-        t('quick_build.title'),
-        content,
-        [enabled ? t('quick_build.btn_disable') : t('quick_build.btn_enable'), t('quick_build.btn_cancel')],
-        ['', ''],
-        function(pl, id) {
-            if (id === null) return;
-            if (id === 0) toggleBlockMode(pl);
+    fm.addLabel('§6' + t('quick_build.title') + '§r\n' +
+        t('quick_build.status_enabled').replace('§a', '') + ': ' + status + '\n\n' +
+        t('quick_build.usage_title') + '\n' +
+        t('quick_build.usage_desc'));
+
+    var modeOptions = BUILD_MODES.map(function(m) { return getBuildModeName(m); });
+    var modeIndex = BUILD_MODES.indexOf(currentMode);
+    fm.addDropdown('建造模式', modeOptions, modeIndex >= 0 ? modeIndex : 0);
+
+    player.sendForm(fm, function(pl, data) {
+        if (data == null) return;
+
+        var selectedMode = 'fill';
+        for (var i = 0; i < data.length; i++) {
+            if (typeof data[i] === 'number') {
+                selectedMode = BUILD_MODES[data[i]] || 'fill';
+                break;
+            }
         }
-    );
+        _playerBuildModes[pl.xuid] = selectedMode;
+
+        // 重新检查当前启用状态
+        var nowEnabled = !!_enabledPlayers[pl.xuid];
+        if (!nowEnabled) {
+            // 未启用，开启快速建造
+            toggleBlockMode(pl, selectedMode);
+        } else {
+            // 已启用，切换模式并重置选区
+            _playerSelections[pl.xuid] = {};
+            var modeName = getBuildModeName(selectedMode);
+            pl.tell('§a建造模式已切换为: ' + modeName);
+            pl.tell(buildBlockTip(pl.xuid), 4);
+            dlog(pl.name + ' 切换建造模式: ' + modeName);
+        }
+    });
 }
 
 // ============ 命令注册 ============
