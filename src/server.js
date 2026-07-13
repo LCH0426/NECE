@@ -881,6 +881,7 @@ function createV1Routes(webConfig) {
     require('./routes/shop').registerRoutes(router, routeDeps);
     require('./routes/guild').registerRoutes(router, routeDeps);
     require('./routes/admin').registerRoutes(router, routeDeps);
+    require('./routes/mapart').registerRoutes(router, routeDeps);
 
     // 赞助管理API由 wish 模块提供，仅在模块存在时注册
     if (_wishModuleRef && _wishModuleRef.registerApiRoutes) {
