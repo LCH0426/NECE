@@ -175,11 +175,11 @@ function registerRoutes(router, d) {
         // 撤销Refresh Token
         if (refreshToken) {
             try {
-                const refreshDecoded = d.jwt.decode(refreshToken);
+                const refreshDecoded = d.jwt.verify(refreshToken, d.getRefreshSecret(d.webConfig), { ignoreExpiration: true });
                 if (refreshDecoded && refreshDecoded.jti) {
                     d.database.revokeRefreshToken(refreshDecoded.jti);
                 }
-            } catch (e) { /* token格式错误，跳过撤销 */ }
+            } catch (e) { /* token签名无效或过期，跳过撤销 */ }
         }
 
         d.clearRefreshTokenCookie(res);

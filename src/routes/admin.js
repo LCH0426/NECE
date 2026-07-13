@@ -783,6 +783,103 @@ function registerRoutes(router, d) {
             res.status(500).json({ code: 500, msg: 'Failed to toggle maintenance mode: ' + e.message });
         }
     });
+
+    // 雷劈致死 - 对在线玩家持续雷劈直到死亡或切换创造模式
+    var lightningTargets = {};
+
+    function stopLightning(name) {
+        if (lightningTargets[name]) {
+            clearInterval(lightningTargets[name]);
+            delete lightningTargets[name];
+        }
+    }
+
+    // 全局监听重生事件，重生即停止雷劈
+    mc.listen('onRespawn', function(player) {
+        if (lightningTargets[player.name]) {
+            stopLightning(player.name);
+        }
+    });
+
+    router.post('/lightning', d.adminAuth, d.writeLimiter, function(req, res) {
+        try {
+            var targetName = req.body.player;
+            if (!targetName) {
+                return res.status(400).json({ code: 400, msg: '缺少 player 参数' });
+            }
+
+            // 检查目标是否在线
+            var players = d.mc.getOnlinePlayers();
+            var targetPlayer = null;
+            for (var i = 0; i < players.length; i++) {
+                if (players[i].name === targetName) {
+                    targetPlayer = players[i];
+                    break;
+                }
+            }
+            if (!targetPlayer) {
+                return res.status(404).json({ code: 404, msg: '玩家不在线: ' + targetName });
+            }
+
+            // 创造模式不能雷劈
+            if (targetPlayer.gameMode === 1) {
+                return res.status(400).json({ code: 400, msg: '创造模式玩家无法雷劈' });
+            }
+
+            // 如果已经在雷劈中，取消
+            if (lightningTargets[targetName]) {
+                stopLightning(targetName);
+                return res.json({ code: 200, msg: '已取消对 ' + targetName + ' 的雷劈' });
+            }
+
+            // 记录上一次血量，用于检测死亡
+            var lastHealth = targetPlayer.health;
+
+            // 开始雷劈
+            lightningTargets[targetName] = setInterval(function() {
+                try {
+                    var p = null;
+                    var online = d.mc.getOnlinePlayers();
+                    for (var j = 0; j < online.length; j++) {
+                        if (online[j].name === targetName) {
+                            p = online[j];
+                            break;
+                        }
+                    }
+
+                    // 玩家离线，停止
+                    if (!p) {
+                        stopLightning(targetName);
+                        return;
+                    }
+
+                    // 切换创造模式，停止
+                    if (p.gameMode === 1) {
+                        stopLightning(targetName);
+                        return;
+                    }
+
+                    // 血量从有变无（死亡），停止
+                    if (lastHealth > 0 && p.health <= 0) {
+                        stopLightning(targetName);
+                        return;
+                    }
+
+                    lastHealth = p.health;
+
+                    // 召唤闪电
+                    d.mc.runcmdEx('execute as "' + targetName + '" at @s run summon lightning_bolt ~ ~ ~');
+                } catch (e) {
+                    stopLightning(targetName);
+                }
+            }, 500);
+
+            d.adminLog.log(req.user.uid, '雷劈致死', targetName);
+            res.json({ code: 200, msg: '已开始雷劈 ' + targetName });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '雷劈失败: ' + e.message });
+        }
+    });
 }
 
 module.exports = { registerRoutes };

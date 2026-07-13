@@ -350,7 +350,7 @@ function showTpaMainForm(player, deps) {
 			return;
 		}
 
-		const type = typeIdx === 0 ? 'tpa' : 'tpn';
+		const type = typeIdx === 0 ? 'tpa' : 'tpahere';
 		sendTpaRequest(p, target, type, deps);
 	});
 }
@@ -402,15 +402,15 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 		timestamp: Date.now()
 	};
 
-	const typeDesc = type === 'tpa' ? t('tp.tpa_type_to_you') : type === 'tpn' ? t('tp.tpa_type_to_them') : t('tp.tpa_type_mutual');
+	const typeDesc = type === 'tpa' ? t('tp.tpa_type_to_you') : t('tp.tpa_type_to_them');
 	fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.request_sent', toPlayer.name, typeDesc));
 
-	toPlayer.tell(t('tp.tag_prefix') + " §b" + fromPlayer.name + " §a" + t('tp.request_notify', fromPlayer.name, typeDesc));
+	toPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.request_notify', fromPlayer.name, typeDesc));
 
 	// 弹窗给目标玩家，请求同意或拒绝
 	const fm = mc.newSimpleForm();
 	fm.setTitle("§l§e" + t('tp.pending_requests'));
-	fm.setContent(t('tp.player_label') + fromPlayer.name + " §a" + t('tp.request_notify', fromPlayer.name, typeDesc));
+	fm.setContent(t('tp.player_request_label', fromPlayer.name, typeDesc));
 	fm.addButton("§a" + t('tp.accept'), "textures/ui/check");
 	fm.addButton("§c" + t('tp.deny'), "textures/ui/cancel");
 
@@ -472,7 +472,8 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 			fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.insufficient_cancel'));
 			return;
 		}
-		deps.reducePlayerMoney(fromPlayer, getTpConfig().tpaCost, t('tp.reason_mutual'));
+		var reason = req.type === 'tpa' ? t('tp.reason_tpa') : t('tp.reason_tpahere');
+		deps.reducePlayerMoney(fromPlayer, getTpConfig().tpaCost, reason);
 	}
 
 	delete teleportPendingRequests[reqId];
@@ -482,7 +483,7 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 		safeTeleport(fromPlayer, toPos.x, toPos.y, toPos.z, toPos.dimid);
 		fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_to', toPlayer.name));
 		toPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_from', fromPlayer.name));
-	} else if (req.type === 'tpn') {
+	} else if (req.type === 'tpahere') {
 		const fromPos = fromPlayer.pos;
 		safeTeleport(toPlayer, fromPos.x, fromPos.y, fromPos.z, fromPos.dimid);
 		fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_from', toPlayer.name));
@@ -537,7 +538,7 @@ function showTpaPendingRequests(player, deps) {
 	fm.setTitle("§l§e" + t('tp.pending_requests'));
 
 	pending.forEach(function(item) {
-		const typeDesc = item.req.type === 'tpa' ? t('tp.tpa_type_short_to_you') : item.req.type === 'tpn' ? t('tp.tpa_type_short_to_them') : t('tp.tpa_type_short_mutual');
+		const typeDesc = item.req.type === 'tpa' ? t('tp.tpa_type_short_to_you') : t('tp.tpa_type_short_to_them');
 		fm.addButton("§b" + item.req.fromName + " - " + typeDesc);
 	});
 
@@ -549,7 +550,7 @@ function showTpaPendingRequests(player, deps) {
 		// 选中某个请求后弹出详情确认窗
 		const subFm = mc.newSimpleForm();
 		subFm.setTitle("§l§e" + t('tp.request_detail'));
-		const typeDesc = item.req.type === 'tpa' ? t('tp.tpa_type_short_to_you') : item.req.type === 'tpn' ? t('tp.tpa_type_short_to_them') : t('tp.tpa_type_short_mutual');
+		const typeDesc = item.req.type === 'tpa' ? t('tp.tpa_type_short_to_you') : t('tp.tpa_type_short_to_them');
 		subFm.setContent(t('tp.player_request_label', item.req.fromName, typeDesc));
 		subFm.addButton("§a" + t('tp.accept'), "textures/ui/check");
 		subFm.addButton("§c" + t('tp.deny'), "textures/ui/cancel");

@@ -160,7 +160,7 @@ function showMainMenu(player) {
 
 /** 注册右键钟表监听 */
 function registerClockListener() {
-    mc.listen("onUseItemOn", function(player, item) {
+    mc.listen("onUseItem", function(player, item) {
         if (!item || item.type !== "minecraft:clock") return;
         var cfg = _deps.getConfig ? _deps.getConfig() : {};
         if (!cfg.menu || !cfg.menu.enabled) return;
@@ -311,7 +311,7 @@ function registerCommands(registerPlayerCommand) {
 
 /** 注册指南针右键监听 */
 function registerCompassListener() {
-    mc.listen("onUseItemOn", function(player, item) {
+    mc.listen("onUseItem", function(player, item) {
         if (item && item.type === "minecraft:compass") {
             const xuid = player.xuid;
             const now = Date.now();
