@@ -655,14 +655,15 @@ function setPlayerSettingSQL(xuid, key, value) {
 }
 
 function getDeathPointsSQL(xuid) {
-    return query(playerDb, 'SELECT data FROM death_points WHERE xuid = ? ORDER BY id', [xuid]).map(function(r) { return JSON.parse(r.data); });
+    return query(playerDb, 'SELECT data FROM death_points WHERE xuid = ? ORDER BY id', [xuid]).map(function(r) { return _safeParse(r.data); }).filter(function(p) { return p !== null; });
 }
 
 function getAllDeathPointsSQL() {
     var all = {};
     query(playerDb, 'SELECT xuid, data FROM death_points ORDER BY id').forEach(function(r) {
         if (!all[r.xuid]) all[r.xuid] = [];
-        all[r.xuid].push(JSON.parse(r.data));
+        var parsed = _safeParse(r.data, null);
+        if (parsed !== null) all[r.xuid].push(parsed);
     });
     return all;
 }
