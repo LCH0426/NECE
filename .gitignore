@@ -8,6 +8,7 @@ package-lock.json
 teleport.js
 CLAUDE.md
 .claude/
+TEMP/
 FIX.md
 wish_config.json
 wish.js

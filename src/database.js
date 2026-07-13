@@ -220,6 +220,17 @@ function initDatabase() {
     db.exec('CREATE INDEX IF NOT EXISTS idx_blacklist_expires ON access_token_blacklist(expires_at)');
     try { db.exec('ALTER TABLE access_token_blacklist ADD COLUMN uid TEXT'); } catch (e) {}
 
+    // 地图画上传表
+    db.exec(`CREATE TABLE IF NOT EXISTS mapart_images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uid TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        original_name TEXT NOT NULL,
+        file_size INTEGER NOT NULL,
+        upload_time TEXT DEFAULT (datetime('now', 'localtime'))
+    )`);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_mapart_uid ON mapart_images(uid)');
+
     dbDebugLog('initDatabase: 认证数据库就绪');
     return db;
 }
@@ -390,6 +401,60 @@ function isAccessTokenBlacklisted(jti) {
 }
 
 function cleanExpiredBlacklist() { run(db, 'DELETE FROM access_token_blacklist WHERE expires_at < ?', [Date.now()]); }
+
+// ===================== 地图画上传 SQL 方法 =====================
+
+/** 添加地图画记录 */
+function addMapartImage(uid, filename, originalName, fileSize) {
+    if (!db) return null;
+    run(db, 'INSERT INTO mapart_images (uid, filename, original_name, file_size) VALUES (?, ?, ?, ?)', [uid, filename, originalName, fileSize]);
+    var rows = query(db, 'SELECT id FROM mapart_images WHERE uid = ? AND filename = ? ORDER BY id DESC LIMIT 1', [uid, filename]);
+    return rows.length > 0 ? rows[0].id : null;
+}
+
+/** 获取用户的所有地图画 */
+function getMapartImages(uid) {
+    if (!db) return [];
+    return query(db, 'SELECT id, filename, original_name, file_size, upload_time FROM mapart_images WHERE uid = ? ORDER BY id DESC', [uid]);
+}
+
+/** 获取用户的地图画总大小 */
+function getMapartTotalSize(uid) {
+    if (!db) return 0;
+    var rows = query(db, 'SELECT COALESCE(SUM(file_size), 0) as total FROM mapart_images WHERE uid = ?', [uid]);
+    return rows.length > 0 ? rows[0].total : 0;
+}
+
+/** 获取所有地图画（管理员用） */
+function getAllMapartImages() {
+    if (!db) return [];
+    return query(db, 'SELECT id, uid, filename, original_name, file_size, upload_time FROM mapart_images ORDER BY id DESC');
+}
+
+/** 删除指定地图画（需校验 uid） */
+function deleteMapartImage(uid, imageId) {
+    if (!db) return false;
+    var rows = query(db, 'SELECT filename FROM mapart_images WHERE id = ? AND uid = ?', [imageId, uid]);
+    if (rows.length === 0) return null;
+    run(db, 'DELETE FROM mapart_images WHERE id = ? AND uid = ?', [imageId, uid]);
+    return rows[0].filename;
+}
+
+/** 根据 id 删除地图画（管理员用，不校验 uid） */
+function deleteMapartImageById(imageId) {
+    if (!db) return null;
+    var rows = query(db, 'SELECT filename, uid FROM mapart_images WHERE id = ?', [imageId]);
+    if (rows.length === 0) return null;
+    run(db, 'DELETE FROM mapart_images WHERE id = ?', [imageId]);
+    return { filename: rows[0].filename, uid: rows[0].uid };
+}
+
+/** 根据 id 获取地图画信息 */
+function getMapartImageById(imageId) {
+    if (!db) return null;
+    var rows = query(db, 'SELECT * FROM mapart_images WHERE id = ?', [imageId]);
+    return rows.length > 0 ? rows[0] : null;
+}
 
 // ===================== 玩家数据 SQL 方法 =====================
 
@@ -1260,6 +1325,14 @@ module.exports = {
     sqlSet,
     sqlDelete,
     sqlEnsureTable,
+    // 地图画上传SQL
+    addMapartImage,
+    getMapartImages,
+    getMapartTotalSize,
+    getAllMapartImages,
+    deleteMapartImage,
+    deleteMapartImageById,
+    getMapartImageById,
     // Debug
     setDebugMode
 };
