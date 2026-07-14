@@ -195,6 +195,7 @@ function setActiveTitle(xuid, title) {
     if (title !== '无称号' && titles.owned.indexOf(title) === -1) return false;
     titles.active = title;
     if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
+    updatePlayerHeadShow(xuid);
     return true;
 }
 
@@ -710,6 +711,14 @@ function queryHistory(options) {
  */
 function registerChatListener() {
     mc.listen("onChat", function(pl, msg) {
+        // 非玩家聊天消息（击杀/死亡等系统消息）直接放行
+        if (!pl || !pl.xuid) return true;
+
+        // 记录最后发言（头顶显示用）并立即更新
+        _playerLastMsg[pl.xuid] = msg;
+        _playerLastMsgTime[pl.xuid] = Date.now();
+        updatePlayerHeadShow(pl.xuid);
+
         // 向 Web 面板推送实时聊天消息
         _deps.webServer.addChatMessage(pl.name, msg, 'player');
         _writeChatMessage({ time: Date.now(), sender: pl.name, message: msg, type: 'player' });
@@ -744,5 +753,68 @@ module.exports = {
     addPlayerTitle: addPlayerTitle,
     setActiveTitle: setActiveTitle,
     removePlayerTitle: removePlayerTitle,
-    registerTitleCommand: registerTitleCommand
+    registerTitleCommand: registerTitleCommand,
+    // 头顶显示
+    startHeadShowLoop: startHeadShowLoop
 };
+
+// ============ 头顶显示（名称+延迟+称号+消息） ============
+
+var _lastHeadShow = {};
+var _headShowDeviceCache = {};
+var _headShowDeviceCacheTTL = 1000;
+var _playerLastMsg = {};
+var _playerLastMsgTime = {};
+
+function updatePlayerHeadShow(xuid) {
+    try {
+        var pl = mc.getPlayer(xuid);
+        if (!pl) return;
+
+        var ping = 0;
+        var now = Date.now();
+        var device = _headShowDeviceCache[xuid];
+        if (!device || now - (device._cacheTime || 0) > _headShowDeviceCacheTTL) {
+            try { device = pl.getDevice(); } catch(e) {}
+            if (device) { device._cacheTime = now; _headShowDeviceCache[xuid] = device; }
+        }
+        if (device && device.avgPing !== undefined) ping = device.avgPing;
+
+        var pingColor = ping > 200 ? "§c" : ping > 100 ? "§e" : "§a";
+        var title = getPlayerActiveTitle(xuid) || '';
+        var titlePart = title ? "§b⌜§r" + title + "§b⌟§r " : "";
+        var msgPart = "";
+        var lastMsg = _playerLastMsg[xuid];
+        var lastMsgTime = _playerLastMsgTime[xuid];
+        if (lastMsg && lastMsgTime && now - lastMsgTime < 3000) {
+            msgPart = "\n§7" + lastMsg;
+        }
+        var newName = pl.realName + "\n" + titlePart + pingColor + ping + "ms" + msgPart;
+
+        if (_lastHeadShow[xuid] !== newName) {
+            _lastHeadShow[xuid] = newName;
+            pl.rename(newName);
+        }
+    } catch(e) {}
+}
+
+function startHeadShowLoop() {
+    setInterval(function() {
+        var players = mc.getOnlinePlayers();
+        for (var i = 0; i < players.length; i++) {
+            var pl = players[i];
+            if (pl.isSimulatedPlayer()) continue;
+            updatePlayerHeadShow(pl.xuid);
+        }
+
+        // 清理离线玩家缓存
+        var onlineXuids = {};
+        for (var j = 0; j < players.length; j++) onlineXuids[players[j].xuid] = true;
+        for (var uid in _lastHeadShow) {
+            if (!onlineXuids[uid]) {
+                delete _lastHeadShow[uid];
+                delete _headShowDeviceCache[uid];
+            }
+        }
+    }, 1000);
+}

@@ -78,9 +78,7 @@ function getTpConfig() {
         enableTpa: c.enableTpa !== undefined ? c.enableTpa : true,
         homeLimit: c.homeLimit !== undefined ? c.homeLimit : 10,
         homeCooldown: c.homeCooldown !== undefined ? c.homeCooldown : 10,
-        tpaCooldown: c.tpaCooldown !== undefined ? c.tpaCooldown : 30,
         tpaTimeout: c.tpaTimeout !== undefined ? c.tpaTimeout : 30,
-        tpaCost: c.tpaCost !== undefined ? c.tpaCost : 0,
         warpCost: c.warpCost !== undefined ? c.warpCost : 0,
         enableRtp: c.enableRtp !== undefined ? c.enableRtp : true,
         rtpRadius: c.rtpRadius !== undefined ? c.rtpRadius : 10000,
@@ -205,16 +203,26 @@ function init(_homesDM, _warpsDM, deps) {
 	D.debugLogModule('teleport')('init: 家园数=' + Object.keys(homesData).length + ', 地标数=' + Object.keys(warpsData).length);
 
 
-	// 每5秒清理超时的TPA请求，通知双方玩家
+	// 每5秒清理超时/离线的TPA请求
 	setInterval(function() {
 		const now = Date.now();
 		for (const reqId in teleportPendingRequests) {
 			const req = teleportPendingRequests[reqId];
+			const fromOnline = mc.getPlayer(req.fromXuid);
+			const toOnline = mc.getPlayer(req.toXuid);
+
+			// 任一方离线，清理请求
+			if (!fromOnline || !toOnline) {
+				if (fromOnline) fromOnline.tell(t('tp.tag_prefix') + " §c" + t('tp.target_offline_cancel'));
+				if (toOnline) toOnline.tell(t('tp.tag_prefix') + " §c" + t('tp.target_offline_cancel'));
+				delete teleportPendingRequests[reqId];
+				continue;
+			}
+
+			// 超时清理
 			if (now - req.timestamp > getTpConfig().tpaTimeout * 1000) {
-				const fromPlayer = mc.getPlayer(req.fromXuid);
-				const toPlayer = mc.getPlayer(req.toXuid);
-				if (fromPlayer) fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.request_timeout'));
-				if (toPlayer) toPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.request_timeout'));
+				fromOnline.tell(t('tp.tag_prefix') + " §c" + t('tp.request_timeout'));
+				toOnline.tell(t('tp.tag_prefix') + " §c" + t('tp.request_timeout'));
 				delete teleportPendingRequests[reqId];
 			}
 		}
@@ -364,29 +372,18 @@ function showTpaMainForm(player, deps) {
  * @param {object} deps - 依赖对象
  */
 function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
-	const cd = checkTeleportCooldown(fromPlayer.xuid, 'tpa');
-	if (cd > 0) {
-		fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.cooldown', cd));
-		return;
-	}
-
-	if (getTpConfig().tpaCost > 0) {
-		const bal = deps.getPlayerMoney(fromPlayer);
-		if (bal < getTpConfig().tpaCost) {
-			fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.insufficient_balance', getTpConfig().tpaCost, deps.getCurrencyName()));
-			return;
-		}
-	}
-
+	// 拒绝模式检查
 	const rejectMode = deps.getPlayerSetting(toPlayer.xuid, "enableTpaRejectMode");
 	if (rejectMode) {
 		fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.player_reject'));
 		return;
 	}
 
+	// 双向重复请求检查（A->B 或 B->A 都不允许）
 	for (const reqId in teleportPendingRequests) {
 		const existing = teleportPendingRequests[reqId];
-		if (existing.fromXuid === fromPlayer.xuid && existing.toXuid === toPlayer.xuid) {
+		if ((existing.fromXuid === fromPlayer.xuid && existing.toXuid === toPlayer.xuid) ||
+			(existing.fromXuid === toPlayer.xuid && existing.toXuid === fromPlayer.xuid)) {
 			fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.already_sent'));
 			return;
 		}
@@ -465,17 +462,6 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 		return;
 	}
 
-	if (getTpConfig().tpaCost > 0) {
-		const bal = deps.getPlayerMoney(fromPlayer);
-		if (bal < getTpConfig().tpaCost) {
-			delete teleportPendingRequests[reqId];
-			fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.insufficient_cancel'));
-			return;
-		}
-		var reason = req.type === 'tpa' ? t('tp.reason_tpa') : t('tp.reason_tpahere');
-		deps.reducePlayerMoney(fromPlayer, getTpConfig().tpaCost, reason);
-	}
-
 	delete teleportPendingRequests[reqId];
 
 	if (req.type === 'tpa') {
@@ -490,7 +476,6 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 		toPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_to', fromPlayer.name));
 	}
 
-	setTeleportCooldown(fromPlayer.xuid, 'tpa', getTpConfig().tpaCooldown);
 }
 
 /**

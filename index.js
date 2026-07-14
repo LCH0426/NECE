@@ -1068,6 +1068,7 @@ function initAllConfigs() {
 	});
 	chatModule.loadChatConfig();
 	chatModule.registerChatListener();
+	chatModule.startHeadShowLoop();
 	blockModule.init({
 		getConfig: function() { return config.get('chain', {}); },
 		getDebug: function() { return _debugMode; },
@@ -1251,7 +1252,8 @@ function initAllConfigs() {
 		getSupportedLocales: i18n.getSupportedLocales,
 		loadLocale: i18n.loadLocale,
 		t: i18n.t,
-		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+		getSystemLanguage: function() { return config.language || 'zh_CN'; },
+		isAdmin: database.isAdmin
 	});
 	personalCenter.setLevelUpExp(levelUpExp);
 	personalCenter.installPrototypeExtensions();

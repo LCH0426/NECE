@@ -20,6 +20,7 @@
  * 渲染 actionbar 和侧边栏信息面板
  */
 
+const os = require('os');
 let _deps = {};
 
 function getLang() {
@@ -60,6 +61,9 @@ let _lastRenderedTime = {};
 
 // 缓存非时间数据的侧边栏行；xuid -> { sidebarData, compactLines, isCompact, sidebarSettings }
 let _sidebarDataCache = {};
+
+// CPU 使用率计算的上次读数
+let _cpuLastTick = null;
 
 /**
  * 初始化侧边栏模块并启动渲染循环
@@ -117,6 +121,7 @@ function startRenderLoop() {
 			if (!cached) {
 				cached = {
 					enableActionbar: _deps.getPlayerSetting(xuid, "enableActionbar"),
+					enableDebug: _deps.getPlayerSetting(xuid, "enableDebug"),
 					sidebarSettings: {}
 				};
 				for (let k = 0; k < SIDEBAR_SETTING_KEYS.length; k++) {
@@ -126,36 +131,112 @@ function startRenderLoop() {
 				_sidebarCache[xuid] = cached;
 			}
 
-			// ---- actionbar: UID 和延迟独立显示 ----
+			// ---- actionbar: 调试模式 or UID+延迟 ----
 			if (cached.enableActionbar || cached.sidebarSettings.enableActionbarShowPing) {
 				let actionBar = "";
-				if (cached.enableActionbar) {
-					let uidText;
+
+				if (cached.enableDebug) {
+					// 调试模式：显示CPU、内存、BDS、实体
 					try {
-						let uid = pl.uid;
-						uidText = uid === t('sidebar.config_error') ? t('sidebar.config_error') :
-							uid === t('pc.unregistered') ? t('sidebar.unregistered') : "" + uid;
-					} catch (error) {
-						uidText = t('sidebar.fetch_failed');
+						// CPU 使用率（对比两次读数差值）
+						var cpuUsage = 0;
+						var cpus = os.cpus();
+						var totalIdle = 0, totalTick = 0;
+						for (var ci = 0; ci < cpus.length; ci++) {
+							var times = cpus[ci].times;
+							totalIdle += times.idle;
+							totalTick += times.idle + times.user + times.nice + times.sys + times.irq;
+						}
+						if (!_cpuLastTick) {
+							_cpuLastTick = { idle: totalIdle, total: totalTick };
+							cpuUsage = 0;
+						} else {
+							var idleDiff = totalIdle - _cpuLastTick.idle;
+							var totalDiff = totalTick - _cpuLastTick.total;
+							cpuUsage = totalDiff > 0 ? Math.round((1 - idleDiff / totalDiff) * 100) : 0;
+							_cpuLastTick = { idle: totalIdle, total: totalTick };
+						}
+
+						var totalMem = Math.round(os.totalmem() / 1024 / 1024);
+						var freeMem = Math.round(os.freemem() / 1024 / 1024);
+						var usedMem = totalMem - freeMem;
+
+						// BDS 内存
+						var bdsMem = 0;
+						try { bdsMem = Math.round(process.memoryUsage().rss / 1024 / 1024); } catch(e) {}
+
+						// 实体数量
+						var entityCount = 0;
+						try { entityCount = mc.getAllEntities().length; } catch(e) {}
+
+						// 服务器版本和协议
+						var serverVer = '--';
+						var serverProto = '--';
+						try { serverVer = mc.getBDSVersion(); } catch(e) {}
+						try { serverProto = mc.getServerProtocolVersion(); } catch(e) {}
+
+						// 玩家设备信息
+						var playerOs = '--';
+						var avgPing = '--';
+						var packetLoss = '--';
+						var device = _playerDeviceCache[xuid];
+						if (!device || now - (device._cacheTime || 0) > DEVICE_CACHE_TTL) {
+							device = pl.getDevice();
+							if (device) device._cacheTime = now;
+							_playerDeviceCache[xuid] = device;
+						}
+						if (device) {
+							playerOs = device.os || '--';
+							avgPing = device.avgPing !== undefined ? device.avgPing : '--';
+							packetLoss = device.lastPacketLoss !== undefined ? parseFloat(device.lastPacketLoss.toFixed(1)) : '--';
+						}
+
+						var cpuColor = cpuUsage > 80 ? "§c" : cpuUsage > 50 ? "§e" : "§a";
+						var memPercent = totalMem > 0 ? Math.round(usedMem / totalMem * 100) : 0;
+						var memColor = memPercent > 80 ? "§c" : memPercent > 50 ? "§e" : "§a";
+
+						var lossNum = parseFloat(packetLoss);
+						var lossColor = isNaN(lossNum) ? "§7" : lossNum > 10 ? "§c" : lossNum > 3 ? "§e" : "§a";
+
+						actionBar = cpuColor + "CPU：" + cpuUsage + "%" +
+							" §7| " + memColor + "MEM：" + usedMem + "/" + totalMem + "MB\n" +
+							"§bBDS：" + bdsMem + "MB" +
+							" §7| §eENT：" + entityCount +
+							" §7| §b" + avgPing + "ms" +
+							" §7| " + lossColor + "Lost：" + packetLoss + "%";
+					} catch(e) {
+						actionBar = "§cDebug Error";
 					}
-					actionBar = "UID: " + uidText;
+				} else {
+					// 正常模式：UID + 延迟
+					if (cached.enableActionbar) {
+						let uidText;
+						try {
+							let uid = pl.uid;
+							uidText = uid === t('sidebar.config_error') ? t('sidebar.config_error') :
+								uid === t('pc.unregistered') ? t('sidebar.unregistered') : "" + uid;
+						} catch (error) {
+							uidText = t('sidebar.fetch_failed');
+						}
+						actionBar = "UID: " + uidText;
+					}
+					if (cached.sidebarSettings.enableActionbarShowPing) {
+						let device = _playerDeviceCache[xuid];
+						if (!device || now - (device._cacheTime || 0) > DEVICE_CACHE_TTL) {
+							device = pl.getDevice();
+							if (device) device._cacheTime = now;
+							_playerDeviceCache[xuid] = device;
+						}
+						if (device && device.lastPing !== undefined && device.lastPing !== null) {
+							const ping = device.lastPing;
+							const pingColor = ping > 200 ? "§m" : ping > 95 ? "§6" : "§a";
+							if (actionBar) actionBar += " ";
+							actionBar += pingColor + ping + "ms";
+						}
+					}
 				}
-				if (cached.sidebarSettings.enableActionbarShowPing) {
-					let device = _playerDeviceCache[xuid];
-					if (!device || now - (device._cacheTime || 0) > DEVICE_CACHE_TTL) {
-						device = pl.getDevice();
-						if (device) device._cacheTime = now;
-						_playerDeviceCache[xuid] = device;
-					}
-					if (device && device.lastPing !== undefined && device.lastPing !== null) {
-						const ping = device.lastPing;
-						const pingColor = ping > 200 ? "§m" : ping > 95 ? "§6" : "§a";
-						if (actionBar) actionBar += " ";
-						actionBar += pingColor + ping + "ms";
-					}
-				}
+
 				if (actionBar) {
-					// setTitle type=4 表示 actionbar 区域
 					pl.setTitle(actionBar, 4);
 				}
 			}
@@ -335,7 +416,7 @@ function clearPlayerCache(xuid) {
 	delete _playerBiomeCache[xuid];
 	delete _lastRenderedSidebar[xuid];
 	delete _lastRenderedTime[xuid];
-	delete _sidebarDataCache[xuid];
+	_sidebarDataCache[xuid] = null;
 }
 
 module.exports = {

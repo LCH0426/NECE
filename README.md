@@ -57,7 +57,7 @@
 | **留言板**            | 社区留言板，支持发帖、回复与管理                 | ✅ 可用 |
 | **家园系统**           | 设置、删除和传送到个人家园点，支持数量限制和冷却时间       | ✅ 可用 |
 | **公共传送点**          | 由管理员管理的公共传送点，方便社区快速出行            | ✅ 可用 |
-| **互传系统**           | 玩家间传送请求，下拉选择玩家和传送方式，支持接受/拒绝/取消 | ✅ 可用 |
+| **互传系统**           | 玩家间传送请求，下拉选择玩家和传送方式，支持接受/拒绝/取消，无费用无冷却 | ✅ 可用 |
 | **称号系统**           | 购买和设置称号，聊天前缀展示，管理员可自定义添加        | ✅ 可用 |
 | **Web 管理面板**       | 基于 Express.js 的网页端管理后台，使用 JWT 认证 | ✅ 可用 |
 | **封禁系统**           | 支持按玩家ID/UID/XUID封禁，IP关联封禁        | ✅ 可用 |
@@ -76,6 +76,8 @@
 | **UID 显示**         | 在动作栏显示玩家 UID                     | ✅ 可用 |
 | **IP 检测器**         | 检测并通知玩家的 IPv4/IPv6 连接            | ✅ 可用 |
 | **连锁挖矿**          | 使用镐子/斧子/铲子/锄头时自动连锁破坏同类方块，支持玩家个性化配置 | ✅ 可用 |
+| **快速建造**          | 选区填充方块，支持填充/破坏/水源/岩浆四种模式，OP可选建造模式 | ✅ 可用 |
+| **地图画上传**         | 通过Web面板上传地图画图片，支持JPG/PNG/WebP，可选集成CustomGetMap | ✅ 可用 |
 | **i18n 支持**        | 多语言国际化支持，20个模块已完成翻译，玩家可自由选择语言 | ✅ 可用 |
 | **领地系统**          | 玩家可创建和管理私人领地，设置权限和防护            | 🚧 计划中 |
 | **Endstone支持**        | Endstone 插件加载器支持                       | ❌ 短期无计划 |
@@ -149,7 +151,7 @@ NECE 内置基于 Express.js 的网页端管理后台，提供以下功能：
 - **称号管理** — 查看玩家称号、为玩家添加自定义称号
 - **维护模式** — 远程切换维护模式，踢出所有玩家并阻止新玩家加入
 - **赞助管理** — 管理赞助者记录（仅祈愿模块启用时可用）
-- **传送配置** — 修改传送系统参数（冷却、花费、功能开关）
+- **传送配置** — 修改传送系统参数（冷却、功能开关）
 
 ## 安装
 
@@ -189,7 +191,6 @@ NECE 内置基于 Express.js 的网页端管理后台，提供以下功能：
 | `chat.wordFilter`     | `true`      | 启用敏感词过滤     |
 | `teleport.enableTpa`  | `true`      | 启用互传系统      |
 | `teleport.homeLimit`  | `10`        | 每位玩家最大家园数   |
-| `teleport.tpaCost`    | `0`         | 互传费用        |
 | `web.enabled`         | `true`      | 启用 Web 管理面板 |
 | `web.enableFrontend`  | `true`      | 启用 Web 前端   |
 | `web.port`            | `8080`      | Web 面板端口    |
@@ -210,7 +211,7 @@ NECE 支持多语言界面，语言文件位于 `lang/` 目录。通过 `config.
 | 公会系统 | `src/guild.js` | `guild.*` | ✅ 已完成 |
 | 祈愿系统 | `src/wish.js` | `wish.*` | ✅ 已完成 |
 | 经济系统 | `src/economy.js` | `economy.*` | ✅ 已完成 |
-| 连锁挖矿 | `src/chain.js` | `chain.*` | ✅ 已完成 |
+| 连锁挖矿 | `src/block.js` | `chain.*` | ✅ 已完成 |
 | 聊天系统 | `src/chat.js` | `chat.*` | ✅ 已完成 |
 | 侧边栏 | `src/sidebar.js` | `sidebar.*` | ✅ 已完成 |
 | 个人中心 | `src/personalCenter.js` | `pc.*` | ✅ 已完成 |
@@ -264,8 +265,7 @@ NECE/
 │       ├── players.js    # 玩家列表/排行/详情
 │       └── ...           # 其他路由模块
 ├── lang/                 # 语言文件目录
-│   ├── zh_CN.json        # 简体中文翻译
-│   └── zh_TW.json        # 繁体中文翻译
+│   └── zh_CN.json        # 简体中文翻译
 ├── data/                 # 数据文件
 ├── public/               # Web 面板前端
 ├── manifest.json         # LSE 插件清单
@@ -385,6 +385,7 @@ neceGetCurrencyName(); // 返回: String
 | [svg-captcha](https://www.npmjs.com/package/svg-captcha)             | ^1.4.0  | [MIT](https://github.com/produck/svg-captcha/blob/1.x/LICENSE.md)              | 验证码生成            |
 | [csv-parser](https://www.npmjs.com/package/csv-parser)               | ^3.2.0  | [MIT](https://github.com/mafintosh/csv-parser/blob/master/LICENSE)             | CSV 日志解析         |
 | [7zip-min](https://www.npmjs.com/package/7zip-min)                   | ^3.0.1  | [MIT](https://github.com/onikienko/7zip-min/blob/master/LICENSE)               | 7zip 压缩（用于备份）    |
+| [multer](https://www.npmjs.com/package/multer)                       | ^1.4.5  | [MIT](https://github.com/expressjs/multer/blob/master/LICENSE)                 | 文件上传（地图画）       |
 
 > 系统监控使用 Node.js 内置 `os` 模块 + Windows 内置命令（`wmic`、`netstat`），零外部依赖。
 
