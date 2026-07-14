@@ -57,6 +57,14 @@ function getPlayerSettingsSchema() {
     ];
 }
 
+/** 获取包含管理员专属设置的完整 schema */
+function getPlayerSettingsSchemaForAdmin() {
+    var schema = getPlayerSettingsSchema();
+    schema.push({ type: 'label', text: '§b' + t('pc.debug_settings') });
+    schema.push({ key: 'enableDebug', label: '§e' + t('pc.enable_debug') });
+    return schema;
+}
+
 let _deps = {};
 
 function getLang() {
@@ -807,7 +815,10 @@ function showPlayerSettingsForm(player) {
 	const switchIndices = [];  // 记录每个开关在表单数据中的索引及其对应key
 	const dropdownIndices = []; // 记录每个下拉菜单在表单数据中的索引及其对应key
 	let dataIdx = 0;
-	const schema = getPlayerSettingsSchema();
+	// OP可见调试信息设置
+	var isOp = false;
+	try { isOp = player.isOP(); } catch(e) {}
+	const schema = isOp ? getPlayerSettingsSchemaForAdmin() : getPlayerSettingsSchema();
 
 	// 动态获取支持的语言列表
 	const supportedLocales = _deps.getSupportedLocales ? _deps.getSupportedLocales() : ['zh_CN'];

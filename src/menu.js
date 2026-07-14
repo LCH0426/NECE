@@ -174,6 +174,20 @@ function registerClockListener() {
         return false;
     });
 
+    mc.listen("onUseItemOn", function(player, item) {
+        if (!item || item.type !== "minecraft:clock") return;
+        var cfg = _deps.getConfig ? _deps.getConfig() : {};
+        if (!cfg.menu || !cfg.menu.enabled) return;
+
+        var xuid = player.xuid;
+        var now = Date.now();
+        if (now - (clockCooldown[xuid] || 0) < 1000) return false;
+        clockCooldown[xuid] = now;
+
+        showMainMenu(player);
+        return false;
+    });
+
     mc.listen("onLeft", function(player) {
         delete clockCooldown[player.xuid];
     });
@@ -312,6 +326,19 @@ function registerCommands(registerPlayerCommand) {
 /** 注册指南针右键监听 */
 function registerCompassListener() {
     mc.listen("onUseItem", function(player, item) {
+        if (item && item.type === "minecraft:compass") {
+            const xuid = player.xuid;
+            const now = Date.now();
+            if (now - (compassCooldown[xuid] || 0) < 1000) {
+                return false;
+            }
+            compassCooldown[xuid] = now;
+            showQuickMenu(player);
+            return false;
+        }
+    });
+
+    mc.listen("onUseItemOn", function(player, item) {
         if (item && item.type === "minecraft:compass") {
             const xuid = player.xuid;
             const now = Date.now();
