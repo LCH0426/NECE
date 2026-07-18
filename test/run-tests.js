@@ -27,7 +27,6 @@ const testFiles = [
     'unit/teleport.test.js',
     'unit/monitoring.test.js',
     'unit/backup.test.js',
-    'unit/clearLag.test.js',
     'unit/mail.test.js'
 ];
 

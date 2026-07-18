@@ -136,13 +136,14 @@ function registerRoutes(router, d) {
         try {
             let name = req.body.name;
             let snbt = req.body.snbt;
+            let description = req.body.description || '';
             if (!name || !snbt) {
                 return res.status(400).json({ code: 400, msg: 'name和snbt为必填项' });
             }
             let config = loadWishConfig();
             if (!config.rewards) config.rewards = {};
             if (!config.rewards.fiveStar) config.rewards.fiveStar = [];
-            let item = { name: name, snbt: snbt };
+            let item = { name: name, snbt: snbt, description: description };
             config.rewards.fiveStar.push(item);
             saveWishConfig(config);
             d.adminLog.log(req.user.uid, '添加五星奖励', '名称:' + name);
@@ -163,6 +164,7 @@ function registerRoutes(router, d) {
             }
             if (req.body.name !== undefined) list[idx].name = req.body.name;
             if (req.body.snbt !== undefined) list[idx].snbt = req.body.snbt;
+            if (req.body.description !== undefined) list[idx].description = req.body.description;
             config.rewards.fiveStar = list;
             saveWishConfig(config);
             d.adminLog.log(req.user.uid, '修改五星奖励', '索引:' + idx + ' 名称:' + list[idx].name);

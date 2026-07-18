@@ -52,17 +52,11 @@ function getPlayerSettingsSchema() {
         { key: 'enableMailNotification', label: '§e' + t('pc.mail_notify') },
         { type: 'label', text: '§b' + t('pc.tp_settings') },
         { key: 'enableTpaRejectMode', label: '§c' + t('pc.reject_tpa') },
+        { type: 'label', text: '§b' + t('pc.debug_settings') },
+        { key: 'enableDebug', label: '§e' + t('pc.enable_debug') },
         { type: 'label', text: '§b' + t('pc.lang_settings') },
         { type: 'dropdown', key: 'locale', label: '§e' + t('pc.lang_label'), options: ['zh_CN'], optionLabels: ['简体中文'] }
     ];
-}
-
-/** 获取包含管理员专属设置的完整 schema */
-function getPlayerSettingsSchemaForAdmin() {
-    var schema = getPlayerSettingsSchema();
-    schema.push({ type: 'label', text: '§b' + t('pc.debug_settings') });
-    schema.push({ key: 'enableDebug', label: '§e' + t('pc.enable_debug') });
-    return schema;
 }
 
 let _deps = {};
@@ -815,10 +809,7 @@ function showPlayerSettingsForm(player) {
 	const switchIndices = [];  // 记录每个开关在表单数据中的索引及其对应key
 	const dropdownIndices = []; // 记录每个下拉菜单在表单数据中的索引及其对应key
 	let dataIdx = 0;
-	// OP可见调试信息设置
-	var isOp = false;
-	try { isOp = player.isOP(); } catch(e) {}
-	const schema = isOp ? getPlayerSettingsSchemaForAdmin() : getPlayerSettingsSchema();
+	const schema = getPlayerSettingsSchema();
 
 	// 动态获取支持的语言列表
 	const supportedLocales = _deps.getSupportedLocales ? _deps.getSupportedLocales() : ['zh_CN'];

@@ -440,8 +440,17 @@ function registerRoutes(router, d) {
             const date = req.query.date || '';
             let page = parseInt(req.query.page) || 1;
             let pageSize = parseInt(req.query.pageSize) || 50;
+            const currentUid = req.user.uid;
 
             let result = d.adminLog.getLogs(date, page, pageSize);
+
+            // 非 10000 管理员不能查看 10000 的操作日志
+            if (currentUid !== '10000' && result && result.logs) {
+                result.logs = result.logs.filter(function(log) {
+                    return log.uid !== '10000';
+                });
+            }
+
             res.json({ code: 200, data: result });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '获取日志失败: ' });
