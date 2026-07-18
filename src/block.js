@@ -309,6 +309,11 @@ function purchasePlan(player, planName) {
     var now = Date.now();
     var currentPlan = planData.plan || 'free';
 
+    // ultra 用户不能购买低级套餐
+    if (currentPlan === 'ultra') {
+        return { success: false, message: t('chain_plan.ultra_already_owned') };
+    }
+
     if (currentPlan === planName && planData.expireTime > now) {
         return { success: false, message: t('chain_plan.already_active') };
     }
@@ -412,7 +417,8 @@ function showPlanMenu(player) {
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS.free;
     var checkResult = checkCanChain(xuid);
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
-    var isActive = currentPlan !== 'free' && planData.expireTime > Date.now();
+    // ultra 永不过期，视为已激活
+    var isActive = currentPlan === 'ultra' || (currentPlan !== 'free' && planData.expireTime > Date.now());
 
     if (isActive) {
         showActivePlanMenu(player, planData, planInfo, checkResult, currencyName);
@@ -953,7 +959,11 @@ function showChainSettingsForm(player) {
     fm.setTitle(t('chain.settings_title') + ' - Block Plan');
 
     var content = t('chain.current_plan_label') + planDisplayName + '\n';
-    content += t('chain.daily_usage_label') + chainCheck.dailyUsed + '/' + chainCheck.dailyLimit + ' Credits' + '\n';
+    if (chainCheck.plan === 'ultra') {
+        content += t('chain.daily_usage_label') + chainCheck.dailyUsed + ' Credits\n';
+    } else {
+        content += t('chain.daily_usage_label') + chainCheck.dailyUsed + '/' + chainCheck.dailyLimit + ' Credits\n';
+    }
     content += '-------------------------\n';
     fm.setContent(content);
 
@@ -1294,8 +1304,9 @@ function doCreativeFill(player) {
     var buildMode = _playerBuildModes[xuid] || 'fill';
     var size = getSelectionSize(sel);
 
-    // 非填充模式限制最大方块数量
-    if (buildMode !== 'fill' && size.volume > MAX_NON_FILL_BLOCKS) {
+    // 非填充模式限制最大方块数量（创造模式不限制）
+    var isCreative = player.gameMode === 1;
+    if (!isCreative && buildMode !== 'fill' && size.volume > MAX_NON_FILL_BLOCKS) {
         var modeName = getBuildModeName(buildMode);
         player.tell('§c选区过大，' + modeName + '最大支持 ' + MAX_NON_FILL_BLOCKS + ' 个方块');
         _playerSelections[xuid] = {};
@@ -1344,8 +1355,9 @@ function showFillConfirmForm(player) {
     if (buildMode !== 'fill') {
         var modeName = getBuildModeName(buildMode);
 
-        // 限制最大方块数量
-        if (size.volume > MAX_NON_FILL_BLOCKS) {
+        // 限制最大方块数量（创造模式不限制）
+        var isCreative = player.gameMode === 1;
+        if (!isCreative && size.volume > MAX_NON_FILL_BLOCKS) {
             player.tell('§c选区过大，' + modeName + '最大支持 ' + MAX_NON_FILL_BLOCKS + ' 个方块');
             _playerSelections[xuid] = {};
             return;
