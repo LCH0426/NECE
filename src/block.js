@@ -922,7 +922,7 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
             var entities = mc.getAllEntities();
             for (var i = 0; i < entities.length; i++) {
                 var e = entities[i];
-                if (e.type === 'minecraft:item' && e.distanceTo(player) < 10) {
+                if ((e.type === 'minecraft:item' || e.type === 'minecraft:xp_orb') && e.distanceTo(player) < 10) {
                     e.teleport(ppos);
                 }
             }
