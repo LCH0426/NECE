@@ -223,7 +223,6 @@ NECE 支持多语言界面，语言文件位于 `lang/` 目录。通过 `config.
 | VIP系统 | `src/vip.js` | `vip.*` | ✅ 已完成 |
 | CDK兑换 | `src/cdk.js` | `cdk.*` | ✅ 已完成 |
 | 行为日志 | `src/behaviorLog.js` | `behavior.*` | ✅ 已完成 |
-| 实体清理 | `src/clearLag.js` | `clearlag.*` | ✅ 已完成 |
 | 排行榜 | `src/rank.js` | `rank.*` | ✅ 已完成 |
 
 > `index.js`、`menu.js`、`server.js`、`routes/*.js` 尚未国际化。

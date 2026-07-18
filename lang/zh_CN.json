@@ -410,10 +410,6 @@
     "cleanup_expired": "过期",
     "cleanup_excess": "超出数量限制"
   },
-  "clearlag": {
-    "reminder": "§e[清理] §6即将清理服务器实体，请注意！",
-    "clean_complete": "§e[清理] §a已清理完成！共清理 {0} 个实体"
-  },
   "mb": {
     "title": "§a留言板",
     "main_content": "§6——————————————\n§f玩家ID：§a{0}\n§f服务器总留言数：§a{1} §f条（有效：§a{2}§f条）\n§f我的有效留言数：§a{3} §f条\n§6——————————————",
@@ -605,6 +601,11 @@
     "max_level_plan": "§c您已是最高级别计划，无法继续升级",
     "select_upgrade_plan": "选择升级计划",
     "cannot_renew_free": "§c免费计划无法续费，请先购买付费计划",
+    "ultra_desc": "无限额度 永不过期",
+    "ultra_option": "§l§6[Ultra]§r - {0} - {1} {2}",
+    "ultra_already_owned": "§c已拥有 Ultra 套餐",
+    "ultra_expire_label": "永不过期",
+    "ultra_purchase_success": "§a购买成功！§l§6[Ultra]§r §a套餐已激活，无限额度永不过期",
     "invalid_weeks": "§c续费周数必须在1-3之间",
     "renew_insufficient": "§c余额不足！续费{0}周需要 {1} {2}",
     "renew_failed": "§c续费失败",

@@ -44,7 +44,6 @@ const menuModule = require('./src/menu');
 const personalCenter = require('./src/personalCenter');
 const guildModule = require('./src/guild');
 const motdModule = require('./src/motd');
-const clearLagModule = require('./src/clearLag');
 const blockModule = require('./src/block');
 const i18n = require('./src/i18n');
 
@@ -756,13 +755,6 @@ function initRankConfig() {
 			"max": { "dailyLimit": 50000, "price": 500000, "duration": 7 }
 		}
 	});
-	config.init("clearLag", {
-		"enabled": false,
-		"interval": 300,
-		"reminder": 60,
-		"keepNamed": true,
-		"whitelist": []
-	});
 	config.init("motd", {
 		"enabled": false,
 		"lines": [],
@@ -1263,14 +1255,6 @@ function initAllConfigs() {
 		getConfig: function() { return config.get('motd', {}); }
 	});
 	motdModule.start();
-
-	// 定时实体清理模块
-	clearLagModule.init({
-		getConfig: function() { return config.get('clearLag'); },
-		t: i18n.t,
-		getSystemLanguage: function() { return config.language || 'zh_CN'; }
-	});
-	clearLagModule.start();
 
 	_initialized = true;
 }
@@ -2321,7 +2305,6 @@ function initWebServer() {
 				} else {
 					backupModule.stopDataBackupScheduler();
 				}
-				clearLagModule.reload();
 			} catch (e) { logger.error('[Core] 重载配置失败: ' + e.message); }
 		});
 		webServer.setPlayerDataRef(playerData);

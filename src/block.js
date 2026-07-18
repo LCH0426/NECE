@@ -100,8 +100,12 @@ var PLAN_NAME_FORMAT = {
     lite: '§l§h[Lite]§r',
     standard: '§l§q[Standard]§r',
     pro: '§l§s[Pro]§r',
-    max: '§l§p[Max]§r'
+    max: '§l§p[Max]§r',
+    ultra: '§l§6[Ultra]§r'
 };
+
+// ultra 套餐硬编码配置
+var ULTRA_PRICE = 9999999;
 
 function getPlanDisplayName(planName) {
     return PLAN_NAME_FORMAT[planName] || planName;
@@ -196,8 +200,20 @@ function checkCanChain(xuid) {
     var planData = getPlayerPlanData(xuid);
     resetDailyUsage(planData);
 
-    var planConfig = getPlanConfig();
     var plan = planData.plan || 'free';
+
+    // ultra 套餐：无限额度，永不过期
+    if (plan === 'ultra') {
+        return {
+            canChain: true,
+            remaining: Infinity,
+            plan: 'ultra',
+            dailyLimit: Infinity,
+            dailyUsed: planData.dailyUsed
+        };
+    }
+
+    var planConfig = getPlanConfig();
     var planInfo = planConfig[plan] || DEFAULT_PLANS.free;
 
     if (plan !== 'free' && planData.expireTime > 0 && Date.now() > planData.expireTime) {
@@ -227,9 +243,59 @@ function addDailyUsage(xuid, count) {
     savePlanData(xuid, planData);
 }
 
+function purchaseUltraPlan(player) {
+    var xuid = player.xuid;
+    var planData = getPlayerPlanData(xuid);
+    var now = Date.now();
+    var currentPlan = planData.plan || 'free';
+    var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
+
+    // 已拥有 ultra
+    if (currentPlan === 'ultra') {
+        return { success: false, message: t('chain_plan.ultra_already_owned') };
+    }
+
+    var actualPrice = ULTRA_PRICE;
+
+    // 计算当前套餐剩余价值
+    if (currentPlan !== 'free' && planData.expireTime > now) {
+        var planConfig = getPlanConfig();
+        var currentPlanInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
+        var currentPrice = currentPlanInfo.price || 0;
+        var currentDuration = currentPlanInfo.duration || 7;
+        var remainingDays = Math.ceil((planData.expireTime - now) / (1000 * 60 * 60 * 24));
+        var remainingValue = Math.ceil(currentPrice * remainingDays / currentDuration);
+        actualPrice = ULTRA_PRICE - remainingValue;
+    }
+
+    if (actualPrice < 0) actualPrice = 0;
+
+    var playerMoney = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0;
+    if (playerMoney < actualPrice) {
+        return { success: false, message: t('chain_plan.insufficient_balance', String(actualPrice), currencyName) };
+    }
+
+    if (_deps.reducePlayerMoney) {
+        if (!_deps.reducePlayerMoney(player, actualPrice, 'Block Plan 购买: §l§6[Ultra]§r')) {
+            return { success: false, message: t('chain_plan.purchase_failed') };
+        }
+    }
+
+    planData.plan = 'ultra';
+    planData.expireTime = 0;
+    savePlanData(xuid, planData);
+
+    return { success: true, message: t('chain_plan.ultra_purchase_success') };
+}
+
 function purchasePlan(player, planName) {
     var xuid = player.xuid;
     var planConfig = getPlanConfig();
+
+    // ultra 套餐特殊处理
+    if (planName === 'ultra') {
+        return purchaseUltraPlan(player);
+    }
 
     if (!planConfig[planName]) {
         return { success: false, message: t('chain_plan.invalid_plan') };
@@ -359,16 +425,23 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
     var fm = mc.newSimpleForm();
     fm.setTitle('§l§bBlock Plan');
 
-    var planConfig = getPlanConfig();
-    var expireDate = new Date(planData.expireTime);
-    var remainingDays = Math.ceil((planData.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
+    var isUltra = planData.plan === 'ultra';
     var planDisplayName = getPlanDisplayName(planData.plan || 'free');
 
     var content = t('chain.current_plan_label') + planDisplayName + '\n';
-    content += t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + ' Credits' + '\n';
-    content += t('chain.expire_time_label', String(expireDate.getFullYear()), String(expireDate.getMonth() + 1), String(expireDate.getDate())) + '\n';
-    content += t('chain.remaining_days_label', String(remainingDays)) + '\n';
 
+    if (isUltra) {
+        content += t('chain.daily_usage_label') + planData.dailyUsed + ' Credits\n';
+        content += '到期时间: §a' + t('chain_plan.ultra_expire_label') + '\n';
+    } else {
+        var expireDate = new Date(planData.expireTime);
+        var remainingDays = Math.ceil((planData.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
+        content += t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + ' Credits' + '\n';
+        content += t('chain.expire_time_label', String(expireDate.getFullYear()), String(expireDate.getMonth() + 1), String(expireDate.getDate())) + '\n';
+        content += t('chain.remaining_days_label', String(remainingDays)) + '\n';
+    }
+
+    var planConfig = getPlanConfig();
     var freeLimit = (planConfig.free || DEFAULT_PLANS.free).dailyLimit;
     var liteLimit = (planConfig.lite || DEFAULT_PLANS.lite).dailyLimit;
     var standardLimit = (planConfig.standard || DEFAULT_PLANS.standard).dailyLimit;
@@ -390,20 +463,29 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
     content += t('chain.plan_tier_desc', standardName, standardRatio, liteName) + '\n';
     content += t('chain.plan_tier_desc', proName, proRatio, liteName) + '\n';
     content += t('chain.plan_tier_desc', maxName, maxRatio, liteName) + '\n';
+    content += '§l§6[Ultra]§r - ' + t('chain_plan.ultra_desc') + '\n';
 
     fm.setContent(content);
-    fm.addButton(t('chain.btn_renew'), "textures/ui/confirm");
-    fm.addButton(t('chain.btn_upgrade'), "textures/ui/jump_boost_effect");
+
+    // ultra 套餐隐藏续费和升级按钮
+    if (!isUltra) {
+        fm.addButton(t('chain.btn_renew'), "textures/ui/confirm");
+        fm.addButton(t('chain.btn_upgrade'), "textures/ui/jump_boost_effect");
+    }
     fm.addButton(t('chain.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
-        if (id === 0) {
-            showRenewMenu(p);
-        } else if (id === 1) {
-            showUpgradeMenu(p);
-        } else if (id === 2) {
-            showChainSettingsForm(p);
+        if (isUltra) {
+            if (id === 0) showChainSettingsForm(p);
+        } else {
+            if (id === 0) {
+                showRenewMenu(p);
+            } else if (id === 1) {
+                showUpgradeMenu(p);
+            } else if (id === 2) {
+                showChainSettingsForm(p);
+            }
         }
     });
 }
@@ -460,7 +542,7 @@ function showUpgradeMenu(player) {
 
     fm.addLabel(t('chain.current_plan_label') + currentDisplayName);
 
-    var planOrder = ['lite', 'standard', 'pro', 'max'];
+    var planOrder = ['lite', 'standard', 'pro', 'max', 'ultra'];
     var currentIndex = planOrder.indexOf(currentPlan);
     var upgradeOptions = [];
     var upgradePlans = [];
@@ -472,12 +554,22 @@ function showUpgradeMenu(player) {
 
     for (var i = currentIndex + 1; i < planOrder.length; i++) {
         var pName = planOrder[i];
-        var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
-        var priceDiff = (pInfo.price || 0) - currentPrice;
-        var upgradePrice = Math.ceil(priceDiff * remainingDays / currentDuration);
-        var displayName = getPlanDisplayName(pName);
-
-        upgradeOptions.push(t('chain_plan.upgrade_option', displayName, String(pInfo.dailyLimit), String(upgradePrice), currencyName));
+        if (pName === 'ultra') {
+            // ultra 套餐：计算当前套餐剩余价值抵扣
+            var ultraPrice = ULTRA_PRICE;
+            if (currentPlan !== 'free' && planData.expireTime > Date.now()) {
+                var remainingValue = Math.ceil(currentPrice * remainingDays / currentDuration);
+                ultraPrice = ULTRA_PRICE - remainingValue;
+                if (ultraPrice < 0) ultraPrice = 0;
+            }
+            upgradeOptions.push('§l§6[Ultra]§r - ' + t('chain_plan.ultra_desc') + ' - ' + ultraPrice + ' ' + currencyName);
+        } else {
+            var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
+            var priceDiff = (pInfo.price || 0) - currentPrice;
+            var upgradePrice = Math.ceil(priceDiff * remainingDays / currentDuration);
+            var displayName = getPlanDisplayName(pName);
+            upgradeOptions.push(t('chain_plan.upgrade_option', displayName, String(pInfo.dailyLimit), String(upgradePrice), currencyName));
+        }
         upgradePlans.push(pName);
     }
 
@@ -533,16 +625,21 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
         t('chain.plan_tier_desc_base', liteName, String(liteLimit)) + '\n' +
         t('chain.plan_tier_desc', standardName, standardRatio, liteName) + '\n' +
         t('chain.plan_tier_desc', proName, proRatio, liteName) + '\n' +
-        t('chain.plan_tier_desc', maxName, maxRatio, liteName));
+        t('chain.plan_tier_desc', maxName, maxRatio, liteName) + '\n' +
+        '§l§6[Ultra]§r - ' + t('chain_plan.ultra_desc'));
 
     var planOptions = [];
-    var planKeys = ['lite', 'standard', 'pro', 'max'];
+    var planKeys = ['lite', 'standard', 'pro', 'max', 'ultra'];
 
     for (var i = 0; i < planKeys.length; i++) {
         var pName = planKeys[i];
-        var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
-        var displayName = getPlanDisplayName(pName);
-        planOptions.push(t('chain_plan.plan_option', displayName, String(pInfo.dailyLimit), String(pInfo.price || 0), currencyName, String(pInfo.duration || 0)));
+        if (pName === 'ultra') {
+            planOptions.push(t('chain_plan.ultra_option', t('chain_plan.ultra_desc'), String(ULTRA_PRICE), currencyName));
+        } else {
+            var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
+            var displayName = getPlanDisplayName(pName);
+            planOptions.push(t('chain_plan.plan_option', displayName, String(pInfo.dailyLimit), String(pInfo.price || 0), currencyName, String(pInfo.duration || 0)));
+        }
     }
 
     fm.addDropdown(t('chain_plan.select_plan'), planOptions, 0);
@@ -560,15 +657,70 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
     });
 }
 
-function showPurchaseConfirm(player, planName) {
+function showPurchaseConfirm(player, planName, displayPrice) {
     var planConfig = getPlanConfig();
-    var planInfo = planConfig[planName] || DEFAULT_PLANS[planName];
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
     var displayName = getPlanDisplayName(planName);
+    var xuid = player.xuid;
+    var planData = getPlayerPlanData(xuid);
+    var currentPlan = planData.plan || 'free';
+
+    // 计算实际价格（含当前套餐抵扣）
+    var actualPrice = displayPrice;
+    if (actualPrice === undefined) {
+        if (planName === 'ultra') {
+            actualPrice = ULTRA_PRICE;
+            if (currentPlan !== 'free' && planData.expireTime > Date.now()) {
+                var planConfig2 = getPlanConfig();
+                var currentPlanInfo = planConfig2[currentPlan] || DEFAULT_PLANS[currentPlan];
+                var currentPrice = currentPlanInfo.price || 0;
+                var currentDuration = currentPlanInfo.duration || 7;
+                var remainingDays = Math.ceil((planData.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
+                var remainingValue = Math.ceil(currentPrice * remainingDays / currentDuration);
+                actualPrice = ULTRA_PRICE - remainingValue;
+                if (actualPrice < 0) actualPrice = 0;
+            }
+        } else {
+            var planInfo = planConfig[planName] || DEFAULT_PLANS[planName];
+            actualPrice = planInfo.price || 0;
+            if (currentPlan !== 'free' && planData.expireTime > Date.now()) {
+                var currentPlanInfo2 = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
+                var currentPrice2 = currentPlanInfo2.price || 0;
+                var priceDiff = actualPrice - currentPrice2;
+                if (priceDiff > 0) {
+                    var remainingDays2 = Math.ceil((planData.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
+                    var currentDuration2 = currentPlanInfo2.duration || 7;
+                    actualPrice = Math.ceil(priceDiff * remainingDays2 / currentDuration2);
+                }
+            }
+        }
+    }
+
+    // ultra 套餐特殊处理
+    if (planName === 'ultra') {
+        player.sendModalForm(
+            t('chain_plan.confirm_title'),
+            '§l§6[Ultra]§r - ' + t('chain_plan.ultra_desc') + '\n§a价格: §e' + actualPrice + ' ' + currencyName,
+            t('chain_plan.btn_confirm'),
+            t('chain_plan.btn_cancel'),
+            function(p, result) {
+                if (result === true) {
+                    var purchaseResult = purchasePlan(p, planName);
+                    p.tell(purchaseResult.message);
+                    if (purchaseResult.success) showPlanMenu(p);
+                } else {
+                    showPlanMenu(p);
+                }
+            }
+        );
+        return;
+    }
+
+    var planInfo = planConfig[planName] || DEFAULT_PLANS[planName];
 
     player.sendModalForm(
         t('chain_plan.confirm_title'),
-        t('chain_plan.confirm_content', displayName, String(planInfo.dailyLimit), String(planInfo.price), currencyName, String(planInfo.duration)),
+        t('chain_plan.confirm_content', displayName, String(planInfo.dailyLimit), String(actualPrice), currencyName, String(planInfo.duration)),
         t('chain_plan.btn_confirm'),
         t('chain_plan.btn_cancel'),
         function(p, result) {

@@ -99,6 +99,7 @@ function writeShopSellLog(player, itemName, count, income, balance) {
 function calcInventorySpace(player, itemId) {
 	let space = 0;
 	player.getInventory().getAllItems().forEach(function(slot) {
+		if (!slot) return;
 		if (slot.type === '') space += 64;
 		else if (slot.type === itemId) space += 64 - slot.count;
 	});
@@ -151,7 +152,8 @@ function calculateRecyclableItems(player, recycleConfig) {
 
 	for (let i = 0; i < inventory.size; i++) {
 		const item = inventory.getItem(i);
-		if (!item.isNull() && recycleItems[item.type]) {
+		if (!item || item.isNull()) continue;
+		if (recycleItems[item.type]) {
 			const itemType = item.type;
 			const price = getRecyclePrice(recycleConfig, itemType);
 			recyclable[itemType] = recyclable[itemType] || {
@@ -225,7 +227,8 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 		let actualEarned = 0;
 		for (let i = 0; i < inventory.size; i++) {
 			const item = inventory.getItem(i);
-			if (!item.isNull() && actualRecyclable[item.type]) {
+			if (!item || item.isNull()) continue;
+			if (actualRecyclable[item.type]) {
 				const price = getRecyclePrice(recycleConfig, item.type);
 				actualEarned += item.count * price;
 				inventory.setItem(i, mc.newItem("minecraft:air", 0));
