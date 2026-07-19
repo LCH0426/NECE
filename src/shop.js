@@ -100,7 +100,7 @@ function calcInventorySpace(player, itemId) {
 	let space = 0;
 	player.getInventory().getAllItems().forEach(function(slot) {
 		if (!slot) return;
-		if (slot.type === '') space += 64;
+		if (slot.type === '' || slot.type === 'minecraft:air') space += 64;
 		else if (slot.type === itemId) space += 64 - slot.count;
 	});
 	return space;

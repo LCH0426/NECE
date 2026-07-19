@@ -814,6 +814,8 @@ function startHeadShowLoop() {
             if (!onlineXuids[uid]) {
                 delete _lastHeadShow[uid];
                 delete _headShowDeviceCache[uid];
+                delete _playerLastMsg[uid];
+                delete _playerLastMsgTime[uid];
             }
         }
     }, 1000);
