@@ -445,9 +445,9 @@ function registerRoutes(router, d) {
             let result = d.adminLog.getLogs(date, page, pageSize);
 
             // 非 10000 管理员不能查看 10000 的操作日志
-            if (currentUid !== '10000' && result && result.logs) {
-                result.logs = result.logs.filter(function(log) {
-                    return log.uid !== '10000';
+            if (String(currentUid) !== '10000' && result && result.entries) {
+                result.entries = result.entries.filter(function(log) {
+                    return log.admin !== '10000';
                 });
             }
 

@@ -169,14 +169,7 @@ function startRenderLoop() {
 						var entityCount = 0;
 						try { entityCount = mc.getAllEntities().length; } catch(e) {}
 
-						// 服务器版本和协议
-						var serverVer = '--';
-						var serverProto = '--';
-						try { serverVer = mc.getBDSVersion(); } catch(e) {}
-						try { serverProto = mc.getServerProtocolVersion(); } catch(e) {}
-
 						// 玩家设备信息
-						var playerOs = '--';
 						var avgPing = '--';
 						var packetLoss = '--';
 						var device = _playerDeviceCache[xuid];
@@ -229,7 +222,7 @@ function startRenderLoop() {
 						}
 						if (device && device.lastPing !== undefined && device.lastPing !== null) {
 							const ping = device.lastPing;
-							const pingColor = ping > 200 ? "§m" : ping > 95 ? "§6" : "§a";
+							const pingColor = ping > 200 ? "§c" : ping > 95 ? "§6" : "§a";
 							if (actionBar) actionBar += " ";
 							actionBar += pingColor + ping + "ms";
 						}
@@ -279,7 +272,7 @@ function startRenderLoop() {
 							let pingLine;
 							if (device && device.lastPing !== undefined && device.lastPing !== null) {
 								const ping = device.lastPing;
-								const pingColor = ping > 200 ? "§m" : ping > 95 ? "§6" : "§a";
+								const pingColor = ping > 200 ? "§c" : ping > 95 ? "§6" : "§a";
 								pingLine = t('sidebar.latency') + pingColor + ping + "ms";
 							} else {
 								pingLine = t('sidebar.latency_na');

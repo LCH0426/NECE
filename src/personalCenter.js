@@ -288,6 +288,7 @@ function installPrototypeExtensions() {
 	Object.defineProperty(LLSE_Player.prototype, "uid", {
 		get: function() {
 			let pd = _deps.getPlayerData();
+			if (!pd || !pd.players) return t('pc.unregistered');
 			const p = pd.players[this.xuid];
 			return p && p.uid !== undefined ? p.uid : t('pc.unregistered');
 		},
