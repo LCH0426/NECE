@@ -32,14 +32,20 @@ function init(deps) {
     _deps = deps || {};
 }
 
-function getLang() {
+function getLocale(xuid) {
+    if (_deps.getPlayerSetting && xuid) {
+        return _deps.getPlayerSetting(xuid, 'locale') || getSystemLang();
+    }
+    return getSystemLang();
+}
+
+function getSystemLang() {
     return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
 }
 
-function t(key) {
-    if (!_deps.t) return key;
-    var lang = getLang();
-    var args = [lang];
+function t(lang) {
+    if (!_deps.t) return lang;
+    var args = [];
     for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
     return _deps.t.apply(null, args);
 }
@@ -63,7 +69,7 @@ function writeShopLog(player, itemName, count, cost, balance) {
 			balance: balance
 		});
 	} catch (e) {
-		logger.error(t('shop.log_write_failed') + e.message);
+		logger.error(t(getSystemLang(), 'shop.log_write_failed') + e.message);
 	}
 }
 
@@ -86,7 +92,7 @@ function writeShopSellLog(player, itemName, count, income, balance) {
 			balance: balance
 		});
 	} catch (e) {
-		logger.error(t('shop.log_write_failed') + e.message);
+		logger.error(t(getSystemLang(), 'shop.log_write_failed') + e.message);
 	}
 }
 
@@ -185,18 +191,19 @@ function writeRecycleLog(player, items, totalValue, before, after) {
 			detail: itemsStr
 		});
 	} catch (e) {
-		logger.error(t('shop.log_recycle_write_failed') + e.message);
+		logger.error(t(getSystemLang(), 'shop.log_recycle_write_failed') + e.message);
 	}
 }
 
 /** 执行一键回收：确认后移除背包中所有可回收物品并发放货币 */
 function recycleItemsFromInventory(player, recycleConfig, deps) {
+	const lang = getLocale(player.xuid);
 	const result = calculateRecyclableItems(player, recycleConfig);
 	const recyclable = result.recyclable;
 	const totalValue = result.totalValue;
 
 	if (totalValue <= 0) {
-		player.sendModalForm(t('shop.recycle_title'), t('shop.recycle_empty'), t('shop.return_shop'), t('shop.close'), function(p, result) {
+		player.sendModalForm(t(lang, 'shop.recycle_title'), t(lang, 'shop.recycle_empty'), t(lang, 'shop.return_shop'), t(lang, 'shop.close'), function(p, result) {
 			if (result) showShopMainForm(p, deps);
 		});
 		return;
@@ -205,24 +212,24 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 	// 构造物品摘要
 	var itemNames = Object.keys(recyclable).map(function(type) {
 		return getRecycleName(recycleConfig, type) + "×" + recyclable[type].count;
-	}).join(t('shop.enum_separator'));
+	}).join(t(lang, 'shop.enum_separator'));
 
-	player.sendModalForm(t('shop.recycle_confirm'), t('shop.recycle_confirm_body') + itemNames + t('shop.expected_gain') + totalValue + " " + deps.getCurrencyName(), t('shop.confirm_recycle'), t('shop.cancel'), function(p, result) {
+	player.sendModalForm(t(lang, 'shop.recycle_confirm'), t(lang, 'shop.recycle_confirm_body') + itemNames + t(lang, 'shop.expected_gain') + totalValue + " " + deps.getCurrencyName(), t(lang, 'shop.confirm_recycle'), t(lang, 'shop.cancel'), function(p, result) {
 		if (result !== true) return;
+		const pLang = getLocale(p.xuid);
 		// 重新计算当前背包中实际可回收物品，防止确认期间背包变动
 		const actualResult = calculateRecyclableItems(p, recycleConfig);
 		const actualRecyclable = actualResult.recyclable;
 		const actualTotalValue = actualResult.totalValue;
 
 		if (actualTotalValue <= 0) {
-			p.tell(t('shop.recycle_empty_now'));
+			p.tell(t(pLang, 'shop.recycle_empty_now'));
 			return;
 		}
 
 		const currentBalance = deps.getPlayerMoney(p);
 
 		// 逐槽位精确匹配：只清除确认时仍在该槽位的可回收物品
-		// 记录每个槽位应清除的物品type，避免槽位移动导致误删
 		const inventory = p.getInventory();
 		let actualEarned = 0;
 		for (let i = 0; i < inventory.size; i++) {
@@ -237,50 +244,51 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 		p.refreshItems();
 
 		if (actualEarned <= 0) {
-			p.tell(t('shop.recycle_failed'));
+			p.tell(t(pLang, 'shop.recycle_failed'));
 			return;
 		}
 
-		deps.addPlayerMoney(p, actualEarned, t('shop.reason_recycle_all'));
+		deps.addPlayerMoney(p, actualEarned, t(pLang, 'shop.reason_recycle_all'));
 
 		const newBalance = deps.getPlayerMoney(p);
 
 		writeRecycleLog(p, actualRecyclable, actualEarned, currentBalance, newBalance);
 
-		p.tell(t('shop.recycle_success'));
-		p.tell(t('shop.shop_tag') + actualEarned + t('shop.item_price_suffix') + deps.getCurrencyName() + t('shop.balance_inline') + newBalance + t('shop.item_price_suffix') + deps.getCurrencyName() + "§r");
+		p.tell(t(pLang, 'shop.recycle_success'));
+		p.tell(t(pLang, 'shop.shop_tag') + actualEarned + t(pLang, 'shop.item_price_suffix') + deps.getCurrencyName() + t(pLang, 'shop.balance_inline') + newBalance + t(pLang, 'shop.item_price_suffix') + deps.getCurrencyName() + "§r");
 	});
 }
 
 /** 显示回收确认界面，列出可回收物品及总价值 */
 function showRecycleForm(player, recycleConfig, deps) {
+	const lang = getLocale(player.xuid);
 	const result = calculateRecyclableItems(player, recycleConfig);
 	const recyclable = result.recyclable;
 	const totalValue = result.totalValue;
 
 	if (Object.keys(recyclable).length === 0) {
-		player.sendModalForm(t('shop.recycle_title'), t('shop.recycle_empty_msg'), t('shop.return_shop'), t('shop.close'), function(p, result) {
+		player.sendModalForm(t(lang, 'shop.recycle_title'), t(lang, 'shop.recycle_empty_msg'), t(lang, 'shop.return_shop'), t(lang, 'shop.close'), function(p, result) {
 			if (result) showShopMainForm(p, deps);
 		});
 		return;
 	}
 
-	let content = t('shop.recycle_items_title');
+	let content = t(lang, 'shop.recycle_items_title');
 
 	Object.keys(recyclable).forEach(function(itemType) {
 		const data = recyclable[itemType];
 		const itemName = getRecycleName(recycleConfig, itemType);
-		content += "§f" + itemName + " ×" + data.count + " §8| §e" + (data.count * data.price) + t('shop.item_price_suffix') + deps.getCurrencyName() + "§r\n";
+		content += "§f" + itemName + " ×" + data.count + " §8| §e" + (data.count * data.price) + t(lang, 'shop.item_price_suffix') + deps.getCurrencyName() + "§r\n";
 	});
 
-	content += t('shop.total_value') + totalValue + t('shop.item_price_suffix') + deps.getCurrencyName() + "§r";
+	content += t(lang, 'shop.total_value') + totalValue + t(lang, 'shop.item_price_suffix') + deps.getCurrencyName() + "§r";
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle(t('shop.item_recycle_title'));
+	fm.setTitle(t(lang, 'shop.item_recycle_title'));
 	fm.setContent(content);
-	fm.addButton(t('shop.view_all_recyclable'), "textures/ui/icon_book_writable");
-	fm.addButton(t('shop.confirm_recycle_btn'));
-	fm.addButton(t('shop.cancel_btn'));
+	fm.addButton(t(lang, 'shop.view_all_recyclable'), "textures/ui/icon_book_writable");
+	fm.addButton(t(lang, 'shop.confirm_recycle_btn'));
+	fm.addButton(t(lang, 'shop.cancel_btn'));
 
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
@@ -294,13 +302,14 @@ function showRecycleForm(player, recycleConfig, deps) {
 
 /** 分页显示所有可回收物品配置列表 */
 function showAllRecyclableItems(player, recycleConfig, deps, page) {
+	const lang = getLocale(player.xuid);
 	const recycleItems = recycleConfig.recycleItems || {};
 	const keys = Object.keys(recycleItems);
 	if (keys.length === 0) {
 		const fm = mc.newSimpleForm();
-		fm.setTitle(t('shop.all_recyclable_title'));
-		fm.setContent(t('shop.no_recyclable_config'));
-		fm.addButton(t('shop.back'), "textures/ui/recap_glyph_desaturated");
+		fm.setTitle(t(lang, 'shop.all_recyclable_title'));
+		fm.setContent(t(lang, 'shop.no_recyclable_config'));
+		fm.addButton(t(lang, 'shop.back'), "textures/ui/recap_glyph_desaturated");
 		player.sendForm(fm, function(p, id) {
 			if (id === 0) showRecycleForm(p, recycleConfig, deps);
 		});
@@ -316,22 +325,22 @@ function showAllRecyclableItems(player, recycleConfig, deps, page) {
 	const pageKeys = keys.slice(start, end);
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle(t('shop.all_recyclable_page') + (page + 1) + "/" + totalPages + ")");
+	fm.setTitle(t(lang, 'shop.all_recyclable_page') + (page + 1) + "/" + totalPages + ")");
 
 	pageKeys.forEach(function(itemType) {
 		const name = getRecycleName(recycleConfig, itemType);
 		const price = getRecyclePrice(recycleConfig, itemType);
 		const image = getRecycleImage(recycleConfig, itemType);
-		fm.addButton(name + t('shop.recycle_price') + price + deps.getCurrencyName(), image || "");
+		fm.addButton(name + t(lang, 'shop.recycle_price') + price + deps.getCurrencyName(), image || "");
 	});
 
 	if (page > 0) {
-		fm.addButton(t('shop.prev_page'), "textures/ui/recap_glyph_desaturated");
+		fm.addButton(t(lang, 'shop.prev_page'), "textures/ui/recap_glyph_desaturated");
 	}
 	if (page < totalPages - 1) {
-		fm.addButton(t('shop.next_page'), "textures/ui/recap_glyph_desaturated");
+		fm.addButton(t(lang, 'shop.next_page'), "textures/ui/recap_glyph_desaturated");
 	}
-	fm.addButton(t('shop.back'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t(lang, 'shop.back'), "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
@@ -396,6 +405,7 @@ function calculateTotalXP(currentL, currentXP, upgradeN) {
 
 /** 显示经验购买表单 */
 function showXPBuyForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	const currentLevel = player.getLevel();
 	const currentXPInLevel = player.getCurrentExperience();
 	const xpToNextLevel = calculateXPNext(currentLevel);
@@ -405,26 +415,27 @@ function showXPBuyForm(player, deps) {
 	const balance = deps.getPlayerMoney ? deps.getPlayerMoney(player) : (deps.money ? deps.money.get(xuid) || 0 : 0);
 
 	const gui = mc.newCustomForm();
-	gui.setTitle(t('shop.xp_title'));
+	gui.setTitle(t(lang, 'shop.xp_title'));
 
-	let content = t('shop.current_level') + currentLevel + t('shop.level_suffix');
-	content += t('shop.current_progress') + currentXPInLevel + " / " + xpToNextLevel + "\n";
-	content += t('shop.next_level_need') + needXPToCurrentNext + t('shop.exp_suffix');
-	content += t('shop.exchange_rate') + deps.getCurrencyName() + "\n";
-	content += t('shop.you_have') + balance + t('shop.point_suffix') + deps.getCurrencyName() + "\n";
+	let content = t(lang, 'shop.current_level') + currentLevel + t(lang, 'shop.level_suffix');
+	content += t(lang, 'shop.current_progress') + currentXPInLevel + " / " + xpToNextLevel + "\n";
+	content += t(lang, 'shop.next_level_need') + needXPToCurrentNext + t(lang, 'shop.exp_suffix');
+	content += t(lang, 'shop.exchange_rate') + deps.getCurrencyName() + "\n";
+	content += t(lang, 'shop.you_have') + balance + t(lang, 'shop.point_suffix') + deps.getCurrencyName() + "\n";
 
 	gui.addLabel(content);
 
-	const levelOptions = [t('shop.manual_input_exp')];
+	const levelOptions = [t(lang, 'shop.manual_input_exp')];
 	for (let i = 1; i <= 10; i++) {
-		levelOptions.push(t('shop.upgrade') + i + t('shop.level_unit'));
+		levelOptions.push(t(lang, 'shop.upgrade') + i + t(lang, 'shop.level_unit'));
 	}
-	gui.addStepSlider(t('shop.select_upgrade_level'), levelOptions, 0, t('shop.select_upgrade_tip'));
+	gui.addStepSlider(t(lang, 'shop.select_upgrade_level'), levelOptions, 0, t(lang, 'shop.select_upgrade_tip'));
 
-	gui.addInput(t('shop.input_exp_amount'), t('shop.input_exp_placeholder'), "");
+	gui.addInput(t(lang, 'shop.input_exp_amount'), t(lang, 'shop.input_exp_placeholder'), "");
 
 	player.sendForm(gui, function(p, data) {
 		if (data == null) return;
+		const pLang = getLocale(p.xuid);
 
 		const levelIndex = data[1];
 		const customXP = data[2] || "";
@@ -449,10 +460,10 @@ function showXPBuyForm(player, deps) {
 
 		if (xpAmount < 1) {
 			p.sendModalForm(
-				t('shop.input_error_title'),
-				t('shop.input_error_body'),
-				t('shop.retry_input'),
-				t('shop.close'),
+				t(pLang, 'shop.input_error_title'),
+				t(pLang, 'shop.input_error_body'),
+				t(pLang, 'shop.retry_input'),
+				t(pLang, 'shop.close'),
 				function(player, res) {
 					if (res === true) showXPBuyForm(player, deps);
 				}
@@ -465,10 +476,10 @@ function showXPBuyForm(player, deps) {
 
 		if (playerBalance < cost) {
 			p.sendModalForm(
-				"§c" + deps.getCurrencyName() + t('shop.currency_insufficient'),
-				t('shop.buy_exp_body') + xpAmount + t('shop.buy_exp_body2') + cost + t('shop.item_price_suffix') + deps.getCurrencyName() + t('shop.buy_exp_body3') + playerBalance + t('shop.item_price_suffix') + deps.getCurrencyName() + t('shop.buy_exp_body4') + deps.getCurrencyName() + t('shop.buy_exp_body5'),
-				t('shop.return_btn'),
-				t('shop.close'),
+				"§c" + deps.getCurrencyName() + t(pLang, 'shop.currency_insufficient'),
+				t(pLang, 'shop.buy_exp_body') + xpAmount + t(pLang, 'shop.buy_exp_body2') + cost + t(pLang, 'shop.item_price_suffix') + deps.getCurrencyName() + t(pLang, 'shop.buy_exp_body3') + playerBalance + t(pLang, 'shop.item_price_suffix') + deps.getCurrencyName() + t(pLang, 'shop.buy_exp_body4') + deps.getCurrencyName() + t(pLang, 'shop.buy_exp_body5'),
+				t(pLang, 'shop.return_btn'),
+				t(pLang, 'shop.close'),
 				function(player, res) {
 					if (res === true) showXPBuyForm(player, deps);
 				}
@@ -484,20 +495,22 @@ function showXPBuyForm(player, deps) {
 
 /** 显示经验购买确认对话框 */
 function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
+	const lang = getLocale(player.xuid);
 	player.sendModalForm(
-		t('shop.confirm_purchase_title'),
-		t('shop.confirm_purchase_exp') + xpAmount + t('shop.cost_label') + deps.getCurrencyName() + t('shop.cost_label2') + cost + t('shop.current_label') + deps.getCurrencyName() + t('shop.cost_label2') + playerBalance + t('shop.after_purchase') + (playerBalance - cost) + t('shop.item_price_suffix'),
-		t('shop.confirm_btn'),
-		t('shop.cancel'),
+		t(lang, 'shop.confirm_purchase_title'),
+		t(lang, 'shop.confirm_purchase_exp') + xpAmount + t(lang, 'shop.cost_label') + deps.getCurrencyName() + t(lang, 'shop.cost_label2') + cost + t(lang, 'shop.current_label') + deps.getCurrencyName() + t(lang, 'shop.cost_label2') + playerBalance + t(lang, 'shop.after_purchase') + (playerBalance - cost) + t(lang, 'shop.item_price_suffix'),
+		t(lang, 'shop.confirm_btn'),
+		t(lang, 'shop.cancel'),
 		function(p, isConfirm) {
 			if (!p) return;
+			const pLang = getLocale(p.xuid);
 			if (!isConfirm) {
 				showXPBuyForm(p, deps);
 				return;
 			}
 
 			const xuid = p.xuid;
-			const reduceSuccess = deps.reducePlayerMoney(p, cost, t('shop.reason_buy_exp'));
+			const reduceSuccess = deps.reducePlayerMoney(p, cost, t(pLang, 'shop.reason_buy_exp'));
 
 			if (reduceSuccess) {
 				const addXPSuccess = p.addExperience(xpAmount);
@@ -507,10 +520,10 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 					const remainingBalance = deps.money.get(xuid) || 0;
 
 					p.sendModalForm(
-						t('shop.purchase_success'),
-						t('shop.purchase_success_exp') + xpAmount + t('shop.exp_suffix2') + newLevel + t('shop.level_suffix') + t('shop.cost_label_inline') + deps.getCurrencyName() + t('shop.cost_label2') + cost + t('shop.item_price_suffix') + t('shop.remaining_label') + deps.getCurrencyName() + t('shop.cost_label2') + remainingBalance + t('shop.item_price_suffix'),
-						t('shop.continue_buy'),
-						t('shop.done'),
+						t(pLang, 'shop.purchase_success'),
+						t(pLang, 'shop.purchase_success_exp') + xpAmount + t(pLang, 'shop.exp_suffix2') + newLevel + t(pLang, 'shop.level_suffix') + t(pLang, 'shop.cost_label_inline') + deps.getCurrencyName() + t(pLang, 'shop.cost_label2') + cost + t(pLang, 'shop.item_price_suffix') + t(pLang, 'shop.remaining_label') + deps.getCurrencyName() + t(pLang, 'shop.cost_label2') + remainingBalance + t(pLang, 'shop.item_price_suffix'),
+						t(pLang, 'shop.continue_buy'),
+						t(pLang, 'shop.done'),
 						function(pl, isContinue) {
 							if (!pl) return;
 							if (isContinue) showXPBuyForm(pl, deps);
@@ -518,12 +531,12 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 					);
 				} else {
 					// 经验添加失败，退还已扣除的货币
-					deps.addPlayerMoney(p, cost, t('shop.reason_refund_exp'));
+					deps.addPlayerMoney(p, cost, t(pLang, 'shop.reason_refund_exp'));
 					p.sendModalForm(
-						t('shop.purchase_failed'),
-						t('shop.exp_add_failed_refund') + cost + t('shop.item_price_suffix') + deps.getCurrencyName(),
-						t('shop.confirm_ok'),
-						t('shop.close'),
+						t(pLang, 'shop.purchase_failed'),
+						t(pLang, 'shop.exp_add_failed_refund') + cost + t(pLang, 'shop.item_price_suffix') + deps.getCurrencyName(),
+						t(pLang, 'shop.confirm_ok'),
+						t(pLang, 'shop.close'),
 						function(pl, res) {
 							if (res === true) showXPBuyForm(pl, deps);
 						}
@@ -531,10 +544,10 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 				}
 			} else {
 				p.sendModalForm(
-					t('shop.purchase_failed'),
-					t('shop.deduct_failed'),
-					t('shop.confirm_ok'),
-					t('shop.close'),
+					t(pLang, 'shop.purchase_failed'),
+					t(pLang, 'shop.deduct_failed'),
+					t(pLang, 'shop.confirm_ok'),
+					t(pLang, 'shop.close'),
 					function(pl, res) {
 						if (res === true) showXPBuyForm(pl, deps);
 					}
@@ -546,12 +559,13 @@ function showXPBuyConfirmForm(player, xpAmount, cost, playerBalance, deps) {
 
 /** 显示商店主界面 */
 function showShopMainForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	const fm = mc.newSimpleForm();
-	fm.setTitle(t('shop.main_title'));
-	fm.setContent(t('shop.select_function'));
-	fm.addButton(t('shop.btn_buy'), "textures/ui/icon_recipe_equipment");
-	fm.addButton(t('shop.btn_sell'), "textures/ui/trash_default");
-	fm.addButton(t('shop.close'), "textures/ui/cancel");
+	fm.setTitle(t(lang, 'shop.main_title'));
+	fm.setContent(t(lang, 'shop.select_function'));
+	fm.addButton(t(lang, 'shop.btn_buy'), "textures/ui/icon_recipe_equipment");
+	fm.addButton(t(lang, 'shop.btn_sell'), "textures/ui/trash_default");
+	fm.addButton(t(lang, 'shop.close'), "textures/ui/cancel");
 	player.sendForm(fm, function(p, id) {
 		if (id === null || id === 2) return;
 		if (id === 0) showBuyMenu(p, deps);
@@ -561,15 +575,16 @@ function showShopMainForm(player, deps) {
 
 /** 显示购买分类菜单 */
 function showBuyMenu(player, deps) {
+	const lang = getLocale(player.xuid);
 	const fm = mc.newSimpleForm();
-	fm.setTitle(t('shop.buy_title'));
-	fm.addButton(t('shop.search_items'), "textures/ui/magnifyingGlass");
+	fm.setTitle(t(lang, 'shop.buy_title'));
+	fm.addButton(t(lang, 'shop.search_items'), "textures/ui/magnifyingGlass");
 	if (deps.shopData && deps.shopData.Buy) {
 		deps.shopData.Buy.forEach(function(grp) {
 			fm.addButton(grp.name, grp.image || "");
 		});
 	}
-	fm.addButton(t('shop.return_prev'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t(lang, 'shop.return_prev'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
 		if (id === 0) {
@@ -584,9 +599,10 @@ function showBuyMenu(player, deps) {
 
 /** 显示购买搜索输入表单 */
 function showBuySearchForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	const fm = mc.newCustomForm();
-	fm.setTitle(t('shop.search_title'));
-	fm.addInput(t('shop.search_placeholder'), "", "");
+	fm.setTitle(t(lang, 'shop.search_title'));
+	fm.addInput(t(lang, 'shop.search_placeholder'), "", "");
 	player.sendForm(fm, function(p, data) {
 		if (data == null || !data || typeof data[0] !== 'string' || !data[0].trim()) {
 			showBuyMenu(p, deps);
@@ -600,6 +616,7 @@ function showBuySearchForm(player, deps) {
 
 /** 按关键词模糊搜索所有商品分组中的物品 */
 function showBuySearchResults(player, keyword, deps) {
+	const lang = getLocale(player.xuid);
 	const results = [];
 	if (deps.shopData && deps.shopData.Buy) {
 		deps.shopData.Buy.forEach(function(grp) {
@@ -612,15 +629,15 @@ function showBuySearchResults(player, keyword, deps) {
 		});
 	}
 	const fm = mc.newSimpleForm();
-	fm.setTitle(t('shop.search_prefix') + keyword);
+	fm.setTitle(t(lang, 'shop.search_prefix') + keyword);
 	if (results.length === 0) {
-		fm.setContent(t('shop.no_match'));
+		fm.setContent(t(lang, 'shop.no_match'));
 	}
 	results.forEach(function(it) {
-		fm.addButton(it.name + t('shop.price_prefix') + it.money + deps.getCurrencyName() + t('shop.per_unit'), it.image || "");
+		fm.addButton(it.name + t(lang, 'shop.price_prefix') + it.money + deps.getCurrencyName() + t(lang, 'shop.per_unit'), it.image || "");
 	});
-	fm.addButton(t('shop.re_search'), "textures/ui/magnifyingGlass");
-	fm.addButton(t('shop.return_upper'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t(lang, 'shop.re_search'), "textures/ui/magnifyingGlass");
+	fm.addButton(t(lang, 'shop.return_upper'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
 		if (id === results.length) showBuySearchForm(p, deps);
@@ -631,13 +648,14 @@ function showBuySearchResults(player, keyword, deps) {
 
 /** 显示某个商品分组内的物品列表 */
 function showBuyGroupForm(player, group, deps) {
+	const lang = getLocale(player.xuid);
 	const items = group.items || [];
 	const fm = mc.newSimpleForm();
 	fm.setTitle(group.name);
 	items.forEach(function(it) {
-		fm.addButton(it.name + t('shop.price_prefix') + it.money + deps.getCurrencyName() + t('shop.per_unit'), it.image || "");
+		fm.addButton(it.name + t(lang, 'shop.price_prefix') + it.money + deps.getCurrencyName() + t(lang, 'shop.per_unit'), it.image || "");
 	});
-	fm.addButton(t('shop.return_prev'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t(lang, 'shop.return_prev'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null || id === items.length) {
 			showBuyMenu(p, deps);
@@ -652,6 +670,7 @@ function showBuyGroupForm(player, group, deps) {
  * 支持手动输入和滑块快速选择
  */
 function showBuyItemForm(player, item, deps) {
+	const lang = getLocale(player.xuid);
 	const vipInfo = deps.getVipInfo(player);
 	const hasVip = vipInfo.hasVip;
 	const discount = hasVip ? 0.85 : 1;
@@ -660,21 +679,22 @@ function showBuyItemForm(player, item, deps) {
 	const balance = deps.getPlayerMoney(player);
 	const invSpace = calcInventorySpace(player, item.id);
 
-	let content = t('shop.item_id') + item.id.replace("minecraft:", "") + "\n";
-	content += t('shop.price_label') + unitPrice + deps.getCurrencyName() + t('shop.per_unit') + "\n";
+	let content = t(lang, 'shop.item_id') + item.id.replace("minecraft:", "") + "\n";
+	content += t(lang, 'shop.price_label') + unitPrice + deps.getCurrencyName() + t(lang, 'shop.per_unit') + "\n";
 	if (hasVip) {
-		content += t('shop.vip_price') + discountPrice + deps.getCurrencyName() + t('shop.per_unit') + "\n";
+		content += t(lang, 'shop.vip_price') + discountPrice + deps.getCurrencyName() + t(lang, 'shop.per_unit') + "\n";
 	}
-	content += t('shop.balance_label') + balance + " " + deps.getCurrencyName() + "\n";
-	content += t('shop.inventory_space') + invSpace + t('shop.slot_unit');
+	content += t(lang, 'shop.balance_label') + balance + " " + deps.getCurrencyName() + "\n";
+	content += t(lang, 'shop.inventory_space') + invSpace + t(lang, 'shop.slot_unit');
 
 	const fm = mc.newCustomForm();
 	fm.setTitle(item.name);
 	fm.addLabel(content);
-	fm.addInput(t('shop.input_buy_count'), t('shop.positive_int'), "");
-	fm.addSlider(t('shop.quick_select_count'), 0, 128, 1, 0);
+	fm.addInput(t(lang, 'shop.input_buy_count'), t(lang, 'shop.positive_int'), "");
+	fm.addSlider(t(lang, 'shop.quick_select_count'), 0, 128, 1, 0);
 	player.sendForm(fm, function(p, data) {
 		if (data == null || !Array.isArray(data)) return;
+		const pLang = getLocale(p.xuid);
 		const inputStr = (data[1] || "").trim();
 		const sliderVal = data[2] || 0;
 		let count;
@@ -683,12 +703,12 @@ function showBuyItemForm(player, item, deps) {
 		} else if (inputStr && U.isInteger(inputStr) && Number(inputStr) > 0) {
 			count = Number(inputStr);
 		} else {
-			p.tell(t('shop.invalid_buy_count'));
+			p.tell(t(pLang, 'shop.invalid_buy_count'));
 			showBuyItemForm(p, item, deps);
 			return;
 		}
 		if (count <= 0) {
-			p.tell(t('shop.count_positive'));
+			p.tell(t(pLang, 'shop.count_positive'));
 			showBuyItemForm(p, item, deps);
 			return;
 		}
@@ -699,19 +719,19 @@ function showBuyItemForm(player, item, deps) {
 		const currentSpace = calcInventorySpace(p, item.id);
 
 		if (currentBalance < totalCost) {
-			p.sendModalForm(t('shop.insufficient_balance'), t('shop.need_prefix') + totalCost + " " + deps.getCurrencyName() + t('shop.current_balance') + currentBalance + " " + deps.getCurrencyName(), t('shop.return_reselect'), t('shop.close'), function(pl, ok) {
+			p.sendModalForm(t(pLang, 'shop.insufficient_balance'), t(pLang, 'shop.need_prefix') + totalCost + " " + deps.getCurrencyName() + t(pLang, 'shop.current_balance') + currentBalance + " " + deps.getCurrencyName(), t(pLang, 'shop.return_reselect'), t(pLang, 'shop.close'), function(pl, ok) {
 				if (ok === true) showBuyItemForm(pl, item, deps);
 			});
 			return;
 		}
 		if (currentSpace < count) {
-			p.sendModalForm(t('shop.insufficient_inventory'), t('shop.need_space') + count + t('shop.space_suffix') + currentSpace + t('shop.slot_unit'), t('shop.return_reselect'), t('shop.close'), function(pl, ok) {
+			p.sendModalForm(t(pLang, 'shop.insufficient_inventory'), t(pLang, 'shop.need_space') + count + t(pLang, 'shop.space_suffix') + currentSpace + t(pLang, 'shop.slot_unit'), t(pLang, 'shop.return_reselect'), t(pLang, 'shop.close'), function(pl, ok) {
 				if (ok === true) showBuyItemForm(pl, item, deps);
 			});
 			return;
 		}
 
-		p.sendModalForm(t('shop.confirm_purchase'), item.name + " x" + count + "\n" + t('shop.cost_prefix') + totalCost + " " + deps.getCurrencyName(), t('shop.confirm_btn'), t('shop.cancel'), function(pl, ok) {
+		p.sendModalForm(t(pLang, 'shop.confirm_purchase'), item.name + " x" + count + "\n" + t(pLang, 'shop.cost_prefix') + totalCost + " " + deps.getCurrencyName(), t(pLang, 'shop.confirm_btn'), t(pLang, 'shop.cancel'), function(pl, ok) {
 			if (!ok) return;
 			executePurchase(pl, item, count, price, totalCost, hasVip, unitPrice, deps);
 		});
@@ -720,8 +740,9 @@ function showBuyItemForm(player, item, deps) {
 
 /** 执行购买逻辑：扣款、发放物品、VIP折扣累计、写日志 */
 function executePurchase(player, item, count, unitPrice, totalCost, hasVip, originalUnitPrice, deps) {
-	if (!deps.reducePlayerMoney(player, totalCost, t('shop.reason_buy'))) {
-		player.tell(t('shop.buy_deduct_failed'));
+	const lang = getLocale(player.xuid);
+	if (!deps.reducePlayerMoney(player, totalCost, t(lang, 'shop.reason_buy'))) {
+		player.tell(t(lang, 'shop.buy_deduct_failed'));
 		return;
 	}
 	deps.giveItemById(player, item.id, count);
@@ -737,24 +758,25 @@ function executePurchase(player, item, count, unitPrice, totalCost, hasVip, orig
 
 	const newBalance = deps.getPlayerMoney(player);
 	writeShopLog(player, item.name, count, totalCost, newBalance);
-	player.tell(t('shop.buy_success_msg') + item.name + " x" + count + t('shop.cost_msg') + totalCost + deps.getCurrencyName() + t('shop.balance_msg') + newBalance + deps.getCurrencyName());
-	player.sendModalForm(t('shop.buy_success_title'), item.name + " x" + count + "\n" + t('shop.cost_prefix') + totalCost + " " + deps.getCurrencyName() + "\n" + t('shop.balance_label') + newBalance + " " + deps.getCurrencyName(), t('shop.return_shopping'), t('shop.close'), function(pl, ok) {
+	player.tell(t(lang, 'shop.buy_success_msg') + item.name + " x" + count + t(lang, 'shop.cost_msg') + totalCost + deps.getCurrencyName() + t(lang, 'shop.balance_msg') + newBalance + deps.getCurrencyName());
+	player.sendModalForm(t(lang, 'shop.buy_success_title'), item.name + " x" + count + "\n" + t(lang, 'shop.cost_prefix') + totalCost + " " + deps.getCurrencyName() + "\n" + t(lang, 'shop.balance_label') + newBalance + " " + deps.getCurrencyName(), t(lang, 'shop.return_shopping'), t(lang, 'shop.close'), function(pl, ok) {
 		if (ok === true) showBuyMenu(pl, deps);
 	});
 }
 
 /** 显示出售/回收菜单 */
 function showSellMenu(player, deps) {
+	const lang = getLocale(player.xuid);
 	const fm = mc.newSimpleForm();
-	fm.setTitle(t('shop.sell_title'));
-	fm.addButton(t('shop.search_items'), "textures/ui/magnifyingGlass");
-	fm.addButton(t('shop.one_click_recycle'), "textures/ui/refresh");
+	fm.setTitle(t(lang, 'shop.sell_title'));
+	fm.addButton(t(lang, 'shop.search_items'), "textures/ui/magnifyingGlass");
+	fm.addButton(t(lang, 'shop.one_click_recycle'), "textures/ui/refresh");
 	if (deps.shopData && deps.shopData.Sell) {
 		deps.shopData.Sell.forEach(function(grp) {
 			fm.addButton(grp.name, grp.image || "");
 		});
 	}
-	fm.addButton(t('shop.return_prev'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t(lang, 'shop.return_prev'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
 		if (id === 0) {
@@ -771,9 +793,10 @@ function showSellMenu(player, deps) {
 
 /** 显示出售搜索输入表单 */
 function showSellSearchForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	const fm = mc.newCustomForm();
-	fm.setTitle(t('shop.search_recycle_title'));
-	fm.addInput(t('shop.search_placeholder'), "", "");
+	fm.setTitle(t(lang, 'shop.search_recycle_title'));
+	fm.addInput(t(lang, 'shop.search_placeholder'), "", "");
 	player.sendForm(fm, function(p, data) {
 		if (data == null || !data || typeof data[0] !== 'string' || !data[0].trim()) {
 			showSellMenu(p, deps);
@@ -787,6 +810,7 @@ function showSellSearchForm(player, deps) {
 
 /** 按关键词模糊搜索回收物品 */
 function showSellSearchResults(player, keyword, deps) {
+	const lang = getLocale(player.xuid);
 	const results = [];
 	if (deps.shopData && deps.shopData.Sell) {
 		deps.shopData.Sell.forEach(function(grp) {
@@ -799,15 +823,15 @@ function showSellSearchResults(player, keyword, deps) {
 		});
 	}
 	const fm = mc.newSimpleForm();
-	fm.setTitle(t('shop.search_recycle_prefix') + keyword);
+	fm.setTitle(t(lang, 'shop.search_recycle_prefix') + keyword);
 	if (results.length === 0) {
-		fm.setContent(t('shop.no_match'));
+		fm.setContent(t(lang, 'shop.no_match'));
 	}
 	results.forEach(function(it) {
-		fm.addButton(it.name + t('shop.recycle_price_label') + it.money + deps.getCurrencyName() + t('shop.per_unit'), it.image || "");
+		fm.addButton(it.name + t(lang, 'shop.recycle_price_label') + it.money + deps.getCurrencyName() + t(lang, 'shop.per_unit'), it.image || "");
 	});
-	fm.addButton(t('shop.re_search'), "textures/ui/magnifyingGlass");
-	fm.addButton(t('shop.return_upper'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t(lang, 'shop.re_search'), "textures/ui/magnifyingGlass");
+	fm.addButton(t(lang, 'shop.return_upper'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null) return;
 		if (id === results.length) showSellSearchForm(p, deps);
@@ -818,13 +842,14 @@ function showSellSearchResults(player, keyword, deps) {
 
 /** 显示某个回收分组内的物品列表 */
 function showSellGroupForm(player, group, deps) {
+	const lang = getLocale(player.xuid);
 	const items = group.items || [];
 	const fm = mc.newSimpleForm();
 	fm.setTitle(group.name);
 	items.forEach(function(it) {
-		fm.addButton(it.name + t('shop.recycle_price_label') + it.money + deps.getCurrencyName() + t('shop.per_unit'), it.image || "");
+		fm.addButton(it.name + t(lang, 'shop.recycle_price_label') + it.money + deps.getCurrencyName() + t(lang, 'shop.per_unit'), it.image || "");
 	});
-	fm.addButton(t('shop.return_prev'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton(t(lang, 'shop.return_prev'), "textures/ui/recap_glyph_desaturated");
 	player.sendForm(fm, function(p, id) {
 		if (id === null || id === items.length) {
 			showSellMenu(p, deps);
@@ -836,28 +861,30 @@ function showSellGroupForm(player, group, deps) {
 
 /** 显示出售详情表单：回收价、持有数量，支持全部出售或输入数量 */
 function showSellItemForm(player, item, deps) {
+	const lang = getLocale(player.xuid);
 	const balance = deps.getPlayerMoney(player);
 	const owned = countOwnedItems(player, item.id);
 
-	let content = t('shop.item_id') + item.id.replace("minecraft:", "") + "\n";
-	content += t('shop.recycle_price_label2') + item.money + deps.getCurrencyName() + t('shop.per_unit') + "\n";
-	content += t('shop.balance_label') + balance + " " + deps.getCurrencyName() + "\n";
-	content += t('shop.owned_count') + owned + t('shop.count_unit');
+	let content = t(lang, 'shop.item_id') + item.id.replace("minecraft:", "") + "\n";
+	content += t(lang, 'shop.recycle_price_label2') + item.money + deps.getCurrencyName() + t(lang, 'shop.per_unit') + "\n";
+	content += t(lang, 'shop.balance_label') + balance + " " + deps.getCurrencyName() + "\n";
+	content += t(lang, 'shop.owned_count') + owned + t(lang, 'shop.count_unit');
 
 	const fm = mc.newCustomForm();
 	fm.setTitle(item.name);
 	fm.addLabel(content);
-	fm.addSwitch(t('shop.sell_all'), false);
-	fm.addInput(t('shop.input_sell_count'), t('shop.positive_int'), "");
+	fm.addSwitch(t(lang, 'shop.sell_all'), false);
+	fm.addInput(t(lang, 'shop.input_sell_count'), t(lang, 'shop.positive_int'), "");
 	player.sendForm(fm, function(p, data) {
 		if (data == null || !Array.isArray(data)) return;
+		const pLang = getLocale(p.xuid);
 		const sellAll = data[1] || false;
 		const inputStr = (data[2] || "").trim();
 		let count;
 		if (sellAll) {
 			const ownedCount = countOwnedItems(p, item.id);
 			if (ownedCount <= 0) {
-				p.sendModalForm(t('shop.insufficient_items'), t('shop.no_item'), t('shop.return_reselect'), t('shop.close'), function(pl, ok) {
+				p.sendModalForm(t(pLang, 'shop.insufficient_items'), t(pLang, 'shop.no_item'), t(pLang, 'shop.return_reselect'), t(pLang, 'shop.close'), function(pl, ok) {
 					if (ok === true) showSellItemForm(pl, item, deps);
 				});
 				return;
@@ -866,32 +893,32 @@ function showSellItemForm(player, item, deps) {
 		} else if (inputStr && U.isInteger(inputStr) && Number(inputStr) > 0) {
 			count = Number(inputStr);
 		} else {
-			p.tell(t('shop.invalid_sell_count'));
+			p.tell(t(pLang, 'shop.invalid_sell_count'));
 			showSellItemForm(p, item, deps);
 			return;
 		}
 		if (count <= 0) {
-			p.tell(t('shop.sell_count_positive'));
+			p.tell(t(pLang, 'shop.sell_count_positive'));
 			showSellItemForm(p, item, deps);
 			return;
 		}
 
 		const currentOwned = countOwnedItems(p, item.id);
 		if (currentOwned === 0) {
-			p.sendModalForm(t('shop.insufficient_items'), t('shop.no_item'), t('shop.return_reselect'), t('shop.close'), function(pl, ok) {
+			p.sendModalForm(t(pLang, 'shop.insufficient_items'), t(pLang, 'shop.no_item'), t(pLang, 'shop.return_reselect'), t(pLang, 'shop.close'), function(pl, ok) {
 				if (ok === true) showSellItemForm(pl, item, deps);
 			});
 			return;
 		}
 		if (count > currentOwned) {
-			p.sendModalForm(t('shop.insufficient_count'), t('shop.need_count') + count + t('shop.current_held') + currentOwned + t('shop.count_unit'), t('shop.return_reselect'), t('shop.close'), function(pl, ok) {
+			p.sendModalForm(t(pLang, 'shop.insufficient_count'), t(pLang, 'shop.need_count') + count + t(pLang, 'shop.current_held') + currentOwned + t(pLang, 'shop.count_unit'), t(pLang, 'shop.return_reselect'), t(pLang, 'shop.close'), function(pl, ok) {
 				if (ok === true) showSellItemForm(pl, item, deps);
 			});
 			return;
 		}
 
 		const income = count * item.money;
-		p.sendModalForm(t('shop.recycle_confirm'), item.name + " x" + count + "\n" + t('shop.obtained') + income + " " + deps.getCurrencyName(), t('shop.confirm_recycle'), t('shop.cancel'), function(pl, ok) {
+		p.sendModalForm(t(pLang, 'shop.recycle_confirm'), item.name + " x" + count + "\n" + t(pLang, 'shop.obtained') + income + " " + deps.getCurrencyName(), t(pLang, 'shop.confirm_recycle'), t(pLang, 'shop.cancel'), function(pl, ok) {
 			if (!ok) return;
 			executeSell(pl, item, count, income, deps);
 		});
@@ -900,17 +927,18 @@ function showSellItemForm(player, item, deps) {
 
 /** 执行出售逻辑：先增加货币，再移除物品，防止货币发放失败时物品丢失 */
 function executeSell(player, item, count, income, deps) {
+	const lang = getLocale(player.xuid);
 	// 先加钱，加钱失败则不扣物品
-	if (!deps.addPlayerMoney(player, income, t('shop.reason_sell'))) {
-		player.tell(t('shop.sell_failed'));
+	if (!deps.addPlayerMoney(player, income, t(lang, 'shop.reason_sell'))) {
+		player.tell(t(lang, 'shop.sell_failed'));
 		return;
 	}
 	// 加钱成功后再移除物品
 	mc.runcmd('clear "' + player.realName + '" ' + item.id + ' 0 ' + count);
 	const newBalance = deps.getPlayerMoney(player);
 	writeShopSellLog(player, item.name, count, income, newBalance);
-	player.tell(t('shop.sell_success_msg') + item.name + " x" + count + t('shop.sell_obtained') + income + deps.getCurrencyName() + t('shop.balance_msg') + newBalance + deps.getCurrencyName());
-	player.sendModalForm(t('shop.recycle_success_title'), item.name + " x" + count + "\n" + t('shop.obtained') + income + " " + deps.getCurrencyName() + "\n" + t('shop.balance_label') + newBalance + " " + deps.getCurrencyName(), t('shop.return_recycle'), t('shop.close'), function(pl, ok) {
+	player.tell(t(lang, 'shop.sell_success_msg') + item.name + " x" + count + t(lang, 'shop.sell_obtained') + income + deps.getCurrencyName() + t(lang, 'shop.balance_msg') + newBalance + deps.getCurrencyName());
+	player.sendModalForm(t(lang, 'shop.recycle_success_title'), item.name + " x" + count + "\n" + t(lang, 'shop.obtained') + income + " " + deps.getCurrencyName() + "\n" + t(lang, 'shop.balance_label') + newBalance + " " + deps.getCurrencyName(), t(lang, 'shop.return_recycle'), t(lang, 'shop.close'), function(pl, ok) {
 		if (ok === true) showSellMenu(pl, deps);
 	});
 }

@@ -1478,7 +1478,14 @@
     "dust_refine_desc": ": §fExchange {0} to {1}\n",
     "enchant_exchange_desc": ": §fUse {0} for enchant books\n",
     "egg_exchange_desc": ": §fUse {0} for spawn eggs\n",
-    "level_unit": " Lv."
+    "level_unit": " Lv.",
+    "fate_path": "§6Fate Path",
+    "fate_path_desc": "§eChoose your target 5-star item\n50% chance to get the target when pulling 5-star\nIf you lose, you get a core, next 5-star guarantees the target",
+    "fate_path_target": "Fate Target",
+    "fate_path_hint": "Select the 5-star item you want to target",
+    "fate_path_set": "§aFate set: {0}\n\n§7Next 5-star will prioritize this item",
+    "fate_path_return": "Return to Wish",
+    "unknown": "Unknown"
   },
   "chat": {
     "title_system": "§l§bTitle System",
@@ -2061,5 +2068,13 @@
     "kick_maintenance": "§cServer under maintenance\n§e{0}\n{0}",
     "cmd_console_only": "§cThis command can only be used by players in-game!",
     "guild_disabled": "§cGuild system is currently disabled!"
+  },
+  "sign": {
+    "tag": "§e[Sign-In]§r ",
+    "disabled": "§cSign-in is disabled",
+    "data_error": "§cPlayer data error",
+    "already_signed": "§cYou have already signed in today!",
+    "success": "§aSuccessfully signed in! Received {0}{1}, consecutive days: {2}.",
+    "cmd_desc": "Daily Sign-In"
   }
 }

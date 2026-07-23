@@ -34,14 +34,20 @@ let messageData = {
 };
 let _deps = {};
 
-function getLang() {
+function getLocale(xuid) {
+    if (_deps.getPlayerSetting && xuid) {
+        return _deps.getPlayerSetting(xuid, 'locale') || getSystemLang();
+    }
+    return getSystemLang();
+}
+
+function getSystemLang() {
     return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
 }
 
-function t(key) {
-    if (!_deps.t) return key;
-    var lang = getLang();
-    var args = [lang];
+function t(lang) {
+    if (!_deps.t) return lang;
+    var args = [];
     for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
     return _deps.t.apply(null, args);
 }
@@ -208,7 +214,8 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
     if (!isFriend && _deps.getPlayerSetting && !_deps.getPlayerSetting(toXuid, "acceptStrangerMessages")) {
         const fromPlayer = mc.getPlayer(fromXuid);
         if (fromPlayer) {
-            fromPlayer.tell(t('friend.tag_friend') + " §c" + t('friend.reject_stranger'));
+            const lang = getLocale(fromXuid);
+            fromPlayer.tell(t(lang, 'friend.tag_friend') + " §c" + t(lang, 'friend.reject_stranger'));
         }
         return false;
     }
@@ -226,7 +233,7 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
 
     // 解析接收者名称用于发送方记录
     const toPlayer = mc.getPlayer(toXuid);
-    const toName = toPlayer ? toPlayer.name : (_deps.getPlayerInfoByXuid ? (_deps.getPlayerInfoByXuid(toXuid) || {}).name : null) || t('friend.unknown_player');
+    const toName = toPlayer ? toPlayer.name : (_deps.getPlayerInfoByXuid ? (_deps.getPlayerInfoByXuid(toXuid) || {}).name : null) || t(getSystemLang(), 'friend.unknown_player');
 
     // 发送方消息记录
     const senderMessages = getPlayerMessageData(fromXuid);
@@ -247,9 +254,10 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
     // 在线时推送 toast 通知
     const targetPlayer = mc.getPlayer(toXuid);
     if (targetPlayer && _deps.getPlayerSetting && _deps.getPlayerSetting(toXuid, "enableMessageNotification")) {
-        const relationType = isFriend ? t('friend.friend') : t('friend.stranger');
-        targetPlayer.sendToast("§e" + t('friend.msg_notify_toast'), "§a" + t('friend.msg_notify_body', fromName));
-        targetPlayer.tell(t('friend.tag_msg') + " §a" + t('friend.msg_notify_body', fromName));
+        const tLang = getLocale(toXuid);
+        const relationType = isFriend ? t(tLang, 'friend.friend') : t(tLang, 'friend.stranger');
+        targetPlayer.sendToast("§e" + t(tLang, 'friend.msg_notify_toast'), "§a" + t(tLang, 'friend.msg_notify_body', fromName));
+        targetPlayer.tell(t(tLang, 'friend.tag_msg') + " §a" + t(tLang, 'friend.msg_notify_body', fromName));
     }
     return true;
 }
@@ -262,10 +270,11 @@ function sendMessage(fromXuid, fromName, toXuid, content) {
  * @param {number} page - 当前页码（从0开始）
  */
 function showSendMessageForm(player, toXuid, toName, page) {
+	const lang = getLocale(player.xuid);
     page = page || 0;
     const xuid = player.xuid;
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§b" + t('friend.msg_title'));
+    gui.setTitle("§l§b" + t(lang, 'friend.msg_title'));
 
     // 筛选与目标玩家的双向消息，构建聊天历史
     const myMsgData = getPlayerMessageData(xuid);
@@ -274,7 +283,7 @@ function showSendMessageForm(player, toXuid, toName, page) {
     myMsgData.messages.forEach(function(msg) {
         if (msg.fromXuid === xuid && msg.toXuid === toXuid) {
             chatHistory.push({
-                fromName: t('friend.me'),
+                fromName: t(lang, 'friend.me'),
                 fromXuid: xuid,
                 content: msg.content,
                 time: msg.time,
@@ -304,11 +313,11 @@ function showSendMessageForm(player, toXuid, toName, page) {
     const pageMessages = chatHistory.slice(startIndex, endIndex);
 
     let historyContent = "-------------------------\n";
-    historyContent += "§e" + t('friend.conversation_history', toName) + " (" + (currentPage + 1) + "/" + totalPages + ")\n";
+    historyContent += "§e" + t(lang, 'friend.conversation_history', toName) + " (" + (currentPage + 1) + "/" + totalPages + ")\n";
     historyContent += "-------------------------\n";
 
     if (pageMessages.length === 0) {
-        historyContent += t('friend.no_history') + "\n";
+        historyContent += t(lang, 'friend.no_history') + "\n";
     } else {
         pageMessages.forEach(function(msg) {
             const nameColor = msg.isSelf ? "§a" : "§b";
@@ -323,12 +332,12 @@ function showSendMessageForm(player, toXuid, toName, page) {
     if (totalPages > 1) {
         const pageOptions = [];
         for (let i = 0; i < totalPages; i++) {
-            pageOptions.push(t('friend.page_label', i + 1));
+            pageOptions.push(t(lang, 'friend.page_label', i + 1));
         }
-        gui.addDropdown(t('friend.select_page'), pageOptions, currentPage);
+        gui.addDropdown(t(lang, 'friend.select_page'), pageOptions, currentPage);
     }
 
-    gui.addInput(t('friend.msg_content'), t('friend.msg_placeholder'), "");
+    gui.addInput(t(lang, 'friend.msg_content'), t(lang, 'friend.msg_placeholder'), "");
 
     player.sendForm(gui, function(p, data) {
         if (data == null || data === undefined || !Array.isArray(data)) {
@@ -348,14 +357,14 @@ function showSendMessageForm(player, toXuid, toName, page) {
         }
 
         if (!content) {
-            p.tell(t('friend.tag_friend') + " §c" + t('friend.msg_empty'));
+            p.tell(t(lang, 'friend.tag_friend') + " §c" + t(lang, 'friend.msg_empty'));
             showSendMessageForm(p, toXuid, toName, currentPage);
             return;
         }
 
         const success = sendMessage(p.xuid, p.name, toXuid, content);
         if (success) {
-            p.tell(t('friend.tag_friend') + " §a" + t('friend.msg_sent', toName));
+            p.tell(t(lang, 'friend.tag_friend') + " §a" + t(lang, 'friend.msg_sent', toName));
             showSendMessageForm(p, toXuid, toName, currentPage);
         } else {
             showSendMessageForm(p, toXuid, toName, currentPage);
@@ -368,6 +377,7 @@ function showSendMessageForm(player, toXuid, toName, page) {
  * @param {Player} player
  */
 function showMyMessagesForm(player) {
+	const lang = getLocale(player.xuid);
     const xuid = player.xuid;
     const msgData = getPlayerMessageData(xuid);
 
@@ -380,7 +390,7 @@ function showMyMessagesForm(player) {
     const playerMap = new Map();
     sortedMessages.forEach(function(msg) {
         const otherXuid = msg.fromXuid === xuid ? msg.toXuid : msg.fromXuid;
-        const otherName = msg.fromXuid === xuid ? (msg.toName || t('friend.unknown_player')) : msg.fromName;
+        const otherName = msg.fromXuid === xuid ? (msg.toName || t(lang, 'friend.unknown_player')) : msg.fromName;
 
         if (!playerMap.has(otherXuid)) {
             playerMap.set(otherXuid, {
@@ -402,15 +412,15 @@ function showMyMessagesForm(player) {
     });
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b" + t('friend.my_messages'));
+    gui.setTitle("§l§b" + t(lang, 'friend.my_messages'));
 
     if (playerList.length === 0) {
-        gui.setContent(t('friend.no_messages'));
+        gui.setContent(t(lang, 'friend.no_messages'));
     } else {
         const totalUnread = sortedMessages.filter(function(m) { return !m.read; }).length;
-        gui.setContent("§a" + t('friend.conversations', playerList.length) + "\n§e" + t('friend.unread', totalUnread) + "\n" + t('friend.click_to_view'));
+        gui.setContent("§a" + t(lang, 'friend.conversations', playerList.length) + "\n§e" + t(lang, 'friend.unread', totalUnread) + "\n" + t(lang, 'friend.click_to_view'));
         playerList.forEach(function(playerData) {
-            const status = playerData.unreadCount > 0 ? "§e[" + playerData.unreadCount + t('friend.new_msg') + "] " : "";
+            const status = playerData.unreadCount > 0 ? "§e[" + playerData.unreadCount + t(lang, 'friend.new_msg') + "] " : "";
             // 消息预览截断到15字符
             const preview = playerData.latestMsg.content.length > 15 ?
                 playerData.latestMsg.content.substring(0, 15) + "..." :
@@ -420,7 +430,7 @@ function showMyMessagesForm(player) {
         });
     }
 
-    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -441,6 +451,7 @@ function showMyMessagesForm(player) {
  * @param {number} page - 页码（从0开始）
  */
 function showConversationHistoryForm(player, targetXuid, targetName, page) {
+	const lang = getLocale(player.xuid);
     page = page || 0;
     const xuid = player.xuid;
     const msgData = getPlayerMessageData(xuid);
@@ -462,7 +473,7 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     saveMessageData();
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b" + t('friend.conversation_with', targetName));
+    gui.setTitle("§l§b" + t(lang, 'friend.conversation_with', targetName));
 
     const messagesPerPage = 5;
     const totalPages = Math.ceil(conversation.length / messagesPerPage) || 1;
@@ -472,15 +483,15 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     const pageMessages = conversation.slice(startIndex, endIndex);
 
     let content = "-------------------------\n";
-    content += t('friend.conversation_title', targetName, String(currentPage + 1), String(totalPages)) + "\n";
+    content += t(lang, 'friend.conversation_title', targetName, String(currentPage + 1), String(totalPages)) + "\n";
     content += "-------------------------\n";
 
     if (conversation.length === 0) {
-        content += t('friend.no_history') + "\n";
+        content += t(lang, 'friend.no_history') + "\n";
     } else {
         pageMessages.forEach(function(msg) {
             const nameColor = msg.isSelf ? "§a" : "§b";
-            const name = msg.isSelf ? t('friend.me') : msg.fromName;
+            const name = msg.isSelf ? t(lang, 'friend.me') : msg.fromName;
             content += nameColor + name + " " + msg.time + "\n";
             content += "§f" + msg.content + "\n";
             content += "-------------------------\n";
@@ -490,14 +501,14 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
     gui.setContent(content);
 
     if (currentPage < totalPages - 1) {
-        gui.addButton(t('friend.next_page_btn'), "textures/ui/arrowRight");
+        gui.addButton(t(lang, 'friend.next_page_btn'), "textures/ui/arrowRight");
     }
     if (currentPage > 0) {
-        gui.addButton(t('friend.prev_page_btn'), "textures/ui/arrowLeft");
+        gui.addButton(t(lang, 'friend.prev_page_btn'), "textures/ui/arrowLeft");
     }
 
-    gui.addButton("§b" + t('friend.send_message'), "textures/ui/backup_replace");
-    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton("§b" + t(lang, 'friend.send_message'), "textures/ui/backup_replace");
+    gui.addButton(t(lang, 'friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -535,24 +546,25 @@ function showConversationHistoryForm(player, targetXuid, targetName, page) {
  * @param {Object} message - 消息对象
  */
 function showMessageDetailForm(player, message) {
+	const lang = getLocale(player.xuid);
     message.read = true;
     _dirtyMessages[player.xuid] = true;
     saveMessageData();
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b" + t('friend.msg_detail'));
+    gui.setTitle("§l§b" + t(lang, 'friend.msg_detail'));
 
     let content = "-------------------------\n";
-    content += "§a" + t('friend.from') + "§f" + message.fromName + "\n";
-    content += "§a" + t('friend.time') + "§f" + message.time + "\n";
+    content += "§a" + t(lang, 'friend.from') + "§f" + message.fromName + "\n";
+    content += "§a" + t(lang, 'friend.time') + "§f" + message.time + "\n";
     content += "-------------------------\n";
     content += "§f" + message.content + "\n";
     content += "-------------------------\n";
 
     gui.setContent(content);
-    gui.addButton("§b" + t('friend.reply'), "textures/ui/icon_chat");
-    gui.addButton("§c" + t('friend.delete'), "textures/ui/trash_default");
-    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton("§b" + t(lang, 'friend.reply'), "textures/ui/icon_chat");
+    gui.addButton("§c" + t(lang, 'friend.delete'), "textures/ui/trash_default");
+    gui.addButton(t(lang, 'friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -567,7 +579,7 @@ function showMessageDetailForm(player, message) {
             });
             _dirtyMessages[p.xuid] = true;
             saveMessageData();
-            p.tell(t('friend.tag_friend') + " §c" + t('friend.msg_deleted'));
+            p.tell(t(lang, 'friend.tag_friend') + " §c" + t(lang, 'friend.msg_deleted'));
             showMyMessagesForm(p);
         } else if (id === 2) {
             showMyMessagesForm(p);
@@ -580,6 +592,7 @@ function showMessageDetailForm(player, message) {
  * @param {Player} player
  */
 function showMyFriendsForm(player) {
+	const lang = getLocale(player.xuid);
     const xuid = player.xuid;
     const friendInfo = getPlayerFriendData(xuid);
     const myFriends = friendInfo.friends;
@@ -587,28 +600,28 @@ function showMyFriendsForm(player) {
     const pendingCount = pendingRequests.length;
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§b" + t('friend.my_friends'));
+    gui.setTitle("§b" + t(lang, 'friend.my_friends'));
 
     let content = "-------------------------\n";
-    content += "§a" + t('friend.friend_count') + "§f" + myFriends.length + "\n";
-    content += "§a" + t('friend.pending_requests') + "§f" + pendingCount + "\n";
+    content += "§a" + t(lang, 'friend.friend_count') + "§f" + myFriends.length + "\n";
+    content += "§a" + t(lang, 'friend.pending_requests') + "§f" + pendingCount + "\n";
     content += "-------------------------\n";
     gui.setContent(content);
 
-    gui.addButton("§e" + t('friend.add_friend'), "textures/ui/color_plus");
-    gui.addButton("§d" + t('friend.friend_requests') + (pendingCount > 0 ? " §c(" + pendingCount + ")" : ""), "textures/ui/icon_bell");
-    gui.addButton("§b" + t('friend.my_messages_btn'), "textures/ui/Feedback");
+    gui.addButton("§e" + t(lang, 'friend.add_friend'), "textures/ui/color_plus");
+    gui.addButton("§d" + t(lang, 'friend.friend_requests') + (pendingCount > 0 ? " §c(" + pendingCount + ")" : ""), "textures/ui/icon_bell");
+    gui.addButton("§b" + t(lang, 'friend.my_messages_btn'), "textures/ui/Feedback");
 
     if (myFriends.length > 0) {
         myFriends.forEach(function(friend) {
             const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
-            const onlineStatus = mc.getPlayer(friend.xuid) ? "§a[" + t('friend.online') + "]" : "[" + t('friend.offline') + "]";
+            const onlineStatus = mc.getPlayer(friend.xuid) ? "§a[" + t(lang, 'friend.online') + "]" : "[" + t(lang, 'friend.offline') + "]";
             const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(friend.xuid) : "";
-            gui.addButton(onlineStatus + " §b" + (fi ? fi.name : t('friend.unknown_player')) + "\n§6UID: " + (fi ? fi.uid : t('friend.unknown')), avatarUrl);
+            gui.addButton(onlineStatus + " §b" + (fi ? fi.name : t(lang, 'friend.unknown_player')) + "\n§6UID: " + (fi ? fi.uid : t(lang, 'friend.unknown')), avatarUrl);
         });
     }
 
-    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -632,10 +645,11 @@ function showMyFriendsForm(player) {
  * @param {Player} player
  */
 function showSearchFriendForm(player) {
+	const lang = getLocale(player.xuid);
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§b" + t('friend.search_friend'));
-    gui.addDropdown(t('friend.search_method'), [t('friend.player_name'), t('friend.uid')], 0);
-    gui.addInput(t('friend.search_keyword'), t('friend.search_placeholder_friend'), "");
+    gui.setTitle("§l§b" + t(lang, 'friend.search_friend'));
+    gui.addDropdown(t(lang, 'friend.search_method'), [t(lang, 'friend.player_name'), t(lang, 'friend.uid')], 0);
+    gui.addInput(t(lang, 'friend.search_keyword'), t(lang, 'friend.search_placeholder_friend'), "");
 
     player.sendForm(gui, function(p, data) {
         if (data == null || data === undefined || !Array.isArray(data) || data.length < 2) {
@@ -647,7 +661,7 @@ function showSearchFriendForm(player) {
         const keyword = (data[1] || "").trim();
 
         if (!keyword) {
-            p.tell(t('friend.tag_friend') + " §c" + t('friend.input_keyword'));
+            p.tell(t(lang, 'friend.tag_friend') + " §c" + t(lang, 'friend.input_keyword'));
             showSearchFriendForm(p);
             return;
         }
@@ -664,20 +678,21 @@ function showSearchFriendForm(player) {
  * @param {string} keyword - 搜索关键词（用于空结果提示）
  */
 function showSearchResultsForm(player, results, keyword) {
+	const lang = getLocale(player.xuid);
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b" + t('friend.search_result'));
+    gui.setTitle("§l§b" + t(lang, 'friend.search_result'));
 
     if (results.length === 0) {
-        gui.setContent("§c" + t('friend.no_match', keyword));
+        gui.setContent("§c" + t(lang, 'friend.no_match', keyword));
     } else {
-        gui.setContent("§a" + t('friend.match_results', results.length) + "\n" + t('friend.click_to_view_detail'));
+        gui.setContent("§a" + t(lang, 'friend.match_results', results.length) + "\n" + t(lang, 'friend.click_to_view_detail'));
         results.forEach(function(p) {
             const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(p.xuid) : "";
             gui.addButton("§b" + p.name + "\n§6UID: " + p.uid, avatarUrl);
         });
     }
 
-    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -696,6 +711,7 @@ function showSearchResultsForm(player, results, keyword) {
  * @param {Object} targetInfo - 目标玩家信息 {xuid, name, uid, registerTime}
  */
 function showPlayerDetailForm(player, targetInfo) {
+	const lang = getLocale(player.xuid);
     const xuid = player.xuid;
     const myFriends = getPlayerFriendData(xuid);
     const isFriend = myFriends.friends.some(function(f) { return f.xuid === targetInfo.xuid; });
@@ -708,31 +724,31 @@ function showPlayerDetailForm(player, targetInfo) {
     gui.setTitle("§l§b" + targetInfo.name);
 
     let content = "-------------------------\n";
-    content += t('friend.player_name_label') + targetInfo.name + "\n";
-    content += t('friend.uid_label') + targetInfo.uid + "\n";
-    content += "§a" + t('friend.register_time') + "§f" + (targetInfo.registerTime || t('friend.unknown')) + "\n";
+    content += t(lang, 'friend.player_name_label') + targetInfo.name + "\n";
+    content += t(lang, 'friend.uid_label') + targetInfo.uid + "\n";
+    content += "§a" + t(lang, 'friend.register_time') + "§f" + (targetInfo.registerTime || t(lang, 'friend.unknown')) + "\n";
     content += "-------------------------\n";
 
     if (isSelf) {
-        content += "§c" + t('friend.is_self') + "\n";
+        content += "§c" + t(lang, 'friend.is_self') + "\n";
     } else if (isFriend) {
-        content += "§a" + t('friend.already_friends') + "\n";
+        content += "§a" + t(lang, 'friend.already_friends') + "\n";
     } else if (hasPendingRequest) {
-        content += "§e" + t('friend.request_sent_pending') + "\n";
+        content += "§e" + t(lang, 'friend.request_sent_pending') + "\n";
     } else if (wasRejected) {
-        content += "§c" + t('friend.request_rejected') + "\n";
+        content += "§c" + t(lang, 'friend.request_rejected') + "\n";
     }
 
     gui.setContent(content);
 
     // 根据关系状态动态显示按钮
     if (!isSelf && !isFriend && !hasPendingRequest) {
-        gui.addButton("§a" + t('friend.add_friend'), "textures/ui/color_plus");
+        gui.addButton("§a" + t(lang, 'friend.add_friend'), "textures/ui/color_plus");
     }
     if (!isSelf) {
-        gui.addButton("§b" + t('friend.leave_message'), "textures/ui/Feedback");
+        gui.addButton("§b" + t(lang, 'friend.leave_message'), "textures/ui/Feedback");
     }
-    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -761,10 +777,11 @@ function showPlayerDetailForm(player, targetInfo) {
  * @param {Object} targetInfo - 目标玩家信息
  */
 function showSendFriendRequestForm(player, targetInfo) {
+	const lang = getLocale(player.xuid);
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§a" + t('friend.send_request'));
-    gui.addLabel("§e" + t('friend.send_request') + " §b" + targetInfo.name);
-    gui.addInput(t('friend.verify_message'), t('friend.verify_placeholder'), t('friend.default_verify') + player.name);
+    gui.setTitle("§l§a" + t(lang, 'friend.send_request'));
+    gui.addLabel("§e" + t(lang, 'friend.send_request') + " §b" + targetInfo.name);
+    gui.addInput(t(lang, 'friend.verify_message'), t(lang, 'friend.verify_placeholder'), t(lang, 'friend.default_verify') + player.name);
 
     player.sendForm(gui, function(p, data) {
         if (data == null || !Array.isArray(data) || data.length < 2) {
@@ -772,11 +789,11 @@ function showSendFriendRequestForm(player, targetInfo) {
             return;
         }
 
-        const message = (data[1] || "").trim() || (t('friend.default_verify') + p.name);
+        const message = (data[1] || "").trim() || (t(lang, 'friend.default_verify') + p.name);
 
         // 检查对方是否允许接收好友请求
         if (_deps.getPlayerSetting && !_deps.getPlayerSetting(targetInfo.xuid, "allowFriendRequests")) {
-            p.tell(t('friend.tag_friend') + " §c" + t('friend.reject_request'));
+            p.tell(t(lang, 'friend.tag_friend') + " §c" + t(lang, 'friend.reject_request'));
             showPlayerDetailForm(p, targetInfo);
             return;
         }
@@ -808,11 +825,11 @@ function showSendFriendRequestForm(player, targetInfo) {
         // 对方在线时推送通知
         const targetPlayer = mc.getPlayer(targetInfo.xuid);
         if (targetPlayer && _deps.getPlayerSetting && _deps.getPlayerSetting(targetInfo.xuid, "enableFriendRequestNotification")) {
-            targetPlayer.sendToast("§e" + t('friend.request_toast_title'), "§a" + t('friend.request_notify', p.name));
-            targetPlayer.tell(t('friend.tag_friend') + " §a" + t('friend.request_notify', p.name));
+            targetPlayer.sendToast("§e" + t(lang, 'friend.request_toast_title'), "§a" + t(lang, 'friend.request_notify', p.name));
+            targetPlayer.tell(t(lang, 'friend.tag_friend') + " §a" + t(lang, 'friend.request_notify', p.name));
         }
 
-        p.tell(t('friend.tag_friend') + " §a" + t('friend.request_sent_success', targetInfo.name));
+        p.tell(t(lang, 'friend.tag_friend') + " §a" + t(lang, 'friend.request_sent_success', targetInfo.name));
         showMyFriendsForm(p);
     });
 }
@@ -822,24 +839,25 @@ function showSendFriendRequestForm(player, targetInfo) {
  * @param {Player} player
  */
 function showFriendRequestsForm(player) {
+	const lang = getLocale(player.xuid);
     const xuid = player.xuid;
     const friendInfo = getPlayerFriendData(xuid);
     const pendingRequests = friendInfo.requests.filter(function(r) { return !r.handled; });
 
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§e" + t('friend.friend_request_title'));
+    gui.setTitle("§l§e" + t(lang, 'friend.friend_request_title'));
 
     if (pendingRequests.length === 0) {
-        gui.setContent(t('friend.no_requests'));
+        gui.setContent(t(lang, 'friend.no_requests'));
     } else {
-        gui.setContent("§a" + t('friend.pending_requests_label', pendingRequests.length));
+        gui.setContent("§a" + t(lang, 'friend.pending_requests_label', pendingRequests.length));
         pendingRequests.forEach(function(req) {
             const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(req.xuid) : "";
             gui.addButton("§b" + req.name + "\n§6" + req.message, avatarUrl);
         });
     }
 
-    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -858,20 +876,21 @@ function showFriendRequestsForm(player) {
  * @param {Object} request - 请求对象 {xuid, name, message, time}
  */
 function showHandleRequestForm(player, request) {
+	const lang = getLocale(player.xuid);
     const gui = mc.newSimpleForm();
-    gui.setTitle("§l§b" + t('friend.handle_request'));
+    gui.setTitle("§l§b" + t(lang, 'friend.handle_request'));
 
     let content = "-------------------------\n";
-    content += "§a" + t('friend.from_label') + "§f" + request.name + "\n";
-    content += "§a" + t('friend.verify_label') + "§f" + request.message + "\n";
-    content += "§a" + t('friend.time_label') + "§f" + request.time + "\n";
+    content += "§a" + t(lang, 'friend.from_label') + "§f" + request.name + "\n";
+    content += "§a" + t(lang, 'friend.verify_label') + "§f" + request.message + "\n";
+    content += "§a" + t(lang, 'friend.time_label') + "§f" + request.time + "\n";
     content += "-------------------------\n";
-    content += "§e" + t('friend.select_action') + "\n";
+    content += "§e" + t(lang, 'friend.select_action') + "\n";
 
     gui.setContent(content);
-    gui.addButton("§a" + t('friend.accept'), "textures/ui/check");
-    gui.addButton("§c" + t('friend.reject'), "textures/ui/cancel");
-    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton("§a" + t(lang, 'friend.accept'), "textures/ui/check");
+    gui.addButton("§c" + t(lang, 'friend.reject'), "textures/ui/cancel");
+    gui.addButton(t(lang, 'friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -905,7 +924,7 @@ function showHandleRequestForm(player, request) {
                 markFriendDirty(p.xuid);
                 markFriendDirty(request.xuid);
                 saveData();
-                p.tell(t('friend.tag_friend') + " §a" + t('friend.accepted', request.name));
+                p.tell(t(lang, 'friend.tag_friend') + " §a" + t(lang, 'friend.accepted', request.name));
             }
         } else if (id === 1) {
             // 拒绝：彻底移除请求记录
@@ -921,8 +940,8 @@ function showHandleRequestForm(player, request) {
                 markFriendDirty(p.xuid);
                 markFriendDirty(request.xuid);
                 saveData();
-                sendSystemMail(request.xuid, t('friend.reject_reason', p.name));
-                p.tell(t('friend.tag_friend') + " §c" + t('friend.rejected', request.name));
+                sendSystemMail(request.xuid, t(lang, 'friend.reject_reason', p.name));
+                p.tell(t(lang, 'friend.tag_friend') + " §c" + t(lang, 'friend.rejected', request.name));
             }
         }
 
@@ -936,26 +955,27 @@ function showHandleRequestForm(player, request) {
  * @param {Object} friend - 好友记录 {xuid, name, addTime}
  */
 function showFriendDetailForm(player, friend) {
+	const lang = getLocale(player.xuid);
     const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
-    const friendName = fi ? fi.name : t('friend.unknown_player');
-    const friendUid = fi ? fi.uid : t('friend.unknown');
+    const friendName = fi ? fi.name : t(lang, 'friend.unknown_player');
+    const friendUid = fi ? fi.uid : t(lang, 'friend.unknown');
     const isOnline = mc.getPlayer(friend.xuid);
-    const onlineStatus = isOnline ? "§a" + t('friend.online') : t('friend.offline');
+    const onlineStatus = isOnline ? "§a" + t(lang, 'friend.online') : t(lang, 'friend.offline');
 
     const gui = mc.newSimpleForm();
     gui.setTitle("§l§b" + friendName);
 
     let content = "-------------------------\n";
-    content += "§a" + t('friend.friend_name') + "§f" + friendName + "\n";
-    content += t('friend.uid_label') + friendUid + "\n";
-    content += "§a" + t('friend.status') + onlineStatus + "\n";
-    content += "§a" + t('friend.add_time') + "§f" + (friend.addTime || t('friend.unknown')) + "\n";
+    content += "§a" + t(lang, 'friend.friend_name') + "§f" + friendName + "\n";
+    content += t(lang, 'friend.uid_label') + friendUid + "\n";
+    content += "§a" + t(lang, 'friend.status') + onlineStatus + "\n";
+    content += "§a" + t(lang, 'friend.add_time') + "§f" + (friend.addTime || t(lang, 'friend.unknown')) + "\n";
     content += "-------------------------\n";
 
     gui.setContent(content);
-    gui.addButton("§b" + t('friend.send_message'), "textures/ui/backup_replace");
-    gui.addButton("§c" + t('friend.delete_friend'), "textures/ui/trash_default");
-    gui.addButton(t('friend.back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton("§b" + t(lang, 'friend.send_message'), "textures/ui/backup_replace");
+    gui.addButton("§c" + t(lang, 'friend.delete_friend'), "textures/ui/trash_default");
+    gui.addButton(t(lang, 'friend.back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -976,14 +996,15 @@ function showFriendDetailForm(player, friend) {
  * @param {Object} friend - 好友记录
  */
 function showDeleteFriendConfirmForm(player, friend) {
+	const lang = getLocale(player.xuid);
     const fi = _deps.getPlayerInfoByXuid ? _deps.getPlayerInfoByXuid(friend.xuid) : null;
-    const friendName = fi ? fi.name : t('friend.unknown_player');
+    const friendName = fi ? fi.name : t(lang, 'friend.unknown_player');
 
     player.sendModalForm(
-        t('friend.delete_confirm_title'),
-        t('friend.delete_confirm_body', friendName),
-        t('friend.confirm_delete'),
-        t('friend.cancel'),
+        t(lang, 'friend.delete_confirm_title'),
+        t(lang, 'friend.delete_confirm_body', friendName),
+        t(lang, 'friend.confirm_delete'),
+        t(lang, 'friend.cancel'),
         function(p, res) {
             if (res) {
                 // 双向从好友列表中移除，并清理相关请求记录
@@ -1000,7 +1021,7 @@ function showDeleteFriendConfirmForm(player, friend) {
                 markFriendDirty(p.xuid);
                 markFriendDirty(friend.xuid);
                 saveData();
-                p.tell(t('friend.tag_friend') + " §c" + t('friend.delete_success', friendName));
+                p.tell(t(lang, 'friend.tag_friend') + " §c" + t(lang, 'friend.delete_success', friendName));
             }
             showMyFriendsForm(p);
         }
@@ -1079,22 +1100,23 @@ function setPlayerAvatar(xuid, type, value) {
  * @param {Player} player - 玩家
  */
 function showAvatarSettingsForm(player) {
+	const lang = getLocale(player.xuid);
     const xuid = player.xuid;
     const avatar = getPlayerAvatarData(xuid);
 
     const gui = mc.newCustomForm();
-    gui.setTitle("§l§e" + t('friend.avatar_title'));
+    gui.setTitle("§l§e" + t(lang, 'friend.avatar_title'));
 
     let content = "-------------------------\n";
-    content += "§a" + t('friend.avatar_type') + "§f" + getAvatarTypeName(avatar.type) + "\n";
-    content += "§a" + t('friend.avatar_value') + "§f" + (avatar.value || t('friend.avatar_not_set')) + "\n";
+    content += "§a" + t(lang, 'friend.avatar_type') + "§f" + getAvatarTypeName(avatar.type) + "\n";
+    content += "§a" + t(lang, 'friend.avatar_value') + "§f" + (avatar.value || t(lang, 'friend.avatar_not_set')) + "\n";
     content += "-------------------------\n";
-    content += t('friend.avatar_select_hint');
+    content += t(lang, 'friend.avatar_select_hint');
 
     gui.addLabel(content);
-    gui.addDropdown(t('friend.avatar_type'), [t('friend.qq_avatar'), t('friend.custom_link')],
+    gui.addDropdown(t(lang, 'friend.avatar_type'), [t(lang, 'friend.qq_avatar'), t(lang, 'friend.custom_link')],
         avatar.type === "qq" ? 0 : avatar.type === "link" ? 1 : 0);
-    gui.addInput(t('friend.avatar_input_label'), t('friend.avatar_input_placeholder'), avatar.value || "");
+    gui.addInput(t(lang, 'friend.avatar_input_label'), t(lang, 'friend.avatar_input_placeholder'), avatar.value || "");
 
     player.sendForm(gui, function(p, data) {
         if (data == null || !Array.isArray(data)) {
@@ -1106,7 +1128,7 @@ function showAvatarSettingsForm(player) {
         const value = (data[2] || "").trim();
 
         if (!value) {
-            p.tell(t('friend.tag_avatar') + " §c" + t('friend.input_avatar_value'));
+            p.tell(t(lang, 'friend.tag_avatar') + " §c" + t(lang, 'friend.input_avatar_value'));
             showAvatarSettingsForm(p);
             return;
         }
@@ -1114,20 +1136,20 @@ function showAvatarSettingsForm(player) {
         let type, successMsg;
         if (typeIndex === 0) {
             if (!/^\d+$/.test(value)) {
-                p.tell(t('friend.tag_avatar') + " §c" + t('friend.invalid_qq'));
+                p.tell(t(lang, 'friend.tag_avatar') + " §c" + t(lang, 'friend.invalid_qq'));
                 showAvatarSettingsForm(p);
                 return;
             }
             type = "qq";
-            successMsg = t('friend.avatar_qq_success');
+            successMsg = t(lang, 'friend.avatar_qq_success');
         } else {
             if (!value.startsWith("http")) {
-                p.tell(t('friend.tag_avatar') + " §c" + t('friend.invalid_url'));
+                p.tell(t(lang, 'friend.tag_avatar') + " §c" + t(lang, 'friend.invalid_url'));
                 showAvatarSettingsForm(p);
                 return;
             }
             type = "link";
-            successMsg = t('friend.avatar_custom_success');
+            successMsg = t(lang, 'friend.avatar_custom_success');
         }
 
         setPlayerAvatar(p.xuid, type, value);
@@ -1139,9 +1161,9 @@ function showAvatarSettingsForm(player) {
 /** 将头像类型标识符转换为中文显示名称 */
 function getAvatarTypeName(type) {
     switch (type) {
-        case "qq": return t('friend.avatar_type_qq');
-        case "link": return t('friend.avatar_type_custom');
-        default: return t('friend.avatar_type_default');
+        case "qq": return t(getSystemLang(), 'friend.avatar_type_qq');
+        case "link": return t(getSystemLang(), 'friend.avatar_type_custom');
+        default: return t(getSystemLang(), 'friend.avatar_type_default');
     }
 }
 

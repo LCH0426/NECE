@@ -609,7 +609,7 @@ function claimMailAttachments(player, mail) {
             try {
                 const rawSnbt = typeof itemData === 'object' ? itemData.snbt : itemData;
                 if (!rawSnbt || typeof rawSnbt !== 'string' || !rawSnbt.trim()) {
-                    _deps.logger.error(t(getSystemLang(), 'mail.log_item_no_snbt', index + 1, typeof itemData));
+                    _deps.logger.error(t(lang, 'mail.log_item_no_snbt', index + 1, typeof itemData));
                     player.tell(t(lang, 'mail.err_item_invalid', index + 1));
                     allItemsSuccess = false;
                     return;
@@ -669,7 +669,7 @@ function claimMailAttachments(player, mail) {
                     allItemsSuccess = false;
                 }
             } catch (error) {
-                _deps.logger.error(t(getSystemLang(), 'mail.log_grant_item_failed', error.message));
+                _deps.logger.error(t(lang, 'mail.log_grant_item_failed', error.message));
                 player.tell(t(lang, 'mail.err_item_grant', index + 1));
                 allItemsSuccess = false;
             }
@@ -1023,7 +1023,7 @@ function showSendSingleMailForm(player, target) {
                 }
             });
         } catch (error) {
-            _deps.logger.error(t(getSystemLang(), 'mail.log_get_slot_failed', slot, error.message));
+            _deps.logger.error(t(lang, 'mail.log_get_slot_failed', slot, error.message));
         }
     }
 
@@ -1198,7 +1198,7 @@ function showPlayerSendMailForm(player) {
                 }
             });
         } catch (error) {
-            _deps.logger.error(t(getSystemLang(), 'mail.log_get_slot_failed', slot, error.message));
+            _deps.logger.error(t(lang, 'mail.log_get_slot_failed', slot, error.message));
         }
     }
 
@@ -1341,7 +1341,7 @@ function showPlayerSendMailForm(player) {
                 const currentItem = playerInventory.getItem(slotIndex);
 
                 if (!currentItem || currentItem.type === '' || currentItem.type === 'minecraft:air') {
-                    _deps.logger.warn(t(getSystemLang(), 'mail.log_slot_empty', slotIndex));
+                    _deps.logger.warn(t(lang, 'mail.log_slot_empty', slotIndex));
                     return;
                 }
 
@@ -1358,7 +1358,7 @@ function showPlayerSendMailForm(player) {
                     mc.runcmd(cmd);
                 }
             } catch (error) {
-                _deps.logger.error(t(getSystemLang(), 'mail.log_deduct_item_failed', error.message));
+                _deps.logger.error(t(lang, 'mail.log_deduct_item_failed', error.message));
             }
         });
 
@@ -1434,8 +1434,9 @@ function sendSystemMail(xuid, content) {
         try {
             var tp = mc.getPlayer(String(xuid));
             if (tp) {
-                tp.sendToast(t(getSystemLang(), 'mail.new_mail_toast_title'), t(getSystemLang(), 'mail.new_mail_toast_body'));
-                tp.tell(t(getSystemLang(), 'mail.new_mail_tell'));
+                var tpLang = getLocale(xuid);
+                tp.sendToast(t(tpLang, 'mail.new_mail_toast_title'), t(tpLang, 'mail.new_mail_toast_body'));
+                tp.tell(t(tpLang, 'mail.new_mail_tell'));
             }
         } catch (e) {}
     } catch (e) {}

@@ -52,6 +52,7 @@ function initIlandAPI() {
  * @returns {boolean}
  */
 function canPlayerBuildAt(player, pos) {
+	const lang = getLocale(player.xuid);
     initIlandAPI();
     if (!_ilandAvailable) return true;
     try {
@@ -64,14 +65,20 @@ function canPlayerBuildAt(player, pos) {
     } catch (e) { return true; }
 }
 
-function getLang() {
+function getLocale(xuid) {
+    if (_deps.getPlayerSetting && xuid) {
+        return _deps.getPlayerSetting(xuid, 'locale') || getSystemLang();
+    }
+    return getSystemLang();
+}
+
+function getSystemLang() {
     return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
 }
 
-function t(key) {
-    if (!_deps.t) return key;
-    var lang = getLang();
-    var args = [lang];
+function t(lang) {
+    if (!_deps.t) return lang;
+    var args = [];
     for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
     return _deps.t.apply(null, args);
 }
@@ -244,6 +251,7 @@ function addDailyUsage(xuid, count) {
 }
 
 function purchaseUltraPlan(player) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     var planData = getPlayerPlanData(xuid);
     var now = Date.now();
@@ -252,7 +260,7 @@ function purchaseUltraPlan(player) {
 
     // 已拥有 ultra
     if (currentPlan === 'ultra') {
-        return { success: false, message: t('chain_plan.ultra_already_owned') };
+        return { success: false, message: t(lang, 'chain_plan.ultra_already_owned') };
     }
 
     var actualPrice = ULTRA_PRICE;
@@ -272,12 +280,12 @@ function purchaseUltraPlan(player) {
 
     var playerMoney = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0;
     if (playerMoney < actualPrice) {
-        return { success: false, message: t('chain_plan.insufficient_balance', String(actualPrice), currencyName) };
+        return { success: false, message: t(lang, 'chain_plan.insufficient_balance', String(actualPrice), currencyName) };
     }
 
     if (_deps.reducePlayerMoney) {
         if (!_deps.reducePlayerMoney(player, actualPrice, 'Block Plan 购买: §l§6[Ultra]§r')) {
-            return { success: false, message: t('chain_plan.purchase_failed') };
+            return { success: false, message: t(lang, 'chain_plan.purchase_failed') };
         }
     }
 
@@ -285,10 +293,11 @@ function purchaseUltraPlan(player) {
     planData.expireTime = 0;
     savePlanData(xuid, planData);
 
-    return { success: true, message: t('chain_plan.ultra_purchase_success') };
+    return { success: true, message: t(lang, 'chain_plan.ultra_purchase_success') };
 }
 
 function purchasePlan(player, planName) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     var planConfig = getPlanConfig();
 
@@ -298,11 +307,11 @@ function purchasePlan(player, planName) {
     }
 
     if (!planConfig[planName]) {
-        return { success: false, message: t('chain_plan.invalid_plan') };
+        return { success: false, message: t(lang, 'chain_plan.invalid_plan') };
     }
 
     if (planName === 'free') {
-        return { success: false, message: t('chain_plan.cannot_purchase_free') };
+        return { success: false, message: t(lang, 'chain_plan.cannot_purchase_free') };
     }
 
     var planData = getPlayerPlanData(xuid);
@@ -311,11 +320,11 @@ function purchasePlan(player, planName) {
 
     // ultra 用户不能购买低级套餐
     if (currentPlan === 'ultra') {
-        return { success: false, message: t('chain_plan.ultra_already_owned') };
+        return { success: false, message: t(lang, 'chain_plan.ultra_already_owned') };
     }
 
     if (currentPlan === planName && planData.expireTime > now) {
-        return { success: false, message: t('chain_plan.already_active') };
+        return { success: false, message: t(lang, 'chain_plan.already_active') };
     }
 
     var planInfo = planConfig[planName];
@@ -331,7 +340,7 @@ function purchasePlan(player, planName) {
         var priceDiff = price - currentPrice;
 
         if (priceDiff <= 0) {
-            return { success: false, message: t('chain_plan.cannot_downgrade') };
+            return { success: false, message: t(lang, 'chain_plan.cannot_downgrade') };
         }
 
         var remainingDays = Math.ceil((planData.expireTime - now) / (1000 * 60 * 60 * 24));
@@ -342,7 +351,7 @@ function purchasePlan(player, planName) {
 
     var playerMoney = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0;
     if (playerMoney < actualPrice) {
-        return { success: false, message: t('chain_plan.insufficient_balance', String(actualPrice), currencyName) };
+        return { success: false, message: t(lang, 'chain_plan.insufficient_balance', String(actualPrice), currencyName) };
     }
 
     if (_deps.reducePlayerMoney) {
@@ -352,7 +361,7 @@ function purchasePlan(player, planName) {
             'Block Plan 升级: ' + currentDisplayName + ' -> ' + displayName :
             'Block Plan 购买: ' + displayName;
         if (!_deps.reducePlayerMoney(player, actualPrice, reason)) {
-            return { success: false, message: t('chain_plan.purchase_failed') };
+            return { success: false, message: t(lang, 'chain_plan.purchase_failed') };
         }
     }
 
@@ -363,10 +372,11 @@ function purchasePlan(player, planName) {
     savePlanData(xuid, planData);
 
     var successDisplayName = getPlanDisplayName(planName);
-    return { success: true, message: t('chain_plan.purchase_success', successDisplayName, String(duration)) };
+    return { success: true, message: t(lang, 'chain_plan.purchase_success', successDisplayName, String(duration)) };
 }
 
 function renewPlan(player, weeks) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     var planConfig = getPlanConfig();
     var planData = getPlayerPlanData(xuid);
@@ -374,11 +384,11 @@ function renewPlan(player, weeks) {
     var currentPlan = planData.plan || 'free';
 
     if (currentPlan === 'free') {
-        return { success: false, message: t('chain_plan.cannot_renew_free') };
+        return { success: false, message: t(lang, 'chain_plan.cannot_renew_free') };
     }
 
     if (weeks < 1 || weeks > 3) {
-        return { success: false, message: t('chain_plan.invalid_weeks') };
+        return { success: false, message: t(lang, 'chain_plan.invalid_weeks') };
     }
 
     var planInfo = planConfig[currentPlan] || DEFAULT_PLANS[currentPlan];
@@ -388,13 +398,13 @@ function renewPlan(player, weeks) {
 
     var playerMoney = _deps.getPlayerMoney ? _deps.getPlayerMoney(player) : 0;
     if (playerMoney < totalPrice) {
-        return { success: false, message: t('chain_plan.renew_insufficient', String(weeks), String(totalPrice), currencyName) };
+        return { success: false, message: t(lang, 'chain_plan.renew_insufficient', String(weeks), String(totalPrice), currencyName) };
     }
 
     if (_deps.reducePlayerMoney) {
         var displayName = getPlanDisplayName(currentPlan);
         if (!_deps.reducePlayerMoney(player, totalPrice, 'Block Plan 续费: ' + displayName + ' ' + weeks + '周')) {
-            return { success: false, message: t('chain_plan.renew_failed') };
+            return { success: false, message: t(lang, 'chain_plan.renew_failed') };
         }
     }
 
@@ -404,10 +414,11 @@ function renewPlan(player, weeks) {
     savePlanData(xuid, planData);
 
     var displayName2 = getPlanDisplayName(currentPlan);
-    return { success: true, message: t('chain_plan.renew_success', displayName2, String(addDays)) };
+    return { success: true, message: t(lang, 'chain_plan.renew_success', displayName2, String(addDays)) };
 }
 
 function showPlanMenu(player) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     var planData = getPlayerPlanData(xuid);
     resetDailyUsage(planData);
@@ -428,23 +439,24 @@ function showPlanMenu(player) {
 }
 
 function showActivePlanMenu(player, planData, planInfo, checkResult, currencyName) {
+	const lang = getLocale(player.xuid);
     var fm = mc.newSimpleForm();
     fm.setTitle('§l§bBlock Plan');
 
     var isUltra = planData.plan === 'ultra';
     var planDisplayName = getPlanDisplayName(planData.plan || 'free');
 
-    var content = t('chain.current_plan_label') + planDisplayName + '\n';
+    var content = t(lang, 'chain.current_plan_label') + planDisplayName + '\n';
 
     if (isUltra) {
-        content += t('chain.daily_usage_label') + planData.dailyUsed + ' Credits\n';
-        content += '到期时间: §a' + t('chain_plan.ultra_expire_label') + '\n';
+        content += t(lang, 'chain.daily_usage_label') + planData.dailyUsed + ' Credits\n';
+        content += '到期时间: §a' + t(lang, 'chain_plan.ultra_expire_label') + '\n';
     } else {
         var expireDate = new Date(planData.expireTime);
         var remainingDays = Math.ceil((planData.expireTime - Date.now()) / (1000 * 60 * 60 * 24));
-        content += t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + ' Credits' + '\n';
-        content += t('chain.expire_time_label', String(expireDate.getFullYear()), String(expireDate.getMonth() + 1), String(expireDate.getDate())) + '\n';
-        content += t('chain.remaining_days_label', String(remainingDays)) + '\n';
+        content += t(lang, 'chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + ' Credits' + '\n';
+        content += t(lang, 'chain.expire_time_label', String(expireDate.getFullYear()), String(expireDate.getMonth() + 1), String(expireDate.getDate())) + '\n';
+        content += t(lang, 'chain.remaining_days_label', String(remainingDays)) + '\n';
     }
 
     var planConfig = getPlanConfig();
@@ -464,21 +476,21 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
     var proName = getPlanDisplayName('pro');
     var maxName = getPlanDisplayName('max');
 
-    content += t('chain.plan_free_desc', freeName, String(freeLimit)) + '\n';
-    content += t('chain.plan_tier_desc_base', liteName, String(liteLimit)) + '\n';
-    content += t('chain.plan_tier_desc', standardName, standardRatio, liteName) + '\n';
-    content += t('chain.plan_tier_desc', proName, proRatio, liteName) + '\n';
-    content += t('chain.plan_tier_desc', maxName, maxRatio, liteName) + '\n';
-    content += '§l§6[Ultra]§r - ' + t('chain_plan.ultra_desc') + '\n';
+    content += t(lang, 'chain.plan_free_desc', freeName, String(freeLimit)) + '\n';
+    content += t(lang, 'chain.plan_tier_desc_base', liteName, String(liteLimit)) + '\n';
+    content += t(lang, 'chain.plan_tier_desc', standardName, standardRatio, liteName) + '\n';
+    content += t(lang, 'chain.plan_tier_desc', proName, proRatio, liteName) + '\n';
+    content += t(lang, 'chain.plan_tier_desc', maxName, maxRatio, liteName) + '\n';
+    content += '§l§6[Ultra]§r - ' + t(lang, 'chain_plan.ultra_desc') + '\n';
 
     fm.setContent(content);
 
     // ultra 套餐隐藏续费和升级按钮
     if (!isUltra) {
-        fm.addButton(t('chain.btn_renew'), "textures/ui/confirm");
-        fm.addButton(t('chain.btn_upgrade'), "textures/ui/jump_boost_effect");
+        fm.addButton(t(lang, 'chain.btn_renew'), "textures/ui/confirm");
+        fm.addButton(t(lang, 'chain.btn_upgrade'), "textures/ui/jump_boost_effect");
     }
-    fm.addButton(t('chain.btn_back'), "textures/ui/recap_glyph_desaturated");
+    fm.addButton(t(lang, 'chain.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
@@ -497,6 +509,7 @@ function showActivePlanMenu(player, planData, planInfo, checkResult, currencyNam
 }
 
 function showRenewMenu(player) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     var planData = getPlayerPlanData(xuid);
     var planConfig = getPlanConfig();
@@ -507,17 +520,17 @@ function showRenewMenu(player) {
     var currentDisplayName = getPlanDisplayName(currentPlan);
 
     var fm = mc.newCustomForm();
-    fm.setTitle(t('chain_plan.renew_title'));
+    fm.setTitle(t(lang, 'chain_plan.renew_title'));
 
-    fm.addLabel(t('chain.current_plan_label') + currentDisplayName);
-    fm.addLabel(t('chain_plan.weekly_price', String(weeklyPrice), currencyName));
+    fm.addLabel(t(lang, 'chain.current_plan_label') + currentDisplayName);
+    fm.addLabel(t(lang, 'chain_plan.weekly_price', String(weeklyPrice), currencyName));
 
     var renewOptions = [
-        t('chain_plan.renew_option', '1', String(weeklyPrice), currencyName),
-        t('chain_plan.renew_option', '2', String(weeklyPrice * 2), currencyName),
-        t('chain_plan.renew_option', '3', String(weeklyPrice * 3), currencyName)
+        t(lang, 'chain_plan.renew_option', '1', String(weeklyPrice), currencyName),
+        t(lang, 'chain_plan.renew_option', '2', String(weeklyPrice * 2), currencyName),
+        t(lang, 'chain_plan.renew_option', '3', String(weeklyPrice * 3), currencyName)
     ];
-    fm.addDropdown(t('chain_plan.select_renew_weeks'), renewOptions, 0);
+    fm.addDropdown(t(lang, 'chain_plan.select_renew_weeks'), renewOptions, 0);
 
     player.sendForm(fm, function(p, data) {
         if (data == null) {
@@ -536,6 +549,7 @@ function showRenewMenu(player) {
 }
 
 function showUpgradeMenu(player) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     var planData = getPlayerPlanData(xuid);
     var planConfig = getPlanConfig();
@@ -544,9 +558,9 @@ function showUpgradeMenu(player) {
     var currentDisplayName = getPlanDisplayName(currentPlan);
 
     var fm = mc.newCustomForm();
-    fm.setTitle(t('chain_plan.upgrade_title'));
+    fm.setTitle(t(lang, 'chain_plan.upgrade_title'));
 
-    fm.addLabel(t('chain.current_plan_label') + currentDisplayName);
+    fm.addLabel(t(lang, 'chain.current_plan_label') + currentDisplayName);
 
     var planOrder = ['lite', 'standard', 'pro', 'max', 'ultra'];
     var currentIndex = planOrder.indexOf(currentPlan);
@@ -568,21 +582,21 @@ function showUpgradeMenu(player) {
                 ultraPrice = ULTRA_PRICE - remainingValue;
                 if (ultraPrice < 0) ultraPrice = 0;
             }
-            upgradeOptions.push('§l§6[Ultra]§r - ' + t('chain_plan.ultra_desc') + ' - ' + ultraPrice + ' ' + currencyName);
+            upgradeOptions.push('§l§6[Ultra]§r - ' + t(lang, 'chain_plan.ultra_desc') + ' - ' + ultraPrice + ' ' + currencyName);
         } else {
             var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
             var priceDiff = (pInfo.price || 0) - currentPrice;
             var upgradePrice = Math.ceil(priceDiff * remainingDays / currentDuration);
             var displayName = getPlanDisplayName(pName);
-            upgradeOptions.push(t('chain_plan.upgrade_option', displayName, String(pInfo.dailyLimit), String(upgradePrice), currencyName));
+            upgradeOptions.push(t(lang, 'chain_plan.upgrade_option', displayName, String(pInfo.dailyLimit), String(upgradePrice), currencyName));
         }
         upgradePlans.push(pName);
     }
 
     if (upgradeOptions.length === 0) {
-        fm.addLabel(t('chain_plan.max_level_plan'));
+        fm.addLabel(t(lang, 'chain_plan.max_level_plan'));
     } else {
-        fm.addDropdown(t('chain_plan.select_upgrade_plan'), upgradeOptions, 0);
+        fm.addDropdown(t(lang, 'chain_plan.select_upgrade_plan'), upgradeOptions, 0);
     }
 
     player.sendForm(fm, function(p, data) {
@@ -604,12 +618,13 @@ function showUpgradeMenu(player) {
 }
 
 function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyName, planConfig) {
+	const lang = getLocale(player.xuid);
     var fm = mc.newCustomForm();
     fm.setTitle('§l§bBlock Plan');
 
     var currentDisplayName = getPlanDisplayName(planData.plan || 'free');
-    fm.addLabel(t('chain.current_plan_label') + currentDisplayName);
-    fm.addLabel(t('chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + ' Credits');
+    fm.addLabel(t(lang, 'chain.current_plan_label') + currentDisplayName);
+    fm.addLabel(t(lang, 'chain.daily_usage_label') + planData.dailyUsed + '/' + planInfo.dailyLimit + ' Credits');
 
     var freeLimit = (planConfig.free || DEFAULT_PLANS.free).dailyLimit;
     var liteLimit = (planConfig.lite || DEFAULT_PLANS.lite).dailyLimit;
@@ -627,12 +642,12 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
     var proRatio = (proLimit / liteLimit).toFixed(0);
     var maxRatio = (maxLimit / liteLimit).toFixed(0);
 
-    fm.addLabel(t('chain.plan_free_desc', freeName, String(freeLimit)) + '\n' +
-        t('chain.plan_tier_desc_base', liteName, String(liteLimit)) + '\n' +
-        t('chain.plan_tier_desc', standardName, standardRatio, liteName) + '\n' +
-        t('chain.plan_tier_desc', proName, proRatio, liteName) + '\n' +
-        t('chain.plan_tier_desc', maxName, maxRatio, liteName) + '\n' +
-        '§l§6[Ultra]§r - ' + t('chain_plan.ultra_desc'));
+    fm.addLabel(t(lang, 'chain.plan_free_desc', freeName, String(freeLimit)) + '\n' +
+        t(lang, 'chain.plan_tier_desc_base', liteName, String(liteLimit)) + '\n' +
+        t(lang, 'chain.plan_tier_desc', standardName, standardRatio, liteName) + '\n' +
+        t(lang, 'chain.plan_tier_desc', proName, proRatio, liteName) + '\n' +
+        t(lang, 'chain.plan_tier_desc', maxName, maxRatio, liteName) + '\n' +
+        '§l§6[Ultra]§r - ' + t(lang, 'chain_plan.ultra_desc'));
 
     var planOptions = [];
     var planKeys = ['lite', 'standard', 'pro', 'max', 'ultra'];
@@ -640,15 +655,15 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
     for (var i = 0; i < planKeys.length; i++) {
         var pName = planKeys[i];
         if (pName === 'ultra') {
-            planOptions.push(t('chain_plan.ultra_option', t('chain_plan.ultra_desc'), String(ULTRA_PRICE), currencyName));
+            planOptions.push(t(lang, 'chain_plan.ultra_option', t(lang, 'chain_plan.ultra_desc'), String(ULTRA_PRICE), currencyName));
         } else {
             var pInfo = planConfig[pName] || DEFAULT_PLANS[pName];
             var displayName = getPlanDisplayName(pName);
-            planOptions.push(t('chain_plan.plan_option', displayName, String(pInfo.dailyLimit), String(pInfo.price || 0), currencyName, String(pInfo.duration || 0)));
+            planOptions.push(t(lang, 'chain_plan.plan_option', displayName, String(pInfo.dailyLimit), String(pInfo.price || 0), currencyName, String(pInfo.duration || 0)));
         }
     }
 
-    fm.addDropdown(t('chain_plan.select_plan'), planOptions, 0);
+    fm.addDropdown(t(lang, 'chain_plan.select_plan'), planOptions, 0);
 
     player.sendForm(fm, function(p, data) {
         if (data == null) return;
@@ -664,6 +679,7 @@ function showPurchasePlanMenu(player, planData, planInfo, checkResult, currencyN
 }
 
 function showPurchaseConfirm(player, planName, displayPrice) {
+	const lang = getLocale(player.xuid);
     var planConfig = getPlanConfig();
     var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : '';
     var displayName = getPlanDisplayName(planName);
@@ -705,10 +721,10 @@ function showPurchaseConfirm(player, planName, displayPrice) {
     // ultra 套餐特殊处理
     if (planName === 'ultra') {
         player.sendModalForm(
-            t('chain_plan.confirm_title'),
-            '§l§6[Ultra]§r - ' + t('chain_plan.ultra_desc') + '\n§a价格: §e' + actualPrice + ' ' + currencyName,
-            t('chain_plan.btn_confirm'),
-            t('chain_plan.btn_cancel'),
+            t(lang, 'chain_plan.confirm_title'),
+            '§l§6[Ultra]§r - ' + t(lang, 'chain_plan.ultra_desc') + '\n§a价格: §e' + actualPrice + ' ' + currencyName,
+            t(lang, 'chain_plan.btn_confirm'),
+            t(lang, 'chain_plan.btn_cancel'),
             function(p, result) {
                 if (result === true) {
                     var purchaseResult = purchasePlan(p, planName);
@@ -725,10 +741,10 @@ function showPurchaseConfirm(player, planName, displayPrice) {
     var planInfo = planConfig[planName] || DEFAULT_PLANS[planName];
 
     player.sendModalForm(
-        t('chain_plan.confirm_title'),
-        t('chain_plan.confirm_content', displayName, String(planInfo.dailyLimit), String(actualPrice), currencyName, String(planInfo.duration)),
-        t('chain_plan.btn_confirm'),
-        t('chain_plan.btn_cancel'),
+        t(lang, 'chain_plan.confirm_title'),
+        t(lang, 'chain_plan.confirm_content', displayName, String(planInfo.dailyLimit), String(actualPrice), currencyName, String(planInfo.duration)),
+        t(lang, 'chain_plan.btn_confirm'),
+        t(lang, 'chain_plan.btn_cancel'),
         function(p, result) {
             if (result === true) {
                 var purchaseResult = purchasePlan(p, planName);
@@ -744,6 +760,7 @@ function showPurchaseConfirm(player, planName, displayPrice) {
 }
 
 function showRenewConfirm(player, weeks) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     var planData = getPlayerPlanData(xuid);
     var currentPlan = planData.plan || 'free';
@@ -756,10 +773,10 @@ function showRenewConfirm(player, weeks) {
     var displayName = getPlanDisplayName(currentPlan);
 
     player.sendModalForm(
-        t('chain_plan.renew_confirm_title'),
-        t('chain_plan.renew_confirm_content', displayName, String(weeks), String(totalPrice), currencyName),
-        t('chain_plan.btn_confirm_renew'),
-        t('chain_plan.btn_cancel'),
+        t(lang, 'chain_plan.renew_confirm_title'),
+        t(lang, 'chain_plan.renew_confirm_content', displayName, String(weeks), String(totalPrice), currencyName),
+        t(lang, 'chain_plan.btn_confirm_renew'),
+        t(lang, 'chain_plan.btn_cancel'),
         function(p, result) {
             if (result === true) {
                 var renewResult = renewPlan(p, weeks);
@@ -775,6 +792,7 @@ function showRenewConfirm(player, weeks) {
 }
 
 function getMaxDurability(player) {
+	const lang = getLocale(player.xuid);
     try {
         var item = player.getHand();
         if (!item || item.isNull()) return 0;
@@ -785,6 +803,7 @@ function getMaxDurability(player) {
 }
 
 function getDurability(player) {
+	const lang = getLocale(player.xuid);
     try {
         var item = player.getHand();
         if (!item || item.isNull()) return 0;
@@ -824,6 +843,7 @@ function getUnbreakingLevel(item) {
 }
 
 function applyChainDurability(player, chainCount, unbreakingLevel) {
+	const lang = getLocale(player.xuid);
     setTimeout(function() {
         try {
             var item = player.getHand();
@@ -950,26 +970,27 @@ function getBlockName(blockId) {
 }
 
 function showChainSettingsForm(player) {
+	const lang = getLocale(player.xuid);
     var cfg = getChainConfig();
     var playerCfg = getPlayerChainConfig(player.xuid);
     var chainCheck = checkCanChain(player.xuid);
     var planDisplayName = getPlanDisplayName(chainCheck.plan);
 
     var fm = mc.newSimpleForm();
-    fm.setTitle(t('chain.settings_title') + ' - Block Plan');
+    fm.setTitle(t(lang, 'chain.settings_title') + ' - Block Plan');
 
-    var content = t('chain.current_plan_label') + planDisplayName + '\n';
+    var content = t(lang, 'chain.current_plan_label') + planDisplayName + '\n';
     if (chainCheck.plan === 'ultra') {
-        content += t('chain.daily_usage_label') + chainCheck.dailyUsed + ' Credits\n';
+        content += t(lang, 'chain.daily_usage_label') + chainCheck.dailyUsed + ' Credits\n';
     } else {
-        content += t('chain.daily_usage_label') + chainCheck.dailyUsed + '/' + chainCheck.dailyLimit + ' Credits\n';
+        content += t(lang, 'chain.daily_usage_label') + chainCheck.dailyUsed + '/' + chainCheck.dailyLimit + ' Credits\n';
     }
     content += '-------------------------\n';
     fm.setContent(content);
 
-    fm.addButton(t('chain.btn_settings'), "textures/ui/icon_setting");
-    fm.addButton(t('chain.btn_plan'), "textures/ui/confirm");
-    fm.addButton('§b快速建造', "textures/ui/icon_recipe_item");
+    fm.addButton(t(lang, 'chain.btn_settings'), "textures/ui/icon_setting");
+    fm.addButton(t(lang, 'chain.btn_plan'), "textures/ui/confirm");
+    fm.addButton('§b' + t(lang, 'quick_build.title'), "textures/ui/icon_recipe_item");
 
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
@@ -984,18 +1005,19 @@ function showChainSettingsForm(player) {
 }
 
 function showChainConfigForm(player) {
+	const lang = getLocale(player.xuid);
     var cfg = getChainConfig();
     var playerCfg = getPlayerChainConfig(player.xuid);
 
     var fm = mc.newCustomForm();
-    fm.setTitle(t('chain.config_title'));
-    fm.addSwitch(t('chain.switch_enabled'), playerCfg.enabled);
-    fm.addSwitch(t('chain.switch_mine_all'), playerCfg.mineAll);
-    fm.addSwitch(t('chain.switch_sneak_only'), playerCfg.sneakOnly);
+    fm.setTitle(t(lang, 'chain.config_title'));
+    fm.addSwitch(t(lang, 'chain.switch_enabled'), playerCfg.enabled);
+    fm.addSwitch(t(lang, 'chain.switch_mine_all'), playerCfg.mineAll);
+    fm.addSwitch(t(lang, 'chain.switch_sneak_only'), playerCfg.sneakOnly);
 
     var blockIdList = [];
     var toolTypes = ['pickaxe', 'axe', 'shovel', 'hoe'];
-    var toolNames = { pickaxe: t('chain.tool_pickaxe'), axe: t('chain.tool_axe'), shovel: t('chain.tool_shovel'), hoe: t('chain.tool_hoe') };
+    var toolNames = { pickaxe: t(lang, 'chain.tool_pickaxe'), axe: t(lang, 'chain.tool_axe'), shovel: t(lang, 'chain.tool_shovel'), hoe: t(lang, 'chain.tool_hoe') };
 
     for (var ti = 0; ti < toolTypes.length; ti++) {
         var toolKey = toolTypes[ti];
@@ -1041,11 +1063,12 @@ function showChainConfigForm(player) {
         }
 
         savePlayerChainConfig(p.xuid, newCfg);
-        p.tell(t('chain.tag_prefix') + " §a" + t('chain.settings_saved'));
+        p.tell(t(lang, 'chain.tag_prefix') + " §a" + t(lang, 'chain.settings_saved'));
     });
 }
 
 function doChainMine(player, startBlock, blockType, maxBlocks) {
+	const lang = getLocale(player.xuid);
     var visited = new Set();
     var startPos = startBlock.pos;
     var dim = startPos.dimid;
@@ -1129,7 +1152,7 @@ function registerChainListener() {
 
             var chainCheck = checkCanChain(player.xuid);
             if (!chainCheck.canChain) {
-                player.sendText(t('chain.tag_prefix') + " §c" + t('chain.daily_limit_msg'), 4);
+                player.sendText(t(getSystemLang(), 'chain.tag_prefix') + " §c" + t(getSystemLang(), 'chain.daily_limit_msg'), 4);
                 return;
             }
 
@@ -1157,7 +1180,7 @@ function registerChainListener() {
                     logger.info('[Block] 连锁方块数=' + result.count + '，延迟扣除耐久');
                 }
 
-                player.sendText(t('chain.tag_prefix') + " §a" + t('chain.chain_complete', String(result.count), String(elapsed)), 4);
+                player.sendText(t(getSystemLang(), 'chain.tag_prefix') + " §a" + t(getSystemLang(), 'chain.chain_complete', String(result.count), String(elapsed)), 4);
                 if (_onChainComplete) _onChainComplete(player, result.count);
             }
             if (_debug) {
@@ -1176,9 +1199,9 @@ function buildBlockTip(xuid) {
     var sel = _playerSelections[xuid] || {};
     var buildMode = _playerBuildModes[xuid] || 'fill';
     var isFillMode = buildMode === 'fill';
-    var actionText = isFillMode ? t('quick_build.action_place') : t('quick_build.action_break');
+    var actionText = isFillMode ? t(getSystemLang(), 'quick_build.action_place') : t(getSystemLang(), 'quick_build.action_break');
 
-    var tip = '§a' + t('quick_build.title') + ' [' + getBuildModeName(buildMode) + ']';
+    var tip = '§a' + t(getSystemLang(), 'quick_build.title') + ' [' + getBuildModeName(buildMode) + ']';
     if (sel.pointA) {
         tip += ' | §eA: [' + sel.pointA.x + ',' + sel.pointA.y + ',' + sel.pointA.z + ']';
     }
@@ -1186,9 +1209,9 @@ function buildBlockTip(xuid) {
         tip += ' | §eB: [' + sel.pointB.x + ',' + sel.pointB.y + ',' + sel.pointB.z + ']';
     }
     if (!sel.pointA) {
-        tip += ' | §f' + t('quick_build.select_a_hint', actionText) + ' | §c空手取消';
+        tip += ' | §f' + t(getSystemLang(), 'quick_build.select_a_hint', actionText) + ' | §c空手取消';
     } else if (!sel.pointB) {
-        tip += ' | §f' + t('quick_build.select_b_hint', actionText) + ' | §c空手取消';
+        tip += ' | §f' + t(getSystemLang(), 'quick_build.select_b_hint', actionText) + ' | §c空手取消';
     }
     return tip;
 }
@@ -1207,18 +1230,19 @@ function startBlockTipTimer() {
 }
 
 function toggleBlockMode(player, mode) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     if (_enabledPlayers[xuid]) {
         _enabledPlayers[xuid] = false;
         delete _playerSelections[xuid];
-        player.tell(t('quick_build.mode_closed'));
+        player.tell(t(lang, 'quick_build.mode_closed'));
         dlog(player.name + ' 关闭快速建造');
     } else {
         // 检查 iland 选区模式
         try {
             var isSelecting = ll.import('ILAPI_IsSelecting');
             if (isSelecting && isSelecting(xuid)) {
-                player.tell(t('quick_build.iland_selecting'));
+                player.tell(t(lang, 'quick_build.iland_selecting'));
                 return;
             }
         } catch (e) {}
@@ -1229,12 +1253,12 @@ function toggleBlockMode(player, mode) {
 
         var buildMode = _playerBuildModes[xuid];
         if (buildMode !== 'fill') {
-            player.tell(t('quick_build.chain_temp_disabled'));
+            player.tell(t(lang, 'quick_build.chain_temp_disabled'));
         }
 
         var modeName = getBuildModeName(buildMode);
-        var actionText = buildMode === 'fill' ? t('quick_build.action_place') : t('quick_build.action_break');
-        player.tell(t('quick_build.status_enabled') + '，' + t('quick_build.current_mode', modeName) + '，' + t('quick_build.select_a_point', actionText));
+        var actionText = buildMode === 'fill' ? t(lang, 'quick_build.action_place') : t(lang, 'quick_build.action_break');
+        player.tell(t(lang, 'quick_build.status_enabled') + '，' + t(lang, 'quick_build.current_mode', modeName) + '，' + t(lang, 'quick_build.select_a_point', actionText));
         player.tell(buildBlockTip(xuid), 4);
         dlog(player.name + ' 开启快速建造，模式: ' + modeName);
     }
@@ -1248,6 +1272,7 @@ function getSelectionSize(sel) {
 }
 
 function countItemInInventory(player, itemName) {
+	const lang = getLocale(player.xuid);
     var total = 0;
     var inv = player.getInventory();
     var size = inv.size;
@@ -1261,6 +1286,7 @@ function countItemInInventory(player, itemName) {
 }
 
 function removeItemFromInventory(player, itemName, needCount) {
+	const lang = getLocale(player.xuid);
     var remaining = needCount;
     var inv = player.getInventory();
     var size = inv.size;
@@ -1280,6 +1306,7 @@ function removeItemFromInventory(player, itemName, needCount) {
 }
 
 function fillSelection(player, sel, blockType, tileData) {
+	const lang = getLocale(player.xuid);
     var minX = Math.min(sel.pointA.x, sel.pointB.x);
     var minY = Math.min(sel.pointA.y, sel.pointB.y);
     var minZ = Math.min(sel.pointA.z, sel.pointB.z);
@@ -1306,6 +1333,7 @@ function fillSelection(player, sel, blockType, tileData) {
 
 /** 创造模式直接填充 */
 function doCreativeFill(player) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     var sel = _playerSelections[xuid];
     if (!sel || !sel.pointA || !sel.pointB) return;
@@ -1317,7 +1345,7 @@ function doCreativeFill(player) {
     var isCreative = player.gameMode === 1;
     if (!isCreative && buildMode !== 'fill' && size.volume > MAX_NON_FILL_BLOCKS) {
         var modeName = getBuildModeName(buildMode);
-        player.tell('§c选区过大，' + modeName + '最大支持 ' + MAX_NON_FILL_BLOCKS + ' 个方块');
+        player.tell(t(lang, 'quick_build.selection_too_large', modeName, MAX_NON_FILL_BLOCKS));
         _playerSelections[xuid] = {};
         return;
     }
@@ -1325,34 +1353,35 @@ function doCreativeFill(player) {
     if (buildMode === 'clear') {
         fillSelection(player, sel, 'minecraft:air', 0);
         if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
-        player.tell(t('quick_build.break_success', size.volume));
+        player.tell(t(lang, 'quick_build.break_success', size.volume));
     } else if (buildMode === 'water') {
         fillSelection(player, sel, 'minecraft:water', 0);
         if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
-        player.tell(t('quick_build.water_success', size.volume));
+        player.tell(t(lang, 'quick_build.water_success', size.volume));
     } else if (buildMode === 'lava') {
         fillSelection(player, sel, 'minecraft:lava', 0);
         if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
-        player.tell(t('quick_build.lava_success', size.volume));
+        player.tell(t(lang, 'quick_build.lava_success', size.volume));
     } else {
         var mainhand = player.getHand();
         var blockType = mainhand ? mainhand.type : '';
         var tileData = mainhand ? mainhand.aux : 0;
 
         if (!blockType || blockType === 'minecraft:air') {
-            player.tell(t('quick_build.hold_block_first'));
+            player.tell(t(lang, 'quick_build.hold_block_first'));
             _playerSelections[xuid] = {};
             return;
         }
 
         fillSelection(player, sel, blockType, tileData);
         if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
-        player.tell(t('quick_build.fill_success_creative', String(size.volume)));
+        player.tell(t(lang, 'quick_build.fill_success_creative', String(size.volume)));
     }
     _playerSelections[xuid] = {};
 }
 
 function showFillConfirmForm(player) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     var sel = _playerSelections[xuid];
     if (!sel || !sel.pointA || !sel.pointB) return;
@@ -1367,7 +1396,7 @@ function showFillConfirmForm(player) {
         // 限制最大方块数量（创造模式不限制）
         var isCreative = player.gameMode === 1;
         if (!isCreative && size.volume > MAX_NON_FILL_BLOCKS) {
-            player.tell(t('quick_build.selection_too_large', modeName, MAX_NON_FILL_BLOCKS));
+            player.tell(t(lang, 'quick_build.selection_too_large', modeName, MAX_NON_FILL_BLOCKS));
             _playerSelections[xuid] = {};
             return;
         }
@@ -1380,35 +1409,35 @@ function showFillConfirmForm(player) {
         var planDisplayName = getPlanDisplayName(chainCheck.plan);
 
         var content = '§6' + modeName + '§r\n\n';
-        content += t('quick_build.fill_selection_info') + '\n';
-        content += t('quick_build.fill_a_point', String(sel.pointA.x), String(sel.pointA.y), String(sel.pointA.z)) + '\n';
-        content += t('quick_build.fill_b_point', String(sel.pointB.x), String(sel.pointB.y), String(sel.pointB.z)) + '\n';
-        content += t('quick_build.fill_size', String(size.dx), String(size.dy), String(size.dz)) + '\n';
-        content += t('quick_build.fill_need_blocks', String(size.volume)) + '\n\n';
-        content += t('quick_build.fill_plan_info', planDisplayName) + '\n';
-        content += t('quick_build.fill_quota_need', String(quotaNeed), (quotaEnough ? '§a' : '§c') + chainCheck.remaining + '§r') + '\n';
+        content += t(lang, 'quick_build.fill_selection_info') + '\n';
+        content += t(lang, 'quick_build.fill_a_point', String(sel.pointA.x), String(sel.pointA.y), String(sel.pointA.z)) + '\n';
+        content += t(lang, 'quick_build.fill_b_point', String(sel.pointB.x), String(sel.pointB.y), String(sel.pointB.z)) + '\n';
+        content += t(lang, 'quick_build.fill_size', String(size.dx), String(size.dy), String(size.dz)) + '\n';
+        content += t(lang, 'quick_build.fill_need_blocks', String(size.volume)) + '\n\n';
+        content += t(lang, 'quick_build.fill_plan_info', planDisplayName) + '\n';
+        content += t(lang, 'quick_build.fill_quota_need', String(quotaNeed), (quotaEnough ? '§a' : '§c') + chainCheck.remaining + '§r') + '\n';
 
         if (!quotaEnough) {
-            content += '\n' + t('quick_build.fill_insufficient_quota');
+            content += '\n' + t(lang, 'quick_build.fill_insufficient_quota');
         }
 
         var canFill = quotaEnough;
 
         player.sendModalForm(
-            t('quick_build.confirm_title', modeName),
+            t(lang, 'quick_build.confirm_title', modeName),
             content,
-            canFill ? t('quick_build.btn_confirm_fill') : t('quick_build.btn_cannot_fill'),
-            t('quick_build.btn_cancel_fill'),
+            canFill ? t(lang, 'quick_build.btn_confirm_fill') : t(lang, 'quick_build.btn_cannot_fill'),
+            t(lang, 'quick_build.btn_cancel_fill'),
             function(pl, result) {
                 _playerSelections[pl.xuid] = {};
                 if (result === null) return;
                 if (!result) {
-                    pl.tell(t('quick_build.fill_cancelled'));
+                    pl.tell(t(lang, 'quick_build.fill_cancelled'));
                     return;
                 }
                 var check2 = checkCanChain(pl.xuid);
                 if (check2.remaining < quotaNeed) {
-                    pl.tell(t('quick_build.fill_quota_insufficient', String(quotaNeed), String(check2.remaining)));
+                    pl.tell(t(lang, 'quick_build.fill_quota_insufficient', String(quotaNeed), String(check2.remaining)));
                     return;
                 }
                 var blockType = buildMode === 'clear' ? 'minecraft:air' :
@@ -1416,9 +1445,9 @@ function showFillConfirmForm(player) {
                 addDailyUsage(pl.xuid, quotaNeed);
                 fillSelection(pl, sel, blockType, 0);
                 if (_onQuickBuildComplete) _onQuickBuildComplete(pl, size.volume);
-                var msg = buildMode === 'clear' ? t('quick_build.break_success', size.volume) :
-                         buildMode === 'water' ? t('quick_build.water_success', size.volume) :
-                         t('quick_build.lava_success', size.volume);
+                var msg = buildMode === 'clear' ? t(lang, 'quick_build.break_success', size.volume) :
+                         buildMode === 'water' ? t(lang, 'quick_build.water_success', size.volume) :
+                         t(lang, 'quick_build.lava_success', size.volume);
                 pl.tell(msg);
             }
         );
@@ -1432,7 +1461,7 @@ function showFillConfirmForm(player) {
     var tileData = mainhand ? mainhand.aux : 0;
 
     if (!blockType || blockType === 'minecraft:air') {
-        player.tell(t('quick_build.hold_block_first'));
+        player.tell(t(lang, 'quick_build.hold_block_first'));
         return;
     }
 
@@ -1444,51 +1473,51 @@ function showFillConfirmForm(player) {
     var haveCount = countItemInInventory(player, blockType);
     var enough = haveCount >= size.volume;
 
-    var content = t('quick_build.fill_selection_info') + '\n';
-    content += t('quick_build.fill_a_point', String(sel.pointA.x), String(sel.pointA.y), String(sel.pointA.z)) + '\n';
-    content += t('quick_build.fill_b_point', String(sel.pointB.x), String(sel.pointB.y), String(sel.pointB.z)) + '\n';
-    content += t('quick_build.fill_size', String(size.dx), String(size.dy), String(size.dz)) + '\n';
-    content += t('quick_build.fill_need_blocks', String(size.volume)) + '\n\n';
-    content += t('quick_build.fill_block_type', blockName) + '\n';
-    content += t('quick_build.fill_inventory_count', (enough ? '§a' : '§c') + haveCount + '§r') + '\n';
-    content += t('quick_build.fill_plan_info', planDisplayName) + '\n';
-    content += t('quick_build.fill_quota_need', String(quotaNeed), (quotaEnough ? '§a' : '§c') + chainCheck.remaining + '§r') + '\n';
+    var content = t(lang, 'quick_build.fill_selection_info') + '\n';
+    content += t(lang, 'quick_build.fill_a_point', String(sel.pointA.x), String(sel.pointA.y), String(sel.pointA.z)) + '\n';
+    content += t(lang, 'quick_build.fill_b_point', String(sel.pointB.x), String(sel.pointB.y), String(sel.pointB.z)) + '\n';
+    content += t(lang, 'quick_build.fill_size', String(size.dx), String(size.dy), String(size.dz)) + '\n';
+    content += t(lang, 'quick_build.fill_need_blocks', String(size.volume)) + '\n\n';
+    content += t(lang, 'quick_build.fill_block_type', blockName) + '\n';
+    content += t(lang, 'quick_build.fill_inventory_count', (enough ? '§a' : '§c') + haveCount + '§r') + '\n';
+    content += t(lang, 'quick_build.fill_plan_info', planDisplayName) + '\n';
+    content += t(lang, 'quick_build.fill_quota_need', String(quotaNeed), (quotaEnough ? '§a' : '§c') + chainCheck.remaining + '§r') + '\n';
 
     if (!enough) {
-        content += '\n' + t('quick_build.fill_insufficient_blocks');
+        content += '\n' + t(lang, 'quick_build.fill_insufficient_blocks');
     }
     if (!quotaEnough) {
-        content += '\n' + t('quick_build.fill_insufficient_quota');
+        content += '\n' + t(lang, 'quick_build.fill_insufficient_quota');
     }
 
     var isCreative = player.gameMode === 1;
     var canFill = isCreative || (enough && quotaEnough);
 
     player.sendModalForm(
-        t('quick_build.fill_confirm_title'),
+        t(lang, 'quick_build.fill_confirm_title'),
         content,
-        canFill ? t('quick_build.btn_confirm_fill') : t('quick_build.btn_cannot_fill'),
-        t('quick_build.btn_cancel_fill'),
+        canFill ? t(lang, 'quick_build.btn_confirm_fill') : t(lang, 'quick_build.btn_cannot_fill'),
+        t(lang, 'quick_build.btn_cancel_fill'),
         function(pl, result) {
             _playerSelections[pl.xuid] = {};
             if (result === null) return;
             if (!result) {
-                pl.tell(t('quick_build.fill_cancelled'));
+                pl.tell(t(lang, 'quick_build.fill_cancelled'));
                 return;
             }
             if (isCreative) {
                 fillSelection(pl, sel, blockType, tileData);
                 if (_onQuickBuildComplete) _onQuickBuildComplete(pl, size.volume);
-                pl.tell(t('quick_build.fill_success_creative', String(size.volume)));
+                pl.tell(t(lang, 'quick_build.fill_success_creative', String(size.volume)));
                 return;
             }
             var check2 = checkCanChain(pl.xuid);
             if (check2.remaining < quotaNeed) {
-                pl.tell(t('quick_build.fill_quota_insufficient', String(quotaNeed), String(check2.remaining)));
+                pl.tell(t(lang, 'quick_build.fill_quota_insufficient', String(quotaNeed), String(check2.remaining)));
                 return;
             }
             if (!enough) {
-                pl.tell(t('quick_build.fill_blocks_insufficient', String(size.volume), String(haveCount)));
+                pl.tell(t(lang, 'quick_build.fill_blocks_insufficient', String(size.volume), String(haveCount)));
                 return;
             }
             if (removeItemFromInventory(pl, blockType, size.volume)) {
@@ -1496,9 +1525,9 @@ function showFillConfirmForm(player) {
                 addDailyUsage(pl.xuid, quotaNeed);
                 fillSelection(pl, sel, blockType, tileData);
                 if (_onQuickBuildComplete) _onQuickBuildComplete(pl, size.volume);
-                pl.tell(t('quick_build.fill_success', String(size.volume), String(quotaNeed)));
+                pl.tell(t(lang, 'quick_build.fill_success', String(size.volume), String(quotaNeed)));
             } else {
-                pl.tell(t('quick_build.fill_failed'));
+                pl.tell(t(lang, 'quick_build.fill_failed'));
             }
         }
     );
@@ -1522,6 +1551,7 @@ function registerBlockPlaceListener() {
     mc.listen('onDestroyBlock', function(player, block) {
         try {
             var xuid = player.xuid;
+            var lang = getLocale(xuid);
             if (!_enabledPlayers[xuid]) return;
             if (!_playerSelections[xuid]) return;
 
@@ -1536,18 +1566,18 @@ function registerBlockPlaceListener() {
             var placePos = { x: block.pos.x, y: block.pos.y, z: block.pos.z, dimid: block.pos.dimid };
 
             if (!canPlayerBuildAt(player, placePos)) {
-                player.tell(t('quick_build.land_no_permission'));
+                player.tell(t(lang, 'quick_build.land_no_permission'));
                 return false;
             }
 
             if (!sel.pointA) {
                 sel.pointA = placePos;
-                player.tell('§aA点已标记: [' + placePos.x + ',' + placePos.y + ',' + placePos.z + ']，破坏第二个方块标记B点');
+                player.tell(t(lang, 'quick_build.a_marked', placePos.x, placePos.y, placePos.z));
                 return false;
             }
             if (!sel.pointB) {
                 sel.pointB = placePos;
-                player.tell('§aB点已标记: [' + placePos.x + ',' + placePos.y + ',' + placePos.z + ']');
+                player.tell(t(lang, 'quick_build.b_marked', placePos.x, placePos.y, placePos.z));
                 if (player.gameMode === 1) {
                     doCreativeFill(player);
                 } else {
@@ -1563,6 +1593,7 @@ function registerBlockPlaceListener() {
     mc.listen('onUseItemOn', function(player, item, block, side, pos) {
         try {
             var xuid = player.xuid;
+            var lang = getLocale(xuid);
             if (!_enabledPlayers[xuid]) return;
             if (!_playerSelections[xuid]) return;
 
@@ -1575,11 +1606,11 @@ function registerBlockPlaceListener() {
                 _selectCooldown[xuid] = now2;
                 if (sel.pointA || sel.pointB) {
                     _playerSelections[xuid] = {};
-                    player.tell(t('quick_build.selection_cancelled'));
+                    player.tell(t(lang, 'quick_build.selection_cancelled'));
                 } else {
                     _enabledPlayers[xuid] = false;
                     delete _playerSelections[xuid];
-                    player.tell(t('quick_build.mode_closed'));
+                    player.tell(t(lang, 'quick_build.mode_closed'));
                 }
                 return;
             }
@@ -1601,18 +1632,18 @@ function registerBlockPlaceListener() {
             else if (side === 5) placePos.x += 1;
 
             if (!canPlayerBuildAt(player, placePos)) {
-                player.tell(t('quick_build.land_no_permission'));
+                player.tell(t(lang, 'quick_build.land_no_permission'));
                 return false;
             }
 
             if (!sel.pointA) {
                 sel.pointA = placePos;
-                player.tell(t('quick_build.a_marked', String(placePos.x), String(placePos.y), String(placePos.z)));
+                player.tell(t(lang, 'quick_build.a_marked', String(placePos.x), String(placePos.y), String(placePos.z)));
                 return false;
             }
             if (!sel.pointB) {
                 sel.pointB = placePos;
-                player.tell(t('quick_build.b_marked', String(placePos.x), String(placePos.y), String(placePos.z)));
+                player.tell(t(lang, 'quick_build.b_marked', String(placePos.x), String(placePos.y), String(placePos.z)));
                 if (player.gameMode === 1) {
                     doCreativeFill(player);
                 } else {
@@ -1631,22 +1662,23 @@ function getBuildModeName(mode) {
 }
 
 function showBlockForm(player) {
+	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
     var currentMode = _playerBuildModes[xuid] || 'fill';
     var enabled = !!_enabledPlayers[xuid];
-    var status = enabled ? t('quick_build.status_enabled') : t('quick_build.status_disabled');
+    var status = enabled ? t(lang, 'quick_build.status_enabled') : t(lang, 'quick_build.status_disabled');
 
     var fm = mc.newCustomForm();
-    fm.setTitle(t('quick_build.title'));
+    fm.setTitle(t(lang, 'quick_build.title'));
 
-    fm.addLabel('§6' + t('quick_build.title') + '§r\n' +
-        t('quick_build.status_enabled').replace('§a', '') + ': ' + status + '\n\n' +
-        t('quick_build.usage_title') + '\n' +
-        t('quick_build.usage_desc'));
+    fm.addLabel('§6' + t(lang, 'quick_build.title') + '§r\n' +
+        t(lang, 'quick_build.status_enabled').replace('§a', '') + ': ' + status + '\n\n' +
+        t(lang, 'quick_build.usage_title') + '\n' +
+        t(lang, 'quick_build.usage_desc'));
 
     var modeOptions = BUILD_MODES.map(function(m) { return getBuildModeName(m); });
     var modeIndex = BUILD_MODES.indexOf(currentMode);
-    fm.addDropdown(t('quick_build.select_mode'), modeOptions, modeIndex >= 0 ? modeIndex : 0);
+    fm.addDropdown(t(lang, 'quick_build.select_mode'), modeOptions, modeIndex >= 0 ? modeIndex : 0);
 
     player.sendForm(fm, function(pl, data) {
         if (data == null) return;
@@ -1669,7 +1701,7 @@ function showBlockForm(player) {
             // 已启用，切换模式并重置选区
             _playerSelections[pl.xuid] = {};
             var modeName = getBuildModeName(selectedMode);
-            pl.tell(t('quick_build.mode_switched', modeName));
+            pl.tell(t(lang, 'quick_build.mode_switched', modeName));
             pl.tell(buildBlockTip(pl.xuid), 4);
             dlog(pl.name + ' 切换建造模式: ' + modeName);
         }

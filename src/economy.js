@@ -58,16 +58,23 @@ function getSystemLang() {
     return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
 }
 
+function getLocale(xuid) {
+    if (_deps.getPlayerSetting && xuid) {
+        return _deps.getPlayerSetting(xuid, 'locale') || getSystemLang();
+    }
+    return getSystemLang();
+}
+
 /**
  * 本地翻译包装
+ * @param {string} lang - 语言代码
  * @param {string} key - 翻译键
  * @param {...any} args - 替换参数
  * @returns {string}
  */
-function t(key) {
-    var lang = getSystemLang();
-    var args = [lang, key];
-    for (var i = 1; i < arguments.length; i++) {
+function t(lang) {
+    var args = [];
+    for (var i = 0; i < arguments.length; i++) {
         args.push(arguments[i]);
     }
     return i18n.t.apply(null, args);
@@ -83,7 +90,7 @@ function getCurrencyName() {
             return _currencyNameCache;
         }
     } catch (e) {}
-    _currencyNameCache = t('economy.currency_fallback');
+    _currencyNameCache = t(getSystemLang(), 'economy.currency_fallback');
     return _currencyNameCache;
 }
 
@@ -94,10 +101,11 @@ function getCurrencyName() {
  * @param {string} source - 变动来源描述
  */
 function notifyEconomyChange(player, amount, source) {
+	const lang = getLocale(player.xuid);
     try {
         const sign = amount >= 0 ? "+" : "";
         const line1 = sign + amount + getCurrencyName();
-        const line2 = source || t('economy.other');
+        const line2 = source || t(lang, 'economy.other');
         player.sendToast(line2, line1);
     } catch (e) { /* player可能已离线 */ }
 }
@@ -108,6 +116,7 @@ function notifyEconomyChange(player, amount, source) {
  * @returns {number} 玩家余额，异常时返回0
  */
 function getPlayerMoney(player) {
+	const lang = getLocale(player.xuid);
     try {
         if (typeof money === 'undefined' || money === null) {
             logger.error('money对象不存在，无法获取玩家货币！');
@@ -149,6 +158,7 @@ function getPlayerMoney(player) {
  * @returns {boolean} 是否扣费成功
  */
 function reducePlayerMoney(player, value, reason) {
+	const lang = getLocale(player.xuid);
     try {
         if (typeof money === 'undefined' || money === null) {
             logger.error('money对象不存在，无法减少玩家货币！');
@@ -188,9 +198,9 @@ function reducePlayerMoney(player, value, reason) {
                 xuid: xuid,
                 amount: intValue,
                 balance: afterMoney,
-                reason: reason || t('economy.reason_system_deduct')
+                reason: reason || t(lang, 'economy.reason_system_deduct')
             });
-            notifyEconomyChange(player, -intValue, reason || t('economy.reason_system_deduct'));
+            notifyEconomyChange(player, -intValue, reason || t(lang, 'economy.reason_system_deduct'));
             return true;
         } else {
             logger.error('减少玩家 ' + player.name + ' 货币失败！');
@@ -213,6 +223,7 @@ function reducePlayerMoney(player, value, reason) {
  * @returns {boolean} 是否操作成功
  */
 function addPlayerMoney(player, value, reason) {
+	const lang = getLocale(player.xuid);
     try {
         if (typeof money === 'undefined' || money === null) {
             logger.error('money对象不存在，无法增加玩家货币！');
@@ -244,9 +255,9 @@ function addPlayerMoney(player, value, reason) {
                 xuid: xuid,
                 amount: intValue,
                 balance: afterMoney,
-                reason: reason || t('economy.reason_system_income')
+                reason: reason || t(lang, 'economy.reason_system_income')
             });
-            notifyEconomyChange(player, intValue, reason || t('economy.reason_system_income'));
+            notifyEconomyChange(player, intValue, reason || t(lang, 'economy.reason_system_income'));
             return true;
         } else {
             logger.error('增加玩家 ' + player.name + ' 货币失败！');
@@ -296,7 +307,7 @@ function addPlayerMoneyByXuid(xuid, value, source) {
         if (success) {
             const player = mc.getPlayer(xuid);
             if (player) {
-                notifyEconomyChange(player, intValue, source || t('economy.reason_system_income'));
+                notifyEconomyChange(player, intValue, source || t(getLocale(xuid), 'economy.reason_system_income'));
             }
         }
         return success;
@@ -322,7 +333,7 @@ function reducePlayerMoneyByXuid(xuid, value, source) {
         if (success) {
             const player = mc.getPlayer(xuid);
             if (player) {
-                notifyEconomyChange(player, -intValue, source || t('economy.reason_system_deduct'));
+                notifyEconomyChange(player, -intValue, source || t(getLocale(xuid), 'economy.reason_system_deduct'));
             }
         }
         return success;
@@ -374,18 +385,19 @@ function _writeTransferLog(senderName, targetName, amount, senderBalance, target
         target: targetName,
         amount: amount,
         balance: senderBalance,
-        detail: t('economy.log_target_balance', targetBalance)
+        detail: t(getSystemLang(), 'economy.log_target_balance', targetBalance)
     });
 }
 
 /** 显示经济系统主界面 */
 function showMoneyMainForm(player) {
+	const lang = getLocale(player.xuid);
     let fm = mc.newSimpleForm();
-    fm.setTitle(t('economy.main_title'));
+    fm.setTitle(t(lang, 'economy.main_title'));
     let balance = getPlayerMoney(player);
-    fm.setContent(t('economy.main_content', balance, getCurrencyName()));
-    fm.addButton(t('economy.main_btn_transfer'), "textures/ui/icon_recipe_equipment");
-    fm.addButton(t('economy.btn_close'), "textures/ui/cancel");
+    fm.setContent(t(lang, 'economy.main_content', balance, getCurrencyName()));
+    fm.addButton(t(lang, 'economy.main_btn_transfer'), "textures/ui/icon_recipe_equipment");
+    fm.addButton(t(lang, 'economy.btn_close'), "textures/ui/cancel");
     player.sendForm(fm, function(p, id) {
         if (id === null || id === 1) return;
         if (id === 0) showTransferTypeForm(p);
@@ -394,13 +406,14 @@ function showMoneyMainForm(player) {
 
 /** 显示经济面板 */
 function showEconomyPanel(player) {
+	const lang = getLocale(player.xuid);
     let fm = mc.newSimpleForm();
-    fm.setTitle(t('economy.panel_title'));
+    fm.setTitle(t(lang, 'economy.panel_title'));
     let balance = getPlayerMoney(player);
-    fm.setContent(t('economy.panel_balance', balance, getCurrencyName()));
-    fm.addButton(t('economy.panel_btn_transfer'), "textures/ui/icon_recipe_equipment");
-    fm.addButton(t('economy.panel_btn_bill'), "textures/ui/icon_book_writable");
-    fm.addButton(t('economy.btn_close'), "textures/ui/cancel");
+    fm.setContent(t(lang, 'economy.panel_balance', balance, getCurrencyName()));
+    fm.addButton(t(lang, 'economy.panel_btn_transfer'), "textures/ui/icon_recipe_equipment");
+    fm.addButton(t(lang, 'economy.panel_btn_bill'), "textures/ui/icon_book_writable");
+    fm.addButton(t(lang, 'economy.btn_close'), "textures/ui/cancel");
     player.sendForm(fm, function(p, id) {
         if (id === null || id === 2) return;
         if (id === 0) showTransferTypeForm(p);
@@ -410,12 +423,13 @@ function showEconomyPanel(player) {
 
 /** 显示转账对象类型选择 */
 function showTransferTypeForm(player) {
+	const lang = getLocale(player.xuid);
     let fm = mc.newSimpleForm();
-    fm.setTitle(t('economy.transfer_title'));
-    fm.setContent(t('economy.transfer_select_type'));
-    fm.addButton(t('economy.transfer_online'), "textures/ui/online");
-    fm.addButton(t('economy.transfer_offline'), "textures/ui/offline");
-    fm.addButton(t('economy.btn_back'), "textures/ui/recap_glyph_desaturated");
+    fm.setTitle(t(lang, 'economy.transfer_title'));
+    fm.setContent(t(lang, 'economy.transfer_select_type'));
+    fm.addButton(t(lang, 'economy.transfer_online'), "textures/ui/online");
+    fm.addButton(t(lang, 'economy.transfer_offline'), "textures/ui/offline");
+    fm.addButton(t(lang, 'economy.btn_back'), "textures/ui/recap_glyph_desaturated");
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
         if (id === 2) { showEconomyPanel(p); return; }
@@ -426,6 +440,7 @@ function showTransferTypeForm(player) {
 
 /** 显示在线玩家转账表单 */
 function showTransferOnlineForm(player) {
+	const lang = getLocale(player.xuid);
     const onlineList = mc.getOnlinePlayers();
     const names = [];
     onlineList.forEach(function(p) {
@@ -434,40 +449,40 @@ function showTransferOnlineForm(player) {
         }
     });
     if (names.length === 0) {
-        player.sendModalForm(t('economy.transfer_title'), t('economy.transfer_no_other_online'), t('economy.btn_back'), t('economy.btn_close'), function(pl, ok) {
+        player.sendModalForm(t(lang, 'economy.transfer_title'), t(lang, 'economy.transfer_no_other_online'), t(lang, 'economy.btn_back'), t(lang, 'economy.btn_close'), function(pl, ok) {
             if (ok === true) showTransferTypeForm(pl);
         });
         return;
     }
     let fm = mc.newCustomForm();
-    fm.setTitle(t('economy.transfer_to_online_title'));
-    fm.addDropdown(t('economy.transfer_select_player'), names, 0);
-    fm.addInput(t('economy.transfer_input_amount'), t('economy.transfer_input_placeholder'), "");
+    fm.setTitle(t(lang, 'economy.transfer_to_online_title'));
+    fm.addDropdown(t(lang, 'economy.transfer_select_player'), names, 0);
+    fm.addInput(t(lang, 'economy.transfer_input_amount'), t(lang, 'economy.transfer_input_placeholder'), "");
     player.sendForm(fm, function(p, data) {
         if (data == null || !Array.isArray(data)) return;
         const targetName = names[data[0]];
         let amountStr = (data[1] || "").trim();
         if (!amountStr || !U.isInteger(amountStr) || Number(amountStr) <= 0) {
-            p.tell(t('economy.transfer_invalid_amount'));
+            p.tell(t(lang, 'economy.transfer_invalid_amount'));
             showTransferOnlineForm(p);
             return;
         }
         let amount = Number(amountStr);
         let balance = getPlayerMoney(p);
         if (balance < amount) {
-            p.sendModalForm(t('economy.transfer_insufficient_title'), t('economy.transfer_insufficient_body', amount, getCurrencyName(), balance, getCurrencyName()), t('economy.transfer_btn_reselect'), t('economy.btn_close'), function(pl, ok) {
+            p.sendModalForm(t(lang, 'economy.transfer_insufficient_title'), t(lang, 'economy.transfer_insufficient_body', amount, getCurrencyName(), balance, getCurrencyName()), t(lang, 'economy.transfer_btn_reselect'), t(lang, 'economy.btn_close'), function(pl, ok) {
                 if (ok === true) showTransferOnlineForm(pl);
             });
             return;
         }
         let target = mc.getPlayer(targetName);
         if (!target) {
-            p.sendModalForm(t('economy.transfer_failed_title'), t('economy.transfer_player_offline'), t('economy.btn_back'), t('economy.btn_close'), function(pl, ok) {
+            p.sendModalForm(t(lang, 'economy.transfer_failed_title'), t(lang, 'economy.transfer_player_offline'), t(lang, 'economy.btn_back'), t(lang, 'economy.btn_close'), function(pl, ok) {
                 if (ok === true) showTransferTypeForm(pl);
             });
             return;
         }
-        p.sendModalForm(t('economy.transfer_confirm_title'), t('economy.transfer_confirm_body', targetName, amount, getCurrencyName()), t('economy.transfer_btn_confirm'), t('economy.transfer_btn_cancel'), function(pl, ok) {
+        p.sendModalForm(t(lang, 'economy.transfer_confirm_title'), t(lang, 'economy.transfer_confirm_body', targetName, amount, getCurrencyName()), t(lang, 'economy.transfer_btn_confirm'), t(lang, 'economy.transfer_btn_cancel'), function(pl, ok) {
             if (!ok) return;
             _executeTransfer(pl, targetName, target.xuid, amount);
         });
@@ -476,14 +491,15 @@ function showTransferOnlineForm(player) {
 
 /** 显示离线玩家转账表单 */
 function showTransferOfflineForm(player) {
+	const lang = getLocale(player.xuid);
     let fm = mc.newCustomForm();
-    fm.setTitle(t('economy.transfer_to_offline_title'));
-    fm.addInput(t('economy.transfer_input_name_uid'), "", "");
+    fm.setTitle(t(lang, 'economy.transfer_to_offline_title'));
+    fm.addInput(t(lang, 'economy.transfer_input_name_uid'), "", "");
     player.sendForm(fm, function(p, data) {
         if (data == null || !Array.isArray(data)) return;
         const keyword = (data[0] || "").trim();
         if (!keyword) {
-            p.tell(t('economy.transfer_input_search_hint'));
+            p.tell(t(lang, 'economy.transfer_input_search_hint'));
             showTransferOfflineForm(p);
             return;
         }
@@ -504,18 +520,19 @@ function showTransferOfflineForm(player) {
 
 /** 显示离线玩家搜索结果列表 */
 function _showTransferOfflineResultsForm(player, results, keyword) {
+	const lang = getLocale(player.xuid);
     let fm = mc.newSimpleForm();
-    fm.setTitle(t('economy.transfer_search_title'));
+    fm.setTitle(t(lang, 'economy.transfer_search_title'));
     if (results.length === 0) {
-        fm.setContent(t('economy.transfer_no_match', keyword));
+        fm.setContent(t(lang, 'economy.transfer_no_match', keyword));
     } else {
-        fm.setContent(t('economy.transfer_match_results', results.length));
+        fm.setContent(t(lang, 'economy.transfer_match_results', results.length));
         results.forEach(function(r) {
             const avatarUrl = _deps.getPlayerAvatarUrl ? _deps.getPlayerAvatarUrl(r.xuid) : "textures/ui/icon_steve";
             fm.addButton(r.name + "\nUID: " + r.uid, avatarUrl);
         });
     }
-    fm.addButton(t('economy.btn_back'), "textures/ui/recap_glyph_desaturated");
+    fm.addButton(t(lang, 'economy.btn_back'), "textures/ui/recap_glyph_desaturated");
     player.sendForm(fm, function(p, id) {
         if (id === null) return;
         if (id >= results.length) {
@@ -529,27 +546,28 @@ function _showTransferOfflineResultsForm(player, results, keyword) {
 
 /** 显示离线玩家转账金额输入表单 */
 function _showTransferOfflineAmountForm(player, target) {
+	const lang = getLocale(player.xuid);
     const fm = mc.newCustomForm();
-    fm.setTitle(t('economy.transfer_to_name_title', target.name));
-    fm.addLabel(t('economy.transfer_target_label', target.name, target.uid));
-    fm.addInput(t('economy.transfer_input_amount'), t('economy.transfer_input_placeholder'), "");
+    fm.setTitle(t(lang, 'economy.transfer_to_name_title', target.name));
+    fm.addLabel(t(lang, 'economy.transfer_target_label', target.name, target.uid));
+    fm.addInput(t(lang, 'economy.transfer_input_amount'), t(lang, 'economy.transfer_input_placeholder'), "");
     player.sendForm(fm, function(p, data) {
         if (data == null || !Array.isArray(data)) return;
         const amountStr = (data[1] || "").trim();
         if (!amountStr || !U.isInteger(amountStr) || Number(amountStr) <= 0) {
-            p.tell(t('economy.transfer_invalid_amount'));
+            p.tell(t(lang, 'economy.transfer_invalid_amount'));
             _showTransferOfflineAmountForm(p, target);
             return;
         }
         const amount = Number(amountStr);
         const balance = getPlayerMoney(p);
         if (balance < amount) {
-            p.sendModalForm(t('economy.transfer_insufficient_title'), t('economy.transfer_insufficient_body', amount, getCurrencyName(), balance, getCurrencyName()), t('economy.transfer_btn_reselect'), t('economy.btn_close'), function(pl, ok) {
+            p.sendModalForm(t(lang, 'economy.transfer_insufficient_title'), t(lang, 'economy.transfer_insufficient_body', amount, getCurrencyName(), balance, getCurrencyName()), t(lang, 'economy.transfer_btn_reselect'), t(lang, 'economy.btn_close'), function(pl, ok) {
                 if (ok === true) _showTransferOfflineAmountForm(pl, target);
             });
             return;
         }
-        p.sendModalForm(t('economy.transfer_confirm_title'), t('economy.transfer_confirm_body', target.name, amount, getCurrencyName()), t('economy.transfer_btn_confirm'), t('economy.transfer_btn_cancel'), function(pl, ok) {
+        p.sendModalForm(t(lang, 'economy.transfer_confirm_title'), t(lang, 'economy.transfer_confirm_body', target.name, amount, getCurrencyName()), t(lang, 'economy.transfer_btn_confirm'), t(lang, 'economy.transfer_btn_cancel'), function(pl, ok) {
             if (!ok) return;
             _executeTransfer(pl, target.name, target.xuid, amount);
         });
@@ -561,6 +579,7 @@ function _showTransferOfflineAmountForm(player, target) {
  */
 const _recentTransfers = {};
 function _executeTransfer(sender, targetName, targetXuid, amount) {
+    const lang = getLocale(sender.xuid);
     const transferKey = targetXuid + ':' + amount;
     const now = Date.now();
     const senderXuid = sender.xuid;
@@ -573,40 +592,41 @@ function _executeTransfer(sender, targetName, targetXuid, amount) {
     // 检查是否在3秒内重复转账
     const lastTransferTime = _recentTransfers[senderXuid][transferKey];
     if (lastTransferTime && (now - lastTransferTime) < 3000) {
-        sender.tell(t('economy.transfer_duplicate'));
+        sender.tell(t(lang, 'economy.transfer_duplicate'));
         return;
     }
 
     // 记录本次转账时间
     _recentTransfers[senderXuid][transferKey] = now;
-    if (!reducePlayerMoney(sender, amount, t('economy.reason_transfer_to', targetName))) {
-        sender.tell(t('economy.transfer_deduct_failed'));
+    if (!reducePlayerMoney(sender, amount, t(lang, 'economy.reason_transfer_to', targetName))) {
+        sender.tell(t(lang, 'economy.transfer_deduct_failed'));
         return;
     }
     const targetPlayer = mc.getPlayer(targetXuid);
     if (targetPlayer) {
-        addPlayerMoney(targetPlayer, amount, t('economy.reason_transfer_from', sender.realName));
+        addPlayerMoney(targetPlayer, amount, t(lang, 'economy.reason_transfer_from', sender.realName));
     } else {
         _deps.database.addPendingTransferSQL(targetXuid, sender.realName, sender.xuid, amount, new Date().toLocaleString());
     }
     const senderBalance = getPlayerMoney(sender);
     const targetBalance = targetPlayer ? getPlayerMoney(targetPlayer) : getPlayerMoneyByXuid(targetXuid);
     _writeTransferLog(sender.realName, targetName, amount, senderBalance, targetBalance);
-    sender.tell(t('economy.transfer_success_tell', targetName, amount, getCurrencyName(), senderBalance, getCurrencyName()));
-    sender.sendModalForm(t('economy.transfer_success_title'), t('economy.transfer_success_body', targetName, amount, getCurrencyName(), senderBalance, getCurrencyName()), t('economy.transfer_btn_continue'), t('economy.btn_close'), function(pl, ok) {
+    sender.tell(t(lang, 'economy.transfer_success_tell', targetName, amount, getCurrencyName(), senderBalance, getCurrencyName()));
+    sender.sendModalForm(t(lang, 'economy.transfer_success_title'), t(lang, 'economy.transfer_success_body', targetName, amount, getCurrencyName(), senderBalance, getCurrencyName()), t(lang, 'economy.transfer_btn_continue'), t(lang, 'economy.btn_close'), function(pl, ok) {
         if (ok === true) showTransferTypeForm(pl);
     });
 }
 
 /** 玩家上线时检查并通知待领取的离线转账 */
 function checkPendingTransfers(player) {
+	const lang = getLocale(player.xuid);
     if (!_deps.database || !_deps.database.getPendingTransfersSQL) return;
     const xuid = player.xuid;
     const transfers = _deps.database.getPendingTransfersSQL(xuid);
     if (transfers.length === 0) return;
     transfers.forEach(function(tr) {
-        player.tell(t('economy.transfer_pending_notify', tr.from, tr.amount, getCurrencyName()));
-        addPlayerMoney(player, tr.amount, t('economy.reason_transfer_from', tr.from));
+        player.tell(t(lang, 'economy.transfer_pending_notify', tr.from, tr.amount, getCurrencyName()));
+        addPlayerMoney(player, tr.amount, t(lang, 'economy.reason_transfer_from', tr.from));
     });
     _deps.database.clearPendingTransfersSQL(xuid);
 }
@@ -620,34 +640,35 @@ function checkPendingTransfers(player) {
  * @param {Function} [onCancel] - 取消后的回调
  */
 function confirmPurchase(player, cost, reason, onConfirm, onCancel) {
+	const lang = getLocale(player.xuid);
     var currencyName = getCurrencyName();
     var balance = getPlayerMoney(player);
 
     if (balance < cost) {
         var fm = mc.newSimpleForm();
-        fm.setTitle(t('economy.bill_insufficient_title'));
+        fm.setTitle(t(lang, 'economy.bill_insufficient_title'));
         fm.setContent(
-            t('economy.bill_op_label', reason || t('economy.bill_unknown_op')) + "\n" +
-            t('economy.bill_need_label', cost, currencyName) + "\n" +
-            t('economy.bill_balance_label', balance, currencyName) + "\n\n" +
-            t('economy.bill_insufficient_msg')
+            t(lang, 'economy.bill_op_label', reason || t(lang, 'economy.bill_unknown_op')) + "\n" +
+            t(lang, 'economy.bill_need_label', cost, currencyName) + "\n" +
+            t(lang, 'economy.bill_balance_label', balance, currencyName) + "\n\n" +
+            t(lang, 'economy.bill_insufficient_msg')
         );
-        fm.addButton(t('economy.btn_close'));
+        fm.addButton(t(lang, 'economy.btn_close'));
         player.sendForm(fm, function(p) { if (onCancel) onCancel(p); });
         return;
     }
 
     var remaining = balance - cost;
     var fm = mc.newSimpleForm();
-    fm.setTitle(t('economy.bill_confirm_title'));
+    fm.setTitle(t(lang, 'economy.bill_confirm_title'));
     fm.setContent(
-        t('economy.bill_op_label', reason || t('economy.bill_unknown_op')) + "\n" +
-        t('economy.bill_need_label', cost, currencyName) + "\n" +
-        t('economy.bill_own_label', balance, currencyName) + "\n" +
-        t('economy.bill_remaining_label', remaining, currencyName)
+        t(lang, 'economy.bill_op_label', reason || t(lang, 'economy.bill_unknown_op')) + "\n" +
+        t(lang, 'economy.bill_need_label', cost, currencyName) + "\n" +
+        t(lang, 'economy.bill_own_label', balance, currencyName) + "\n" +
+        t(lang, 'economy.bill_remaining_label', remaining, currencyName)
     );
-    fm.addButton(t('economy.btn_confirm'));
-    fm.addButton(t('economy.btn_cancel'));
+    fm.addButton(t(lang, 'economy.btn_confirm'));
+    fm.addButton(t(lang, 'economy.btn_cancel'));
     player.sendForm(fm, function(p, id) {
         if (id === null || id === 1) {
             if (onCancel) onCancel(p);
@@ -707,30 +728,31 @@ function readEconomyLog(playerName, page, pageSize) {
  * @param {number} page - 页码
  */
 function showEconomyLogForm(player, page) {
+	const lang = getLocale(player.xuid);
     page = page || 1;
     var result = readEconomyLog(player.realName, page, 10);
     var currencyName = getCurrencyName();
     var balance = getPlayerMoney(player);
 
-    var content = t('economy.log_balance', balance, currencyName) + "\n";
-    content += t('economy.log_page_info', result.page, result.totalPages, result.total) + "\n\n";
+    var content = t(lang, 'economy.log_balance', balance, currencyName) + "\n";
+    content += t(lang, 'economy.log_page_info', result.page, result.totalPages, result.total) + "\n\n";
 
     if (result.logs.length === 0) {
-        content += t('economy.log_no_records');
+        content += t(lang, 'economy.log_no_records');
     } else {
         result.logs.forEach(function(log, i) {
             var actionIcon = log.action === 'reduce' ? '§c-' : '§a+';
-            var actionText = log.action === 'reduce' ? t('economy.log_expense') : t('economy.log_income');
+            var actionText = log.action === 'reduce' ? t(lang, 'economy.log_expense') : t(lang, 'economy.log_income');
             content += actionIcon + log.amount + " " + actionText + " §f" + (log.reason || '') + " §8" + (log.time || '') + "\n";
         });
     }
 
     var fm = mc.newSimpleForm();
-    fm.setTitle(t('economy.log_title'));
+    fm.setTitle(t(lang, 'economy.log_title'));
     fm.setContent(content);
-    if (page > 1) fm.addButton(t('economy.btn_prev_page'));
-    if (page < result.totalPages) fm.addButton(t('economy.btn_next_page'));
-    fm.addButton(t('economy.btn_close'));
+    if (page > 1) fm.addButton(t(lang, 'economy.btn_prev_page'));
+    if (page < result.totalPages) fm.addButton(t(lang, 'economy.btn_next_page'));
+    fm.addButton(t(lang, 'economy.btn_close'));
 
     player.sendForm(fm, function(p, id) {
         if (id === null) return;

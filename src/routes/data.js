@@ -77,7 +77,7 @@ function registerRoutes(router, d) {
     });
 
     // 添加CDK兑换码
-    router.post('/cdk/add', d.adminAuth, function(req, res) {
+    router.post('/cdk/add', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let body = req.body;
             sanitize(body);
@@ -141,7 +141,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除指定CDK兑换码
-    router.post('/cdk/delete', d.adminAuth, function(req, res) {
+    router.post('/cdk/delete', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let body = req.body;
             sanitize(body);
@@ -162,7 +162,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改CDK兑换码
-    router.post('/cdk/modify', d.adminAuth, function(req, res) {
+    router.post('/cdk/modify', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let body = req.body;
             sanitize(body);
@@ -272,7 +272,7 @@ function registerRoutes(router, d) {
     });
 
     // 添加白名单
-    router.post('/allowlist', d.adminAuth, function(req, res) {
+    router.post('/allowlist', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let name = (req.body.name || '').trim();
             if (!name) {
@@ -306,7 +306,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除白名单
-    router.delete('/allowlist', d.adminAuth, function(req, res) {
+    router.delete('/allowlist', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let name = (req.body.name || '').trim();
             if (!name) {
@@ -401,7 +401,7 @@ function registerRoutes(router, d) {
     });
 
     // 管理员全服广播消息，同时写入内存记录和持久化日志
-    router.post('/chat/send', d.adminAuth, function(req, res) {
+    router.post('/chat/send', d.adminAuth, d.writeLimiter, function(req, res) {
         let message = req.body.message;
 
         if (!message || !message.trim()) {

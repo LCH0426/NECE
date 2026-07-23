@@ -23,52 +23,60 @@
 const U = require('./utils');
 
 /** 设置界面表单描述（动态生成以支持 i18n） */
-function getPlayerSettingsSchema() {
+function getPlayerSettingsSchema(lang) {
     return [
-        { type: 'label', text: '§b' + t('pc.welcome') },
-        { key: 'enableWelcome', label: '§e' + t('pc.enable_welcome') },
-        { key: 'enableActionbar', label: '§e' + t('pc.enable_actionbar') },
-        { key: 'enableActionbarShowPing', label: '§e' + t('pc.actionbar_ping') },
-        { key: 'enableIpDetector', label: '§e' + t('pc.enable_ip_detector') },
-        { key: 'enableIpVerify', label: '§e' + t('pc.enable_ip_verify') },
-        { type: 'label', text: '§b' + t('pc.sidebar_title') },
-        { key: 'enableActionbarMoney', label: '§e' + t('pc.sidebar_money') },
-        { key: 'enableActionbarPing', label: '§e' + t('pc.sidebar_ping') },
-        { key: 'enableActionbarTps', label: '§e' + t('pc.sidebar_tps') },
-        { key: 'enableActionbarSpeed', label: '§e' + t('pc.sidebar_speed') },
-        { key: 'enableActionbarBiome', label: '§e' + t('pc.sidebar_biome') },
-        { key: 'enableActionbarTime', label: '§e' + t('pc.sidebar_time') },
-        { type: 'label', text: '§b' + t('pc.join_items') },
-        { key: 'enableGiveClock', label: '§e' + t('pc.give_clock') },
-        { key: 'enableGiveCompass', label: '§e' + t('pc.give_compass') },
-        { type: 'label', text: '§b' + t('pc.misc') },
-        { key: 'enableBankNotice', label: '§e' + t('pc.bank_notice') },
-        { key: 'enableDeathTeleportPopup', label: '§e' + t('pc.death_tp_popup') },
-        { type: 'label', text: '§b' + t('pc.friend_settings') },
-        { key: 'allowFriendRequests', label: '§e' + t('pc.allow_friend') },
-        { key: 'acceptStrangerMessages', label: '§e' + t('pc.accept_stranger') },
-        { key: 'enableMessageNotification', label: '§e' + t('pc.new_msg_notify') },
-        { key: 'enableFriendRequestNotification', label: '§e' + t('pc.friend_req_notify') },
-        { key: 'enableMailNotification', label: '§e' + t('pc.mail_notify') },
-        { type: 'label', text: '§b' + t('pc.tp_settings') },
-        { key: 'enableTpaRejectMode', label: '§c' + t('pc.reject_tpa') },
-        { type: 'label', text: '§b' + t('pc.debug_settings') },
-        { key: 'enableDebug', label: '§e' + t('pc.enable_debug') },
-        { type: 'label', text: '§b' + t('pc.lang_settings') },
-        { type: 'dropdown', key: 'locale', label: '§e' + t('pc.lang_label'), options: ['zh_CN'], optionLabels: ['简体中文'] }
+        { type: 'label', text: '§b' + t(lang, 'pc.welcome') },
+        { key: 'enableWelcome', label: '§e' + t(lang, 'pc.enable_welcome') },
+        { key: 'enableActionbar', label: '§e' + t(lang, 'pc.enable_actionbar') },
+        { key: 'enableActionbarShowPing', label: '§e' + t(lang, 'pc.actionbar_ping') },
+        { key: 'enableIpDetector', label: '§e' + t(lang, 'pc.enable_ip_detector') },
+        { key: 'enableIpVerify', label: '§e' + t(lang, 'pc.enable_ip_verify') },
+        { type: 'label', text: '§b' + t(lang, 'pc.sidebar_title') },
+        { key: 'enableActionbarMoney', label: '§e' + t(lang, 'pc.sidebar_money') },
+        { key: 'enableActionbarPing', label: '§e' + t(lang, 'pc.sidebar_ping') },
+        { key: 'enableActionbarTps', label: '§e' + t(lang, 'pc.sidebar_tps') },
+        { key: 'enableActionbarSpeed', label: '§e' + t(lang, 'pc.sidebar_speed') },
+        { key: 'enableActionbarBiome', label: '§e' + t(lang, 'pc.sidebar_biome') },
+        { key: 'enableActionbarTime', label: '§e' + t(lang, 'pc.sidebar_time') },
+        { type: 'label', text: '§b' + t(lang, 'pc.join_items') },
+        { key: 'enableGiveClock', label: '§e' + t(lang, 'pc.give_clock') },
+        { key: 'enableGiveCompass', label: '§e' + t(lang, 'pc.give_compass') },
+        { type: 'label', text: '§b' + t(lang, 'pc.misc') },
+        { key: 'enableBankNotice', label: '§e' + t(lang, 'pc.bank_notice') },
+        { key: 'enableDeathTeleportPopup', label: '§e' + t(lang, 'pc.death_tp_popup') },
+        { type: 'label', text: '§b' + t(lang, 'pc.friend_settings') },
+        { key: 'allowFriendRequests', label: '§e' + t(lang, 'pc.allow_friend') },
+        { key: 'acceptStrangerMessages', label: '§e' + t(lang, 'pc.accept_stranger') },
+        { key: 'enableMessageNotification', label: '§e' + t(lang, 'pc.new_msg_notify') },
+        { key: 'enableFriendRequestNotification', label: '§e' + t(lang, 'pc.friend_req_notify') },
+        { key: 'enableMailNotification', label: '§e' + t(lang, 'pc.mail_notify') },
+        { type: 'label', text: '§b' + t(lang, 'pc.tp_settings') },
+        { key: 'enableTpaRejectMode', label: '§c' + t(lang, 'pc.reject_tpa') },
+        { type: 'label', text: '§b' + t(lang, 'pc.debug_settings') },
+        { key: 'enableDebug', label: '§e' + t(lang, 'pc.enable_debug') },
+        { type: 'label', text: '§b' + t(lang, 'pc.lang_settings') },
+        { type: 'dropdown', key: 'locale', label: '§e' + t(lang, 'pc.lang_label'), options: ['zh_CN'], optionLabels: ['简体中文'] }
     ];
 }
 
 let _deps = {};
 
-function getLang() {
+function getLocale(xuid) {
+    if (_deps.getPlayerSetting && xuid) {
+        var locale = _deps.getPlayerSetting(xuid, 'locale');
+        logger.info('[personalCenter] getLocale: xuid=' + xuid + ', locale=' + locale + ', result=' + (locale || getSystemLang()));
+        return locale || getSystemLang();
+    }
+    return getSystemLang();
+}
+
+function getSystemLang() {
     return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
 }
 
-function t(key) {
-    if (!_deps.t) return key;
-    var lang = getLang();
-    var args = [lang];
+function t(lang) {
+    if (!_deps.t) return lang;
+    var args = [];
     for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
     return _deps.t.apply(null, args);
 }
@@ -226,14 +234,15 @@ function updatePlayerRewardRecord(xuid, newMaxLevel) {
  * @returns {boolean} 是否领取成功
  */
 function claimLevelReward(player, rewardExp) {
+	const lang = getLocale(player.xuid);
 	if (rewardExp <= 0) return false;
 	try {
-		if (_deps.addPlayerMoney(player, rewardExp, t('pc.reason_claim'))) {
+		if (_deps.addPlayerMoney(player, rewardExp, t(lang, 'pc.reason_claim'))) {
 			return true;
 		}
 		return false;
 	} catch (error) {
-		logger.error(t('pc.log_claim_failed') + player.name + t('pc.log_claim_failed2') + error.message);
+		logger.error(t(lang, 'pc.log_claim_failed') + player.name + t(lang, 'pc.log_claim_failed2') + error.message);
 		return false;
 	}
 }
@@ -258,7 +267,7 @@ function findPlayerByUid(targetUid) {
 				count: player.count,
 				xuid: xuid,
 				adventureLevel: levelInfo.level,
-				adventureExp: levelInfo.currentExp + '/' + (levelInfo.nextExp || t('pc.max_level_reward')),
+				adventureExp: levelInfo.currentExp + '/' + (levelInfo.nextExp || t(getSystemLang(), 'pc.max_level_reward')),
 				totalExp: levelInfo.totalExp
 			};
 		}
@@ -288,12 +297,12 @@ function installPrototypeExtensions() {
 	Object.defineProperty(LLSE_Player.prototype, "uid", {
 		get: function() {
 			let pd = _deps.getPlayerData();
-			if (!pd || !pd.players) return t('pc.unregistered');
+			if (!pd || !pd.players) return t(getSystemLang(), 'pc.unregistered');
 			const p = pd.players[this.xuid];
-			return p && p.uid !== undefined ? p.uid : t('pc.unregistered');
+			return p && p.uid !== undefined ? p.uid : t(getSystemLang(), 'pc.unregistered');
 		},
 		set: function() {
-			logger.error(t('pc.forbidden_uid') + this.name + t('pc.forbidden_uid2') + this.xuid + t('pc.forbidden_uid3'));
+			logger.error(t(getSystemLang(), 'pc.forbidden_uid') + this.name + t(getSystemLang(), 'pc.forbidden_uid2') + this.xuid + t(getSystemLang(), 'pc.forbidden_uid3'));
 			return false;
 		},
 		enumerable: true
@@ -315,26 +324,27 @@ function installPrototypeExtensions() {
  * @param {Player} player - 玩家
  */
 function showAdventureLevelDetail(player) {
+	const lang = getLocale(player.xuid);
 	let levelInfo = player.adventureLevelInfo;
 	let content = '';
-	content += '§a' + t('pc.player_name') + '§f' + player.name + '\n';
-	content += '§a' + t('pc.uid_label') + '§f' + player.uid + '\n';
-	content += '§a' + t('pc.adventure_level') + '§f' + levelInfo.level + t('pc.level_suffix') + '\n';
-	content += '§a' + t('pc.cumulative_exp') + '§f' + levelInfo.totalExp + t('pc.points_suffix') + '\n';
+	content += '§a' + t(lang, 'pc.player_name') + '§f' + player.name + '\n';
+	content += '§a' + t(lang, 'pc.uid_label') + '§f' + player.uid + '\n';
+	content += '§a' + t(lang, 'pc.adventure_level') + '§f' + levelInfo.level + t(lang, 'pc.level_suffix') + '\n';
+	content += '§a' + t(lang, 'pc.cumulative_exp') + '§f' + levelInfo.totalExp + t(lang, 'pc.points_suffix') + '\n';
 	if (levelInfo.nextExp > 0) {
-		content += '§a' + t('pc.progress_label') + '§f' + levelInfo.currentExp + '/' + levelInfo.nextExp + '\n';
-		content += '§a' + t('pc.exp_to_upgrade') + '§f' + (levelInfo.nextExp - levelInfo.currentExp) + ' ' + t('pc.exp_points_suffix') + '\n';
+		content += '§a' + t(lang, 'pc.progress_label') + '§f' + levelInfo.currentExp + '/' + levelInfo.nextExp + '\n';
+		content += '§a' + t(lang, 'pc.exp_to_upgrade') + '§f' + (levelInfo.nextExp - levelInfo.currentExp) + ' ' + t(lang, 'pc.exp_points_suffix') + '\n';
 	} else {
-		content += '§a' + t('pc.current_level_progress') + '§f' + t('pc.max_level_reached') + levelInfo.currentExp + t('pc.exp_suffix2') + '\n';
-		content += '§a' + t('pc.tip_max') + '§f' + t('pc.tip_max_level') + '\n';
+		content += '§a' + t(lang, 'pc.current_level_progress') + '§f' + t(lang, 'pc.max_level_reached') + levelInfo.currentExp + t(lang, 'pc.exp_suffix2') + '\n';
+		content += '§a' + t(lang, 'pc.tip_max') + '§f' + t(lang, 'pc.tip_max_level') + '\n';
 	}
 	content += '-------------------------\n';
 
 	player.sendModalForm(
-		'§a' + t('pc.detail_title'),
+		'§a' + t(lang, 'pc.detail_title'),
 		content,
-		t('pc.back_panel'),
-		t('pc.close'),
+		t(lang, 'pc.back_panel'),
+		t(lang, 'pc.close'),
 		function(p, res) {
 			if (res === true) showAdventureLevelPanel(p);
 		}
@@ -346,27 +356,28 @@ function showAdventureLevelDetail(player) {
  * @param {Player} player - 玩家
  */
 function showAdventureLevelPanel(player) {
+	const lang = getLocale(player.xuid);
 	let levelInfo = player.adventureLevelInfo;
 	const levelPanel = mc.newSimpleForm();
-	levelPanel.setTitle('§a' + t('pc.level_panel'));
+	levelPanel.setTitle('§a' + t(lang, 'pc.level_panel'));
 
 	let content = '-------------------------\n';
-	content += '§a' + t('pc.current_level') + '§f' + levelInfo.level + t('pc.level_suffix') + '\n';
-	content += '§a' + t('pc.total_exp') + '§f' + levelInfo.totalExp + '\n';
+	content += '§a' + t(lang, 'pc.current_level') + '§f' + levelInfo.level + t(lang, 'pc.level_suffix') + '\n';
+	content += '§a' + t(lang, 'pc.total_exp') + '§f' + levelInfo.totalExp + '\n';
 	if (levelInfo.nextExp > 0) {
-		content += '§a' + t('pc.current_progress') + '§f' + levelInfo.currentExp + '/' + levelInfo.nextExp + '\n';
-		content += '§a' + t('pc.exp_needed') + '§f' + (levelInfo.nextExp - levelInfo.currentExp) + t('pc.exp_suffix') + '\n';
+		content += '§a' + t(lang, 'pc.current_progress') + '§f' + levelInfo.currentExp + '/' + levelInfo.nextExp + '\n';
+		content += '§a' + t(lang, 'pc.exp_needed') + '§f' + (levelInfo.nextExp - levelInfo.currentExp) + t(lang, 'pc.exp_suffix') + '\n';
 	} else {
-		content += '§a' + t('pc.current_progress') + '§f' + levelInfo.currentExp + '/' + t('pc.max_level') + '\n';
-		content += t('pc.status_label') + t('pc.max_level_status') + '\n';
+		content += '§a' + t(lang, 'pc.current_progress') + '§f' + levelInfo.currentExp + '/' + t(lang, 'pc.max_level') + '\n';
+		content += t(lang, 'pc.status_label') + t(lang, 'pc.max_level_status') + '\n';
 	}
 	content += '-------------------------\n';
-	content += '§a' + t('pc.select_function');
+	content += '§a' + t(lang, 'pc.select_function');
 
 	levelPanel.setContent(content);
-	levelPanel.addButton(t('pc.level_detail'), 'textures/ui/sidebar_icons/dressing_room_capes.png');
-	levelPanel.addButton(t('pc.level_reward'), 'textures/ui/pary');
-	levelPanel.addButton(t('pc.back_center'), 'textures/ui/recap_glyph_desaturated');
+	levelPanel.addButton(t(lang, 'pc.level_detail'), 'textures/ui/sidebar_icons/dressing_room_capes.png');
+	levelPanel.addButton(t(lang, 'pc.level_reward'), 'textures/ui/pary');
+	levelPanel.addButton(t(lang, 'pc.back_center'), 'textures/ui/recap_glyph_desaturated');
 
 	player.sendForm(levelPanel, function(p, btnIndex) {
 		if (btnIndex === null) return;
@@ -383,17 +394,18 @@ function showAdventureLevelPanel(player) {
  * @param {object} rwRange - 已领取等级范围 { min, max }
  */
 function showNoRewardForm(player, levelInfo, rwRange) {
+	const lang = getLocale(player.xuid);
 	let content = '-------------------------\n' +
-		'§c' + t('pc.no_reward_content') + '\n' +
-		'§a' + t('pc.claimed_range') + '§f' + rwRange.min + '-' + rwRange.max + t('pc.level_suffix') + '\n' +
-		'§a' + t('pc.current_adventure_level') + '§f' + levelInfo.level + t('pc.level_suffix') + '\n' +
+		'§c' + t(lang, 'pc.no_reward_content') + '\n' +
+		'§a' + t(lang, 'pc.claimed_range') + '§f' + rwRange.min + '-' + rwRange.max + t(lang, 'pc.level_suffix') + '\n' +
+		'§a' + t(lang, 'pc.current_adventure_level') + '§f' + levelInfo.level + t(lang, 'pc.level_suffix') + '\n' +
 		'-------------------------\n';
 
 	player.sendModalForm(
-		'§c' + t('pc.no_reward'),
+		'§c' + t(lang, 'pc.no_reward'),
 		content,
-		t('pc.back_panel'),
-		t('pc.close'),
+		t(lang, 'pc.back_panel'),
+		t(lang, 'pc.close'),
 		function(p, res) {
 			if (res === true) showAdventureLevelPanel(p);
 		}
@@ -409,19 +421,20 @@ function showNoRewardForm(player, levelInfo, rwRange) {
  * @param {object} rwRange - 已领取等级范围
  */
 function showRewardClaimForm(player, xuid, rewardExp, availableLevel, rwRange) {
+	const lang = getLocale(player.xuid);
 	const cn = _deps.getCurrencyName();
 	let content = '-------------------------\n' +
-		'§a' + t('pc.claimable_level') + '§f' + (rwRange.max + 1) + '-' + availableLevel + t('pc.level_suffix') + '\n' +
-		'§a' + t('pc.reward_label') + '§c' + cn + '§r：§f' + rewardExp + ' \n' +
-		'§a' + t('pc.record_level') + '§f1-' + availableLevel + t('pc.level_suffix') + '\n' +
+		'§a' + t(lang, 'pc.claimable_level') + '§f' + (rwRange.max + 1) + '-' + availableLevel + t(lang, 'pc.level_suffix') + '\n' +
+		'§a' + t(lang, 'pc.reward_label') + '§c' + cn + '§r：§f' + rewardExp + ' \n' +
+		'§a' + t(lang, 'pc.record_level') + '§f1-' + availableLevel + t(lang, 'pc.level_suffix') + '\n' +
 		'-------------------------\n' +
-		'§c' + t('pc.tip_no_repeat');
+		'§c' + t(lang, 'pc.tip_no_repeat');
 
 	player.sendModalForm(
-		'§6' + t('pc.claim_title'),
+		'§6' + t(lang, 'pc.claim_title'),
 		content,
-		t('pc.confirm_claim'),
-		t('pc.cancel'),
+		t(lang, 'pc.confirm_claim'),
+		t(lang, 'pc.cancel'),
 		function(p, res) {
 			if (!res) return;
 
@@ -430,31 +443,31 @@ function showRewardClaimForm(player, xuid, rewardExp, availableLevel, rwRange) {
 				updatePlayerRewardRecord(xuid, availableLevel);
 				let playerMoney = _deps.money.get(p.xuid) || 0;
 				const successContent = '-------------------------\n' +
-					'§a' + t('pc.claim_success') + '\n' +
-					'§a' + t('pc.claim_level') + '§f' + (rwRange.max + 1) + '-' + availableLevel + t('pc.level_suffix') + '\n' +
-					'§a' + t('pc.obtained') + '§c' + cn + '§r：§f' + rewardExp + ' §c' + cn + '§r\n' +
-					'§a' + t('pc.current_balance') + '§c' + cn + t('pc.balance_suffix') + '§f' + playerMoney + '\n' +
+					'§a' + t(lang, 'pc.claim_success') + '\n' +
+					'§a' + t(lang, 'pc.claim_level') + '§f' + (rwRange.max + 1) + '-' + availableLevel + t(lang, 'pc.level_suffix') + '\n' +
+					'§a' + t(lang, 'pc.obtained') + '§c' + cn + '§r：§f' + rewardExp + ' §c' + cn + '§r\n' +
+					'§a' + t(lang, 'pc.current_balance') + '§c' + cn + t(lang, 'pc.balance_suffix') + '§f' + playerMoney + '\n' +
 					'-------------------------\n';
 
 				player.sendModalForm(
-					'§a' + t('pc.claim_success_title'),
+					'§a' + t(lang, 'pc.claim_success_title'),
 					successContent,
-					t('pc.back_panel'),
-					t('pc.close'),
+					t(lang, 'pc.back_panel'),
+					t(lang, 'pc.close'),
 					function(pp, res2) {
 						if (res2 === true) showAdventureLevelPanel(pp);
 					}
 				);
 			} else {
 				const failContent = '-------------------------\n' +
-					'§c' + t('pc.claim_failed') + '\n' +
+					'§c' + t(lang, 'pc.claim_failed') + '\n' +
 					'-------------------------\n';
 
 				player.sendModalForm(
-					'§c' + t('pc.claim_failed_title'),
+					'§c' + t(lang, 'pc.claim_failed_title'),
 					failContent,
-					t('pc.back_panel'),
-					t('pc.close'),
+					t(lang, 'pc.back_panel'),
+					t(lang, 'pc.close'),
 					function(pp, res2) {
 						if (res2 === true) showAdventureLevelPanel(pp);
 					}
@@ -469,6 +482,7 @@ function showRewardClaimForm(player, xuid, rewardExp, availableLevel, rwRange) {
  * @param {Player} player - 玩家
  */
 function showLevelRewardForm(player) {
+	const lang = getLocale(player.xuid);
 	let xuid = player.xuid;
 	let levelInfo = player.adventureLevelInfo;
 	const rwRange = getPlayerRewardRange(xuid);
@@ -496,16 +510,17 @@ function showLevelRewardForm(player) {
  * @param {Player} player - 玩家
  */
 function showUidSearchInputForm(player) {
+	const lang = getLocale(player.xuid);
 	const inputForm = mc.newCustomForm();
-	inputForm.setTitle(t('pc.uid_search'));
-	inputForm.addInput(t('pc.input_uid'), t('pc.input_uid_hint'), '');
+	inputForm.setTitle(t(lang, 'pc.uid_search'));
+	inputForm.addInput(t(lang, 'pc.input_uid'), t(lang, 'pc.input_uid_hint'), '');
 
 	player.sendForm(inputForm, function(p, inputData) {
 		if (inputData === null) return;
 		const inputUidStr = inputData[0];
 		const targetUid = parseInt(inputUidStr);
 		if (isNaN(targetUid) || inputUidStr.trim() === '') {
-			p.tell(t('pc.invalid_uid'), 1);
+			p.tell(t(lang, 'pc.invalid_uid'), 1);
 			return;
 		}
 		showUidSearchResultForm(p, targetUid);
@@ -518,26 +533,27 @@ function showUidSearchInputForm(player) {
  * @param {number} targetUid - 要搜索的UID
  */
 function showUidSearchResultForm(player, targetUid) {
+	const lang = getLocale(player.xuid);
 	let playerInfo = findPlayerByUid(targetUid);
 	let formTitle, formContent;
 
 	if (playerInfo) {
-		formTitle = '§a' + t('pc.search_result');
+		formTitle = '§a' + t(lang, 'pc.search_result');
 		formContent =
-			'§a' + t('pc.uid_label') + playerInfo.uid + '\n' +
-			'§a' + t('pc.player_name_label') + '§f' + (playerInfo.name || t('pc.unknown')) + '\n' +
-			'§a' + t('pc.level_label') + '§f' + (playerInfo.adventureLevel || 1) + t('pc.level_suffix') + '\n' +
-			'§a' + t('pc.register_time') + '§f' + (playerInfo.registerTime || t('pc.unknown')) + '\n';
+			'§a' + t(lang, 'pc.uid_label') + playerInfo.uid + '\n' +
+			'§a' + t(lang, 'pc.player_name_label') + '§f' + (playerInfo.name || t(lang, 'pc.unknown')) + '\n' +
+			'§a' + t(lang, 'pc.level_label') + '§f' + (playerInfo.adventureLevel || 1) + t(lang, 'pc.level_suffix') + '\n' +
+			'§a' + t(lang, 'pc.register_time') + '§f' + (playerInfo.registerTime || t(lang, 'pc.unknown')) + '\n';
 	} else {
-		formTitle = '§c' + t('pc.search_result');
-		formContent = '§c' + t('pc.not_found') + targetUid + t('pc.not_found2');
+		formTitle = '§c' + t(lang, 'pc.search_result');
+		formContent = '§c' + t(lang, 'pc.not_found') + targetUid + t(lang, 'pc.not_found2');
 	}
 
 	player.sendModalForm(
 		formTitle,
 		formContent,
-		t('pc.back_search'),
-		t('pc.close'),
+		t(lang, 'pc.back_search'),
+		t(lang, 'pc.close'),
 		function(p, res) {
 			if (res === true) showUidSearchInputForm(p);
 		}
@@ -550,6 +566,7 @@ function showUidSearchResultForm(player, targetUid) {
  * @param {number} [currentPage=1] - 当前页码（1-based）
  */
 function showUidListForm(player, currentPage) {
+	const lang = getLocale(player.xuid);
 	currentPage = currentPage || 1;
 	const allPlayers = getAllPlayersSorted();
 	const pageSize = 20;
@@ -558,31 +575,31 @@ function showUidListForm(player, currentPage) {
 	currentPage = Math.min(Math.max(currentPage, 1), totalPages);
 
 	const listForm = mc.newSimpleForm();
-	listForm.setTitle(t('pc.uid_list') + currentPage + t('pc.uid_list_page') + totalPages + t('pc.uid_list_suffix'));
+	listForm.setTitle(t(lang, 'pc.uid_list') + currentPage + t(lang, 'pc.uid_list_page') + totalPages + t(lang, 'pc.uid_list_suffix'));
 
-	let formContent = '§a' + t('pc.player_uid_list') + '\n-------------------------\n';
+	let formContent = '§a' + t(lang, 'pc.player_uid_list') + '\n-------------------------\n';
 	const startIndex = (currentPage - 1) * pageSize;
 	const endIndex = Math.min(startIndex + pageSize, totalPlayers);
 	const currentPagePlayers = allPlayers.slice(startIndex, endIndex);
 
 	currentPagePlayers.forEach(function(item) {
 		formContent +=
-			'§a' + t('pc.player_label') + '§f' + (item.name || t('pc.unknown')) + '\n' +
-			'§e' + t('pc.uid_value_label') + (item.uid || t('pc.unassigned')) + '\n' +
-			'§b' + t('pc.register_time') + '§f' + (item.registerTime || t('pc.unknown')) + '\n\n';
+			'§a' + t(lang, 'pc.player_label') + '§f' + (item.name || t(lang, 'pc.unknown')) + '\n' +
+			'§e' + t(lang, 'pc.uid_value_label') + (item.uid || t(lang, 'pc.unassigned')) + '\n' +
+			'§b' + t(lang, 'pc.register_time') + '§f' + (item.registerTime || t(lang, 'pc.unknown')) + '\n\n';
 	});
 
 	listForm.setContent(formContent);
 	const buttonIndexMap = { prev: -1, close: -1, next: -1 };
 
 	if (currentPage > 1) {
-		listForm.addButton(t('pc.prev_page'), 'textures/ui/arrow_left');
+		listForm.addButton(t(lang, 'pc.prev_page'), 'textures/ui/arrow_left');
 		buttonIndexMap.prev = 0;
 	}
-	listForm.addButton(t('pc.close'), 'textures/ui/cancel');
+	listForm.addButton(t(lang, 'pc.close'), 'textures/ui/cancel');
 	buttonIndexMap.close = currentPage > 1 ? 1 : 0;
 	if (currentPage < totalPages) {
-		listForm.addButton(t('pc.next_page'), 'textures/ui/arrow_right');
+		listForm.addButton(t(lang, 'pc.next_page'), 'textures/ui/arrow_right');
 		buttonIndexMap.next = currentPage > 1 ? 2 : 1;
 	}
 
@@ -601,6 +618,7 @@ function showUidListForm(player, currentPage) {
  * @param {Player} player - 玩家
  */
 function openMainMenu(player) {
+	const lang = getLocale(player.xuid);
 	if (_deps.menuModule && _deps.menuModule.showMainMenu) {
 		_deps.menuModule.showMainMenu(player);
 	}
@@ -612,32 +630,33 @@ function openMainMenu(player) {
  * @param {Player} player - 玩家
  */
 function showPersonalCenterForm(player) {
+	const lang = getLocale(player.xuid);
 	let playerXUID = player.xuid;
 	let levelInfo = player.adventureLevelInfo;
 	let playerMoney = _deps.money ? _deps.money.get(playerXUID) || 0 : 0;
 
 	const centerForm = mc.newSimpleForm();
-	centerForm.setTitle('§a' + t('pc.personal_center'));
+	centerForm.setTitle('§a' + t(lang, 'pc.personal_center'));
 	centerForm.setContent(
-		'§a' + t('pc.player_name_display') + player.name + '\n' +
-		'§a' + t('pc.cash_label') + '§e' + playerMoney + ' ' + t('pc.cash_suffix') + '§c' + _deps.getCurrencyName() + '§r\n' +
+		'§a' + t(lang, 'pc.player_name_display') + player.name + '\n' +
+		'§a' + t(lang, 'pc.cash_label') + '§e' + playerMoney + ' ' + t(lang, 'pc.cash_suffix') + '§c' + _deps.getCurrencyName() + '§r\n' +
 		'-------------------------\n' +
-		'§a' + t('pc.select_function')
+		'§a' + t(lang, 'pc.select_function')
 	);
 
 	const avatarUrl = _deps.getPlayerAvatarUrl(playerXUID);
 	const unreadMsgCount = _deps.friendModule.getUnreadMessageCount(playerXUID);
 	const unreadMailCount = _deps.mailModule.getUnreadMailCount(playerXUID);
 
-	centerForm.addButton(t('pc.btn_info'), avatarUrl);
-	centerForm.addButton(t('pc.btn_friends'), 'textures/ui/FriendsIcon');
-	centerForm.addButton(t('pc.btn_messages') + (unreadMsgCount > 0 ? '§c(' + unreadMsgCount + ')' : ''), 'textures/ui/Feedback');
-	centerForm.addButton(t('pc.btn_mail') + (unreadMailCount > 0 ? '§c(' + unreadMailCount + ')' : ''), 'textures/ui/Envelope');
-	centerForm.addButton(t('pc.btn_level'), 'textures/ui/achievements_pause_menu_icon');
-	centerForm.addButton(t('pc.btn_stats'), 'textures/ui/copy');
-	centerForm.addButton(t('pc.btn_settings'), 'textures/ui/color_picker');
-	centerForm.addButton(t('pc.btn_avatar'), 'textures/ui/dressing_room_customization');
-	centerForm.addButton(t('pc.btn_back_menu'), 'textures/ui/recap_glyph_desaturated');
+	centerForm.addButton(t(lang, 'pc.btn_info'), avatarUrl);
+	centerForm.addButton(t(lang, 'pc.btn_friends'), 'textures/ui/FriendsIcon');
+	centerForm.addButton(t(lang, 'pc.btn_messages') + (unreadMsgCount > 0 ? '§c(' + unreadMsgCount + ')' : ''), 'textures/ui/Feedback');
+	centerForm.addButton(t(lang, 'pc.btn_mail') + (unreadMailCount > 0 ? '§c(' + unreadMailCount + ')' : ''), 'textures/ui/Envelope');
+	centerForm.addButton(t(lang, 'pc.btn_level'), 'textures/ui/achievements_pause_menu_icon');
+	centerForm.addButton(t(lang, 'pc.btn_stats'), 'textures/ui/copy');
+	centerForm.addButton(t(lang, 'pc.btn_settings'), 'textures/ui/color_picker');
+	centerForm.addButton(t(lang, 'pc.btn_avatar'), 'textures/ui/dressing_room_customization');
+	centerForm.addButton(t(lang, 'pc.btn_back_menu'), 'textures/ui/recap_glyph_desaturated');
 
 	player.sendForm(centerForm, function(p, buttonIndex) {
 		if (buttonIndex === null) return;
@@ -658,23 +677,24 @@ function showPersonalCenterForm(player) {
  * @param {Player} player - 玩家
  */
 function showPersonalInfoForm(player) {
+	const lang = getLocale(player.xuid);
 	let playerXUID = player.xuid;
 	let pd = _deps.getPlayerData();
 	let playerInfo = pd.players[playerXUID] || {};
 	let levelInfo = player.adventureLevelInfo;
 
 	const infoForm = mc.newSimpleForm();
-	infoForm.setTitle('§a' + t('pc.info_title'));
+	infoForm.setTitle('§a' + t(lang, 'pc.info_title'));
 
 	let content = '-------------------------\n';
-	content += '§a' + t('pc.player_name') + '§f' + player.name + '\n';
-	content += '§a' + t('pc.uid_label') + '§f' + player.uid + '\n';
-	content += '§a' + t('pc.adventure_level_info') + '§f' + levelInfo.level + t('pc.level_suffix') + '\n';
-	content += '§a' + t('pc.register_time') + '§f' + (playerInfo.registerTime || t('pc.unknown')) + '\n';
+	content += '§a' + t(lang, 'pc.player_name') + '§f' + player.name + '\n';
+	content += '§a' + t(lang, 'pc.uid_label') + '§f' + player.uid + '\n';
+	content += '§a' + t(lang, 'pc.adventure_level_info') + '§f' + levelInfo.level + t(lang, 'pc.level_suffix') + '\n';
+	content += '§a' + t(lang, 'pc.register_time') + '§f' + (playerInfo.registerTime || t(lang, 'pc.unknown')) + '\n';
 	content += '-------------------------\n';
 
 	infoForm.setContent(content);
-	infoForm.addButton(t('pc.back_center_btn'), 'textures/ui/recap_glyph_desaturated');
+	infoForm.addButton(t(lang, 'pc.back_center_btn'), 'textures/ui/recap_glyph_desaturated');
 
 	player.sendForm(infoForm, function(p, buttonIndex) {
 		if (buttonIndex === null) return;
@@ -687,6 +707,7 @@ function showPersonalInfoForm(player) {
  * @param {Player} player - 玩家
  */
 function showDataStatisticsForm(player) {
+	const lang = getLocale(player.xuid);
 	let playerXUID = player.xuid;
 	let pd = _deps.getPlayerData();
 	const pCount = (pd.players[playerXUID] && pd.players[playerXUID].count) || {};
@@ -694,23 +715,23 @@ function showDataStatisticsForm(player) {
 	const playerMoney = _deps.money ? _deps.money.get(playerXUID) || 0 : 0;
 
 	const statsForm = mc.newSimpleForm();
-	statsForm.setTitle('§6' + t('pc.stats_title'));
+	statsForm.setTitle('§6' + t(lang, 'pc.stats_title'));
 
 	let content = '-------------------------\n';
-	content += '§a' + t('pc.player_name') + '§f' + player.name + '\n';
-	content += '§a' + t('pc.uid_label') + '§f' + player.uid + '\n';
-	content += '§a' + t('pc.adventure_level_info') + '§f' + levelInfo.level + t('pc.level_suffix') + '\n';
-	content += '§a' + t('pc.cumulative_exp') + '§f' + levelInfo.totalExp + t('pc.points_suffix') + '\n';
-	content += '§a' + t('pc.cash_label') + '§e' + playerMoney + ' ' + t('pc.cash_suffix') + '§c' + _deps.getCurrencyName() + '§r\n';
-	content += '§a' + t('pc.play_time') + '§f' + U.formatTime(pCount.playTime || 0) + '\n';
-	content += '§a' + t('pc.blocks_mined') + '§f' + (pCount.mining || 0) + t('pc.item_count_suffix') + '\n';
-	content += '§a' + t('pc.blocks_placed') + '§f' + (pCount.placing || 0) + t('pc.item_count_suffix') + '\n';
-	content += '§a' + t('pc.players_killed') + '§f' + (pCount.kills || 0) + t('pc.times_suffix') + '\n';
-	content += '§a' + t('pc.deaths_count') + '§f' + (pCount.deaths || 0) + t('pc.times_suffix') + '\n';
+	content += '§a' + t(lang, 'pc.player_name') + '§f' + player.name + '\n';
+	content += '§a' + t(lang, 'pc.uid_label') + '§f' + player.uid + '\n';
+	content += '§a' + t(lang, 'pc.adventure_level_info') + '§f' + levelInfo.level + t(lang, 'pc.level_suffix') + '\n';
+	content += '§a' + t(lang, 'pc.cumulative_exp') + '§f' + levelInfo.totalExp + t(lang, 'pc.points_suffix') + '\n';
+	content += '§a' + t(lang, 'pc.cash_label') + '§e' + playerMoney + ' ' + t(lang, 'pc.cash_suffix') + '§c' + _deps.getCurrencyName() + '§r\n';
+	content += '§a' + t(lang, 'pc.play_time') + '§f' + U.formatTime(pCount.playTime || 0) + '\n';
+	content += '§a' + t(lang, 'pc.blocks_mined') + '§f' + (pCount.mining || 0) + t(lang, 'pc.item_count_suffix') + '\n';
+	content += '§a' + t(lang, 'pc.blocks_placed') + '§f' + (pCount.placing || 0) + t(lang, 'pc.item_count_suffix') + '\n';
+	content += '§a' + t(lang, 'pc.players_killed') + '§f' + (pCount.kills || 0) + t(lang, 'pc.times_suffix') + '\n';
+	content += '§a' + t(lang, 'pc.deaths_count') + '§f' + (pCount.deaths || 0) + t(lang, 'pc.times_suffix') + '\n';
 	content += '-------------------------\n';
 
 	statsForm.setContent(content);
-	statsForm.addButton(t('pc.back_center_btn'), 'textures/ui/recap_glyph_desaturated');
+	statsForm.addButton(t(lang, 'pc.back_center_btn'), 'textures/ui/recap_glyph_desaturated');
 
 	player.sendForm(statsForm, function(p, buttonIndex) {
 		if (buttonIndex === null) return;
@@ -724,23 +745,24 @@ function showDataStatisticsForm(player) {
  * @param {Player} player - 玩家
  */
 function showNetworkInfoForm(player) {
+	const lang = getLocale(player.xuid);
 	const playerXUID = player.xuid;
 	const pd = _deps.getPlayerData();
 	const playerInfo = pd.players[playerXUID] || {};
 	const device = player.getDevice();
 
-	const ip = (device && device.ip) ? U.stripIpPort(device.ip) : t('pc.unknown');
+	const ip = (device && device.ip) ? U.stripIpPort(device.ip) : t(lang, 'pc.unknown');
 	let networkType = U.getNetworkType(ip);
 	let avgPing = (device && device.avgPing !== undefined) ? device.avgPing : 'N/A';
 	let avgPacketLoss = (device && device.avgPacketLoss !== undefined) ? (device.avgPacketLoss * 100).toFixed(1) + '%' : 'N/A';
-	let os = (device && device.os) ? device.os : t('pc.unknown');
+	let os = (device && device.os) ? device.os : t(lang, 'pc.unknown');
 	if (os === 'Win32') os = 'GDK';
 
 	let networkTypeColor = '§f';
-	if (networkType === t('pc.relay')) networkTypeColor = '§e';
-	else if (networkType === t('pc.lan')) networkTypeColor = '§b';
-	else if (networkType === t('pc.public_ipv4')) networkTypeColor = '§a';
-	else if (networkType === t('pc.public_ipv6')) networkTypeColor = '§d';
+	if (networkType === t(lang, 'pc.relay')) networkTypeColor = '§e';
+	else if (networkType === t(lang, 'pc.lan')) networkTypeColor = '§b';
+	else if (networkType === t(lang, 'pc.public_ipv4')) networkTypeColor = '§a';
+	else if (networkType === t(lang, 'pc.public_ipv6')) networkTypeColor = '§d';
 
 	// 延迟颜色：>200ms红, >95ms黄, 否则绿
 	let pingColor = '§a';
@@ -758,16 +780,16 @@ function showNetworkInfoForm(player) {
 	}
 
 	const gui = mc.newSimpleForm();
-	gui.setTitle('§9' + t('pc.network_title'));
+	gui.setTitle('§9' + t(lang, 'pc.network_title'));
 
 	let content = '-------------------------\n';
-	content += '§a' + t('pc.player_name_display') + '§f' + player.name + '\n';
-	content += '§a' + t('pc.uid_label') + '§f' + (playerInfo.uid || t('pc.unknown')) + '\n';
-	content += '§a' + t('pc.ip_address') + '§f' + ip + '\n';
-	content += '§a' + t('pc.network_type') + '§f' + networkTypeColor + networkType + '\n';
-	content += '§a' + t('pc.avg_latency') + '§f' + pingColor + avgPing + 'ms\n';
-	content += '§a' + t('pc.avg_packet_loss') + '§f' + packetLossColor + avgPacketLoss + '%%\n';
-	content += '§a' + t('pc.device_os') + '§f' + os + '\n';
+	content += '§a' + t(lang, 'pc.player_name_display') + '§f' + player.name + '\n';
+	content += '§a' + t(lang, 'pc.uid_label') + '§f' + (playerInfo.uid || t(lang, 'pc.unknown')) + '\n';
+	content += '§a' + t(lang, 'pc.ip_address') + '§f' + ip + '\n';
+	content += '§a' + t(lang, 'pc.network_type') + '§f' + networkTypeColor + networkType + '\n';
+	content += '§a' + t(lang, 'pc.avg_latency') + '§f' + pingColor + avgPing + 'ms\n';
+	content += '§a' + t(lang, 'pc.avg_packet_loss') + '§f' + packetLossColor + avgPacketLoss + '%%\n';
+	content += '§a' + t(lang, 'pc.device_os') + '§f' + os + '\n';
 	content += '-------------------------\n';
 
 	// 管理员可见：列出所有在线玩家的IP信息
@@ -775,11 +797,11 @@ function showNetworkInfoForm(player) {
 		const onlinePlayers = mc.getOnlinePlayers();
 		const otherPlayers = onlinePlayers.filter(function(p) { return p.xuid !== playerXUID; });
 		if (otherPlayers.length > 0) {
-			content += '\n§6§l' + t('pc.online_ips') + '\n';
+			content += '\n§6§l' + t(lang, 'pc.online_ips') + '\n';
 			content += '-------------------------\n';
 			otherPlayers.forEach(function(p) {
 				const pDevice = p.getDevice();
-				const pIp = (pDevice && pDevice.ip) ? U.stripIpPort(pDevice.ip) : t('pc.unknown');
+				const pIp = (pDevice && pDevice.ip) ? U.stripIpPort(pDevice.ip) : t(lang, 'pc.unknown');
 				const pType = U.getNetworkType(pIp);
 				const pPing = (pDevice && pDevice.avgPing !== undefined) ? pDevice.avgPing + 'ms' : 'N/A';
 				content += '§b' + p.name + ' §f- ' + pIp + ' §f(' + pType + ' §a' + pPing + '§f)\n';
@@ -789,7 +811,7 @@ function showNetworkInfoForm(player) {
 	}
 
 	gui.setContent(content);
-	gui.addButton(t('pc.close'), 'textures/ui/cancel');
+	gui.addButton(t(lang, 'pc.close'), 'textures/ui/cancel');
 
 	player.sendForm(gui, function(p, id) {
 		if (id === null) return;
@@ -802,13 +824,14 @@ function showNetworkInfoForm(player) {
  * @param {Player} player - 玩家
  */
 function showPlayerSettingsForm(player) {
+	const lang = getLocale(player.xuid);
 	let xuid = player.xuid;
 	const settingsForm = mc.newCustomForm();
-	settingsForm.setTitle('§6' + t('pc.settings_title'));
+	settingsForm.setTitle('§6' + t(lang, 'pc.settings_title'));
 	const switchIndices = [];  // 记录每个开关在表单数据中的索引及其对应key
 	const dropdownIndices = []; // 记录每个下拉菜单在表单数据中的索引及其对应key
 	let dataIdx = 0;
-	const schema = getPlayerSettingsSchema();
+	const schema = getPlayerSettingsSchema(lang);
 
 	// 动态获取支持的语言列表
 	const supportedLocales = _deps.getSupportedLocales ? _deps.getSupportedLocales() : ['zh_CN'];
@@ -837,16 +860,20 @@ function showPlayerSettingsForm(player) {
 			if (item.key === 'locale') {
 				const currentVal = _deps.getPlayerSetting(xuid, item.key) || 'zh_CN';
 				const currentIdx = supportedLocales.indexOf(currentVal);
+				const localeNames = {};
 				const optionLabels = supportedLocales.map(function(locale) {
 					const info = getLocaleInfo(locale);
+					localeNames[locale] = info.name;
 					return info.author ? info.name + ' - ' + info.author : info.name;
 				});
-				settingsForm.addDropdown(item.label, optionLabels, currentIdx >= 0 ? currentIdx : 0, "Translation is not necessarily 100%% accurate.");
+				settingsForm.addDropdown(item.label, optionLabels, currentIdx >= 0 ? currentIdx : 0, "Translation is not necessarily 100% accurate.");
 				dropdownIndices.push({
 					idx: dataIdx,
 					key: item.key,
 					label: item.label,
-					options: supportedLocales
+					options: supportedLocales,
+					optionLabels: optionLabels,
+					localeNames: localeNames
 				});
 			} else {
 				const currentVal = _deps.getPlayerSetting(xuid, item.key);
@@ -888,7 +915,7 @@ function showPlayerSettingsForm(player) {
 			if (newVal !== oldVal) {
 				_deps.setPlayerSetting(xuid, si.key, newVal);
 				// 去掉Minecraft颜色代码后通知玩家
-				p.tell(t('pc.tag_prefix') + ' §a' + si.label.replace(/§./g, '') + t('pc.setting_' + (newVal ? 'enabled' : 'disabled')) + '！');
+				p.tell(t(lang, 'pc.tag_prefix') + ' §a' + si.label.replace(/§./g, '') + t(lang, 'pc.setting_' + (newVal ? 'enabled' : 'disabled')) + '！');
 				changed = true;
 			}
 		}
@@ -899,12 +926,14 @@ function showPlayerSettingsForm(player) {
 			const oldVal = _deps.getPlayerSetting(xuid, di.key);
 			if (newVal !== oldVal && newVal !== undefined) {
 				_deps.setPlayerSetting(xuid, di.key, newVal);
-				p.tell(t('pc.tag_prefix') + ' §a' + di.label.replace(/§./g, '') + t('pc.setting_modified') + (di.options[selectedIdx]) + '！');
+				// 显示语言名称而非代码
+				var displayVal = di.localeNames ? (di.localeNames[newVal] || newVal) : (di.optionLabels ? di.optionLabels[selectedIdx] : newVal);
+				p.tell(t(lang, 'pc.tag_prefix') + ' §a' + di.label.replace(/§./g, '') + t(lang, 'pc.setting_modified') + displayVal + '！');
 				changed = true;
 			}
 		}
 		if (changed) {
-			p.sendModalForm('§a' + t('pc.settings_success'), '§a' + t('pc.settings_success_msg') + '\n\n' + t('pc.select_action'), t('pc.back_center_btn'), t('pc.close'), function(pl, result) {
+			p.sendModalForm('§a' + t(lang, 'pc.settings_success'), '§a' + t(lang, 'pc.settings_success_msg') + '\n\n' + t(lang, 'pc.select_action'), t(lang, 'pc.back_center_btn'), t(lang, 'pc.close'), function(pl, result) {
 				if (result) showPersonalCenterForm(pl);
 			});
 		} else {

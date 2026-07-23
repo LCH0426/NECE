@@ -29,12 +29,19 @@ function createRankModule(deps) {
     const getCurrencyName = deps.getCurrencyName;
     const getMoneyByXuid = deps.getMoneyByXuid;
     const _t = deps.t || null;
-    const _getLang = deps.getSystemLanguage || function() { return 'zh_CN'; };
+    const _getSystemLang = deps.getSystemLanguage || function() { return 'zh_CN'; };
+    const _getPlayerSetting = deps.getPlayerSetting || null;
 
-    function t(key) {
-        if (!_t) return key;
-        var lang = _getLang();
-        var args = [lang];
+    function getLocale(xuid) {
+        if (_getPlayerSetting && xuid) {
+            return _getPlayerSetting(xuid, 'locale') || _getSystemLang();
+        }
+        return _getSystemLang();
+    }
+
+    function t(lang) {
+        if (!_t) return lang;
+        var args = [];
         for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
         return _t.apply(null, args);
     }
@@ -43,14 +50,15 @@ function createRankModule(deps) {
     var _rankCache = {};
 
     function showRankMainForm(player) {
+		const lang = getLocale(player.xuid);
         let fm = mc.newSimpleForm();
-        fm.setTitle(t('rank.title'));
-        fm.addButton(t('rank.title_money'), "textures/ui/icon_recipe_nature");
-        fm.addButton(t('rank.title_bank'), "textures/ui/icon_book_writable");
-        fm.addButton(t('rank.title_kills'), "textures/items/diamond_sword");
-        fm.addButton(t('rank.title_deaths'), "textures/ui/bad_omen_effect");
-        fm.addButton(t('rank.title_mining'), "textures/items/diamond_pickaxe");
-        fm.addButton(t('rank.close'), "textures/ui/cancel");
+        fm.setTitle(t(lang, 'rank.title'));
+        fm.addButton(t(lang, 'rank.title_money'), "textures/ui/icon_recipe_nature");
+        fm.addButton(t(lang, 'rank.title_bank'), "textures/ui/icon_book_writable");
+        fm.addButton(t(lang, 'rank.title_kills'), "textures/items/diamond_sword");
+        fm.addButton(t(lang, 'rank.title_deaths'), "textures/ui/bad_omen_effect");
+        fm.addButton(t(lang, 'rank.title_mining'), "textures/items/diamond_pickaxe");
+        fm.addButton(t(lang, 'rank.close'), "textures/ui/cancel");
         player.sendForm(fm, function(p, id) {
             if (id === null || id === 5) return;
             const types = ["money", "bank", "kills", "deaths", "mining"];
@@ -68,7 +76,7 @@ function createRankModule(deps) {
         Object.keys(players).forEach(function(xuid) {
             const p = players[xuid];
             if (!p) return;
-            const name = p.name || t('rank.unknown');
+            const name = p.name || t(getSystemLang(), 'rank.unknown');
             let value = 0;
             switch (type) {
                 case "money":
@@ -100,27 +108,28 @@ function createRankModule(deps) {
 
     function getRankTitle(type) {
         const titles = {
-            money: t('rank.title_money'),
-            bank: t('rank.title_bank'),
-            kills: t('rank.title_kills'),
-            deaths: t('rank.title_deaths'),
-            mining: t('rank.title_mining')
+            money: t(getSystemLang(), 'rank.title_money'),
+            bank: t(getSystemLang(), 'rank.title_bank'),
+            kills: t(getSystemLang(), 'rank.title_kills'),
+            deaths: t(getSystemLang(), 'rank.title_deaths'),
+            mining: t(getSystemLang(), 'rank.title_mining')
         };
-        return titles[type] || t('rank.title');
+        return titles[type] || t(getSystemLang(), 'rank.title');
     }
 
     function getRankUnit(type) {
         const units = {
             money: getCurrencyName(),
             bank: getCurrencyName(),
-            kills: t('rank.unit_times'),
-            deaths: t('rank.unit_times'),
-            mining: t('rank.unit_items')
+            kills: t(getSystemLang(), 'rank.unit_times'),
+            deaths: t(getSystemLang(), 'rank.unit_times'),
+            mining: t(getSystemLang(), 'rank.unit_items')
         };
         return units[type] || "";
     }
 
     function showRankDetailForm(player, type, page) {
+		const lang = getLocale(player.xuid);
         const allData = getRankData(type);
         const title = getRankTitle(type);
         const unit = getRankUnit(type);
@@ -131,18 +140,18 @@ function createRankModule(deps) {
         const end = Math.min(start + RANK_PAGE_SIZE, allData.length);
         const pageData = allData.slice(start, end);
 
-        let content = t('rank.page_info', page + 1, totalPages, allData.length);
+        let content = t(lang, 'rank.page_info', page + 1, totalPages, allData.length);
 
         if (allData.length === 0) {
-            content = t('rank.no_data');
+            content = t(lang, 'rank.no_data');
         } else {
             pageData.forEach(function(entry, idx) {
                 let rank = start + idx + 1;
                 let prefix = "";
-                if (rank === 1) prefix = t('rank.rank_1');
-                else if (rank === 2) prefix = t('rank.rank_2');
-                else if (rank === 3) prefix = t('rank.rank_3');
-                else prefix = t('rank.rank_n', rank);
+                if (rank === 1) prefix = t(lang, 'rank.rank_1');
+                else if (rank === 2) prefix = t(lang, 'rank.rank_2');
+                else if (rank === 3) prefix = t(lang, 'rank.rank_3');
+                else prefix = t(lang, 'rank.rank_n', rank);
                 content += prefix + entry.name + " " + entry.value + unit + "\n";
             });
         }
@@ -150,9 +159,9 @@ function createRankModule(deps) {
         const fm = mc.newSimpleForm();
         fm.setTitle(title);
         fm.setContent(content);
-        if (page > 0) fm.addButton(t('rank.prev_page'), "textures/ui/arrow_left");
-        if (page < totalPages - 1) fm.addButton(t('rank.next_page'), "textures/ui/arrow_right");
-        fm.addButton(t('rank.back'), "textures/ui/recap_glyph_desaturated");
+        if (page > 0) fm.addButton(t(lang, 'rank.prev_page'), "textures/ui/arrow_left");
+        if (page < totalPages - 1) fm.addButton(t(lang, 'rank.next_page'), "textures/ui/arrow_right");
+        fm.addButton(t(lang, 'rank.back'), "textures/ui/recap_glyph_desaturated");
         player.sendForm(fm, function(p, id) {
             if (id === null) return;
             let btnIdx = 0;

@@ -986,7 +986,8 @@ function initAllConfigs() {
 		getPlayerAvatarUrl: getPlayerAvatarUrl,
 		loadLocale: i18n.loadLocale,
 		getSystemLanguage: function() { return config.language || 'zh_CN'; },
-		database: database
+		database: database,
+		getPlayerSetting: getPlayerSetting
 	});
 	playerDataModule.init({ database: database, fs: fs, itemsDataPath: ITEMS_DATA_PATH,
 		getPlayerData: function() { return playerData; },
@@ -1031,7 +1032,8 @@ function initAllConfigs() {
 	banModule.init(banDM, {
 		playerData: playerData.players,
 		t: i18n.t,
-		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+		getSystemLanguage: function() { return config.language || 'zh_CN'; },
+		getPlayerSetting: getPlayerSetting
 	});
 	mailModule.init(mailDM, {
 		U: U,
@@ -1056,7 +1058,8 @@ function initAllConfigs() {
 		savePlayerDataNow: savePlayerDataNow,
 		getPlayerMoney: getPlayerMoney, reducePlayerMoney: reducePlayerMoney,
 		getCurrencyName: getCurrencyName, getConfig: function() { return config._data || {}; },
-		database: database, t: i18n.t, getSystemLanguage: function() { return config.language || 'zh_CN'; }
+		database: database, t: i18n.t, getSystemLanguage: function() { return config.language || 'zh_CN'; },
+		getPlayerSetting: getPlayerSetting
 	});
 	chatModule.loadChatConfig();
 	chatModule.registerChatListener();
@@ -1111,7 +1114,8 @@ function initAllConfigs() {
 		chatModule: chatModule,
 		notifyEconomyChange: notifyEconomyChange,
 		t: i18n.t,
-		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+		getSystemLanguage: function() { return config.language || 'zh_CN'; },
+		getPlayerSetting: getPlayerSetting
 	});
 
 	// ============ 依赖注入与模块创建 ============
@@ -1194,7 +1198,8 @@ function initAllConfigs() {
 		getCurrencyName: getCurrencyName,
 		giveItemById: giveItemById,
 		t: i18n.t,
-		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+		getSystemLanguage: function() { return config.language || 'zh_CN'; },
+		getPlayerSetting: getPlayerSetting
 	});
 	commonDeps.cdkModule = cdkModule;
 
@@ -1203,7 +1208,8 @@ function initAllConfigs() {
 		getCurrencyName: getCurrencyName,
 		getMoneyByXuid: getPlayerMoneyByXuid,
 		t: i18n.t,
-		getSystemLanguage: function() { return config.language || 'zh_CN'; }
+		getSystemLanguage: function() { return config.language || 'zh_CN'; },
+		getPlayerSetting: getPlayerSetting
 	});
 	commonDeps.rankModule = rankModule;
 
@@ -1864,7 +1870,7 @@ function registerAllCommands() {
 		["tpy", "接受传送请求", function(p) { teleportModule.acceptTpaRequestByPlayer(p, commonDeps); }, tpTpaEnabled],
 		["tpn", "拒绝传送请求", function(p) { teleportModule.denyTpaRequestByPlayer(p); }, tpTpaEnabled],
 		["rtp", "随机传送", function(p) { teleportModule.showRtpConfirmForm(p); }, tpEnabled],
-		["sign", "每日签到", function(p) { handleSignCommand(p); }]
+		["sign", i18n.t('zh_CN', 'sign.cmd_desc'), function(p) { handleSignCommand(p); }]
 	];
 	for (let i = 0; i < commands.length; i++) {
 		let cmd = commands[i];
@@ -1882,14 +1888,15 @@ function registerAllCommands() {
 // ============ 每日签到 ============
 
 function handleSignCommand(player) {
+	var lang = getPlayerSetting(player.xuid, 'locale') || 'zh_CN';
 	var signCfg = config.get('sign', { enabled: true, minReward: 100, maxReward: 8000 });
 	if (!signCfg.enabled) {
-		player.tell("§e[签到] §c签到功能已关闭");
+		player.tell(i18n.t(lang, 'sign.tag') + i18n.t(lang, 'sign.disabled'));
 		return;
 	}
 	var xuid = player.xuid;
 	var pd = playerData.players[xuid];
-	if (!pd) { player.tell("§e[签到] §c玩家数据异常"); return; }
+	if (!pd) { player.tell(i18n.t(lang, 'sign.tag') + i18n.t(lang, 'sign.data_error')); return; }
 	if (!pd.sign) pd.sign = {};
 
 	var now = new Date();
@@ -1898,7 +1905,7 @@ function handleSignCommand(player) {
 	var yesterdayStr = yesterday.getFullYear() + '-' + String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + String(yesterday.getDate()).padStart(2, '0');
 
 	if (pd.sign.lastDate === today) {
-		player.tell("§e[签到] §c你今天已经签到过了！");
+		player.tell(i18n.t(lang, 'sign.tag') + i18n.t(lang, 'sign.already_signed'));
 		return;
 	}
 
@@ -1926,7 +1933,7 @@ function handleSignCommand(player) {
 	savePlayerDataNow();
 
 	var currencyName = getCurrencyName();
-	player.tell("§e[签到] §a您已成功签到！获得" + reward + currencyName + "，已连续签到" + consecutive + "天。");
+	player.tell(i18n.t(lang, 'sign.tag') + i18n.t(lang, 'sign.success', reward, currencyName, consecutive));
 }
 
 /**

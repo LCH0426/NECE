@@ -97,7 +97,7 @@ function registerRoutes(router, d) {
     });
 
     // 踢出指定玩家
-    router.post('/players/kick', d.adminAuth, function(req, res) {
+    router.post('/players/kick', d.adminAuth, d.writeLimiter, function(req, res) {
         let xuid = req.body.xuid;
         let reason = req.body.reason || '';
 
@@ -124,7 +124,7 @@ function registerRoutes(router, d) {
     });
 
     // 管理员经济操作：增加/减少/设置玩家余额，操作后通知在线玩家
-    router.post('/players/money', d.adminAuth, function(req, res) {
+    router.post('/players/money', d.adminAuth, d.writeLimiter, function(req, res) {
         let xuid = req.body.xuid;
         let action = req.body.action;
         let amount = req.body.amount;
@@ -215,7 +215,7 @@ function registerRoutes(router, d) {
     });
 
     // 向指定在线玩家发送弹窗消息
-    router.post('/players/popup', d.adminAuth, function(req, res) {
+    router.post('/players/popup', d.adminAuth, d.writeLimiter, function(req, res) {
         let xuid = req.body.xuid;
         let content = req.body.content;
 
@@ -558,7 +558,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改在线玩家游戏模式
-    router.put('/players/:xuid/gamemode', d.adminAuth, function(req, res) {
+    router.put('/players/:xuid/gamemode', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let xuid = req.params.xuid;
             const mode = req.body.mode;
@@ -829,7 +829,7 @@ function registerRoutes(router, d) {
     });
 
     // 使指定在线玩家客户端崩溃
-    router.post('/players/crash', d.adminAuth, function(req, res) {
+    router.post('/players/crash', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             const identifier = (req.body.identifier || '').trim();
             if (!identifier) return res.status(400).json({ code: 400, msg: '缺少identifier参数（玩家名或XUID）' });

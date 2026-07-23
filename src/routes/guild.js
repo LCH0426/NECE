@@ -112,7 +112,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除公会
-    router.delete('/admin/guild/:id', d.adminAuth, function(req, res) {
+    router.delete('/admin/guild/:id', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
             if (isNaN(guildId)) { res.status(400).json({ code: 400, msg: '无效的公会ID' }); return; }
@@ -128,7 +128,7 @@ function registerRoutes(router, d) {
     });
 
     // 更新公会信息
-    router.put('/admin/guild/:id', d.adminAuth, function(req, res) {
+    router.put('/admin/guild/:id', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
             if (isNaN(guildId)) { res.status(400).json({ code: 400, msg: '无效的公会ID' }); return; }
@@ -182,7 +182,7 @@ function registerRoutes(router, d) {
     });
 
     // 添加公会传送点
-    router.post('/admin/guild/:id/teleports', d.adminAuth, function(req, res) {
+    router.post('/admin/guild/:id/teleports', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
             if (isNaN(guildId)) { res.status(400).json({ code: 400, msg: '无效的公会ID' }); return; }
@@ -206,7 +206,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除公会传送点
-    router.delete('/admin/guild/:id/teleports/:tpId', d.adminAuth, function(req, res) {
+    router.delete('/admin/guild/:id/teleports/:tpId', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
             var tpId = parseInt(req.params.tpId);
@@ -220,7 +220,7 @@ function registerRoutes(router, d) {
     });
 
     // 更新公会资金
-    router.put('/admin/guild/:id/fund', d.adminAuth, function(req, res) {
+    router.put('/admin/guild/:id/fund', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var guildId = parseInt(req.params.id);
             if (isNaN(guildId)) { res.status(400).json({ code: 400, msg: '无效的公会ID' }); return; }
