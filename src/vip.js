@@ -63,6 +63,7 @@ function getLocale(xuid) {
 
 /** 检查玩家是否拥有月光祝福 */
 function checkPlayerHasMoonlightBlessing(xuid) {
+    if (!playerData || !playerData.players) return false;
     let p = playerData.players[xuid];
     return !!(p && p.vipdata && (p.vipdata.permanent || (p.vipdata.expireTime && p.vipdata.expireTime > Date.now())));
 }

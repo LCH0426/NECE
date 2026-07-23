@@ -436,7 +436,7 @@ function getBdsMemory() {
     if (result === 0) {
         try {
             var mem = process.memoryUsage();
-            result = Math.round(mem.heapUsed / (1024 * 1024));
+            result = Math.round(mem.rss / (1024 * 1024));
         } catch (e) {}
     }
 

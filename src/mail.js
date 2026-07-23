@@ -1415,11 +1415,10 @@ function showPlayerMailSystemForm(player) {
  * @param {string} content - 邮件内容
  */
 function sendSystemMail(xuid, content) {
-    if (!addMail) return;
     try {
-        var mailId = getNextId ? getNextId() : Date.now();
-        if (incrementNextId) incrementNextId();
-        var timeStr = formatMailTime ? formatMailTime() : new Date().toLocaleString();
+        var mailId = getNextId();
+        incrementNextId();
+        var timeStr = formatMailTime();
         addMail({
             id: mailId,
             fromXuid: 'system',

@@ -179,7 +179,6 @@ function startRenderLoop() {
 							_playerDeviceCache[xuid] = device;
 						}
 						if (device) {
-							playerOs = device.os || '--';
 							avgPing = device.avgPing !== undefined ? device.avgPing : '--';
 							packetLoss = device.lastPacketLoss !== undefined ? parseFloat(device.lastPacketLoss.toFixed(1)) : '--';
 						}

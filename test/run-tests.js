@@ -35,7 +35,9 @@ const nodeTestFiles = [
     'unit/chat.test.js',
     'unit/friend.test.js',
     'unit/menu.test.js',
-    'unit/title.test.js'
+    'unit/title.test.js',
+    'unit/block.test.js',
+    'unit/wish.test.js'
 ];
 
 // 运行自定义框架测试

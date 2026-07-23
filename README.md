@@ -8,7 +8,7 @@
 
 [![许可证](https://img.shields.io/badge/许可证-GPL--3.0-blue.svg)](LICENSE)
 [![平台](https://img.shields.io/badge/平台-Node.js-339933?logo=node.js\&logoColor=white)](https://nodejs.org/)
-[![版本](https://img.shields.io/badge/版本-1.0.0-orange.svg)](https://github.com/LCH0426/NECE)
+[![版本](https://img.shields.io/badge/版本-1.1.0-orange.svg)](https://github.com/LCH0426/NECE)
 [![语言](https://img.shields.io/badge/语言-JavaScript-F7DF1E?logo=javascript\&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 
 </div>
@@ -78,7 +78,7 @@
 | **连锁挖矿**          | 使用镐子/斧子/铲子/锄头时自动连锁破坏同类方块，支持玩家个性化配置 | ✅ 可用 |
 | **快速建造**          | 选区填充方块，支持填充/破坏/水源/岩浆四种模式，OP可选建造模式 | ✅ 可用 |
 | **地图画上传**         | 通过Web面板上传地图画图片，支持JPG/PNG/WebP，可选集成CustomGetMap | ✅ 可用 |
-| **i18n 支持**        | 多语言国际化支持，20个模块已完成翻译，玩家可自由选择语言 | ✅ 可用 |
+| **i18n 支持**        | 多语言国际化支持，19个模块已完成翻译，玩家可自由选择语言 | ✅ 可用 |
 | **领地系统**          | 玩家可创建和管理私人领地，设置权限和防护            | 🚧 计划中 |
 | **Endstone支持**        | Endstone 插件加载器支持                       | ❌ 短期无计划 |
 
@@ -201,7 +201,7 @@ NECE 内置基于 Express.js 的网页端管理后台，提供以下功能：
 
 NECE 支持多语言界面，语言文件位于 `lang/` 目录。通过 `config.json` 的 `language` 字段切换语言（默认 `zh_CN`）。
 
-### 已完成国际化的模块（20个）
+### 已完成国际化的模块（19个）
 
 | 模块 | 文件 | 命名空间 | 状态 |
 |------|------|----------|------|
@@ -247,21 +247,24 @@ NECE/
 │   ├── economy.js        # 经济系统
 │   ├── playerData.js     # 玩家数据管理
 │   ├── personalCenter.js # 个人中心
-│   ├── chat.js           # 聊天系统 + 称号系统
-│   ├── sidebar.js        # 侧边栏/actionbar 渲染
+│   ├── chat.js           # 聊天系统 + 称号系统 + 头顶显示
+│   ├── sidebar.js        # 侧边栏/actionbar 渲染 + 调试信息
 │   ├── menu.js           # 菜单系统（主菜单+快捷菜单）
-│   ├── teleport.js       # 传送系统（家/地标/TPA/死亡点）
+│   ├── block.js          # 连锁挖矿 + 快速建造
+│   ├── teleport.js       # 传送系统（家/地标/TPA/RTP/死亡点）
 │   ├── shop.js           # 商店与回收
 │   ├── bank.js           # 银行系统
 │   ├── vip.js            # VIP 会员
-│   ├── wish.js           # 祈愿抽卡 + 赞助管理
+│   ├── wish.js           # 祈愿抽卡 + 命星定轨 + 赞助管理
 │   ├── guild.js          # 公会系统
-│   ├── monitoring.js     # 系统监控（CPU每核/内存/磁盘/网络，零外部依赖）
+│   ├── monitoring.js     # 系统监控（CPU每核/内存/磁盘/网络）
+│   ├── debug.js          # 调试工具
 │   ├── i18n.js           # 国际化模块
 │   ├── server.js         # Web 服务器
 │   └── routes/           # Web API 路由
-│       ├── admin.js      # 系统监控/清理/聊天/称号管理API
+│       ├── admin.js      # 系统监控/称号/雷劈管理API
 │       ├── players.js    # 玩家列表/排行/详情
+│       ├── mapart.js     # 地图画上传API
 │       └── ...           # 其他路由模块
 ├── lang/                 # 语言文件目录
 │   └── zh_CN.json        # 简体中文翻译
@@ -386,7 +389,6 @@ neceGetCurrencyName(); // 返回: String
 | [7zip-min](https://www.npmjs.com/package/7zip-min)                   | ^3.0.1  | [MIT](https://github.com/onikienko/7zip-min/blob/master/LICENSE)               | 7zip 压缩（用于备份）    |
 | [multer](https://www.npmjs.com/package/multer)                       | ^1.4.5  | [MIT](https://github.com/expressjs/multer/blob/master/LICENSE)                 | 文件上传（地图画）       |
 
-> 系统监控使用 Node.js 内置 `os` 模块 + Windows 内置命令（`wmic`、`netstat`），零外部依赖。
 
 ### 前端
 

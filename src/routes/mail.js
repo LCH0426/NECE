@@ -112,7 +112,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取邮件列表失败: ' });
+            res.status(500).json({ code: 500, msg: '获取邮件列表失败: ' + e.message});
         }
     });
 
@@ -196,7 +196,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取邮件详情失败: ' });
+            res.status(500).json({ code: 500, msg: '获取邮件详情失败: ' + e.message});
         }
     });
 
@@ -332,7 +332,7 @@ function registerRoutes(router, d) {
                 data: { id: newMail.id, toXuid: toXuid, toName: targetDesc }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '发送邮件失败: ' });
+            res.status(500).json({ code: 500, msg: '发送邮件失败: ' + e.message});
         }
     });
 
@@ -357,7 +357,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '邮件已删除' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除邮件失败: ' });
+            res.status(500).json({ code: 500, msg: '删除邮件失败: ' + e.message});
         }
     });
 }

@@ -72,7 +72,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: list });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取CDK列表失败: ' });
+            res.status(500).json({ code: 500, msg: '获取CDK列表失败: ' + e.message});
         }
     });
 
@@ -136,7 +136,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加CDK', '兑换码:' + body.code);
             res.json({ code: 200, msg: '添加成功' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '添加CDK失败: ' });
+            res.status(500).json({ code: 500, msg: '添加CDK失败: ' + e.message});
         }
     });
 
@@ -157,7 +157,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除CDK', '兑换码:' + body.code);
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除CDK失败: ' });
+            res.status(500).json({ code: 500, msg: '删除CDK失败: ' + e.message});
         }
     });
 
@@ -204,7 +204,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改CDK', '兑换码:' + body.code);
             res.json({ code: 200, msg: '修改成功' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '修改CDK失败: ' });
+            res.status(500).json({ code: 500, msg: '修改CDK失败: ' + e.message});
         }
     });
 
@@ -267,7 +267,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取白名单失败: ' });
+            res.status(500).json({ code: 500, msg: '获取白名单失败: ' + e.message});
         }
     });
 
@@ -301,7 +301,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '已添加 ' + name + ' 到白名单' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '添加白名单失败: ' });
+            res.status(500).json({ code: 500, msg: '添加白名单失败: ' + e.message});
         }
     });
 
@@ -335,7 +335,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '已从白名单移除 ' + name });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除白名单失败: ' });
+            res.status(500).json({ code: 500, msg: '删除白名单失败: ' + e.message});
         }
     });
 
@@ -369,7 +369,7 @@ function registerRoutes(router, d) {
             let result = messages.slice(-limit);
             res.json({ code: 200, data: { messages: result, total: d.chatHistory.length } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取聊天记录失败: ' });
+            res.status(500).json({ code: 500, msg: '获取聊天记录失败: ' + e.message});
         }
     });
 
@@ -386,7 +386,7 @@ function registerRoutes(router, d) {
         d.chatModule.queryHistory(options).then(function(result) {
             res.json({ code: 200, data: result });
         }).catch(function(e) {
-            res.status(500).json({ code: 500, msg: '查询聊天记录失败: ' });
+            res.status(500).json({ code: 500, msg: '查询聊天记录失败: ' + e.message});
         });
     });
 
@@ -396,7 +396,7 @@ function registerRoutes(router, d) {
             let dates = d.chatModule.getAvailableDates();
             res.json({ code: 200, data: { dates: dates } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取聊天日期列表失败: ' });
+            res.status(500).json({ code: 500, msg: '获取聊天日期列表失败: ' + e.message});
         }
     });
 
@@ -430,7 +430,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '消息已发送' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '发送消息失败: ' });
+            res.status(500).json({ code: 500, msg: '发送消息失败: ' + e.message});
         }
     });
 
@@ -453,7 +453,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取日志失败: ' });
+            res.status(500).json({ code: 500, msg: '获取日志失败: ' + e.message});
         }
     });
 
@@ -463,7 +463,7 @@ function registerRoutes(router, d) {
             let dates = d.adminLog.getAvailableDates();
             res.json({ code: 200, data: { dates: dates } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取日期列表失败: ' });
+            res.status(500).json({ code: 500, msg: '获取日期列表失败: ' + e.message});
         }
     });
 
@@ -473,7 +473,7 @@ function registerRoutes(router, d) {
             const dates = d.behaviorLog.availableDates();
             res.json({ code: 200, data: { dates: dates } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取行为日志日期列表失败: ' });
+            res.status(500).json({ code: 500, msg: '获取行为日志日期列表失败: ' + e.message});
         }
     });
 
@@ -483,7 +483,7 @@ function registerRoutes(router, d) {
             const events = d.behaviorLog.actionTypes();
             res.json({ code: 200, data: { events: events } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取事件类型列表失败: ' });
+            res.status(500).json({ code: 500, msg: '获取事件类型列表失败: ' + e.message});
         }
     });
 
@@ -500,7 +500,7 @@ function registerRoutes(router, d) {
         d.behaviorLog.queryLogs(options).then(function(result) {
             res.json({ code: 200, data: result });
         }).catch(function(e) {
-            res.status(500).json({ code: 500, msg: '查询行为日志失败: ' });
+            res.status(500).json({ code: 500, msg: '查询行为日志失败: ' + e.message});
         });
     });
 
@@ -521,7 +521,7 @@ function registerRoutes(router, d) {
             });
             res.json({ code: 200, data: results });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '搜索物品失败: ' });
+            res.status(500).json({ code: 500, msg: '搜索物品失败: ' + e.message});
         }
     });
 }
