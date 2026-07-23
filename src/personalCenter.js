@@ -635,7 +635,6 @@ function showPersonalCenterForm(player) {
 	centerForm.addButton(t('pc.btn_mail') + (unreadMailCount > 0 ? '§c(' + unreadMailCount + ')' : ''), 'textures/ui/Envelope');
 	centerForm.addButton(t('pc.btn_level'), 'textures/ui/achievements_pause_menu_icon');
 	centerForm.addButton(t('pc.btn_stats'), 'textures/ui/copy');
-	centerForm.addButton(t('pc.btn_attrs'), 'textures/ui/jump_boost_effect');
 	centerForm.addButton(t('pc.btn_settings'), 'textures/ui/color_picker');
 	centerForm.addButton(t('pc.btn_avatar'), 'textures/ui/dressing_room_customization');
 	centerForm.addButton(t('pc.btn_back_menu'), 'textures/ui/recap_glyph_desaturated');
@@ -648,10 +647,9 @@ function showPersonalCenterForm(player) {
 		if (buttonIndex === 3) _deps.mailModule.showMailSystemForm(p);
 		if (buttonIndex === 4) showAdventureLevelPanel(p);
 		if (buttonIndex === 5) showDataStatisticsForm(p);
-		if (buttonIndex === 6 && _deps.wishModule) _deps.wishModule.showAttributeUpgradeForm(p);
-		if (buttonIndex === 7) showPlayerSettingsForm(p);
-		if (buttonIndex === 8) _deps.showAvatarSettingsForm(p);
-		if (buttonIndex === 9) openMainMenu(p);
+		if (buttonIndex === 6) showPlayerSettingsForm(p);
+		if (buttonIndex === 7) _deps.showAvatarSettingsForm(p);
+		if (buttonIndex === 8) openMainMenu(p);
 	});
 }
 
@@ -814,25 +812,19 @@ function showPlayerSettingsForm(player) {
 
 	// 动态获取支持的语言列表
 	const supportedLocales = _deps.getSupportedLocales ? _deps.getSupportedLocales() : ['zh_CN'];
-	const localeLabels = {
-		'zh_CN': '简体中文',
-		'en_US': 'English',
-		'ja_JP': '日本語',
-		'ko_KR': '한국어'
-	};
 
-	// 获取每个语言文件的作者信息
-	function getLocaleAuthor(locale) {
+	// 从语言文件中读取语言名称和作者信息
+	function getLocaleInfo(locale) {
 		try {
-			if (_deps.t) {
-				// 尝试从语言文件中获取作者信息
-				const langData = _deps.loadLocale ? _deps.loadLocale(locale) : null;
-				if (langData && langData._meta && langData._meta.author) {
-					return langData._meta.author;
-				}
+			const langData = _deps.loadLocale ? _deps.loadLocale(locale) : null;
+			if (langData && langData._meta) {
+				return {
+					name: langData._meta.language || locale,
+					author: langData._meta.author || ''
+				};
 			}
 		} catch (e) {}
-		return '';
+		return { name: locale, author: '' };
 	}
 
 	for (let i = 0; i < schema.length; i++) {
@@ -846,11 +838,10 @@ function showPlayerSettingsForm(player) {
 				const currentVal = _deps.getPlayerSetting(xuid, item.key) || 'zh_CN';
 				const currentIdx = supportedLocales.indexOf(currentVal);
 				const optionLabels = supportedLocales.map(function(locale) {
-					const label = localeLabels[locale] || locale;
-					const author = getLocaleAuthor(locale);
-					return author ? label + ' - ' + author : label;
+					const info = getLocaleInfo(locale);
+					return info.author ? info.name + ' - ' + info.author : info.name;
 				});
-				settingsForm.addDropdown(item.label, optionLabels, currentIdx >= 0 ? currentIdx : 0);
+				settingsForm.addDropdown(item.label, optionLabels, currentIdx >= 0 ? currentIdx : 0, "Translation is not necessarily 100%% accurate.");
 				dropdownIndices.push({
 					idx: dataIdx,
 					key: item.key,

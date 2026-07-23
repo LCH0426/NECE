@@ -399,15 +399,16 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 		timestamp: Date.now()
 	};
 
-	const typeDesc = type === 'tpa' ? t('tp.tpa_type_to_you') : t('tp.tpa_type_to_them');
-	fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.request_sent', toPlayer.name, typeDesc));
+	fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.request_sent', toPlayer.name));
 
-	toPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.request_notify', fromPlayer.name, typeDesc));
+	var notifyKey = type === 'tpa' ? 'tp.request_notify_tpa' : 'tp.request_notify_tpahere';
+	toPlayer.tell(t('tp.tag_prefix') + " §a" + t(notifyKey, fromPlayer.name));
 
 	// 弹窗给目标玩家，请求同意或拒绝
+	var labelKey = type === 'tpa' ? 'tp.player_request_label_tpa' : 'tp.player_request_label_tpahere';
 	const fm = mc.newSimpleForm();
 	fm.setTitle("§l§e" + t('tp.pending_requests'));
-	fm.setContent(t('tp.player_request_label', fromPlayer.name, typeDesc));
+	fm.setContent(t(labelKey, fromPlayer.name));
 	fm.addButton("§a" + t('tp.accept'), "textures/ui/check");
 	fm.addButton("§c" + t('tp.deny'), "textures/ui/cancel");
 
@@ -535,8 +536,8 @@ function showTpaPendingRequests(player, deps) {
 		// 选中某个请求后弹出详情确认窗
 		const subFm = mc.newSimpleForm();
 		subFm.setTitle("§l§e" + t('tp.request_detail'));
-		const typeDesc = item.req.type === 'tpa' ? t('tp.tpa_type_short_to_you') : t('tp.tpa_type_short_to_them');
-		subFm.setContent(t('tp.player_request_label', item.req.fromName, typeDesc));
+		var labelKey2 = item.req.type === 'tpa' ? 'tp.player_request_label_tpa' : 'tp.player_request_label_tpahere';
+		subFm.setContent(t(labelKey2, item.req.fromName));
 		subFm.addButton("§a" + t('tp.accept'), "textures/ui/check");
 		subFm.addButton("§c" + t('tp.deny'), "textures/ui/cancel");
 
