@@ -228,7 +228,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '留言已删除' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除留言失败: ' });
+            res.status(500).json({ code: 500, msg: '删除留言失败: ' + e.message});
         }
     });
 }

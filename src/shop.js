@@ -402,7 +402,7 @@ function showXPBuyForm(player, deps) {
 	const needXPToCurrentNext = xpToNextLevel - currentXPInLevel;
 
 	const xuid = player.xuid;
-	const balance = deps.money.get(xuid) || 0;
+	const balance = deps.getPlayerMoney ? deps.getPlayerMoney(player) : (deps.money ? deps.money.get(xuid) || 0 : 0);
 
 	const gui = mc.newCustomForm();
 	gui.setTitle(t('shop.xp_title'));

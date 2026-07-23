@@ -22,8 +22,6 @@
  */
 
 
-const cdkModuleInstance = null;
-
 /**
  * 创建CDK模块实例（工厂模式）
  * @param {Object} deps - 依赖对象

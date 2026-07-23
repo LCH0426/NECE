@@ -28,7 +28,7 @@ function registerRoutes(router, d) {
             const stats = d.backupModule.getBackupStats();
             res.json({ code: 200, data: stats });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取备份统计失败: ' });
+            res.status(500).json({ code: 500, msg: '获取备份统计失败: ' + e.message});
         }
     });
 
@@ -38,7 +38,7 @@ function registerRoutes(router, d) {
             const backups = d.backupModule.getBackupList();
             res.json({ code: 200, data: backups });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取备份列表失败: ' });
+            res.status(500).json({ code: 500, msg: '获取备份列表失败: ' + e.message});
         }
     });
 
@@ -58,7 +58,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '备份失败: ' });
+            res.status(500).json({ code: 500, msg: '备份失败: ' + e.message});
         }
     });
 
@@ -67,7 +67,7 @@ function registerRoutes(router, d) {
         try {
             res.json({ code: 200, data: { isRunning: d.backupModule.isBackupRunning() } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取备份状态失败: ' });
+            res.status(500).json({ code: 500, msg: '获取备份状态失败: ' + e.message});
         }
     });
 
@@ -83,7 +83,7 @@ function registerRoutes(router, d) {
                 res.status(400).json({ code: 400, msg: result.error });
             }
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除备份失败: ' });
+            res.status(500).json({ code: 500, msg: '删除备份失败: ' + e.message});
         }
     });
 
@@ -123,7 +123,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '生成下载链接失败: ' });
+            res.status(500).json({ code: 500, msg: '生成下载链接失败: ' + e.message});
         }
     });
 
@@ -165,7 +165,7 @@ function registerRoutes(router, d) {
             }
             res.download(filePath, filename);
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '下载备份失败: ' });
+            res.status(500).json({ code: 500, msg: '下载备份失败: ' + e.message});
         }
     });
 
@@ -175,7 +175,7 @@ function registerRoutes(router, d) {
             let cfg = d.backupModule.getConfig();
             res.json({ code: 200, data: cfg });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取备份配置失败: ' });
+            res.status(500).json({ code: 500, msg: '获取备份配置失败: ' + e.message});
         }
     });
 
@@ -213,7 +213,7 @@ function registerRoutes(router, d) {
                 mainCfg.backup = cfg;
                 d.fs.writeFileSync(MAIN_CONFIG_PATH, JSON.stringify(mainCfg, null, 4), 'utf-8');
             } catch (e) {
-                return res.status(500).json({ code: 500, msg: '保存配置文件失败: ' });
+                return res.status(500).json({ code: 500, msg: '保存配置文件失败: ' + e.message});
             }
 
             d.triggerReload('config');
@@ -226,7 +226,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '修改备份配置', JSON.stringify(cfg));
             res.json({ code: 200, msg: '备份配置已更新', data: cfg });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '更新备份配置失败: ' });
+            res.status(500).json({ code: 500, msg: '更新备份配置失败: ' + e.message});
         }
     });
 
@@ -242,7 +242,7 @@ function registerRoutes(router, d) {
                 res.json({ code: 200, msg: '数据备份完成', data: result });
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '数据备份失败: ' });
+            res.status(500).json({ code: 500, msg: '数据备份失败: ' + e.message});
         }
     });
 
@@ -252,7 +252,7 @@ function registerRoutes(router, d) {
             const list = d.banModule.apiGetBanList();
             res.json({ code: 200, data: list });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取封禁列表失败: ' });
+            res.status(500).json({ code: 500, msg: '获取封禁列表失败: ' + e.message});
         }
     });
 
@@ -274,7 +274,7 @@ function registerRoutes(router, d) {
                 res.status(400).json({ code: 400, msg: result.message });
             }
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '封禁操作失败: ' });
+            res.status(500).json({ code: 500, msg: '封禁操作失败: ' + e.message});
         }
     });
 
@@ -293,7 +293,7 @@ function registerRoutes(router, d) {
                 res.status(400).json({ code: 400, msg: result.message });
             }
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '解封操作失败: ' });
+            res.status(500).json({ code: 500, msg: '解封操作失败: ' + e.message});
         }
     });
 
@@ -307,7 +307,7 @@ function registerRoutes(router, d) {
             const result = d.banModule.apiIsBanned(xuid, ip);
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '查询封禁状态失败: ' });
+            res.status(500).json({ code: 500, msg: '查询封禁状态失败: ' + e.message});
         }
     });
 
@@ -319,7 +319,7 @@ function registerRoutes(router, d) {
             const stats = d.monitoring.getPlayerCountStats();
             res.json({ code: 200, data: stats });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取人数统计失败: ' });
+            res.status(500).json({ code: 500, msg: '获取人数统计失败: ' + e.message});
         }
     });
 
@@ -349,7 +349,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取人数趋势失败: ' });
+            res.status(500).json({ code: 500, msg: '获取人数趋势失败: ' + e.message});
         }
     });
 
@@ -383,7 +383,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取人数历史失败: ' });
+            res.status(500).json({ code: 500, msg: '获取人数历史失败: ' + e.message});
         }
     });
 
@@ -397,7 +397,7 @@ function registerRoutes(router, d) {
             var active = d.chatModule.getPlayerActiveTitle(xuid);
             res.json({ code: 200, data: { xuid: xuid, owned: owned, active: active } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取玩家称号失败: ' });
+            res.status(500).json({ code: 500, msg: '获取玩家称号失败: ' + e.message});
         }
     });
 
@@ -417,7 +417,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加称号', '玩家XUID:' + xuid + ' 称号:' + title);
             res.json({ code: 200, msg: '称号添加成功', data: { xuid: xuid, title: title } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '添加称号失败: ' });
+            res.status(500).json({ code: 500, msg: '添加称号失败: ' + e.message});
         }
     });
 
@@ -436,7 +436,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '设置称号', '玩家XUID:' + xuid + ' 称号:' + title);
             res.json({ code: 200, msg: '称号设置成功', data: { xuid: xuid, active: title } });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '设置称号失败: ' });
+            res.status(500).json({ code: 500, msg: '设置称号失败: ' + e.message});
         }
     });
 
@@ -452,7 +452,7 @@ function registerRoutes(router, d) {
                 res.status(404).json({ code: 404, msg: '该玩家未拥有此称号' });
             }
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除称号失败: ' });
+            res.status(500).json({ code: 500, msg: '删除称号失败: ' + e.message});
         }
     });
 
@@ -536,7 +536,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '查询经济日志失败: ' });
+            res.status(500).json({ code: 500, msg: '查询经济日志失败: ' + e.message});
         }
     });
 
@@ -619,7 +619,7 @@ function registerRoutes(router, d) {
 
             res.json({ code: 200, msg: '玩家"' + playerName + '"的所有数据已删除' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除玩家数据失败: ' });
+            res.status(500).json({ code: 500, msg: '删除玩家数据失败: ' + e.message});
         }
     });
 
@@ -643,7 +643,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '生成验证码失败: ' });
+            res.status(500).json({ code: 500, msg: '生成验证码失败: ' + e.message});
         }
     });
 

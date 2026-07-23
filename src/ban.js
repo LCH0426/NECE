@@ -83,7 +83,7 @@ function resolvePlayer(identifier) {
         return {
             xuid: onlinePlayer.xuid,
             name: onlinePlayer.name,
-            uid: onlinePlayer.xuid,
+            uid: onlinePlayer.uid,
             ip: onlinePlayer.getDevice ? onlinePlayer.getDevice().ip : (onlinePlayer.ip || ''),
             online: true
         };

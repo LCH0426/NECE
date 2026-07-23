@@ -48,7 +48,7 @@ function createMockPlayer(xuid, name) {
         sendToast(title, msg) { logger.info('[Toast->' + this.name + '] ' + title + ': ' + msg); },
         teleport(pos) { logger.info('[Teleport] ' + this.name + ' -> ' + JSON.stringify(pos)); },
         runcmd(cmd) { logger.info('[Cmd] ' + this.name + ': /' + cmd); },
-        getDevice() { return { os: 'Win32', ip: '127.0.0.1', avgPing: 32 }; },
+        getDevice() { return { os: 'Win32', ip: '127.0.0.1', avgPing: 32, avgPacketLoss: 0.01, interactMode: 0 }; },
         getInventory() {
             return {
                 size: 36,
@@ -58,7 +58,11 @@ function createMockPlayer(xuid, name) {
         },
         addEffect() {},
         setHealth() {},
+        setMaxHealth() {},
         getMaxHealth() { return 20; },
+        health: 20,
+        gameMode: 0,
+        rename(name) { logger.info('[Rename] ' + this.name + ' -> ' + name); },
         kick(reason) { logger.info('[Kick] ' + this.name + ': ' + reason); },
         sendForm(form, callback) { logger.info('[Form] ' + this.name + ' received form'); },
         sendModalForm(title, content, btn1, btn2, callback) { logger.info('[ModalForm] ' + this.name + ': ' + title); }

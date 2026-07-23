@@ -69,7 +69,7 @@ function registerRoutes(router, d) {
             }
             res.json({ code: 200, data: result });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取公会列表失败: ' });
+            res.status(500).json({ code: 500, msg: '获取公会列表失败: ' + e.message});
         }
     });
 
@@ -107,7 +107,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取公会详情失败: ' });
+            res.status(500).json({ code: 500, msg: '获取公会详情失败: ' + e.message});
         }
     });
 
@@ -123,7 +123,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除公会', '公会ID:' + guildId + ' 名称:' + guild.name);
             res.json({ code: 200, msg: '公会"' + guild.name + '"已删除' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除公会失败: ' });
+            res.status(500).json({ code: 500, msg: '删除公会失败: ' + e.message});
         }
     });
 
@@ -165,7 +165,7 @@ function registerRoutes(router, d) {
             
             res.json({ code: 200, msg: '公会信息已更新' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '更新公会失败: ' });
+            res.status(500).json({ code: 500, msg: '更新公会失败: ' + e.message});
         }
     });
 
@@ -177,7 +177,7 @@ function registerRoutes(router, d) {
             var teleports = database.getGuildTeleports(guildId);
             res.json({ code: 200, data: teleports });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '获取传送点失败: ' });
+            res.status(500).json({ code: 500, msg: '获取传送点失败: ' + e.message});
         }
     });
 
@@ -201,7 +201,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '添加公会传送点', '公会ID:' + guildId + ' 名称:' + name);
             res.json({ code: 200, msg: '传送点已添加' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '添加传送点失败: ' });
+            res.status(500).json({ code: 500, msg: '添加传送点失败: ' + e.message});
         }
     });
 
@@ -215,7 +215,7 @@ function registerRoutes(router, d) {
             d.adminLog.log(req.user.uid, '删除公会传送点', '公会ID:' + guildId + ' 传送点ID:' + tpId);
             res.json({ code: 200, msg: '传送点已删除' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '删除传送点失败: ' });
+            res.status(500).json({ code: 500, msg: '删除传送点失败: ' + e.message});
         }
     });
 
@@ -243,7 +243,7 @@ function registerRoutes(router, d) {
             
             res.json({ code: 200, msg: '公会资金已更新' });
         } catch (e) {
-            res.status(500).json({ code: 500, msg: '更新资金失败: ' });
+            res.status(500).json({ code: 500, msg: '更新资金失败: ' + e.message});
         }
     });
 }

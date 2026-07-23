@@ -31,6 +31,9 @@ describe('titles', () => {
     });
 
     after(() => {
+        // 清理 setInterval 防止进程不退出
+        const intervals = global._activeTimers || [];
+        intervals.forEach(function(id) { clearInterval(id); });
         teardownMocks();
     });
 
