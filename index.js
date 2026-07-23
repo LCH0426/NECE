@@ -1341,6 +1341,7 @@ function onJoinHandler(player) {
 
 	const xuid = String(playerXUID);
 	const now = Date.now();
+	const lang = getPlayerSetting(xuid, 'locale') || 'zh_CN';
 
 	// 欢迎消息：老玩家显示离线时长和总游戏时长，新玩家显示欢迎语
 	if (getPlayerSetting(xuid, "enableWelcome")) {
@@ -1355,15 +1356,15 @@ function onJoinHandler(player) {
 				const totalPlayTime = U.formatTime(playTime);
 
 				player.sendToast(
-					`§b欢迎回来，§6${playerName}`,
-					`§b距离您上次游玩已经过去§a${awayTime}§b，您的总游戏时长为:§a${totalPlayTime}`
+					i18n.t(lang, 'core.welcome_back', playerName),
+					i18n.t(lang, 'core.welcome_back_detail', awayTime, totalPlayTime)
 				);
 
 				delete p.leavetime;
 			} else {
 				player.sendToast(
-					'§6欢迎来到§cCitlalia服务器！',
-					'§b这是你第一次加入服务器，已发放新手礼包到您的背包'
+					i18n.t(lang, 'core.welcome_new'),
+					i18n.t(lang, 'core.welcome_new_detail')
 				);
 			}
 		} catch (error) {
@@ -1410,7 +1411,6 @@ function onJoinHandler(player) {
 				_ipVerifiedThisSession[playerXUID] = true;
 				var token = generateIpToken(playerXUID);
 				var reportUrl = trueipCfg.url + '?token=' + token;
-				var lang = getPlayerSetting(xuid, 'locale') || 'zh_CN';
 				var form = mc.newSimpleForm();
 				form.setTitle(i18n.t(lang, 'pc.ip_verify_title'));
 				form.setContent(i18n.t(lang, 'pc.ip_verify_content'));
@@ -1477,6 +1477,7 @@ mc.listen("onLeft", (player) => {
 function onLeftHandler(player) {
 	const xuid = player.xuid;
 	const xuidStr = String(xuid);
+
 	if (_joinTimestamps[xuid]) {
 		let sessionSec = Math.floor((Date.now() - _joinTimestamps[xuid]) / 1000);
 		personalCenter.bumpStat(xuid, "playTime", sessionSec);
@@ -1745,8 +1746,8 @@ mc.listen("onServerStarted", async () => {
 			orgCmd.overload([]);
 			orgCmd.setCallback(function(_cmd, origin, output) {
 				var player = origin.player;
-				if (!player) { output.error('§c此命令仅玩家可在游戏内执行！'); return; }
-				if (!config.get("guild.enabled")) { player.tell('§c公会系统当前已关闭！'); return; }
+				if (!player) { output.error(i18n.t('zh_CN', 'core.cmd_console_only')); return; }
+				if (!config.get("guild.enabled")) { player.tell('§c' + i18n.t('zh_CN', 'core.guild_disabled')); return; }
 				guildModule.showMainMenu(player);
 			});
 			orgCmd.setup();
@@ -1782,14 +1783,14 @@ mc.listen("onPreJoin", function(pl) {
 	// 维护模式检查（优先于封禁检查）
 	if (_maintenanceMode) {
 		var reason = _maintenanceReason || 'Server maintenance in progress';
-		pl.kick('§c服务器维护中\n§e' + reason + '\n§7Server maintenance in progress\n§7' + reason);
+		pl.kick(i18n.t(lang, 'core.kick_maintenance', reason));
 		return false;
 	}
 	var ip = '';
 	try { var dev = pl.getDevice ? pl.getDevice() : null; ip = dev && dev.ip ? dev.ip : ''; } catch(e) {}
 	const banCheck = banModule.isPlayerBanned(pl.xuid, ip);
 	if (banCheck.banned) {
-		pl.kick('§c你已被封禁\n§e原因：' + banCheck.reason);
+		pl.kick(i18n.t(lang, 'core.kick_banned', banCheck.reason));
 		return false;
 	}
 });
@@ -1874,6 +1875,7 @@ function registerAllCommands() {
 		wishModule.registerCommands(registerPlayerCommand);
 	}
 	chatModule.registerTitleCommand(registerPlayerCommand);
+
 }
 
 
@@ -2157,7 +2159,7 @@ function setMaintenanceMode(enable, reason) {
         var kickReason = _maintenanceReason || 'Server maintenance in progress';
         onlinePlayers.forEach(function(player) {
             try {
-                player.kick('§c服务器维护中\n§e' + kickReason + '\n§7Server maintenance in progress\n§7' + kickReason);
+                player.kick(i18n.t(lang, 'core.kick_maintenance', kickReason));
                 kickCount++;
             } catch (e) {}
         });
@@ -2508,7 +2510,7 @@ function registerWebCommands() {
 				var kickReason = _maintenanceReason || 'Server maintenance in progress';
 				onlinePlayers.forEach(function(player) {
 					try {
-						player.kick('§c服务器维护中\n§e' + kickReason + '\n§7Server maintenance in progress\n§7' + kickReason);
+						player.kick(i18n.t(lang, 'core.kick_maintenance', kickReason));
 						kickCount++;
 					} catch (e) {}
 				});
@@ -2628,7 +2630,10 @@ if (typeof ll !== 'undefined' && ll.export) {
 		return playerData.players[xuid] || null;
 	}, 'NECE_getPlayerInfo');
 	ll.export(getCurrencyName, 'NECE_getCurrencyName');
-	logger.info('[API] Exported: NECE_signPlayer, NECE_getPlayerBalance, NECE_getPlayerInfo, NECE_getCurrencyName');
+	ll.export(function(xuid) {
+		try { return blockModule.isQuickBuildEnabled(xuid); } catch (e) { return false; }
+	}, 'NECE_isQuickBuildEnabled');
+	logger.info('[API] Exported: NECE_signPlayer, NECE_getPlayerBalance, NECE_getPlayerInfo, NECE_getCurrencyName, NECE_isQuickBuildEnabled');
 }
 
 // ============ 插件卸载钩子 ============

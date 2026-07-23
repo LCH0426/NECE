@@ -1176,7 +1176,7 @@ function buildBlockTip(xuid) {
     var sel = _playerSelections[xuid] || {};
     var buildMode = _playerBuildModes[xuid] || 'fill';
     var isFillMode = buildMode === 'fill';
-    var actionText = isFillMode ? '放置' : '破坏';
+    var actionText = isFillMode ? t('quick_build.action_place') : t('quick_build.action_break');
 
     var tip = '§a' + t('quick_build.title') + ' [' + getBuildModeName(buildMode) + ']';
     if (sel.pointA) {
@@ -1186,9 +1186,9 @@ function buildBlockTip(xuid) {
         tip += ' | §eB: [' + sel.pointB.x + ',' + sel.pointB.y + ',' + sel.pointB.z + ']';
     }
     if (!sel.pointA) {
-        tip += ' | §f' + actionText + '方块选择A点 | §c空手取消';
+        tip += ' | §f' + t('quick_build.select_a_hint', actionText) + ' | §c空手取消';
     } else if (!sel.pointB) {
-        tip += ' | §f' + actionText + '方块选择B点 | §c空手取消';
+        tip += ' | §f' + t('quick_build.select_b_hint', actionText) + ' | §c空手取消';
     }
     return tip;
 }
@@ -1214,18 +1214,27 @@ function toggleBlockMode(player, mode) {
         player.tell(t('quick_build.mode_closed'));
         dlog(player.name + ' 关闭快速建造');
     } else {
+        // 检查 iland 选区模式
+        try {
+            var isSelecting = ll.import('ILAPI_IsSelecting');
+            if (isSelecting && isSelecting(xuid)) {
+                player.tell(t('quick_build.iland_selecting'));
+                return;
+            }
+        } catch (e) {}
+
         _enabledPlayers[xuid] = true;
         _playerBuildModes[xuid] = mode || 'fill';
         _playerSelections[xuid] = {};
 
         var buildMode = _playerBuildModes[xuid];
         if (buildMode !== 'fill') {
-            player.tell('§e连锁挖矿已临时关闭，退出快速建造后自动恢复');
+            player.tell(t('quick_build.chain_temp_disabled'));
         }
 
         var modeName = getBuildModeName(buildMode);
-        var actionText = buildMode === 'fill' ? '放置' : '破坏';
-        player.tell(t('quick_build.status_enabled') + '，当前模式: §b' + modeName + '§r，' + actionText + '第一个方块标记A点');
+        var actionText = buildMode === 'fill' ? t('quick_build.action_place') : t('quick_build.action_break');
+        player.tell(t('quick_build.status_enabled') + '，' + t('quick_build.current_mode', modeName) + '，' + t('quick_build.select_a_point', actionText));
         player.tell(buildBlockTip(xuid), 4);
         dlog(player.name + ' 开启快速建造，模式: ' + modeName);
     }
@@ -1316,15 +1325,15 @@ function doCreativeFill(player) {
     if (buildMode === 'clear') {
         fillSelection(player, sel, 'minecraft:air', 0);
         if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
-        player.tell('§a破坏成功，共破坏 ' + size.volume + ' 个方块');
+        player.tell(t('quick_build.break_success', size.volume));
     } else if (buildMode === 'water') {
         fillSelection(player, sel, 'minecraft:water', 0);
         if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
-        player.tell('§a水源填充成功，共填充 ' + size.volume + ' 个方块');
+        player.tell(t('quick_build.water_success', size.volume));
     } else if (buildMode === 'lava') {
         fillSelection(player, sel, 'minecraft:lava', 0);
         if (_onQuickBuildComplete) _onQuickBuildComplete(player, size.volume);
-        player.tell('§a岩浆填充成功，共填充 ' + size.volume + ' 个方块');
+        player.tell(t('quick_build.lava_success', size.volume));
     } else {
         var mainhand = player.getHand();
         var blockType = mainhand ? mainhand.type : '';
@@ -1358,7 +1367,7 @@ function showFillConfirmForm(player) {
         // 限制最大方块数量（创造模式不限制）
         var isCreative = player.gameMode === 1;
         if (!isCreative && size.volume > MAX_NON_FILL_BLOCKS) {
-            player.tell('§c选区过大，' + modeName + '最大支持 ' + MAX_NON_FILL_BLOCKS + ' 个方块');
+            player.tell(t('quick_build.selection_too_large', modeName, MAX_NON_FILL_BLOCKS));
             _playerSelections[xuid] = {};
             return;
         }
@@ -1386,7 +1395,7 @@ function showFillConfirmForm(player) {
         var canFill = quotaEnough;
 
         player.sendModalForm(
-            modeName + '确认',
+            t('quick_build.confirm_title', modeName),
             content,
             canFill ? t('quick_build.btn_confirm_fill') : t('quick_build.btn_cannot_fill'),
             t('quick_build.btn_cancel_fill'),
@@ -1407,9 +1416,9 @@ function showFillConfirmForm(player) {
                 addDailyUsage(pl.xuid, quotaNeed);
                 fillSelection(pl, sel, blockType, 0);
                 if (_onQuickBuildComplete) _onQuickBuildComplete(pl, size.volume);
-                var msg = buildMode === 'clear' ? '§a破坏成功，共破坏 ' + size.volume + ' 个方块' :
-                         buildMode === 'water' ? '§a水源填充成功，共填充 ' + size.volume + ' 个方块' :
-                         '§a岩浆填充成功，共填充 ' + size.volume + ' 个方块';
+                var msg = buildMode === 'clear' ? t('quick_build.break_success', size.volume) :
+                         buildMode === 'water' ? t('quick_build.water_success', size.volume) :
+                         t('quick_build.lava_success', size.volume);
                 pl.tell(msg);
             }
         );
@@ -1637,7 +1646,7 @@ function showBlockForm(player) {
 
     var modeOptions = BUILD_MODES.map(function(m) { return getBuildModeName(m); });
     var modeIndex = BUILD_MODES.indexOf(currentMode);
-    fm.addDropdown('建造模式', modeOptions, modeIndex >= 0 ? modeIndex : 0);
+    fm.addDropdown(t('quick_build.select_mode'), modeOptions, modeIndex >= 0 ? modeIndex : 0);
 
     player.sendForm(fm, function(pl, data) {
         if (data == null) return;
@@ -1660,7 +1669,7 @@ function showBlockForm(player) {
             // 已启用，切换模式并重置选区
             _playerSelections[pl.xuid] = {};
             var modeName = getBuildModeName(selectedMode);
-            pl.tell('§a建造模式已切换为: ' + modeName);
+            pl.tell(t('quick_build.mode_switched', modeName));
             pl.tell(buildBlockTip(pl.xuid), 4);
             dlog(pl.name + ' 切换建造模式: ' + modeName);
         }
@@ -1680,6 +1689,11 @@ function setDebugMode(enabled) { _debug = !!enabled; }
 function setOnChainComplete(fn) { _onChainComplete = fn; }
 function setOnQuickBuildComplete(fn) { _onQuickBuildComplete = fn; }
 
+/** 获取玩家快速建造模式状态 */
+function isQuickBuildEnabled(xuid) {
+    return !!_enabledPlayers[xuid];
+}
+
 module.exports = {
     init: init,
     registerBlockCommand: registerBlockCommand,
@@ -1691,5 +1705,6 @@ module.exports = {
     purchasePlan: purchasePlan,
     renewPlan: renewPlan,
     showPlanMenu: showPlanMenu,
-    getPlayerPlanData: getPlayerPlanData
+    getPlayerPlanData: getPlayerPlanData,
+    isQuickBuildEnabled: isQuickBuildEnabled
 };
