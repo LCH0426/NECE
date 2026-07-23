@@ -75,6 +75,10 @@ function registerRoutes(router, d) {
     router.delete('/backup/:filename', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let filename = req.params.filename;
+            // 路径穿越防护
+            if (!filename || filename.indexOf('..') !== -1 || filename.indexOf('/') !== -1 || filename.indexOf('\\') !== -1 || filename.indexOf('\0') !== -1) {
+                return res.status(400).json({ code: 400, msg: '文件名不合法' });
+            }
             let result = d.backupModule.deleteBackup(filename);
             if (result.success) {
                 d.adminLog.log(req.user.uid, '删除备份', '文件:' + filename);

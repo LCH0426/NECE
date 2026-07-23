@@ -201,7 +201,7 @@ function registerRoutes(router, d) {
     });
 
     // 发送邮件
-    router.post('/mails/send', d.adminAuth, function(req, res) {
+    router.post('/mails/send', d.adminAuth, d.writeLimiter, function(req, res) {
         let toXuid = req.body.toXuid;
         let content = req.body.content;
         const starQian = req.body.starQian || 0;
@@ -337,7 +337,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除指定邮件
-    router.delete('/mails/:id', d.adminAuth, function(req, res) {
+    router.delete('/mails/:id', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             const mailId = parseInt(req.params.id);
             const mail = d.mailApi.getMailById(mailId);

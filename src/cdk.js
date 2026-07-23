@@ -36,12 +36,19 @@ function createCdkModule(deps) {
     const addPlayerMoney = deps.addPlayerMoney;
     const getCurrencyName = deps.getCurrencyName;
     const _t = deps.t || null;
-    const _getLang = deps.getSystemLanguage || function() { return 'zh_CN'; };
+    const _getSystemLang = deps.getSystemLanguage || function() { return 'zh_CN'; };
+    const _getPlayerSetting = deps.getPlayerSetting || null;
 
-    function t(key) {
-        if (!_t) return key;
-        var lang = _getLang();
-        var args = [lang];
+    function getLocale(xuid) {
+        if (_getPlayerSetting && xuid) {
+            return _getPlayerSetting(xuid, 'locale') || _getSystemLang();
+        }
+        return _getSystemLang();
+    }
+
+    function t(lang) {
+        if (!_t) return lang;
+        var args = [];
         for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
         return _t.apply(null, args);
     }
@@ -56,13 +63,14 @@ function createCdkModule(deps) {
      * @param {Player} player - 打开表单的玩家
      */
     function showCdkRedeemForm(player) {
+        const lang = getLocale(player.xuid);
         const fm = mc.newCustomForm();
-        fm.setTitle(t('cdk.title'));
-        fm.addInput(t('cdk.input_code'), t('cdk.input_code_hint'), "");
+        fm.setTitle(t(lang, 'cdk.title'));
+        fm.addInput(t(lang, 'cdk.input_code'), t(lang, 'cdk.input_code_hint'), "");
         player.sendForm(fm, function(p, data) {
             if (data == null || !data || !data[0]) return;
             const code = data[0].trim();
-            if (!code) { p.tell(t('cdk.err_empty_code')); return; }
+            if (!code) { p.tell(t(lang, 'cdk.err_empty_code')); return; }
             redeemCdk(p, code);
         });
     }
@@ -74,9 +82,10 @@ function createCdkModule(deps) {
      * @param {string} code - 兑换码
      */
     function redeemCdk(player, code) {
+        const lang = getLocale(player.xuid);
         const cdkData = getCdkData();
         if (!cdkData || !cdkData.codes || !cdkData.codes[code]) {
-            player.sendModalForm(t('cdk.err_not_found_title'), t('cdk.err_not_found'), t('cdk.btn_retry'), t('cdk.btn_close'), function(pl, ok) {
+            player.sendModalForm(t(lang, 'cdk.err_not_found_title'), t(lang, 'cdk.err_not_found'), t(lang, 'cdk.btn_retry'), t(lang, 'cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
             return;
@@ -87,7 +96,7 @@ function createCdkModule(deps) {
 
         // 检查该玩家是否已使用过此兑换码
         if (cdkInfo.usedBy && cdkInfo.usedBy[xuid]) {
-            player.sendModalForm(t('cdk.err_not_found_title'), t('cdk.err_already_used'), t('cdk.btn_retry'), t('cdk.btn_close'), function(pl, ok) {
+            player.sendModalForm(t(lang, 'cdk.err_not_found_title'), t(lang, 'cdk.err_already_used'), t(lang, 'cdk.btn_retry'), t(lang, 'cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
             return;
@@ -100,7 +109,7 @@ function createCdkModule(deps) {
                 usedCount = Object.keys(cdkInfo.usedBy).length;
             }
             if (usedCount >= cdkInfo.maxUses) {
-                player.sendModalForm(t('cdk.err_not_found_title'), t('cdk.err_all_used'), t('cdk.btn_retry'), t('cdk.btn_close'), function(pl, ok) {
+                player.sendModalForm(t(lang, 'cdk.err_not_found_title'), t(lang, 'cdk.err_all_used'), t(lang, 'cdk.btn_retry'), t(lang, 'cdk.btn_close'), function(pl, ok) {
                     if (ok === true) showCdkRedeemForm(pl);
                 });
                 return;
@@ -142,14 +151,14 @@ function createCdkModule(deps) {
                 case "snbt":
                     const snbtItem = mc.newItem(r.snbt);
                     if (snbtItem && player.giveItem(snbtItem)) {
-                        rewardDescs.push(r.itemName || t('cdk.snbt_item'));
+                        rewardDescs.push(r.itemName || t(lang, 'cdk.snbt_item'));
                     } else {
-                        failedDescs.push(r.itemName || t('cdk.snbt_item'));
+                        failedDescs.push(r.itemName || t(lang, 'cdk.snbt_item'));
                     }
                     break;
                 case "money":
                     const amount = r.amount || 0;
-                    if (addPlayerMoney(player, amount, t('cdk.reward_reason'))) {
+                    if (addPlayerMoney(player, amount, t(lang, 'cdk.reward_reason'))) {
                         rewardDescs.push(amount + getCurrencyName());
                     } else {
                         failedDescs.push(amount + getCurrencyName());
@@ -166,15 +175,15 @@ function createCdkModule(deps) {
         }
 
         if (failedDescs.length > 0) {
-            var msg = t('cdk.partial_success_msg', failedDescs.join("\n"));
-            if (rewardDescs.length > 0) msg += t('cdk.partial_success_obtained', rewardDescs.join("\n"));
-            msg += t('cdk.partial_success_retry');
-            player.sendModalForm(t('cdk.partial_success_title'), msg, t('cdk.btn_retry'), t('cdk.btn_close'), function(pl, ok) {
+            var msg = t(lang, 'cdk.partial_success_msg', failedDescs.join("\n"));
+            if (rewardDescs.length > 0) msg += t(lang, 'cdk.partial_success_obtained', rewardDescs.join("\n"));
+            msg += t(lang, 'cdk.partial_success_retry');
+            player.sendModalForm(t(lang, 'cdk.partial_success_title'), msg, t(lang, 'cdk.btn_retry'), t(lang, 'cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
         } else {
-            const desc = rewardDescs.length > 0 ? rewardDescs.join("\n") : t('cdk.no_reward');
-            player.sendModalForm(t('cdk.success_title'), t('cdk.success_msg', desc), t('cdk.btn_continue'), t('cdk.btn_close'), function(pl, ok) {
+            const desc = rewardDescs.length > 0 ? rewardDescs.join("\n") : t(lang, 'cdk.no_reward');
+            player.sendModalForm(t(lang, 'cdk.success_title'), t(lang, 'cdk.success_msg', desc), t(lang, 'cdk.btn_continue'), t(lang, 'cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
         }

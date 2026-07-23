@@ -99,7 +99,7 @@ function registerRoutes(router, d) {
     });
 
     // 添加回收物品
-    router.post('/recycle', d.adminAuth, function(req, res) {
+    router.post('/recycle', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let rawId = req.body.id;
             let price = req.body.price;
@@ -122,7 +122,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改回收物品价格
-    router.put('/recycle/:id', d.adminAuth, function(req, res) {
+    router.put('/recycle/:id', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let rawId = decodeURIComponent(req.params.id);
             let price = req.body.price;
@@ -145,7 +145,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除回收物品
-    router.delete('/recycle/:id', d.adminAuth, function(req, res) {
+    router.delete('/recycle/:id', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let rawId = decodeURIComponent(req.params.id);
             const config = loadRecycleConfig();
@@ -209,7 +209,7 @@ function registerRoutes(router, d) {
     });
 
     // 添加商店分组
-    router.post('/shop/group', d.adminAuth, function(req, res) {
+    router.post('/shop/group', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let group = req.body.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
@@ -233,7 +233,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改商店分组名称和图标
-    router.put('/shop/group/:groupIdx', d.adminAuth, function(req, res) {
+    router.put('/shop/group/:groupIdx', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let group = req.body.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
@@ -257,7 +257,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除商店分组
-    router.delete('/shop/group/:groupIdx', d.adminAuth, function(req, res) {
+    router.delete('/shop/group/:groupIdx', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let group = req.query.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
@@ -312,7 +312,7 @@ function registerRoutes(router, d) {
     });
 
     // 添加商店物品到指定分组
-    router.post('/shop/item', d.adminAuth, function(req, res) {
+    router.post('/shop/item', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let group = req.body.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
@@ -349,7 +349,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改商店物品的ID和/或价格
-    router.put('/shop/item/:itemIdx', d.adminAuth, function(req, res) {
+    router.put('/shop/item/:itemIdx', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let group = req.body.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {
@@ -393,7 +393,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除商店指定分组中的指定物品
-    router.delete('/shop/item/:itemIdx', d.adminAuth, function(req, res) {
+    router.delete('/shop/item/:itemIdx', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             const group = req.query.group;
             if (!group || (group !== 'Buy' && group !== 'Sell')) {

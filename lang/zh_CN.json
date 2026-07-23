@@ -1478,7 +1478,14 @@
     "dust_refine_desc": "：§f将{0}兑换为{1}\n",
     "enchant_exchange_desc": "：§f使用{0}兑换附魔书\n",
     "egg_exchange_desc": "：§f使用{0}兑换刷怪蛋\n",
-    "level_unit": "级"
+    "level_unit": "级",
+    "fate_path": "§6命星定轨",
+    "fate_path_desc": "§e选择你的目标五星物品\n出五星时有50%概率获得目标物品\n歪了则获得星核，下次五星保底必出目标物品",
+    "fate_path_target": "定轨目标",
+    "fate_path_hint": "选择你要定轨的五星物品",
+    "fate_path_set": "§a已定轨: {0}\n\n§7下次出五星时将优先获得该物品",
+    "fate_path_return": "返回祈愿",
+    "unknown": "未知"
   },
   "chat": {
     "title_system": "§l§b称号系统",
@@ -2061,5 +2068,13 @@
     "kick_maintenance": "§c服务器维护中\n§e{0}\n{0}",
     "cmd_console_only": "§c此命令仅玩家可在游戏内执行！",
     "guild_disabled": "§c公会系统当前已关闭！"
+  },
+  "sign": {
+    "tag": "§e[签到]§r ",
+    "disabled": "§c签到功能已关闭",
+    "data_error": "§c玩家数据异常",
+    "already_signed": "§c你今天已经签到过了！",
+    "success": "§a您已成功签到！获得{0}{1}，已连续签到{2}天。",
+    "cmd_desc": "每日签到"
   }
 }

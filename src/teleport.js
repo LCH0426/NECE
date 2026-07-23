@@ -24,15 +24,22 @@ const D = require('./debug');
 
 var _t = null;
 var _getLang = null;
+var _getPlayerSetting = null;
 
-function getLang() {
+function getLocale(xuid) {
+    if (_getPlayerSetting && xuid) {
+        return _getPlayerSetting(xuid, 'locale') || getSystemLang();
+    }
+    return getSystemLang();
+}
+
+function getSystemLang() {
     return _getLang ? _getLang() : 'zh_CN';
 }
 
-function t(key) {
-    if (!_t) return key;
-    var lang = getLang();
-    var args = [lang];
+function t(lang) {
+    if (!_t) return lang;
+    var args = [];
     for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
     return _t.apply(null, args);
 }
@@ -192,6 +199,7 @@ function init(_homesDM, _warpsDM, deps) {
 	_deps = deps || {};
 	_t = _deps.t || null;
 	_getLang = _deps.getSystemLanguage || null;
+	_getPlayerSetting = _deps.getPlayerSetting || null;
 	homesDM = _homesDM;
 	warpsDM = _warpsDM;
 
@@ -213,16 +221,16 @@ function init(_homesDM, _warpsDM, deps) {
 
 			// 任一方离线，清理请求
 			if (!fromOnline || !toOnline) {
-				if (fromOnline) fromOnline.tell(t('tp.tag_prefix') + " §c" + t('tp.target_offline_cancel'));
-				if (toOnline) toOnline.tell(t('tp.tag_prefix') + " §c" + t('tp.target_offline_cancel'));
+				if (fromOnline) { var fLang = getLocale(fromOnline.xuid); fromOnline.tell(t(fLang, 'tp.tag_prefix') + " §c" + t(fLang, 'tp.target_offline_cancel')); }
+				if (toOnline) { var tLang = getLocale(toOnline.xuid); toOnline.tell(t(tLang, 'tp.tag_prefix') + " §c" + t(tLang, 'tp.target_offline_cancel')); }
 				delete teleportPendingRequests[reqId];
 				continue;
 			}
 
 			// 超时清理
 			if (now - req.timestamp > getTpConfig().tpaTimeout * 1000) {
-				fromOnline.tell(t('tp.tag_prefix') + " §c" + t('tp.request_timeout'));
-				toOnline.tell(t('tp.tag_prefix') + " §c" + t('tp.request_timeout'));
+				var fLang2 = getLocale(fromOnline.xuid); fromOnline.tell(t(fLang2, 'tp.tag_prefix') + " §c" + t(fLang2, 'tp.request_timeout'));
+				var tLang2 = getLocale(toOnline.xuid); toOnline.tell(t(tLang2, 'tp.tag_prefix') + " §c" + t(tLang2, 'tp.request_timeout'));
 				delete teleportPendingRequests[reqId];
 			}
 		}
@@ -245,27 +253,28 @@ function init(_homesDM, _warpsDM, deps) {
  * @param {object} deps - 依赖对象
  */
 function showTpgMainMenu(player, deps) {
+	const lang = getLocale(player.xuid);
 	if (!getTpConfig().enabled) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.disabled'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.disabled'));
 		return;
 	}
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§b" + t('tp.main_title'));
-	fm.setContent("§a" + t('tp.select_function'));
+	fm.setTitle("§l§b" + t(lang, 'tp.main_title'));
+	fm.setContent("§a" + t(lang, 'tp.select_function'));
 
 	if (getTpConfig().enableHome) {
-		fm.addButton("§6" + t('tp.home_system'), "textures/ui/icon_recipe_nature");
+		fm.addButton("§6" + t(lang, 'tp.home_system'), "textures/ui/icon_recipe_nature");
 	}
 	if (getTpConfig().enableWarp) {
-		fm.addButton("§d" + t('tp.warp_system'), "textures/ui/icon_multiplayer");
+		fm.addButton("§d" + t(lang, 'tp.warp_system'), "textures/ui/icon_multiplayer");
 	}
 	if (getTpConfig().enableTpa) {
-		fm.addButton("§b" + t('tp.tpa_system'), "textures/ui/dressing_room_skins");
+		fm.addButton("§b" + t(lang, 'tp.tpa_system'), "textures/ui/dressing_room_skins");
 	}
 	var rtpCfg = _deps.getConfig ? _deps.getConfig() : {};
 	if (rtpCfg.enableRtp !== false) {
-		fm.addButton("§a" + t('tp.random_teleport'), "textures/ui/icon_map");
+		fm.addButton("§a" + t(lang, 'tp.random_teleport'), "textures/ui/icon_map");
 	}
 
 	// 通过累计 btnIndex 将表单按钮ID映射到实际功能，跳过被禁用的功能
@@ -297,8 +306,9 @@ function showTpgMainMenu(player, deps) {
  * @param {object} deps - 依赖对象
  */
 function showTpaMainForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	if (!getTpConfig().enableTpa) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.tpa_disabled'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.tpa_disabled'));
 		return;
 	}
 
@@ -309,7 +319,7 @@ function showTpaMainForm(player, deps) {
 	});
 
 	if (otherPlayers.length === 0) {
-		player.sendModalForm("§e" + t('tp.tpa_title'), "§a" + t('tp.no_online_players'), t('tp.back'), t('tp.close'), function(p, result) {
+		player.sendModalForm("§e" + t(lang, 'tp.tpa_title'), "§a" + t(lang, 'tp.no_online_players'), t(lang, 'tp.back'), t(lang, 'tp.close'), function(p, result) {
 			if (result) showTpgMainMenu(p, deps);
 		});
 		return;
@@ -318,10 +328,10 @@ function showTpaMainForm(player, deps) {
 	const playerNames = otherPlayers.map(function(p) { return p.name; });
 
 	const fm = mc.newCustomForm();
-	fm.setTitle("§l§b" + t('tp.tpa_title'));
-	fm.addLabel("§a" + t('tp.select_player'));
-	fm.addDropdown(t('tp.select_player'), playerNames, 0);
-	fm.addDropdown(t('tp.select_method'), [t('tp.tpa_type_to_you'), t('tp.tpa_type_to_them')], 0);
+	fm.setTitle("§l§b" + t(lang, 'tp.tpa_title'));
+	fm.addLabel("§a" + t(lang, 'tp.select_player'));
+	fm.addDropdown(t(lang, 'tp.select_player'), playerNames, 0);
+	fm.addDropdown(t(lang, 'tp.select_method'), [t(lang, 'tp.tpa_type_to_you'), t(lang, 'tp.tpa_type_to_them')], 0);
 
 	// 检查是否有发给当前玩家的待处理请求
 	let hasPending = false;
@@ -333,7 +343,7 @@ function showTpaMainForm(player, deps) {
 		}
 	}
 	if (hasPending) {
-		fm.addSwitch("§c" + t('tp.handle_pending'), false);
+		fm.addSwitch("§c" + t(lang, 'tp.handle_pending'), false);
 	}
 
 	player.sendForm(fm, function(p, data) {
@@ -354,7 +364,7 @@ function showTpaMainForm(player, deps) {
 		if (!targetXuid) return;
 		const target = mc.getPlayer(targetXuid);
 		if (!target) {
-			p.tell(t('tp.tag_prefix') + " §c" + t('tp.target_offline'));
+			p.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.target_offline'));
 			return;
 		}
 
@@ -372,10 +382,12 @@ function showTpaMainForm(player, deps) {
  * @param {object} deps - 依赖对象
  */
 function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
+	const fromLang = getLocale(fromPlayer.xuid);
+	const toLang = getLocale(toPlayer.xuid);
 	// 拒绝模式检查
 	const rejectMode = deps.getPlayerSetting(toPlayer.xuid, "enableTpaRejectMode");
 	if (rejectMode) {
-		fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.player_reject'));
+		fromPlayer.tell(t(fromLang, 'tp.tag_prefix') + " §c" + t(fromLang, 'tp.player_reject'));
 		return;
 	}
 
@@ -384,7 +396,7 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 		const existing = teleportPendingRequests[reqId];
 		if ((existing.fromXuid === fromPlayer.xuid && existing.toXuid === toPlayer.xuid) ||
 			(existing.fromXuid === toPlayer.xuid && existing.toXuid === fromPlayer.xuid)) {
-			fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.already_sent'));
+			fromPlayer.tell(t(fromLang, 'tp.tag_prefix') + " §c" + t(fromLang, 'tp.already_sent'));
 			return;
 		}
 	}
@@ -399,18 +411,18 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 		timestamp: Date.now()
 	};
 
-	fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.request_sent', toPlayer.name));
+	fromPlayer.tell(t(fromLang, 'tp.tag_prefix') + " §a" + t(fromLang, 'tp.request_sent', toPlayer.name));
 
 	var notifyKey = type === 'tpa' ? 'tp.request_notify_tpa' : 'tp.request_notify_tpahere';
-	toPlayer.tell(t('tp.tag_prefix') + " §a" + t(notifyKey, fromPlayer.name));
+	toPlayer.tell(t(toLang, 'tp.tag_prefix') + " §a" + t(toLang, notifyKey, fromPlayer.name));
 
 	// 弹窗给目标玩家，请求同意或拒绝
 	var labelKey = type === 'tpa' ? 'tp.player_request_label_tpa' : 'tp.player_request_label_tpahere';
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§e" + t('tp.pending_requests'));
-	fm.setContent(t(labelKey, fromPlayer.name));
-	fm.addButton("§a" + t('tp.accept'), "textures/ui/check");
-	fm.addButton("§c" + t('tp.deny'), "textures/ui/cancel");
+	fm.setTitle("§l§e" + t(toLang, 'tp.pending_requests'));
+	fm.setContent(t(toLang, labelKey, fromPlayer.name));
+	fm.addButton("§a" + t(toLang, 'tp.accept'), "textures/ui/check");
+	fm.addButton("§c" + t(toLang, 'tp.deny'), "textures/ui/cancel");
 
 	// 保存发起者xuid，避免闭包中引用可能失效的player对象
 	const fromXuid = fromPlayer.xuid;
@@ -424,7 +436,10 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
 			// 玩家关闭表单（ESC或被其他表单覆盖），不立即删除请求
 			// 请求会保留直到超时自动清理，玩家可以通过 /tpy /tpn 命令或菜单处理
 			const fromP = mc.getPlayer(fromXuid);
-			if (fromP) fromP.tell(t('tp.tag_prefix') + " §c" + t('tp.request_pending', p.name));
+			if (fromP) {
+				const fLang = getLocale(fromXuid);
+				fromP.tell(t(fLang, 'tp.tag_prefix') + " §c" + t(fLang, 'tp.request_pending', p.name));
+			}
 			return;
 		}
 		if (id === 0) {
@@ -442,16 +457,17 @@ function sendTpaRequest(fromPlayer, toPlayer, type, deps) {
  * @param {object} deps - 依赖对象
  */
 function acceptTpaRequest(reqId, byPlayer, deps) {
+	const byLang = getLocale(byPlayer.xuid);
 	const req = teleportPendingRequests[reqId];
 	if (!req) {
-		byPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.request_invalid'));
+		byPlayer.tell(t(byLang, 'tp.tag_prefix') + " §c" + t(byLang, 'tp.request_invalid'));
 		return;
 	}
 
 	const now = Date.now();
 	if (now - req.timestamp > getTpConfig().tpaTimeout * 1000) {
 		delete teleportPendingRequests[reqId];
-		byPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.request_timeout'));
+		byPlayer.tell(t(byLang, 'tp.tag_prefix') + " §c" + t(byLang, 'tp.request_timeout'));
 		return;
 	}
 
@@ -459,22 +475,24 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
 	const toPlayer = mc.getPlayer(req.toXuid);
 	if (!fromPlayer || !toPlayer) {
 		delete teleportPendingRequests[reqId];
-		byPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.target_offline_cancel'));
+		byPlayer.tell(t(byLang, 'tp.tag_prefix') + " §c" + t(byLang, 'tp.target_offline_cancel'));
 		return;
 	}
 
 	delete teleportPendingRequests[reqId];
+	const fromLang = getLocale(fromPlayer.xuid);
+	const toLang = getLocale(toPlayer.xuid);
 
 	if (req.type === 'tpa') {
 		const toPos = toPlayer.pos;
 		safeTeleport(fromPlayer, toPos.x, toPos.y, toPos.z, toPos.dimid);
-		fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_to', toPlayer.name));
-		toPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_from', fromPlayer.name));
+		fromPlayer.tell(t(fromLang, 'tp.tag_prefix') + " §a" + t(fromLang, 'tp.accepted_to', toPlayer.name));
+		toPlayer.tell(t(toLang, 'tp.tag_prefix') + " §a" + t(toLang, 'tp.accepted_from', fromPlayer.name));
 	} else if (req.type === 'tpahere') {
 		const fromPos = fromPlayer.pos;
 		safeTeleport(toPlayer, fromPos.x, fromPos.y, fromPos.z, fromPos.dimid);
-		fromPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_from', toPlayer.name));
-		toPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.accepted_to', fromPlayer.name));
+		fromPlayer.tell(t(fromLang, 'tp.tag_prefix') + " §a" + t(fromLang, 'tp.accepted_from', toPlayer.name));
+		toPlayer.tell(t(toLang, 'tp.tag_prefix') + " §a" + t(toLang, 'tp.accepted_to', fromPlayer.name));
 	}
 
 }
@@ -485,18 +503,20 @@ function acceptTpaRequest(reqId, byPlayer, deps) {
  * @param {Player} byPlayer - 拒绝请求的玩家
  */
 function denyTpaRequest(reqId, byPlayer) {
+	const byLang = getLocale(byPlayer.xuid);
 	const req = teleportPendingRequests[reqId];
 	if (!req) {
-		byPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.request_invalid'));
+		byPlayer.tell(t(byLang, 'tp.tag_prefix') + " §c" + t(byLang, 'tp.request_invalid'));
 		return;
 	}
 
 	const fromPlayer = mc.getPlayer(req.fromXuid);
 	delete teleportPendingRequests[reqId];
 
-	byPlayer.tell(t('tp.tag_prefix') + " §a" + t('tp.denied'));
+	byPlayer.tell(t(byLang, 'tp.tag_prefix') + " §a" + t(byLang, 'tp.denied'));
 	if (fromPlayer) {
-		fromPlayer.tell(t('tp.tag_prefix') + " §c" + t('tp.denied_notify', byPlayer.name));
+		const fromLang = getLocale(fromPlayer.xuid);
+		fromPlayer.tell(t(fromLang, 'tp.tag_prefix') + " §c" + t(fromLang, 'tp.denied_notify', byPlayer.name));
 	}
 }
 
@@ -506,6 +526,7 @@ function denyTpaRequest(reqId, byPlayer) {
  * @param {object} deps - 依赖对象
  */
 function showTpaPendingRequests(player, deps) {
+	const lang = getLocale(player.xuid);
 	const pending = [];
 	for (const reqId in teleportPendingRequests) {
 		const req = teleportPendingRequests[reqId];
@@ -515,16 +536,16 @@ function showTpaPendingRequests(player, deps) {
 	}
 
 	if (pending.length === 0) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.no_pending'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.no_pending'));
 		showTpaMainForm(player, deps);
 		return;
 	}
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§e" + t('tp.pending_requests'));
+	fm.setTitle("§l§e" + t(lang, 'tp.pending_requests'));
 
 	pending.forEach(function(item) {
-		const typeDesc = item.req.type === 'tpa' ? t('tp.tpa_type_short_to_you') : t('tp.tpa_type_short_to_them');
+		const typeDesc = item.req.type === 'tpa' ? t(lang, 'tp.tpa_type_short_to_you') : t(lang, 'tp.tpa_type_short_to_them');
 		fm.addButton("§b" + item.req.fromName + " - " + typeDesc);
 	});
 
@@ -535,11 +556,11 @@ function showTpaPendingRequests(player, deps) {
 
 		// 选中某个请求后弹出详情确认窗
 		const subFm = mc.newSimpleForm();
-		subFm.setTitle("§l§e" + t('tp.request_detail'));
+		subFm.setTitle("§l§e" + t(lang, 'tp.request_detail'));
 		var labelKey2 = item.req.type === 'tpa' ? 'tp.player_request_label_tpa' : 'tp.player_request_label_tpahere';
 		subFm.setContent(t(labelKey2, item.req.fromName));
-		subFm.addButton("§a" + t('tp.accept'), "textures/ui/check");
-		subFm.addButton("§c" + t('tp.deny'), "textures/ui/cancel");
+		subFm.addButton("§a" + t(lang, 'tp.accept'), "textures/ui/check");
+		subFm.addButton("§c" + t(lang, 'tp.deny'), "textures/ui/cancel");
 
 		p.sendForm(subFm, function(p2, btnId) {
 			if (btnId == null) return;
@@ -558,6 +579,7 @@ function showTpaPendingRequests(player, deps) {
  * @param {Player} player - 玩家
  */
 function cancelTpaRequest(player) {
+	const lang = getLocale(player.xuid);
 	let found = false;
 	const toDelete = [];
 	for (const reqId in teleportPendingRequests) {
@@ -565,7 +587,7 @@ function cancelTpaRequest(player) {
 		if (req.fromXuid === player.xuid) {
 			const toPlayer = mc.getPlayer(req.toXuid);
 			if (toPlayer) {
-				toPlayer.tell(t('tp.tag_prefix') + " §c" + player.name + " " + t('tp.cancel_tpa_notify'));
+				toPlayer.tell(t(lang, 'tp.tag_prefix') + " §c" + player.name + " " + t(lang, 'tp.cancel_tpa_notify'));
 			}
 			toDelete.push(reqId);
 			found = true;
@@ -575,9 +597,9 @@ function cancelTpaRequest(player) {
 		delete teleportPendingRequests[toDelete[i]];
 	}
 	if (found) {
-		player.tell(t('tp.tag_prefix') + " §a" + t('tp.cancelled_all'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §a" + t(lang, 'tp.cancelled_all'));
 	} else {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.no_pending'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.no_pending'));
 	}
 }
 
@@ -587,6 +609,7 @@ function cancelTpaRequest(player) {
  * @param {object} deps - 依赖对象
  */
 function acceptTpaRequestByPlayer(player, deps) {
+	const lang = getLocale(player.xuid);
 	let foundReq = null;
 	let foundReqId = null;
 	const now = Date.now();
@@ -601,7 +624,7 @@ function acceptTpaRequestByPlayer(player, deps) {
 		}
 	}
 	if (!foundReq) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.no_pending'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.no_pending'));
 		return;
 	}
 	acceptTpaRequest(foundReqId, player, deps);
@@ -612,6 +635,7 @@ function acceptTpaRequestByPlayer(player, deps) {
  * @param {Player} player - 玩家
  */
 function denyTpaRequestByPlayer(player) {
+	const lang = getLocale(player.xuid);
 	let foundReq = null;
 	let foundReqId = null;
 	// 遍历所有请求，找到发给自己的最新一条
@@ -625,7 +649,7 @@ function denyTpaRequestByPlayer(player) {
 		}
 	}
 	if (!foundReq) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.no_pending'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.no_pending'));
 		return;
 	}
 	denyTpaRequest(foundReqId, player);
@@ -637,8 +661,9 @@ function denyTpaRequestByPlayer(player) {
  * @param {object} deps - 依赖对象
  */
 function showHomeMainForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	if (!getTpConfig().enableHome) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.home_disabled'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.home_disabled'));
 		return;
 	}
 
@@ -647,12 +672,12 @@ function showHomeMainForm(player, deps) {
 	const sharedHomes = getSharedHomesForPlayer(player.name, deps);
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§6" + t('tp.home_system'));
-	fm.setContent(t('tp.home_count_info', String(homes.length), String(getTpConfig().homeLimit)) + (sharedHomes.length > 0 ? t('tp.home_shared_count', String(sharedHomes.length)) : ""));
+	fm.setTitle("§l§6" + t(lang, 'tp.home_system'));
+	fm.setContent(t(lang, 'tp.home_count_info', String(homes.length), String(getTpConfig().homeLimit)) + (sharedHomes.length > 0 ? t(lang, 'tp.home_shared_count', String(sharedHomes.length)) : ""));
 
 	if (homes.length > 0) {
 		homes.forEach(function(home) {
-			const dimName = home.dim === 0 ? t('tp.dim_overworld') : home.dim === 1 ? t('tp.dim_nether') : t('tp.dim_end');
+			const dimName = home.dim === 0 ? t(lang, 'tp.dim_overworld') : home.dim === 1 ? t(lang, 'tp.dim_nether') : t(lang, 'tp.dim_end');
 			fm.addButton("§b" + home.name + "\n" + dimName + " (" + Math.floor(home.x) + ", " + Math.floor(home.y) + ", " + Math.floor(home.z) + ")", "textures/ui/icon_recipe_nature");
 		});
 	}
@@ -660,13 +685,13 @@ function showHomeMainForm(player, deps) {
 	// 追加他人共享给自己的家园按钮
 	if (sharedHomes.length > 0) {
 		sharedHomes.forEach(function(item) {
-			const dimName = item.home.dim === 0 ? t('tp.dim_overworld') : item.home.dim === 1 ? t('tp.dim_nether') : t('tp.dim_end');
-			fm.addButton("§d" + item.home.name + t('tp.from_label_btn', item.ownerName) + "\n" + dimName, "textures/ui/FriendsIcon");
+			const dimName = item.home.dim === 0 ? t(lang, 'tp.dim_overworld') : item.home.dim === 1 ? t(lang, 'tp.dim_nether') : t(lang, 'tp.dim_end');
+			fm.addButton("§d" + item.home.name + t(lang, 'tp.from_label_btn', item.ownerName) + "\n" + dimName, "textures/ui/FriendsIcon");
 		});
 	}
 
-	fm.addButton("§a" + t('tp.set_home'), "textures/ui/color_plus");
-	fm.addButton("§c" + t('tp.back'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton("§a" + t(lang, 'tp.set_home'), "textures/ui/color_plus");
+	fm.addButton("§c" + t(lang, 'tp.back'), "textures/ui/recap_glyph_desaturated");
 
 	const ownHomeCount = homes.length;
 	const sharedHomeCount = sharedHomes.length;
@@ -717,33 +742,34 @@ function getSharedHomesForPlayer(playerName, deps) {
  * @param {object} deps - 依赖对象
  */
 function showHomeSetForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	const xuid = player.xuid;
 	const homes = getPlayerHomes(xuid);
 
 	if (homes.length >= getTpConfig().homeLimit) {
-		player.tell(t('tp.home_tag_prefix') + " §c" + t('tp.home_limit', getTpConfig().homeLimit));
+		player.tell(t(lang, 'tp.home_tag_prefix') + " §c" + t(lang, 'tp.home_limit', getTpConfig().homeLimit));
 		showHomeMainForm(player, deps);
 		return;
 	}
 
 	const fm = mc.newCustomForm();
-	fm.setTitle("§l§6" + t('tp.set_home'));
-	fm.addInput("§a" + t('tp.home_name'), t('tp.home_name_placeholder'));
-	fm.addSwitch("§a" + t('tp.is_public'), false);
+	fm.setTitle("§l§6" + t(lang, 'tp.set_home'));
+	fm.addInput("§a" + t(lang, 'tp.home_name'), t(lang, 'tp.home_name_placeholder'));
+	fm.addSwitch("§a" + t(lang, 'tp.is_public'), false);
 
 	player.sendForm(fm, function(p, data) {
 		if (data == null) { showHomeMainForm(p, deps); return; }
 
 		const name = String(data[0] || "").trim();
 		if (!name) {
-			p.tell(t('tp.home_tag_prefix') + " §c" + t('tp.home_name_empty'));
+			p.tell(t(lang, 'tp.home_tag_prefix') + " §c" + t(lang, 'tp.home_name_empty'));
 			showHomeSetForm(p, deps);
 			return;
 		}
 
 		const existing = homes.some(function(h) { return h.name === name; });
 		if (existing) {
-			p.tell(t('tp.home_tag_prefix') + " §c" + t('tp.home_name_duplicate'));
+			p.tell(t(lang, 'tp.home_tag_prefix') + " §c" + t(lang, 'tp.home_name_duplicate'));
 			showHomeSetForm(p, deps);
 			return;
 		}
@@ -762,7 +788,7 @@ function showHomeSetForm(player, deps) {
 		});
 		markHomeDirty(p.xuid);
 		saveHomesData();
-		p.tell(t('tp.home_tag_prefix') + " §a" + t('tp.home_set_success', name));
+		p.tell(t(lang, 'tp.home_tag_prefix') + " §a" + t(lang, 'tp.home_set_success', name));
 		showHomeMainForm(p, deps);
 	});
 }
@@ -775,21 +801,22 @@ function showHomeSetForm(player, deps) {
  * @param {object} deps - 依赖对象
  */
 function showHomeDetailForm(player, home, homeIndex, deps) {
-	const dimName = home.dim === 0 ? t('tp.dim_overworld') : home.dim === 1 ? t('tp.dim_nether') : t('tp.dim_end');
+	const lang = getLocale(player.xuid);
+	const dimName = home.dim === 0 ? t(lang, 'tp.dim_overworld') : home.dim === 1 ? t(lang, 'tp.dim_nether') : t(lang, 'tp.dim_end');
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle(t('tp.home_detail_title', home.name));
+	fm.setTitle(t(lang, 'tp.home_detail_title', home.name));
 	fm.setContent(
-		t('tp.home_name_label') + home.name + "\n" +
-		t('tp.home_location_label') + dimName + " (" + Math.floor(home.x) + ", " + Math.floor(home.y) + ", " + Math.floor(home.z) + ")\n" +
-		"§a" + t('tp.home_public_label') + "§f" + (home.public ? t('tp.yes') : t('tp.no')) + "\n" +
-		"§a" + t('tp.home_shared_label') + "§f" + (home.sharedWith && home.sharedWith.length > 0 ? home.sharedWith.join(", ") : t('tp.none'))
+		t(lang, 'tp.home_name_label') + home.name + "\n" +
+		t(lang, 'tp.home_location_label') + dimName + " (" + Math.floor(home.x) + ", " + Math.floor(home.y) + ", " + Math.floor(home.z) + ")\n" +
+		"§a" + t(lang, 'tp.home_public_label') + "§f" + (home.public ? t(lang, 'tp.yes') : t(lang, 'tp.no')) + "\n" +
+		"§a" + t(lang, 'tp.home_shared_label') + "§f" + (home.sharedWith && home.sharedWith.length > 0 ? home.sharedWith.join(", ") : t(lang, 'tp.none'))
 	);
 
-	fm.addButton("§a" + t('tp.teleport'), "textures/ui/icon_recipe_nature");
-	fm.addButton("§e" + t('tp.share_settings'), "textures/ui/FriendsIcon");
-	fm.addButton("§c" + t('tp.delete_home'), "textures/ui/trash_default");
-	fm.addButton("§c" + t('tp.back'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton("§a" + t(lang, 'tp.teleport'), "textures/ui/icon_recipe_nature");
+	fm.addButton("§e" + t(lang, 'tp.share_settings'), "textures/ui/FriendsIcon");
+	fm.addButton("§c" + t(lang, 'tp.delete_home'), "textures/ui/trash_default");
+	fm.addButton("§c" + t(lang, 'tp.back'), "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
 		if (id == null) return;
@@ -808,10 +835,11 @@ function showHomeDetailForm(player, home, homeIndex, deps) {
  * @param {object} home - 家园数据对象
  */
 function teleportToHome(player, home, ownerXuid) {
+	const lang = getLocale(player.xuid);
 	var homeOwnerXuid = ownerXuid || player.xuid;
 	const cd = checkTeleportCooldown(player.xuid, 'home');
 	if (cd > 0) {
-		player.tell(t('tp.home_tag_prefix') + " §c" + t('tp.home_cooldown', cd));
+		player.tell(t(lang, 'tp.home_tag_prefix') + " §c" + t(lang, 'tp.home_cooldown', cd));
 		return;
 	}
 
@@ -820,9 +848,9 @@ function teleportToHome(player, home, ownerXuid) {
 		markHomeDirty(homeOwnerXuid);
 		saveHomesData();
 		setTeleportCooldown(player.xuid, 'home', getTpConfig().homeCooldown);
-		player.tell(t('tp.home_tag_prefix') + " §a" + t('tp.home_teleported', home.name));
+		player.tell(t(lang, 'tp.home_tag_prefix') + " §a" + t(lang, 'tp.home_teleported', home.name));
 	} else {
-		player.tell(t('tp.home_tag_prefix') + " §c" + t('tp.tp_failed'));
+		player.tell(t(lang, 'tp.home_tag_prefix') + " §c" + t(lang, 'tp.tp_failed'));
 	}
 }
 
@@ -834,21 +862,22 @@ function teleportToHome(player, home, ownerXuid) {
  * @param {object} deps - 依赖对象
  */
 function showHomeShareForm(player, home, homeIndex, deps) {
+	const lang = getLocale(player.xuid);
 	const fm = mc.newSimpleForm();
-	fm.setTitle(t('tp.share_settings_title', home.name));
+	fm.setTitle(t(lang, 'tp.share_settings_title', home.name));
 
 	const sharedList = home.sharedWith || [];
-	fm.setContent("§a" + t('tp.current_shared') + "§f" + (sharedList.length > 0 ? sharedList.join(", ") : t('tp.none')));
+	fm.setContent("§a" + t(lang, 'tp.current_shared') + "§f" + (sharedList.length > 0 ? sharedList.join(", ") : t(lang, 'tp.none')));
 
-	fm.addButton("§a" + t('tp.add_share'), "textures/ui/color_plus");
+	fm.addButton("§a" + t(lang, 'tp.add_share'), "textures/ui/color_plus");
 
 	if (sharedList.length > 0) {
 		sharedList.forEach(function(name) {
-			fm.addButton(t('tp.remove_btn', name), "textures/ui/cancel");
+			fm.addButton(t(lang, 'tp.remove_btn', name), "textures/ui/cancel");
 		});
 	}
 
-	fm.addButton("§c" + t('tp.back'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton("§c" + t(lang, 'tp.back'), "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
 		if (id == null) return;
@@ -864,7 +893,7 @@ function showHomeShareForm(player, home, homeIndex, deps) {
 				home.sharedWith.splice(idx, 1);
 				markHomeDirty(p.xuid);
 				saveHomesData();
-				p.tell(t('tp.home_tag_prefix') + " §a" + t('tp.share_removed', removeName));
+				p.tell(t(lang, 'tp.home_tag_prefix') + " §a" + t(lang, 'tp.share_removed', removeName));
 			}
 			showHomeShareForm(p, home, homeIndex, deps);
 		}
@@ -879,9 +908,10 @@ function showHomeShareForm(player, home, homeIndex, deps) {
  * @param {object} deps - 依赖对象
  */
 function showHomeShareAddForm(player, home, homeIndex, deps) {
+	const lang = getLocale(player.xuid);
 	const fm = mc.newCustomForm();
-	fm.setTitle("§l§6" + t('tp.add_share'));
-	fm.addInput("§a" + t('tp.search_player'), t('tp.search_placeholder'));
+	fm.setTitle("§l§6" + t(lang, 'tp.add_share'));
+	fm.addInput("§a" + t(lang, 'tp.search_player'), t(lang, 'tp.search_placeholder'));
 
 	player.sendForm(fm, function(p, data) {
 		if (data == null) { showHomeShareForm(p, home, homeIndex, deps); return; }
@@ -908,19 +938,19 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
 		}
 
 		if (results.length === 0) {
-			p.tell(t('tp.home_tag_prefix') + " §c" + t('tp.player_not_found', keyword));
+			p.tell(t(lang, 'tp.home_tag_prefix') + " §c" + t(lang, 'tp.player_not_found', keyword));
 			showHomeShareAddForm(p, home, homeIndex, deps);
 			return;
 		}
 
 		// 显示搜索结果列表供选择
 		var sf = mc.newSimpleForm();
-		sf.setTitle(t('tp.search_result_title', keyword));
-		sf.setContent(t('tp.found_players_select', String(results.length)));
+		sf.setTitle(t(lang, 'tp.search_result_title', keyword));
+		sf.setContent(t(lang, 'tp.found_players_select', String(results.length)));
 		results.forEach(function(r) {
 			sf.addButton("§e" + r.name + "\nUID: " + r.uid);
 		});
-		sf.addButton(t('tp.back'), "textures/ui/recap_glyph_desaturated");
+		sf.addButton(t(lang, 'tp.back'), "textures/ui/recap_glyph_desaturated");
 		p.sendForm(sf, function(p2, id) {
 			if (id == null || id === results.length) { showHomeShareAddForm(p2, home, homeIndex, deps); return; }
 			var selected = results[id];
@@ -929,9 +959,9 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
 				home.sharedWith.push(selected.name);
 				markHomeDirty(p2.xuid);
 				saveHomesData();
-				p2.tell(t('tp.home_tag_prefix') + " §a" + t('tp.share_added', selected.name));
+				p2.tell(t(lang, 'tp.home_tag_prefix') + " §a" + t(lang, 'tp.share_added', selected.name));
 			} else {
-				p2.tell(t('tp.home_tag_prefix') + " §c" + t('tp.already_shared'));
+				p2.tell(t(lang, 'tp.home_tag_prefix') + " §c" + t(lang, 'tp.already_shared'));
 			}
 			showHomeShareForm(p2, home, homeIndex, deps);
 		});
@@ -946,12 +976,13 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
  * @param {object} deps - 依赖对象
  */
 function showHomeDeleteConfirm(player, home, homeIndex, deps) {
+	const lang = getLocale(player.xuid);
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§c" + t('tp.delete_home'));
-	fm.setContent(t('tp.delete_confirm_msg', home.name));
+	fm.setTitle("§l§c" + t(lang, 'tp.delete_home'));
+	fm.setContent(t(lang, 'tp.delete_confirm_msg', home.name));
 
-	fm.addButton("§c" + t('tp.confirm_delete'), "textures/ui/trash_default");
-	fm.addButton("§a" + t('tp.cancel'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton("§c" + t(lang, 'tp.confirm_delete'), "textures/ui/trash_default");
+	fm.addButton("§a" + t(lang, 'tp.cancel'), "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
 		if (id == null) return;
@@ -964,7 +995,7 @@ function showHomeDeleteConfirm(player, home, homeIndex, deps) {
 		homes.splice(homeIndex, 1);
 		markHomeDirty(p.xuid);
 		saveHomesData();
-		p.tell(t('tp.home_tag_prefix') + " §a" + t('tp.home_deleted', home.name));
+		p.tell(t(lang, 'tp.home_tag_prefix') + " §a" + t(lang, 'tp.home_deleted', home.name));
 		showHomeMainForm(p, deps);
 	});
 }
@@ -975,30 +1006,31 @@ function showHomeDeleteConfirm(player, home, homeIndex, deps) {
  * @param {object} deps - 依赖对象
  */
 function showWarpMainForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	if (!getTpConfig().enableWarp) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.warp_disabled'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.warp_disabled'));
 		return;
 	}
 
 	const warpNames = Object.keys(warpsData);
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§d" + t('tp.warp_title'));
+	fm.setTitle("§l§d" + t(lang, 'tp.warp_title'));
 
 	if (warpNames.length === 0) {
-		fm.setContent("§c" + t('tp.no_warps'));
+		fm.setContent("§c" + t(lang, 'tp.no_warps'));
 	} else {
-		fm.setContent(t('tp.warp_count_info', String(warpNames.length)));
+		fm.setContent(t(lang, 'tp.warp_count_info', String(warpNames.length)));
 		warpNames.forEach(function(name) {
 			const warp = warpsData[name];
-			const dimName = warp.dim === 0 ? t('tp.dim_overworld') : warp.dim === 1 ? t('tp.dim_nether') : t('tp.dim_end');
+			const dimName = warp.dim === 0 ? t(lang, 'tp.dim_overworld') : warp.dim === 1 ? t(lang, 'tp.dim_nether') : t(lang, 'tp.dim_end');
 			fm.addButton("§b" + name + "\n" + dimName + " (" + Math.floor(warp.x) + ", " + Math.floor(warp.y) + ", " + Math.floor(warp.z) + ")", "textures/ui/icon_multiplayer");
 		});
 	}
 
 	// permLevel > 0 表示管理员，显示管理按钮
 	if (player.permLevel > 0) {
-		fm.addButton("§6" + t('tp.admin_manage'), "textures/ui/icon_setting");
+		fm.addButton("§6" + t(lang, 'tp.admin_manage'), "textures/ui/icon_setting");
 	}
 
 	player.sendForm(fm, function(p, id) {
@@ -1019,9 +1051,10 @@ function showWarpMainForm(player, deps) {
  * @param {object} deps - 依赖对象
  */
 function teleportToWarp(player, warpName, deps) {
+	const lang = getLocale(player.xuid);
 	const warp = warpsData[warpName];
 	if (!warp) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.warp_not_exist'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.warp_not_exist'));
 		return;
 	}
 
@@ -1029,19 +1062,19 @@ function teleportToWarp(player, warpName, deps) {
 	if (getTpConfig().warpCost > 0) {
 		const bal = deps.getPlayerMoney(player);
 		if (bal < getTpConfig().warpCost) {
-			player.tell(t('tp.tag_prefix') + " §c" + t('tp.warp_insufficient', getTpConfig().warpCost, deps.getCurrencyName()));
+			player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.warp_insufficient', getTpConfig().warpCost, deps.getCurrencyName()));
 			return;
 		}
-		deps.reducePlayerMoney(player, getTpConfig().warpCost, t('tp.reason_warp', warpName));
+		deps.reducePlayerMoney(player, getTpConfig().warpCost, t(lang, 'tp.reason_warp', warpName));
 	}
 
 	if (safeTeleport(player, warp.x, warp.y, warp.z, warp.dim)) {
-		player.tell(t('tp.tag_prefix') + " §a" + t('tp.warp_teleported', warpName));
+		player.tell(t(lang, 'tp.tag_prefix') + " §a" + t(lang, 'tp.warp_teleported', warpName));
 	} else {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.tp_failed'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.tp_failed'));
 		// 传送失败时退还费用
 		if (getTpConfig().warpCost > 0) {
-			deps.addPlayerMoney(player, getTpConfig().warpCost, t('tp.reason_warp_refund'));
+			deps.addPlayerMoney(player, getTpConfig().warpCost, t(lang, 'tp.reason_warp_refund'));
 		}
 	}
 }
@@ -1052,13 +1085,14 @@ function teleportToWarp(player, warpName, deps) {
  * @param {object} deps - 依赖对象
  */
 function showWarpAdminForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§6" + t('tp.warp_admin_title'));
-	fm.setContent("§a" + t('tp.select_action'));
+	fm.setTitle("§l§6" + t(lang, 'tp.warp_admin_title'));
+	fm.setContent("§a" + t(lang, 'tp.select_action'));
 
-	fm.addButton("§a" + t('tp.add_warp'), "textures/ui/color_plus");
-	fm.addButton("§c" + t('tp.delete_warp'), "textures/ui/trash_default");
-	fm.addButton("§c" + t('tp.back'), "textures/ui/recap_glyph_desaturated");
+	fm.addButton("§a" + t(lang, 'tp.add_warp'), "textures/ui/color_plus");
+	fm.addButton("§c" + t(lang, 'tp.delete_warp'), "textures/ui/trash_default");
+	fm.addButton("§c" + t(lang, 'tp.back'), "textures/ui/recap_glyph_desaturated");
 
 	player.sendForm(fm, function(p, id) {
 		if (id == null) return;
@@ -1076,23 +1110,24 @@ function showWarpAdminForm(player, deps) {
  * @param {object} deps - 依赖对象
  */
 function showWarpAddForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	const fm = mc.newCustomForm();
-	fm.setTitle("§l§6" + t('tp.add_warp'));
-	fm.addInput("§a" + t('tp.warp_name'), t('tp.warp_name_placeholder'));
-	fm.addInput("§a" + t('tp.warp_cost'), "0");
+	fm.setTitle("§l§6" + t(lang, 'tp.add_warp'));
+	fm.addInput("§a" + t(lang, 'tp.warp_name'), t(lang, 'tp.warp_name_placeholder'));
+	fm.addInput("§a" + t(lang, 'tp.warp_cost'), "0");
 
 	player.sendForm(fm, function(p, data) {
 		if (data == null) { showWarpAdminForm(p, deps); return; }
 
 		const name = String(data[0] || "").trim();
 		if (!name) {
-			p.tell(t('tp.tag_prefix') + " §c" + t('tp.warp_name_empty'));
+			p.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.warp_name_empty'));
 			showWarpAddForm(p, deps);
 			return;
 		}
 
 		if (warpsData[name]) {
-			p.tell(t('tp.tag_prefix') + " §c" + t('tp.warp_name_duplicate'));
+			p.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.warp_name_duplicate'));
 			showWarpAddForm(p, deps);
 			return;
 		}
@@ -1108,7 +1143,7 @@ function showWarpAddForm(player, deps) {
 			cost: cost
 		};
 		saveWarpsData();
-		p.tell(t('tp.tag_prefix') + " §a" + t('tp.warp_add_success', name));
+		p.tell(t(lang, 'tp.tag_prefix') + " §a" + t(lang, 'tp.warp_add_success', name));
 		showWarpAdminForm(p, deps);
 	});
 }
@@ -1119,17 +1154,18 @@ function showWarpAddForm(player, deps) {
  * @param {object} deps - 依赖对象
  */
 function showWarpDeleteForm(player, deps) {
+	const lang = getLocale(player.xuid);
 	const warpNames = Object.keys(warpsData);
 
 	if (warpNames.length === 0) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.no_warps_delete'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.no_warps_delete'));
 		showWarpAdminForm(player, deps);
 		return;
 	}
 
 	const fm = mc.newSimpleForm();
-	fm.setTitle("§l§c" + t('tp.delete_warp'));
-	fm.setContent("§c" + t('tp.select_warp'));
+	fm.setTitle("§l§c" + t(lang, 'tp.delete_warp'));
+	fm.setContent("§c" + t(lang, 'tp.select_warp'));
 
 	warpNames.forEach(function(name) {
 		fm.addButton("§c" + name);
@@ -1142,7 +1178,7 @@ function showWarpDeleteForm(player, deps) {
 		if (name && warpsData[name]) {
 			delete warpsData[name];
 			saveWarpsData();
-			p.tell(t('tp.tag_prefix') + " §a" + t('tp.warp_deleted', name));
+			p.tell(t(lang, 'tp.tag_prefix') + " §a" + t(lang, 'tp.warp_deleted', name));
 		}
 		showWarpAdminForm(p, deps);
 	});
@@ -1238,6 +1274,7 @@ function saveDeathPointData() {
  * @param {Player} player - 死亡的玩家
  */
 function recordDeathPoint(player) {
+	const lang = getLocale(player.xuid);
 	try {
 		const xuid = player.xuid;
 		const pos = player.pos;
@@ -1285,39 +1322,40 @@ function recordDeathPoint(player) {
  * @param {Player} player - 玩家
  */
 function showDeathPointMenu(player) {
+	const lang = getLocale(player.xuid);
 	const xuid = player.xuid;
 	const deathPoints = deathPointData.players[xuid] || [];
 
 	if (deathPoints.length === 0) {
 		player.sendModalForm(
-			"§c" + t('tp.no_death_records'),
-			t('tp.no_death_content'),
-			t('tp.ok'),
-			t('tp.close'),
+			"§c" + t(lang, 'tp.no_death_records'),
+			t(lang, 'tp.no_death_content'),
+			t(lang, 'tp.ok'),
+			t(lang, 'tp.close'),
 			function() {}
 		);
 		return;
 	}
 
 	const menuForm = mc.newSimpleForm();
-	menuForm.setTitle("§c§l" + t('tp.death_title'));
+	menuForm.setTitle("§c§l" + t(lang, 'tp.death_title'));
 
 	let content = "-------------------------\n";
-	content += "§a" + t('tp.death_records', deathPoints.length) + "\n";
+	content += "§a" + t(lang, 'tp.death_records', deathPoints.length) + "\n";
 	content += "-------------------------\n";
 
 	menuForm.setContent(content);
 
 	deathPoints.forEach(function(point, index) {
-		const timeStr = point.time || t('tp.unknown_time');
-		const dimName = point.dimName || t('tp.unknown_dim');
+		const timeStr = point.time || t(lang, 'tp.unknown_time');
+		const dimName = point.dimName || t(lang, 'tp.unknown_dim');
 		menuForm.addButton(
 			"§c[" + (index + 1) + "] §f" + timeStr + "\n" + dimName + " §f(" + point.x + ", " + point.y + ", " + point.z + ")",
 			"textures/ui/heart_new"
 		);
 	});
 
-	menuForm.addButton("§c" + t('tp.close'), "textures/ui/cancel");
+	menuForm.addButton("§c" + t(lang, 'tp.close'), "textures/ui/cancel");
 
 	player.sendForm(menuForm, function(p, buttonIndex) {
 		if (buttonIndex == null) return;
@@ -1327,25 +1365,25 @@ function showDeathPointMenu(player) {
 		}
 
 		if (buttonIndex < 0 || buttonIndex >= deathPoints.length) {
-			p.tell("§c" + t('tp.death_error_index'));
+			p.tell("§c" + t(lang, 'tp.death_error_index'));
 			return;
 		}
 
 		const selectedPoint = deathPoints[buttonIndex];
 
 		if (!selectedPoint) {
-			p.tell("§c" + t('tp.death_error_data'));
+			p.tell("§c" + t(lang, 'tp.death_error_data'));
 			return;
 		}
 
-		const dimName = selectedPoint.dimName || t('tp.unknown_dim');
-		const timeStr = selectedPoint.time || t('tp.unknown_time');
+		const dimName = selectedPoint.dimName || t(lang, 'tp.unknown_dim');
+		const timeStr = selectedPoint.time || t(lang, 'tp.unknown_time');
 
 		p.sendModalForm(
-			"§c" + t('tp.confirm_tp_title'),
-			t('tp.confirm_tp_content', dimName, selectedPoint.x, selectedPoint.y, selectedPoint.z, timeStr),
-			t('tp.confirm_tp_btn'),
-			t('tp.cancel'),
+			"§c" + t(lang, 'tp.confirm_tp_title'),
+			t(lang, 'tp.confirm_tp_content', dimName, selectedPoint.x, selectedPoint.y, selectedPoint.z, timeStr),
+			t(lang, 'tp.confirm_tp_btn'),
+			t(lang, 'tp.cancel'),
 			function(pl, result) {
 				if (result) {
 					teleportToDeathPoint(pl, buttonIndex);
@@ -1363,35 +1401,36 @@ function showDeathPointMenu(player) {
  * @param {number} index - 死亡记录索引
  */
 function teleportToDeathPoint(player, index) {
+	const lang = getLocale(player.xuid);
 	const xuid = player.xuid;
 	const deathPoints = deathPointData.players[xuid] || [];
 
 	if (index < 0 || index >= deathPoints.length) {
-		player.tell("§c" + t('tp.death_tp_failed'));
+		player.tell("§c" + t(lang, 'tp.death_tp_failed'));
 		return;
 	}
 
 	const point = deathPoints[index];
 
 	if (!point) {
-		player.sendModalForm("§c" + t('tp.death_point'), "§e" + t('tp.death_data_missing'), t('tp.back'), t('tp.close'), function(p, result) {
+		player.sendModalForm("§c" + t(lang, 'tp.death_point'), "§e" + t(lang, 'tp.death_data_missing'), t(lang, 'tp.back'), t(lang, 'tp.close'), function(p, result) {
 			if (result) showDeathPointMenu(p);
 		});
 		return;
 	}
 
 	try {
-		const dimName = point.dimName || t('tp.unknown_dim');
+		const dimName = point.dimName || t(lang, 'tp.unknown_dim');
 		const x = point.x || 0;
 		const y = point.y || 64;
 		const z = point.z || 0;
 		const dimId = point.dimId || 0;
 
 		safeTeleport(player, x + 0.5, y, z + 0.5, dimId);
-		player.tell("§a" + t('tp.death_teleported', dimName, x, y, z));
+		player.tell("§a" + t(lang, 'tp.death_teleported', dimName, x, y, z));
 		logger.info("[死亡点] 玩家 " + player.name + " 传送到死亡点：" + dimName + " (" + x + ", " + y + ", " + z + ")");
 	} catch (error) {
-		player.tell("§c" + t('tp.death_tp_error', error.message));
+		player.tell("§c" + t(lang, 'tp.death_tp_error', error.message));
 		logger.error("[死亡点] 传送玩家到死亡点失败：" + error.message);
 	}
 }
@@ -1407,6 +1446,7 @@ function teleportToDeathPoint(player, index) {
  * @returns {boolean}
  */
 function safeTeleport(player, x, y, z, dim) {
+	const lang = getLocale(player.xuid);
     dim = parseInt(dim, 10);
     if (isNaN(dim)) dim = 0;
     var dimNames = { 0: 'minecraft:overworld', 1: 'minecraft:nether', 2: 'minecraft:the_end' };
@@ -1432,10 +1472,10 @@ function safeTeleport(player, x, y, z, dim) {
  * @returns {string} 维度中文名称
  */
 function getDimensionName(dimId) {
-	if (dimId === 0) return t('tp.dim_overworld');
-	if (dimId === 1) return t('tp.dim_nether');
-	if (dimId === 2) return t('tp.dim_end');
-	return t('tp.dim_unknown', dimId);
+	if (dimId === 0) return t(getSystemLang(), 'tp.dim_overworld');
+	if (dimId === 1) return t(getSystemLang(), 'tp.dim_nether');
+	if (dimId === 2) return t(getSystemLang(), 'tp.dim_end');
+	return t(getSystemLang(), 'tp.dim_unknown', dimId);
 }
 
 /**
@@ -1443,26 +1483,27 @@ function getDimensionName(dimId) {
  * @param {Player} player
  */
 function showRtpConfirmForm(player) {
+	const lang = getLocale(player.xuid);
 	var cfg = _deps.getConfig ? _deps.getConfig() : {};
 	var rtpEnabled = cfg.enableRtp !== undefined ? cfg.enableRtp : true;
 	if (!rtpEnabled) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.rtp_disabled'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.rtp_disabled'));
 		return;
 	}
 	var cd = checkTeleportCooldown(player.xuid, 'rtp');
 	if (cd > 0) {
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.rtp_cooldown', cd));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.rtp_cooldown', cd));
 		return;
 	}
 	var cost = cfg.rtpCost !== undefined ? cfg.rtpCost : 0;
 	var radius = cfg.rtpRadius !== undefined ? cfg.rtpRadius : 10000;
-	var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : t('tp.currency_fallback');
-	var costText = cost > 0 ? t('tp.cost_label') + cost + " " + currencyName : "";
+	var currencyName = _deps.getCurrencyName ? _deps.getCurrencyName() : t(lang, 'tp.currency_fallback');
+	var costText = cost > 0 ? t(lang, 'tp.cost_label') + cost + " " + currencyName : "";
 	player.sendModalForm(
-		"§a" + t('tp.rtp_title'),
-		"§a" + t('tp.rtp_confirm', radius, costText),
-		t('tp.confirm'),
-		t('tp.cancel'),
+		"§a" + t(lang, 'tp.rtp_title'),
+		"§a" + t(lang, 'tp.rtp_confirm', radius, costText),
+		t(lang, 'tp.confirm'),
+		t(lang, 'tp.cancel'),
 		function(p, result) {
 			if (result !== true) return;
 			executeRtp(p, radius, cost);
@@ -1477,23 +1518,24 @@ function showRtpConfirmForm(player) {
  * @param {number} cost
  */
 function executeRtp(player, radius, cost) {
+	const lang = getLocale(player.xuid);
 	if (cost > 0) {
-		if (!_deps.reducePlayerMoney || !_deps.reducePlayerMoney(player, cost, t('tp.reason_rtp'))) {
-			player.tell(t('tp.tag_prefix') + " §c" + t('tp.rtp_insufficient'));
+		if (!_deps.reducePlayerMoney || !_deps.reducePlayerMoney(player, cost, t(lang, 'tp.reason_rtp'))) {
+			player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.rtp_insufficient'));
 			return;
 		}
 	}
 	var x = Math.floor(Math.random() * radius * 2) - radius;
 	var z = Math.floor(Math.random() * radius * 2) - radius;
-	player.sendText(t('tp.tag_prefix') + " §a" + t('tp.rtp_teleporting'), 0);
+	player.sendText(t(lang, 'tp.tag_prefix') + " §a" + t(lang, 'tp.rtp_teleporting'), 0);
 	// 先传送到高空强制加载区块，启用摔伤保护防止掉血
 	_rtpProtected[player.xuid] = Date.now() + 60000;
 	if (_deps.debugMode && _deps.debugMode()) logger.info('[RTP] 玩家 ' + player.name + ' 开始RTP，目标 (' + x + ', ' + z + ')，已启用60秒摔伤保护');
 	if (!safeTeleport(player, x + 0.5, 320, z + 0.5, 0)) {
 		delete _rtpProtected[player.xuid];
-		player.tell(t('tp.tag_prefix') + " §c" + t('tp.tp_failed'));
+		player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.tp_failed'));
 		if (cost > 0 && _deps.addPlayerMoney) {
-			_deps.addPlayerMoney(player, cost, t('tp.reason_rtp_refund'));
+			_deps.addPlayerMoney(player, cost, t(lang, 'tp.reason_rtp_refund'));
 		}
 		return;
 	}
@@ -1502,10 +1544,10 @@ function executeRtp(player, radius, cost) {
 	if (_deps.debugMode && _deps.debugMode()) logger.info('[RTP] 玩家 ' + player.name + ' findSafeY结果: ' + safeY);
 	if (safeY !== null) {
 		safeTeleport(player, x + 0.5, safeY, z + 0.5, 0);
-		player.tell(t('tp.tag_prefix') + " §a" + t('tp.rtp_success', x, safeY, z));
+		player.tell(t(lang, 'tp.tag_prefix') + " §a" + t(lang, 'tp.rtp_success', x, safeY, z));
 	} else {
 		// 找不到安全位置但已在高空，保留摔伤保护让玩家缓慢降落
-		player.tell(t('tp.tag_prefix') + " §a" + t('tp.rtp_success2', x, z));
+		player.tell(t(lang, 'tp.tag_prefix') + " §a" + t(lang, 'tp.rtp_success2', x, z));
 	}
 	// 60秒后清理保护记录（onMobHurt 中也会自动清理过期的）
 	setTimeout(function() { delete _rtpProtected[player.xuid]; }, 60000);

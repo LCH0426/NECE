@@ -59,7 +59,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改卡池Banner图片URL
-    router.put('/wish/banner', d.adminAuth, function(req, res) {
+    router.put('/wish/banner', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let config = loadWishConfig();
             config.banner = req.body.banner || '';
@@ -72,7 +72,7 @@ function registerRoutes(router, d) {
     });
 
     // 添加四星奖励物品
-    router.post('/wish/fourStar', d.adminAuth, function(req, res) {
+    router.post('/wish/fourStar', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let name = req.body.name;
             let snbt = req.body.snbt;
@@ -93,7 +93,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改指定索引的四星奖励
-    router.put('/wish/fourStar/:index', d.adminAuth, function(req, res) {
+    router.put('/wish/fourStar/:index', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let idx = parseInt(req.params.index);
             let config = loadWishConfig();
@@ -113,7 +113,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除指定索引的四星奖励
-    router.delete('/wish/fourStar/:index', d.adminAuth, function(req, res) {
+    router.delete('/wish/fourStar/:index', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let idx = parseInt(req.params.index);
             let config = loadWishConfig();
@@ -132,7 +132,7 @@ function registerRoutes(router, d) {
     });
 
     // 添加五星奖励物品
-    router.post('/wish/fiveStar', d.adminAuth, function(req, res) {
+    router.post('/wish/fiveStar', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let name = req.body.name;
             let snbt = req.body.snbt;
@@ -154,7 +154,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改指定索引的五星奖励
-    router.put('/wish/fiveStar/:index', d.adminAuth, function(req, res) {
+    router.put('/wish/fiveStar/:index', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let idx = parseInt(req.params.index);
             let config = loadWishConfig();
@@ -175,7 +175,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除指定索引的五星奖励
-    router.delete('/wish/fiveStar/:index', d.adminAuth, function(req, res) {
+    router.delete('/wish/fiveStar/:index', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let idx = parseInt(req.params.index);
             let config = loadWishConfig();
@@ -194,7 +194,7 @@ function registerRoutes(router, d) {
     });
 
     // 添加核心兑换商店物品
-    router.post('/wish/coreShop', d.adminAuth, function(req, res) {
+    router.post('/wish/coreShop', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let name = req.body.name;
             let snbt = req.body.snbt;
@@ -215,7 +215,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改指定索引的核心兑换物品
-    router.put('/wish/coreShop/:index', d.adminAuth, function(req, res) {
+    router.put('/wish/coreShop/:index', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let idx = parseInt(req.params.index);
             let config = loadWishConfig();
@@ -238,7 +238,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除指定索引的核心兑换物品
-    router.delete('/wish/coreShop/:index', d.adminAuth, function(req, res) {
+    router.delete('/wish/coreShop/:index', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             const idx = parseInt(req.params.index);
             let config = loadWishConfig();
@@ -257,7 +257,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改三星物品的尘核掉落范围
-    router.put('/wish/threeStar', d.adminAuth, function(req, res) {
+    router.put('/wish/threeStar', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let cfg = loadWishConfig();
             if (!cfg.rewards) cfg.rewards = {};
@@ -284,7 +284,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改祈愿概率配置
-    router.put('/wish/rates', d.adminAuth, function(req, res) {
+    router.put('/wish/rates', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let cfg = loadWishConfig();
             if (!cfg.rates) cfg.rates = {};
@@ -324,7 +324,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改祈愿花费配置
-    router.put('/wish/cost', d.adminAuth, function(req, res) {
+    router.put('/wish/cost', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let cfg = loadWishConfig();
             if (!cfg.cost) cfg.cost = {};
@@ -347,7 +347,7 @@ function registerRoutes(router, d) {
     });
 
     // 修改祈愿系统说明文本
-    router.put('/wish/description', d.adminAuth, function(req, res) {
+    router.put('/wish/description', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             let cfg = loadWishConfig();
             if (req.body.description !== undefined) {

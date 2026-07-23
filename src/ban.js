@@ -33,16 +33,20 @@ let banData = {
 };
 let _deps = {};
 
-/** 获取系统语言 */
-function getLang() {
+function getLocale(xuid) {
+    if (_deps.getPlayerSetting && xuid) {
+        return _deps.getPlayerSetting(xuid, 'locale') || getSystemLang();
+    }
+    return getSystemLang();
+}
+
+function getSystemLang() {
     return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
 }
 
-/** 翻译函数 */
-function t(key) {
-    if (!_deps.t) return key;
-    var lang = getLang();
-    var args = [lang];
+function t(lang) {
+    if (!_deps.t) return lang;
+    var args = [];
     for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
     return _deps.t.apply(null, args);
 }
@@ -106,7 +110,7 @@ function resolvePlayer(identifier) {
         if (info.uid && String(info.uid) === String(identifier)) {
             result = {
                 xuid: xuid,
-                name: info.name || t('ban.unknown_player'),
+                name: info.name || t(getSystemLang(), 'ban.unknown_player'),
                 uid: info.uid,
                 ip: '',
                 online: false
@@ -121,7 +125,7 @@ function resolvePlayer(identifier) {
             let entry = banData.entries[identifier];
             return {
                 xuid: identifier,
-                name: entry.name || t('ban.unknown_player'),
+                name: entry.name || t(getSystemLang(), 'ban.unknown_player'),
                 uid: entry.uid || identifier,
                 ip: entry.ip || '',
                 online: false
@@ -140,17 +144,17 @@ function resolvePlayer(identifier) {
  * @returns {{success: boolean, message: string, xuid?: string}}
  */
 function banPlayer(identifier, reason, operator) {
-    reason = reason || t('ban.default_reason');
-    operator = operator || t('ban.default_operator');
+    reason = reason || t(getSystemLang(), 'ban.default_reason');
+    operator = operator || t(getSystemLang(), 'ban.default_operator');
 
     let playerInfo = resolvePlayer(identifier);
     if (!playerInfo) {
-        return { success: false, message: t('ban.err_player_not_found', identifier) };
+        return { success: false, message: t(getSystemLang(), 'ban.err_player_not_found', identifier) };
     }
 
     let xuid = playerInfo.xuid;
     if (banData.entries[xuid]) {
-        return { success: false, message: t('ban.err_already_banned', playerInfo.name) };
+        return { success: false, message: t(getSystemLang(), 'ban.err_already_banned', playerInfo.name) };
     }
 
     // 尝试获取IP
@@ -176,12 +180,12 @@ function banPlayer(identifier, reason, operator) {
     // 在线玩家直接踢出
     const onlinePlayer = mc.getPlayer(xuid);
     if (onlinePlayer) {
-        onlinePlayer.kick(t('ban.kick_msg', reason, operator));
+        onlinePlayer.kick(t(getSystemLang(), 'ban.kick_msg', reason, operator));
     }
 
-    var uidPart = (playerInfo.uid && playerInfo.uid !== xuid) ? t('ban.ban_success_uid', playerInfo.uid) : '';
-    var ipPart = ip ? t('ban.ban_success_ip', ip) : '';
-    return { success: true, message: t('ban.ban_success', playerInfo.name, xuid, uidPart + ipPart, reason), xuid: xuid };
+    var uidPart = (playerInfo.uid && playerInfo.uid !== xuid) ? t(getSystemLang(), 'ban.ban_success_uid', playerInfo.uid) : '';
+    var ipPart = ip ? t(getSystemLang(), 'ban.ban_success_ip', ip) : '';
+    return { success: true, message: t(getSystemLang(), 'ban.ban_success', playerInfo.name, xuid, uidPart + ipPart, reason), xuid: xuid };
 }
 
 /**
@@ -197,21 +201,21 @@ function unbanPlayer(identifier) {
             let entry = banData.entries[identifier];
             delete banData.entries[identifier];
             saveData();
-            return { success: true, message: t('ban.unban_success_xuid', identifier, entry.name || t('ban.unknown')) };
+            return { success: true, message: t(getSystemLang(), 'ban.unban_success_xuid', identifier, entry.name || t(getSystemLang(), 'ban.unknown')) };
         }
-        return { success: false, message: t('ban.err_player_not_found', identifier) };
+        return { success: false, message: t(getSystemLang(), 'ban.err_player_not_found', identifier) };
     }
 
     const xuid = playerInfo.xuid;
     if (!banData.entries[xuid]) {
-        return { success: false, message: t('ban.err_not_banned', playerInfo.name) };
+        return { success: false, message: t(getSystemLang(), 'ban.err_not_banned', playerInfo.name) };
     }
 
     let entry = banData.entries[xuid];
     delete banData.entries[xuid];
     saveData();
 
-    return { success: true, message: t('ban.unban_success', playerInfo.name, xuid) };
+    return { success: true, message: t(getSystemLang(), 'ban.unban_success', playerInfo.name, xuid) };
 }
 
 /**
@@ -231,7 +235,7 @@ function isPlayerBanned(xuid, ip) {
             if (!banData.entries.hasOwnProperty(bxuid)) continue;
             let entry = banData.entries[bxuid];
             if (entry.banned && entry.ip && entry.ip === ip) {
-                return { banned: true, reason: t('ban.ip_linked_ban', bxuid, entry.reason), entry: entry };
+                return { banned: true, reason: t(getSystemLang(), 'ban.ip_linked_ban', bxuid, entry.reason), entry: entry };
             }
         }
     }
@@ -259,25 +263,26 @@ function getBanList() {
  * @param {Player} player - 打开表单的玩家
  */
 function showBanListForm(player) {
+	const lang = getLocale(player.xuid);
     let banList = getBanList();
     let gui = mc.newSimpleForm();
-    gui.setTitle(t('ban.title_ban_list'));
+    gui.setTitle(t(lang, 'ban.title_ban_list'));
 
     if (banList.length === 0) {
-        player.sendModalForm(t('ban.title_ban_list'), t('ban.empty_ban_list'), t('ban.btn_back'), t('ban.btn_close'), function(p, result) {
+        player.sendModalForm(t(lang, 'ban.title_ban_list'), t(lang, 'ban.empty_ban_list'), t(lang, 'ban.btn_back'), t(lang, 'ban.btn_close'), function(p, result) {
             if (result) showBanMainForm(p);
         });
         return;
     } else {
-        gui.setContent(t('ban.ban_list_content', banList.length));
+        gui.setContent(t(lang, 'ban.ban_list_content', banList.length));
         banList.forEach(function(entry) {
-            gui.addButton(t('ban.ban_list_entry', entry.name, entry.xuid, entry.reason));
+            gui.addButton(t(lang, 'ban.ban_list_entry', entry.name, entry.xuid, entry.reason));
         });
     }
 
     // 最后两个按钮：封禁玩家、返回
-    gui.addButton(t('ban.btn_ban_player'), "textures/ui/color_plus");
-    gui.addButton(t('ban.btn_back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'ban.btn_ban_player'), "textures/ui/color_plus");
+    gui.addButton(t(lang, 'ban.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
@@ -298,29 +303,30 @@ function showBanListForm(player) {
  * @param {Object} entry - 封禁记录对象
  */
 function showBanDetailForm(player, entry) {
+	const lang = getLocale(player.xuid);
     let gui = mc.newSimpleForm();
-    gui.setTitle(t('ban.title_ban_detail', entry.name));
+    gui.setTitle(t(lang, 'ban.title_ban_detail', entry.name));
 
     let content = "-------------------------\n";
-    content += t('ban.detail_name', entry.name) + "\n";
-    content += t('ban.detail_xuid', entry.xuid) + "\n";
-    content += t('ban.detail_uid', entry.uid || t('ban.unknown')) + "\n";
-    content += t('ban.detail_ip', entry.ip || t('ban.unrecorded')) + "\n";
-    content += t('ban.detail_reason', entry.reason) + "\n";
-    content += t('ban.detail_operator', entry.operator) + "\n";
-    content += t('ban.detail_time', entry.time) + "\n";
+    content += t(lang, 'ban.detail_name', entry.name) + "\n";
+    content += t(lang, 'ban.detail_xuid', entry.xuid) + "\n";
+    content += t(lang, 'ban.detail_uid', entry.uid || t(lang, 'ban.unknown')) + "\n";
+    content += t(lang, 'ban.detail_ip', entry.ip || t(lang, 'ban.unrecorded')) + "\n";
+    content += t(lang, 'ban.detail_reason', entry.reason) + "\n";
+    content += t(lang, 'ban.detail_operator', entry.operator) + "\n";
+    content += t(lang, 'ban.detail_time', entry.time) + "\n";
     content += "-------------------------\n";
 
     gui.setContent(content);
-    gui.addButton(t('ban.btn_unban'), "textures/ui/check");
-    gui.addButton(t('ban.btn_back'), "textures/ui/recap_glyph_desaturated");
+    gui.addButton(t(lang, 'ban.btn_unban'), "textures/ui/check");
+    gui.addButton(t(lang, 'ban.btn_back'), "textures/ui/recap_glyph_desaturated");
 
     player.sendForm(gui, function(p, id) {
         if (id === null) return;
 
         if (id === 0) {
             // 解封前弹出二次确认
-            p.sendModalForm(t('ban.confirm_unban_title'), t('ban.confirm_unban_msg', entry.name), t('ban.btn_confirm'), t('ban.btn_cancel'), function(pl, res) {
+            p.sendModalForm(t(lang, 'ban.confirm_unban_title'), t(lang, 'ban.confirm_unban_msg', entry.name), t(lang, 'ban.btn_confirm'), t(lang, 'ban.btn_cancel'), function(pl, res) {
                 if (res) {
                     let result = unbanPlayer(entry.xuid);
                     pl.tell("" + result.message);
@@ -340,10 +346,11 @@ function showBanDetailForm(player, entry) {
  * @param {Player} player - 打开表单的玩家
  */
 function showBanPlayerForm(player) {
+	const lang = getLocale(player.xuid);
     const gui = mc.newCustomForm();
-    gui.setTitle(t('ban.title_ban_player'));
-    gui.addInput(t('ban.input_id_placeholder'), t('ban.input_id_hint'), "");
-    gui.addInput(t('ban.input_reason_placeholder'), t('ban.input_reason_hint'), t('ban.default_reason'));
+    gui.setTitle(t(lang, 'ban.title_ban_player'));
+    gui.addInput(t(lang, 'ban.input_id_placeholder'), t(lang, 'ban.input_id_hint'), "");
+    gui.addInput(t(lang, 'ban.input_reason_placeholder'), t(lang, 'ban.input_reason_hint'), t(lang, 'ban.default_reason'));
 
     player.sendForm(gui, function(p, data) {
         if (data == null || data === undefined || !Array.isArray(data)) {
@@ -352,10 +359,10 @@ function showBanPlayerForm(player) {
         }
 
         let identifier = (data[0] || "").trim();
-        let reason = (data[1] || "").trim() || t('ban.default_reason');
+        let reason = (data[1] || "").trim() || t(lang, 'ban.default_reason');
 
         if (!identifier) {
-            p.tell(t('ban.err_empty_identifier'));
+            p.tell(t(lang, 'ban.err_empty_identifier'));
             showBanPlayerForm(p);
             return;
         }
@@ -369,24 +376,24 @@ function showBanPlayerForm(player) {
 /** 注册控制台命令：ban、unban、banlist */
 function registerConsoleCommands() {
     try {
-        mc.regConsoleCmd('pban', t('ban.cmd_ban_desc'), function(args) {
+        mc.regConsoleCmd('pban', t(getSystemLang(), 'ban.cmd_ban_desc'), function(args) {
             if (args.length < 1) {
-                logger.info(t('ban.cmd_usage_ban'));
+                logger.info(t(getSystemLang(), 'ban.cmd_usage_ban'));
                 return;
             }
             let identifier = args[0];
-            let reason = args.length > 1 ? args.slice(1).join(' ') : t('ban.default_operator') + t('ban.default_reason');
-            let result = banPlayer(identifier, reason, t('ban.default_operator'));
+            let reason = args.length > 1 ? args.slice(1).join(' ') : t(getSystemLang(), 'ban.default_operator') + t(getSystemLang(), 'ban.default_reason');
+            let result = banPlayer(identifier, reason, t(getSystemLang(), 'ban.default_operator'));
             logger.info(result.message);
         });
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'pban', error));
+        logger.error(t(getSystemLang(), 'ban.err_cmd_register', 'pban', error));
     }
 
     try {
-        mc.regConsoleCmd('punban', t('ban.cmd_unban_desc'), function(args) {
+        mc.regConsoleCmd('punban', t(getSystemLang(), 'ban.cmd_unban_desc'), function(args) {
             if (args.length < 1) {
-                logger.info(t('ban.cmd_usage_unban'));
+                logger.info(t(getSystemLang(), 'ban.cmd_usage_unban'));
                 return;
             }
             let identifier = args[0];
@@ -394,62 +401,64 @@ function registerConsoleCommands() {
             logger.info(result.message);
         });
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'punban', error));
+        logger.error(t(getSystemLang(), 'ban.err_cmd_register', 'punban', error));
     }
 
     try {
-        mc.regConsoleCmd('pbanlist', t('ban.cmd_banlist_desc'), function(args) {
+        mc.regConsoleCmd('pbanlist', t(getSystemLang(), 'ban.cmd_banlist_desc'), function(args) {
             const banList = getBanList();
             if (banList.length === 0) {
-                logger.info(t('ban.cmd_banlist_empty'));
+                logger.info(t(getSystemLang(), 'ban.cmd_banlist_empty'));
                 return;
             }
-            logger.info(t('ban.cmd_banlist_header', banList.length));
+            logger.info(t(getSystemLang(), 'ban.cmd_banlist_header', banList.length));
             banList.forEach(function(entry) {
-                logger.info(t('ban.cmd_banlist_entry', entry.name, entry.xuid, entry.uid || t('ban.unknown'), entry.ip || t('ban.unrecorded'), entry.reason, entry.operator));
+                logger.info(t(getSystemLang(), 'ban.cmd_banlist_entry', entry.name, entry.xuid, entry.uid || t(getSystemLang(), 'ban.unknown'), entry.ip || t(getSystemLang(), 'ban.unrecorded'), entry.reason, entry.operator));
             });
         });
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'pbanlist', error));
+        logger.error(t(getSystemLang(), 'ban.err_cmd_register', 'pbanlist', error));
     }
 }
 
 /** 注册游戏内命令：/pban、/punban、/pbanlist */
 function registerGameCommands() {
     try {
-        const banCmd = mc.newCommand('pban', t('ban.game_cmd_ban'), PermType.GameMasters);
+        const banCmd = mc.newCommand('pban', t(getSystemLang(), 'ban.game_cmd_ban'), PermType.GameMasters);
         banCmd.mandatory('target', ParamType.RawText);
         banCmd.optional('reason', ParamType.RawText);
         banCmd.overload(['target', 'reason']);
         banCmd.setCallback(function(_cmd, origin, output, results) {
             let player = origin.player;
+            const lang = player ? getLocale(player.xuid) : getSystemLang();
             let identifier = String(results.target || '').trim();
-            const reason = String(results.reason || t('ban.default_reason')).trim();
+            const reason = String(results.reason || t(lang, 'ban.default_reason')).trim();
             if (!identifier) {
-                if (player) player.tell(t('ban.game_usage_ban'));
-                else logger.info(t('ban.cmd_usage_ban'));
+                if (player) player.tell(t(lang, 'ban.game_usage_ban'));
+                else logger.info(t(lang, 'ban.cmd_usage_ban'));
                 return;
             }
-            const operator = player ? player.name : t('ban.default_operator');
+            const operator = player ? player.name : t(lang, 'ban.default_operator');
             let result = banPlayer(identifier, reason, operator);
             if (player) player.tell('' + (result.success ? '§a' + result.message : '§c' + result.message));
             else logger.info(result.message);
         });
         banCmd.setup();
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'pban', error));
+        logger.error(t(getSystemLang(), 'ban.err_cmd_register', 'pban', error));
     }
 
     try {
-        const unbanCmd = mc.newCommand('punban', t('ban.game_cmd_unban'), PermType.GameMasters);
+        const unbanCmd = mc.newCommand('punban', t(getSystemLang(), 'ban.game_cmd_unban'), PermType.GameMasters);
         unbanCmd.mandatory('target', ParamType.RawText);
         unbanCmd.overload(['target']);
         unbanCmd.setCallback(function(_cmd, origin, output, results) {
             let player = origin.player;
+            const lang = player ? getLocale(player.xuid) : getSystemLang();
             const identifier = String(results.target || '').trim();
             if (!identifier) {
-                if (player) player.tell(t('ban.game_usage_unban'));
-                else logger.info(t('ban.cmd_usage_unban'));
+                if (player) player.tell(t(lang, 'ban.game_usage_unban'));
+                else logger.info(t(lang, 'ban.cmd_usage_unban'));
                 return;
             }
             const result = unbanPlayer(identifier);
@@ -458,11 +467,11 @@ function registerGameCommands() {
         });
         unbanCmd.setup();
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'punban', error));
+        logger.error(t(getSystemLang(), 'ban.err_cmd_register', 'punban', error));
     }
 
     try {
-        const banlistCmd = mc.newCommand('pbanlist', t('ban.game_cmd_banlist'), PermType.GameMasters);
+        const banlistCmd = mc.newCommand('pbanlist', t(getSystemLang(), 'ban.game_cmd_banlist'), PermType.GameMasters);
         banlistCmd.overload([]);
         banlistCmd.setCallback(function(_cmd, origin, output, results) {
             const player = origin.player;
@@ -471,24 +480,24 @@ function registerGameCommands() {
             } else {
                 const list = getBanList();
                 if (list.length === 0) {
-                    logger.info(t('ban.cmd_banlist_empty'));
+                    logger.info(t(getSystemLang(), 'ban.cmd_banlist_empty'));
                 } else {
-                    logger.info(t('ban.cmd_banlist_header', list.length));
+                    logger.info(t(getSystemLang(), 'ban.cmd_banlist_header', list.length));
                     list.forEach(function(entry) {
-                        logger.info(t('ban.cmd_banlist_entry_short', entry.name, entry.xuid, entry.reason));
+                        logger.info(t(getSystemLang(), 'ban.cmd_banlist_entry_short', entry.name, entry.xuid, entry.reason));
                     });
                 }
             }
         });
         banlistCmd.setup();
     } catch (error) {
-        logger.error(t('ban.err_cmd_register', 'pbanlist', error));
+        logger.error(t(getSystemLang(), 'ban.err_cmd_register', 'pbanlist', error));
     }
 }
 
 /** Web API用封禁接口，默认操作者为"API" */
 function apiBan(identifier, reason, operator) {
-    return banPlayer(identifier, reason || t('ban.default_reason_api'), operator || t('ban.default_operator_api'));
+    return banPlayer(identifier, reason || t(getSystemLang(), 'ban.default_reason_api'), operator || t(getSystemLang(), 'ban.default_operator_api'));
 }
 
 /** Web API用解封接口 */

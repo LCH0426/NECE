@@ -23,20 +23,26 @@
 const os = require('os');
 let _deps = {};
 
-function getLang() {
+function getLocale(xuid) {
+    if (_deps.getPlayerSetting && xuid) {
+        return _deps.getPlayerSetting(xuid, 'locale') || getSystemLang();
+    }
+    return getSystemLang();
+}
+
+function getSystemLang() {
     return _deps.getSystemLanguage ? _deps.getSystemLanguage() : 'zh_CN';
 }
 
-function t(key) {
-    if (!_deps.t) return key;
-    var lang = getLang();
-    var args = [lang];
+function t(lang) {
+    if (!_deps.t) return lang;
+    var args = [];
     for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
     return _deps.t.apply(null, args);
 }
 
-function getBiomeName(biomeId) {
-    return t('sidebar.biome_' + biomeId);
+function getBiomeName(biomeId, lang) {
+    return t(lang, 'sidebar.biome_' + biomeId);
 }
 
 // 侧边栏设置缓存，避免每秒重复读取数据库；xuid -> { enableActionbar, sidebarSettings }
@@ -115,6 +121,7 @@ function startRenderLoop() {
 		onlinePlayers.forEach(function(pl) {
 			if (pl.isSimulatedPlayer()) return;
 			const xuid = pl.xuid;
+			const lang = getLocale(xuid);
 
 			// 懒加载：首次遇到玩家时读取其侧边栏相关设置并缓存
 			let cached = _sidebarCache[xuid];
@@ -205,10 +212,10 @@ function startRenderLoop() {
 						let uidText;
 						try {
 							let uid = pl.uid;
-							uidText = uid === t('sidebar.config_error') ? t('sidebar.config_error') :
-								uid === t('pc.unregistered') ? t('sidebar.unregistered') : "" + uid;
+							uidText = uid === t(getSystemLang(), 'sidebar.config_error') ? t(getSystemLang(), 'sidebar.config_error') :
+								uid === t(getSystemLang(), 'pc.unregistered') ? t(getSystemLang(), 'sidebar.unregistered') : "" + uid;
 						} catch (error) {
-							uidText = t('sidebar.fetch_failed');
+							uidText = t(getSystemLang(), 'sidebar.fetch_failed');
 						}
 						actionBar = "UID: " + uidText;
 					}
@@ -272,9 +279,9 @@ function startRenderLoop() {
 							if (device && device.lastPing !== undefined && device.lastPing !== null) {
 								const ping = device.lastPing;
 								const pingColor = ping > 200 ? "§c" : ping > 95 ? "§6" : "§a";
-								pingLine = t('sidebar.latency') + pingColor + ping + "ms";
+								pingLine = t(getSystemLang(), 'sidebar.latency') + pingColor + ping + "ms";
 							} else {
-								pingLine = t('sidebar.latency_na');
+								pingLine = t(getSystemLang(), 'sidebar.latency_na');
 							}
 							if (isCompact) { compactLines.push(pingLine); } else { sidebarData[pingLine] = sidebarScore++; }
 						}
@@ -295,12 +302,12 @@ function startRenderLoop() {
 								const speed = pl.speed;
 								if (speed !== undefined && speed !== null) {
 									const speedColor = speed <= 10 ? "§a" : speed <= 20 ? "§b" : "§6";
-									speedLine = t('sidebar.speed') + speedColor + speed.toFixed(2);
+									speedLine = t(getSystemLang(), 'sidebar.speed') + speedColor + speed.toFixed(2);
 								} else {
-									speedLine = t('sidebar.speed_na');
+									speedLine = t(getSystemLang(), 'sidebar.speed_na');
 								}
 							} catch (error) {
-								speedLine = t('sidebar.speed_na');
+								speedLine = t(getSystemLang(), 'sidebar.speed_na');
 							}
 							if (isCompact) { compactLines.push(speedLine); } else { sidebarData[speedLine] = sidebarScore++; }
 						}
@@ -318,13 +325,13 @@ function startRenderLoop() {
 								if (cachedBiome && cachedBiome.value !== undefined && cachedBiome.value !== null) {
 									let biomeId = cachedBiome.value;
 									if (biomeId.startsWith("minecraft:")) biomeId = biomeId.substring(10);
-									const chineseBiomeName = getBiomeName(biomeId);
+									const chineseBiomeName = getBiomeName(biomeId, lang);
 									biomeLine = "§d" + chineseBiomeName;
 								} else {
-									biomeLine = t('sidebar.biome_na');
+									biomeLine = t(getSystemLang(), 'sidebar.biome_na');
 								}
 							} catch (error) {
-								biomeLine = t('sidebar.biome_na');
+								biomeLine = t(getSystemLang(), 'sidebar.biome_na');
 							}
 							if (isCompact) { compactLines.push(biomeLine); } else { sidebarData[biomeLine] = sidebarScore++; }
 						}
@@ -346,7 +353,7 @@ function startRenderLoop() {
 						const h = timeNow.getHours();
 						const m = timeNow.getMinutes();
 						const s = timeNow.getSeconds();
-						const timeLine = t('sidebar.time_label') + (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+						const timeLine = t(getSystemLang(), 'sidebar.time_label') + (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
 						if (isCompact) { compactLines.push(timeLine); } else { sidebarData[timeLine] = 0; }
 					}
 
@@ -362,7 +369,7 @@ function startRenderLoop() {
 						sidebarKey = compactLines.join("|");
 					} else {
 						for (const k in sidebarData) {
-							if (k.indexOf(t('sidebar.time_label')) === -1) {
+							if (k.indexOf(t(lang, 'sidebar.time_label')) === -1) {
 								sidebarKey += k + "|";
 							}
 						}
@@ -370,17 +377,17 @@ function startRenderLoop() {
 					if (_lastRenderedSidebar[xuid] !== sidebarKey) {
 						_lastRenderedSidebar[xuid] = sidebarKey;
 						pl.removeSidebar();
-						pl.setSidebar(t('sidebar.title'), sidebarData, 0);
+						pl.setSidebar(t(getSystemLang(), 'sidebar.title'), sidebarData, 0);
 					} else if (!isCompact) {
 						// 非紧凑模式：时间行在 sidebarData 中，需要检测时间变化
 						let timeKey = "";
 						for (const k in sidebarData) {
-							if (k.indexOf(t('sidebar.time_label')) !== -1) { timeKey = k; break; }
+							if (k.indexOf(t(getSystemLang(), 'sidebar.time_label')) !== -1) { timeKey = k; break; }
 						}
 						if (timeKey && _lastRenderedTime[xuid] !== timeKey) {
 							_lastRenderedTime[xuid] = timeKey;
 							pl.removeSidebar();
-							pl.setSidebar(t('sidebar.title'), sidebarData, 0);
+							pl.setSidebar(t(getSystemLang(), 'sidebar.title'), sidebarData, 0);
 						}
 					}
 				} catch (error) {}
