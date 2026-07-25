@@ -42,13 +42,14 @@ function init(dm, deps) {
     if (!mailData.mails) mailData.mails = [];
     if (!mailData.nextId) mailData.nextId = 1;
 
-    // 迁移旧数据：read/claimed 从布尔值统一为对象格式
+    // 迁移旧数据：read/claimed/deleted 从布尔值统一为对象格式
     var migrated = false;
     mailData.mails.forEach(function(m) {
         if (m.read === false) { m.read = {}; migrated = true; }
         if (m.read === true) { m.read = {}; m.read[m.toXuid] = true; migrated = true; }
         if (m.claimed === false) { m.claimed = {}; migrated = true; }
         if (m.claimed === true) { m.claimed = {}; m.claimed[m.toXuid] = true; migrated = true; }
+        if (!m.deleted) { m.deleted = {}; migrated = true; }
     });
     if (migrated) save();
 }
@@ -159,6 +160,7 @@ function getUnreadMailCount(xuid) {
     return mailData.mails.filter(function(m) {
         if (m.scheduledTime) return false;
         if (m.toXuid !== xuid && m.toXuid !== 'all') return false;
+        if (m.deleted && m.deleted[xuid]) return false;
         return !m.read || !m.read[xuid];
     }).length;
 }
@@ -173,6 +175,7 @@ function getUnreadMailInfo(xuid) {
     const myMails = mailData.mails.filter(function(m) {
         if (m.scheduledTime) return false;
         if (m.toXuid !== xuid && m.toXuid !== 'all') return false;
+        if (m.deleted && m.deleted[xuid]) return false;
         return !m.read || !m.read[xuid];
     });
     // 区分含附件和普通邮件
@@ -405,8 +408,8 @@ function showMailListForm(player, page) {
     page = page || 0;
     const xuid = player.xuid;
     const lang = getLocale(xuid);
-    // 筛选发给自己的邮件和全体邮件，排除定时邮件
-    const myMails = mailData.mails.filter(function(m) { return (m.toXuid === xuid || m.toXuid === "all") && !m.scheduledTime; });
+    // 筛选发给自己的邮件和全体邮件，排除定时邮件和已删除邮件
+    const myMails = mailData.mails.filter(function(m) { return (m.toXuid === xuid || m.toXuid === "all") && !m.scheduledTime && !(m.deleted && m.deleted[xuid]); });
 
     myMails.sort(function(a, b) {
         function parseTimeStr(timeStr) {
@@ -555,8 +558,16 @@ function showMailDetailForm(player, mail) {
         }
 
         if (id === btnIndex) {
-            mailData.mails = mailData.mails.filter(function(m) { return m.id !== mail.id; });
-            save();
+            if (mail.toXuid === "all") {
+                // 全体邮件只标记当前玩家已删除
+                if (!mail.deleted) mail.deleted = {};
+                mail.deleted[xuid] = true;
+                save();
+            } else {
+                // 个人邮件直接删除
+                mailData.mails = mailData.mails.filter(function(m) { return m.id !== mail.id; });
+                save();
+            }
             p.tell(t(lang, 'mail.mail_deleted'));
             showMailListForm(p);
         } else if (id === btnIndex + 1) {
