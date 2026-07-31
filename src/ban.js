@@ -93,10 +93,21 @@ function resolvePlayer(identifier) {
         };
     }
 
-    // 遍历玩家数据，按名称或UID匹配
+    // 遍历玩家数据，按名称、UID或XUID匹配
     for (let xuid in players) {
         if (!players.hasOwnProperty(xuid)) continue;
         const info = players[xuid];
+        // 优先按XUID精确匹配（Web API常用XUID作为标识符）
+        if (xuid === identifier) {
+            result = {
+                xuid: xuid,
+                name: info.name || t(getSystemLang(), 'ban.unknown_player'),
+                uid: info.uid || xuid,
+                ip: '',
+                online: false
+            };
+            break;
+        }
         if (info.name && info.name.toLowerCase() === identifier.toLowerCase()) {
             result = {
                 xuid: xuid,

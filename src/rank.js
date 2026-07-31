@@ -76,7 +76,7 @@ function createRankModule(deps) {
         Object.keys(players).forEach(function(xuid) {
             const p = players[xuid];
             if (!p) return;
-            const name = p.name || t(getSystemLang(), 'rank.unknown');
+            const name = p.name || t(_getSystemLang(), 'rank.unknown');
             let value = 0;
             switch (type) {
                 case "money":
@@ -108,22 +108,22 @@ function createRankModule(deps) {
 
     function getRankTitle(type) {
         const titles = {
-            money: t(getSystemLang(), 'rank.title_money'),
-            bank: t(getSystemLang(), 'rank.title_bank'),
-            kills: t(getSystemLang(), 'rank.title_kills'),
-            deaths: t(getSystemLang(), 'rank.title_deaths'),
-            mining: t(getSystemLang(), 'rank.title_mining')
+            money: t(_getSystemLang(), 'rank.title_money'),
+            bank: t(_getSystemLang(), 'rank.title_bank'),
+            kills: t(_getSystemLang(), 'rank.title_kills'),
+            deaths: t(_getSystemLang(), 'rank.title_deaths'),
+            mining: t(_getSystemLang(), 'rank.title_mining')
         };
-        return titles[type] || t(getSystemLang(), 'rank.title');
+        return titles[type] || t(_getSystemLang(), 'rank.title');
     }
 
     function getRankUnit(type) {
         const units = {
             money: getCurrencyName(),
             bank: getCurrencyName(),
-            kills: t(getSystemLang(), 'rank.unit_times'),
-            deaths: t(getSystemLang(), 'rank.unit_times'),
-            mining: t(getSystemLang(), 'rank.unit_items')
+            kills: t(_getSystemLang(), 'rank.unit_times'),
+            deaths: t(_getSystemLang(), 'rank.unit_times'),
+            mining: t(_getSystemLang(), 'rank.unit_items')
         };
         return units[type] || "";
     }

@@ -394,7 +394,7 @@ function registerRoutes(router, d) {
     // ===== 称号管理 =====
 
     // 获取指定玩家的称号列表
-    router.get('/player/:xuid/titles', d.adminAuth, function(req, res) {
+    router.get('/players/:xuid/titles', d.adminAuth, function(req, res) {
         try {
             var xuid = req.params.xuid;
             var owned = d.chatModule.getPlayerOwnedTitles(xuid);
@@ -406,7 +406,7 @@ function registerRoutes(router, d) {
     });
 
     // 为指定玩家添加称号
-    router.post('/player/:xuid/titles', d.adminAuth, d.writeLimiter, function(req, res) {
+    router.post('/players/:xuid/titles', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var xuid = req.params.xuid;
             var title = (req.body.title || '').trim();
@@ -426,7 +426,7 @@ function registerRoutes(router, d) {
     });
 
     // 设置玩家当前使用的称号
-    router.put('/player/:xuid/titles/active', d.adminAuth, d.writeLimiter, function(req, res) {
+    router.put('/players/:xuid/titles/active', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var xuid = req.params.xuid;
             var title = (req.body.title || '').trim();
@@ -445,7 +445,7 @@ function registerRoutes(router, d) {
     });
 
     // 删除玩家的指定称号
-    router.delete('/player/:xuid/titles/:title', d.adminAuth, d.writeLimiter, function(req, res) {
+    router.delete('/players/:xuid/titles/:title', d.adminAuth, d.writeLimiter, function(req, res) {
         try {
             var xuid = req.params.xuid;
             var title = req.params.title;
