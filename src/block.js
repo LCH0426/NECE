@@ -1104,10 +1104,10 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
     if (count > 1) {
         try {
             var ppos = player.pos;
-            var entities = mc.getAllEntities();
+            var entities = mc.getEntities(ppos, 16);
             for (var i = 0; i < entities.length; i++) {
                 var e = entities[i];
-                if ((e.type === 'minecraft:item' || e.type === 'minecraft:xp_orb') && e.distanceTo(player) < 10) {
+                if (e.type === 'minecraft:item' || e.type === 'minecraft:xp_orb') {
                     e.teleport(ppos);
                 }
             }
