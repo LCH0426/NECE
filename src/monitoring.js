@@ -25,6 +25,7 @@ const D = require('./debug');
 const os = require('os');
 const fs = require('fs');
 const pathModule = require('path');
+const cp = require('child_process');
 
 // ============ 游戏统计 ============
 
@@ -448,88 +449,63 @@ function getBdsMemory() {
 // 网络吞吐量手动计算状态
 var _prevNetBytes = null;
 var _prevNetTime = null;
+var _netSampling = false;   // 异步采样守卫，防止重复 spawn 子进程
 
 /**
  * 采集网络累计收发字节，手动计算吞吐量
- * Linux/Wine: 读 /proc/net/dev（零开销）
- * Windows: wmic path Win32_PerfFormattedData_Tcpip_NetworkInterface（精准单接口）
+ * 统一用 `netstat -e`：Wine 与真实 Windows 通用，输出含累计收发字节
+ * 异步非阻塞：netstat 在后台完成后更新缓存，调用方/HTTP 响应无需等待
+ * 解析取表头之后首个含两个数字的行（中文"字节"/英文"Bytes"均适用）
  */
 function collectNetworkInfo() {
-    try {
-        // Linux/Wine 读 /proc/net/dev
-        if (os.platform() !== 'win32') {
-            try {
-                var totalReceived = 0;
-                var totalSent = 0;
-                var procNet = fs.readFileSync('/proc/net/dev', 'utf-8');
-                var lines = procNet.trim().split('\n');
-                for (var i = 2; i < lines.length; i++) {
-                    var parts = lines[i].trim().split(/[:\s]+/);
-                    if (parts[0] === 'lo' || parts[0] === 'Loopback') continue;
-                    if (parts.length >= 10) {
-                        totalReceived += parseInt(parts[1]) || 0;
-                        totalSent += parseInt(parts[9]) || 0;
-                    }
+    // 上一次采样仍在进行则跳过，避免子进程堆积
+    if (_netSampling) return;
+    _netSampling = true;
+    cp.execFile('netstat', ['-e'], {
+        encoding: 'utf-8',
+        timeout: 5000,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'ignore']
+    }, function (err, stdout) {
+        _netSampling = false;
+        if (err || !stdout) return;
+        try {
+            var totalReceived = 0;
+            var totalSent = 0;
+            var lines = stdout.split(/\r?\n/);
+            // 字节行总是表头之后第一个含两个数字的行，与输出语言无关
+            for (var i = 0; i < lines.length; i++) {
+                var nums = lines[i].match(/\d[\d.]*/g);
+                if (nums && nums.length >= 2) {
+                    totalReceived = parseInt(nums[0], 10) || 0;
+                    totalSent = parseInt(nums[1], 10) || 0;
+                    break;
                 }
-                if (totalReceived === 0 && totalSent === 0) return;
-                var now = Date.now();
-                var downSpeed = 0;
-                var upSpeed = 0;
-                if (_prevNetBytes && _prevNetTime) {
-                    var elapsed = (now - _prevNetTime) / 1000;
-                    if (elapsed > 0) {
-                        var dRx = totalReceived - _prevNetBytes.rx;
-                        var dTx = totalSent - _prevNetBytes.tx;
-                        if (dRx >= 0) downSpeed = dRx / elapsed;
-                        if (dTx >= 0) upSpeed = dTx / elapsed;
-                    }
+            }
+            if (totalReceived === 0 && totalSent === 0) return;
+            var now = Date.now();
+            var downSpeed = 0;
+            var upSpeed = 0;
+            if (_prevNetBytes && _prevNetTime) {
+                var elapsed = (now - _prevNetTime) / 1000;
+                if (elapsed > 0) {
+                    var dRx = totalReceived - _prevNetBytes.rx;
+                    var dTx = totalSent - _prevNetBytes.tx;
+                    // 计数器回绕/重置时置零，避免负值或尖峰
+                    if (dRx >= 0) downSpeed = dRx / elapsed;
+                    if (dTx >= 0) upSpeed = dTx / elapsed;
                 }
-                _prevNetBytes = { rx: totalReceived, tx: totalSent };
-                _prevNetTime = now;
-                cachedStats.network = {
-                    totalDownload: totalReceived / (1024 * 1024 * 1024),
-                    totalUpload: totalSent / (1024 * 1024 * 1024),
-                    downloadThroughput: (downSpeed * 8) / (1000 * 1000),
-                    uploadThroughput: (upSpeed * 8) / (1000 * 1000)
-                };
-            } catch (e) {}
-            return;
-        }
-
-        // Windows: typeperf 读性能计数器（execFileSync 绕过 shell）
-        var cp = require('child_process');
-        var out = cp.execFileSync('typeperf', [
-            '\\Network Interface(*)\\Bytes Received/sec',
-            '\\Network Interface(*)\\Bytes Sent/sec',
-            '-sc', '1', '-y'
-        ], { encoding: 'utf-8', timeout: 15000, stdio: ['pipe', 'pipe', 'ignore'] });
-        var lines = out.trim().split(/\r?\n/);
-        var headerLine = -1;
-        var dataLine = -1;
-        for (var i = 0; i < lines.length; i++) {
-            if (lines[i].indexOf('PDH-CSV') !== -1) headerLine = i;
-            else if (headerLine >= 0 && lines[i].match(/^"\d/)) dataLine = i;
-        }
-        if (headerLine < 0 || dataLine < 0) return;
-        var headerParts = lines[headerLine].match(/"[^"]*"/g);
-        var dataParts = lines[dataLine].match(/"[^"]*"/g);
-        if (!headerParts || !dataParts) return;
-        var sumRx = 0;
-        var sumTx = 0;
-        for (var h = 1; h < headerParts.length; h++) {
-            var path = headerParts[h].replace(/"/g, '');
-            if (path.indexOf('Loopback') !== -1) continue;
-            var val = parseFloat(dataParts[h].replace(/"/g, '')) || 0;
-            if (path.indexOf('Bytes Received') !== -1) sumRx += val;
-            else if (path.indexOf('Bytes Sent') !== -1) sumTx += val;
-        }
-        cachedStats.network = {
-            totalDownload: cachedStats.network.totalDownload,
-            totalUpload: cachedStats.network.totalUpload,
-            downloadThroughput: (sumRx * 8) / (1000 * 1000),
-            uploadThroughput: (sumTx * 8) / (1000 * 1000)
-        };
-    } catch (e) {}
+            }
+            _prevNetBytes = { rx: totalReceived, tx: totalSent };
+            _prevNetTime = now;
+            cachedStats.network = {
+                totalDownload: totalReceived / (1024 * 1024 * 1024),
+                totalUpload: totalSent / (1024 * 1024 * 1024),
+                downloadThroughput: (downSpeed * 8) / (1000 * 1000),
+                uploadThroughput: (upSpeed * 8) / (1000 * 1000)
+            };
+        } catch (e) {}
+    });
 }
 
 /**
