@@ -47,6 +47,9 @@ function registerRoutes(router, d) {
             return res.status(401).json({ code: 401, msg: 'UID或密码错误' });
         }
 
+        // 重新登录即开启新会话：清除该用户此前因重放检测留下的全局吊销标记
+        if (d.database.clearUserTokenRevocation) d.database.clearUserTokenRevocation(String(uid));
+
         // 签发Token对，Refresh Token通过Cookie下发
         const tokens = d.issueTokenPair(uid, d.webConfig);
 

@@ -393,7 +393,12 @@ function blacklistAllUserAccessTokens(uid) {
 }
 
 function isUserTokenRevoked(uid) {
-    return query(db, 'SELECT jti FROM access_token_blacklist WHERE uid = ? AND jti LIKE ?', [String(uid), '__revoke_all_%']).length > 0;
+    return query(db, 'SELECT jti FROM access_token_blacklist WHERE uid = ? AND jti LIKE ? AND expires_at > ?', [String(uid), '__revoke_all_%', Date.now()]).length > 0;
+}
+
+/** 用户重新登录（密码+验证码验证通过）后清除其全局吊销标记，允许开启新会话；旧 refresh token 仍保持 revoked，安全性不降 */
+function clearUserTokenRevocation(uid) {
+    run(db, "DELETE FROM access_token_blacklist WHERE uid = ? AND jti LIKE '__revoke_all_%'", [String(uid)]);
 }
 
 function isAccessTokenBlacklisted(jti) {
@@ -1221,6 +1226,7 @@ module.exports = {
     blacklistAllUserAccessTokens,
     isAccessTokenBlacklisted,
     isUserTokenRevoked,
+    clearUserTokenRevocation,
     cleanExpiredBlacklist,
     // 玩家数据SQL
     initPlayerDatabase,
