@@ -217,13 +217,15 @@ async function toggleBannedFilter() {
 }
 
 function handlePageChange(page: number) {
-  if (filterBanned.value) return
+  if (filterBanned.value)
+    return
   currentPage.value = page
   fetchPlayers()
 }
 
 function handlePageSizeChange(size: number) {
-  if (filterBanned.value) return
+  if (filterBanned.value)
+    return
   pageSize.value = size
   currentPage.value = 1
   fetchPlayers()
@@ -240,7 +242,8 @@ function handleSearch() {
 }
 
 function handleSortingChange(field: string, order: 'asc' | 'desc') {
-  if (filterBanned.value) return
+  if (filterBanned.value)
+    return
   sortField.value = field
   sortOrder.value = order
   currentPage.value = 1

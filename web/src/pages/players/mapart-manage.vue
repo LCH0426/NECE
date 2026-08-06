@@ -2,6 +2,8 @@
 import { ImageIcon, RefreshCwIcon, SearchIcon, Trash2Icon, XIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 
+import type { IMapArtAdminListParams, IMapArtItem } from '@/services/api/mapart.api'
+
 import UiButton from '@/components/ui/button/Button.vue'
 import UiCard from '@/components/ui/card/Card.vue'
 import UiCardContent from '@/components/ui/card/CardContent.vue'
@@ -9,7 +11,6 @@ import UiCardHeader from '@/components/ui/card/CardHeader.vue'
 import UiCardTitle from '@/components/ui/card/CardTitle.vue'
 import UiInput from '@/components/ui/input/Input.vue'
 import UiSpinner from '@/components/ui/spinner/Spinner.vue'
-import type { IMapArtAdminListParams, IMapArtItem } from '@/services/api/mapart.api'
 import { useMapArtApi } from '@/services/api/mapart.api'
 
 const { getMapArtAdminList, deleteMapArt, getMapArtImage } = useMapArtApi()
@@ -76,14 +77,17 @@ function handleClear() {
 }
 
 function goPage(p: number) {
-  if (p < 1 || p > totalPages.value) return
+  if (p < 1 || p > totalPages.value)
+    return
   page.value = p
   loadList()
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024)
+    return `${bytes} B`
+  if (bytes < 1024 * 1024)
+    return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
@@ -181,13 +185,27 @@ onMounted(() => {
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b text-muted-foreground">
-                <th class="text-left py-2 px-3 font-medium w-16">ID</th>
-                <th class="text-left py-2 px-3 font-medium w-20">缩略图</th>
-                <th class="text-left py-2 px-3 font-medium">文件名</th>
-                <th class="text-left py-2 px-3 font-medium">上传者</th>
-                <th class="text-left py-2 px-3 font-medium w-24">大小</th>
-                <th class="text-left py-2 px-3 font-medium w-40">上传时间</th>
-                <th class="text-right py-2 px-3 font-medium w-20">操作</th>
+                <th class="text-left py-2 px-3 font-medium w-16">
+                  ID
+                </th>
+                <th class="text-left py-2 px-3 font-medium w-20">
+                  缩略图
+                </th>
+                <th class="text-left py-2 px-3 font-medium">
+                  文件名
+                </th>
+                <th class="text-left py-2 px-3 font-medium">
+                  上传者
+                </th>
+                <th class="text-left py-2 px-3 font-medium w-24">
+                  大小
+                </th>
+                <th class="text-left py-2 px-3 font-medium w-40">
+                  上传时间
+                </th>
+                <th class="text-right py-2 px-3 font-medium w-20">
+                  操作
+                </th>
               </tr>
             </thead>
             <tbody>

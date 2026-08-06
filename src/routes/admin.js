@@ -20,6 +20,102 @@
  * 备份、封禁、清理、称号、经济日志等管理接口
  */
 
+var multer = require('multer');
+var zlib = require('zlib');
+
+// 建筑文件上传限制
+var STRUCTURE_MAX_FILE_SIZE = 64 * 1024 * 1024;
+
+/**
+ * 校验 .mcstructure 文件内容：小端序 NBT 或 gzip 压缩的小端序 NBT，根为 Compound 且含 size 与 structure
+ * @param {Buffer} buffer
+ * @returns {boolean}
+ */
+function validateMcstructure(buffer) {
+    try {
+        var buf = buffer;
+        if (buf.length > 2 && buf[0] === 0x1F && buf[1] === 0x8B) {
+            buf = zlib.gunzipSync(buf);
+        }
+        // 根必须为 Compound 标签 10
+        if (buf.length < 3 || buf[0] !== 10) return false;
+        var pos = 3 + buf.readUInt16LE(1); // 跳过根名
+        var hasSize = false, hasStructure = false;
+
+        function skipPayload(p, tag) {
+            switch (tag) {
+                case 1: return p + 1;                        // Byte
+                case 2: return p + 2;                        // Short
+                case 3: case 5: return p + 4;                // Int/Float
+                case 4: case 6: return p + 8;                // Long/Double
+                case 7: {                                    // ByteArray
+                    var n7 = buf.readInt32LE(p);
+                    return p + 4 + n7;
+                }
+                case 8: {                                    // String
+                    var n8 = buf.readUInt16LE(p);
+                    return p + 2 + n8;
+                }
+                case 9: {                                    // List
+                    var et = buf[p];
+                    var n9 = buf.readInt32LE(p + 1);
+                    var p9 = p + 5;
+                    for (var i = 0; i < n9; i++) p9 = skipPayload(p9, et);
+                    return p9;
+                }
+                case 10: {                                   // Compound
+                    var p10 = p;
+                    while (true) {
+                        var t = buf[p10];
+                        if (t === 0) return p10 + 1;
+                        var nl = buf.readUInt16LE(p10 + 1);
+                        p10 += 3 + nl;
+                        p10 = skipPayload(p10, t);
+                    }
+                }
+                case 11: {                                   // IntArray
+                    var n11 = buf.readInt32LE(p);
+                    return p + 4 + n11 * 4;
+                }
+                case 12: {                                   // LongArray
+                    var n12 = buf.readInt32LE(p);
+                    return p + 4 + n12 * 8;
+                }
+                default: throw new Error('unknown tag');
+            }
+        }
+
+        while (pos < buf.length) {
+            var tag = buf[pos];
+            if (tag === 0) break;
+            var nameLen = buf.readUInt16LE(pos + 1);
+            var name = buf.toString('utf8', pos + 3, pos + 3 + nameLen);
+            pos += 3 + nameLen;
+            if (name === 'size') hasSize = true;
+            if (name === 'structure') hasStructure = true;
+            pos = skipPayload(pos, tag);
+        }
+        return hasSize && hasStructure;
+    } catch (e) {
+        return false;
+    }
+}
+
+/**
+ * 校验 .nbt 文件内容：gzip 压缩的 JSON，含 version 与 size
+ * @param {Buffer} buffer
+ * @returns {boolean}
+ */
+function validateNbt(buffer) {
+    try {
+        if (buffer.length < 2 || buffer[0] !== 0x1F || buffer[1] !== 0x8B) return false;
+        var data = JSON.parse(zlib.gunzipSync(buffer).toString('utf-8'));
+        return data && typeof data === 'object' && data.size && data.size.x !== undefined && data.size.y !== undefined && data.size.z !== undefined && data.version !== undefined;
+    } catch (e) {
+        return false;
+    }
+}
+
 function registerRoutes(router, d) {
 
     // 获取备份统计信息
@@ -232,6 +328,157 @@ function registerRoutes(router, d) {
         } catch (e) {
             res.status(500).json({ code: 500, msg: '更新备份配置失败: ' + e.message});
         }
+    });
+
+    // ==================== 建筑文件管理 ====================
+
+    // 获取建筑文件列表
+    router.get('/structure/list', d.adminAuth, function(req, res) {
+        try {
+            const structureDir = d.pathModule.join(__dirname, '..', '..', 'data', 'structure');
+            if (!d.fs.existsSync(structureDir)) {
+                return res.json({ code: 200, data: [] });
+            }
+            const files = d.fs.readdirSync(structureDir);
+            const list = [];
+            files.forEach(function(file) {
+                const ln = file.toLowerCase();
+                if (!ln.endsWith('.nbt') && !ln.endsWith('.mcstructure')) return;
+                const filePath = d.pathModule.join(structureDir, file);
+                try {
+                    const stat = d.fs.statSync(filePath);
+                    if (!stat.isFile()) return;
+                    list.push({
+                        filename: file,
+                        size: stat.size,
+                        sizeFormatted: formatFileSize(stat.size),
+                        time: stat.mtimeMs,
+                        timeFormatted: formatDateTime(stat.mtime),
+                        type: ln.endsWith('.mcstructure') ? 'mcstructure' : 'nbt'
+                    });
+                } catch (e) { /* 跳过无法读取的文件 */ }
+            });
+            list.sort(function(a, b) { return b.time - a.time; });
+            res.json({ code: 200, data: list });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '获取建筑文件列表失败: ' + e.message});
+        }
+    });
+
+    // 下载建筑文件（Blob方式，需要管理员权限）
+    router.get('/structure/download/:filename', d.adminAuth, function(req, res) {
+        try {
+            const filename = req.params.filename;
+            // 防止路径穿越攻击
+            if (filename.includes('..') || filename.includes('/') || filename.includes('\\') || filename.includes('\0')) {
+                return res.status(400).json({ code: 400, msg: '非法文件名' });
+            }
+            const ln = filename.toLowerCase();
+            if (!ln.endsWith('.nbt') && !ln.endsWith('.mcstructure')) {
+                return res.status(400).json({ code: 400, msg: '只能下载.nbt或.mcstructure建筑文件' });
+            }
+            const structureDir = d.pathModule.join(__dirname, '..', '..', 'data', 'structure');
+            const filePath = d.pathModule.join(structureDir, filename);
+            const resolvedPath = d.pathModule.resolve(filePath);
+            const resolvedDir = d.pathModule.resolve(structureDir);
+            if (!resolvedPath.startsWith(resolvedDir + d.pathModule.sep)) {
+                return res.status(400).json({ code: 400, msg: '非法文件路径' });
+            }
+            if (!d.fs.existsSync(filePath)) {
+                return res.status(404).json({ code: 404, msg: '文件不存在' });
+            }
+            d.adminLog.log(req.user.uid, '下载建筑文件', '文件:' + filename);
+            res.download(filePath, filename);
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '下载建筑文件失败: ' + e.message});
+        }
+    });
+
+    // 删除建筑文件
+    router.delete('/structure/:filename', d.adminAuth, d.writeLimiter, function(req, res) {
+        try {
+            const filename = req.params.filename;
+            // 路径穿越防护
+            if (!filename || filename.indexOf('..') !== -1 || filename.indexOf('/') !== -1 || filename.indexOf('\\') !== -1 || filename.indexOf('\0') !== -1) {
+                return res.status(400).json({ code: 400, msg: '文件名不合法' });
+            }
+            const ln = filename.toLowerCase();
+            if (!ln.endsWith('.nbt') && !ln.endsWith('.mcstructure')) {
+                return res.status(400).json({ code: 400, msg: '只能删除.nbt或.mcstructure建筑文件' });
+            }
+            const structureDir = d.pathModule.join(__dirname, '..', '..', 'data', 'structure');
+            const filePath = d.pathModule.join(structureDir, filename);
+            if (!d.fs.existsSync(filePath)) {
+                return res.status(404).json({ code: 404, msg: '文件不存在' });
+            }
+            try {
+                d.fs.unlinkSync(filePath);
+            } catch (e) {
+                return res.status(500).json({ code: 500, msg: '删除文件失败: ' + e.message});
+            }
+            d.adminLog.log(req.user.uid, '删除建筑文件', '文件:' + filename);
+            res.json({ code: 200, msg: '建筑文件已删除' });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '删除建筑文件失败: ' + e.message});
+        }
+    });
+
+    // 上传建筑文件（需验证文件格式）
+    router.post('/structure/upload', d.adminAuth, d.writeLimiter, function(req, res) {
+        var upload = multer({
+            storage: multer.memoryStorage(),
+            limits: { fileSize: STRUCTURE_MAX_FILE_SIZE, files: 1 }
+        });
+        upload.single('file')(req, res, function(err) {
+            if (err) {
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({ code: 400, msg: '文件大小超过限制，最大 64MB' });
+                }
+                return res.status(400).json({ code: 400, msg: '上传失败: ' + err.message });
+            }
+            try {
+                var file = req.file;
+                if (!file) {
+                    return res.status(400).json({ code: 400, msg: '未选择文件' });
+                }
+                var filename = file.originalname || '';
+                if (!filename) {
+                    return res.status(400).json({ code: 400, msg: '文件名不合法' });
+                }
+                var ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+                if (ext !== '.mcstructure' && ext !== '.nbt') {
+                    return res.status(400).json({ code: 400, msg: '仅支持 .mcstructure 或 .nbt 建筑文件' });
+                }
+                if (ext === '.mcstructure') {
+                    if (!validateMcstructure(file.buffer)) {
+                        return res.status(400).json({ code: 400, msg: '文件内容不是有效的 .mcstructure 结构文件' });
+                    }
+                } else {
+                    if (!validateNbt(file.buffer)) {
+                        return res.status(400).json({ code: 400, msg: '文件内容不是有效的 .nbt 结构文件' });
+                    }
+                }
+                var structureDir = d.pathModule.join(__dirname, '..', '..', 'data', 'structure');
+                if (!d.fs.existsSync(structureDir)) {
+                    d.fs.mkdirSync(structureDir, { recursive: true });
+                }
+                // 文件名消毒并处理重名
+                var safeName = String(filename).replace(/[\\/:*?"<>|\0]/g, '_').trim();
+                var finalName = safeName;
+                var counter = 1;
+                var base = safeName.substring(0, safeName.length - ext.length);
+                while (d.fs.existsSync(d.pathModule.join(structureDir, finalName))) {
+                    finalName = base + '_' + counter + ext;
+                    counter++;
+                }
+                var filePath = d.pathModule.join(structureDir, finalName);
+                d.fs.writeFileSync(filePath, file.buffer);
+                d.adminLog.log(req.user.uid, '上传建筑文件', '文件:' + finalName + ' 大小:' + formatFileSize(file.size));
+                res.json({ code: 200, msg: '上传成功', data: { filename: finalName, size: file.size } });
+            } catch (e) {
+                res.status(500).json({ code: 500, msg: '上传建筑文件失败: ' + e.message });
+            }
+        });
     });
 
     // 执行数据备份（打包data目录）
@@ -799,6 +1046,35 @@ function registerRoutes(router, d) {
             res.status(500).json({ code: 500, msg: '雷劈失败: ' + e.message });
         }
     });
+}
+
+/**
+ * 格式化字节数为可读字符串
+ * @param {number} bytes
+ * @returns {string}
+ */
+function formatFileSize(bytes) {
+    if (!bytes || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = Math.floor(Math.log(bytes) / Math.log(1024));
+    if (i >= units.length) i = units.length - 1;
+    return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + units[i];
+}
+
+/**
+ * 格式化日期为 YYYY-MM-DD hh:mm:ss 字符串
+ * @param {Date|string|number} date
+ * @returns {string}
+ */
+function formatDateTime(date) {
+    const d = new Date(date);
+    const y = d.getFullYear();
+    const M = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    const s = String(d.getSeconds()).padStart(2, '0');
+    return y + '-' + M + '-' + day + ' ' + h + ':' + m + ':' + s;
 }
 
 module.exports = { registerRoutes };

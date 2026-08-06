@@ -49,6 +49,7 @@ export function useSidebar() {
       { title: '商店管理', url: '/config/shop' },
       { title: 'CDK管理', url: '/config/cdk' },
       { title: '备份管理', url: '/config/backup' },
+      { title: '建筑管理', url: '/config/structure' },
     ]
 
     return [

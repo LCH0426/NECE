@@ -103,6 +103,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/config/structure': RouteRecordInfo<
+      '/config/structure',
+      '/config/structure',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/config/wish': RouteRecordInfo<
       '/config/wish',
       '/config/wish',
@@ -381,6 +388,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/config/shop.vue': {
       routes:
         | '/config/shop'
+      views:
+        | never
+    }
+    'src/pages/config/structure.vue': {
+      routes:
+        | '/config/structure'
       views:
         | never
     }

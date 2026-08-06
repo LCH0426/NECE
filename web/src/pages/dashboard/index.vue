@@ -24,15 +24,16 @@
 
 <script lang="ts" setup>
 import { WrenchIcon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
+
+import type { IMaintenanceStatus } from '@/services/api/system.api'
+
 import { BasicPage } from '@/components/global-layout'
 import { useSystemApi } from '@/services/api/system.api'
-import { toast } from 'vue-sonner'
 
 import EconomyContent from './components/economy-content.vue'
 import PerformanceContent from './components/performance-content.vue'
 import PlayerCountContent from './components/player-count-content.vue'
-
-import type { IMaintenanceStatus } from '@/services/api/system.api'
 
 const tabs = ref([
   { name: '性能', value: 'performance' },

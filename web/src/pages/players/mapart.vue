@@ -8,6 +8,8 @@ import {
 } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 
+import type { IMapArtItem, IMapArtQuota } from '@/services/api/mapart.api'
+
 import UiButton from '@/components/ui/button/Button.vue'
 import UiCard from '@/components/ui/card/Card.vue'
 import UiCardContent from '@/components/ui/card/CardContent.vue'
@@ -15,7 +17,6 @@ import UiCardHeader from '@/components/ui/card/CardHeader.vue'
 import UiCardTitle from '@/components/ui/card/CardTitle.vue'
 import UiInput from '@/components/ui/input/Input.vue'
 import UiSpinner from '@/components/ui/spinner/Spinner.vue'
-import type { IMapArtItem, IMapArtQuota } from '@/services/api/mapart.api'
 import { useMapArtApi } from '@/services/api/mapart.api'
 
 const { uploadMapArt, getMapArtList, deleteMapArt, getMapArtImage, getQuota } = useMapArtApi()
@@ -72,8 +73,10 @@ async function loadThumbnail(id: number) {
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024)
+    return `${bytes} B`
+  if (bytes < 1024 * 1024)
+    return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 

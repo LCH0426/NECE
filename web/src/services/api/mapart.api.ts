@@ -92,7 +92,8 @@ export function useMapArtApi() {
         credentials: 'include',
       })
 
-      if (!res.ok) return null
+      if (!res.ok)
+        return null
       const blob = await res.blob()
       return URL.createObjectURL(blob)
     }
@@ -103,9 +104,12 @@ export function useMapArtApi() {
 
   function getMapArtAdminList(params?: IMapArtAdminListParams) {
     const query = new URLSearchParams()
-    if (params?.page) query.set('page', String(params.page))
-    if (params?.pageSize) query.set('pageSize', String(params.pageSize))
-    if (params?.uid) query.set('uid', params.uid)
+    if (params?.page)
+      query.set('page', String(params.page))
+    if (params?.pageSize)
+      query.set('pageSize', String(params.pageSize))
+    if (params?.uid)
+      query.set('uid', params.uid)
     const qs = query.toString()
     return apiFetch<ILeResponse<IMapArtAdminListData>>(`/mapart/admin/list${qs ? `?${qs}` : ''}`, {
       method: 'GET',
