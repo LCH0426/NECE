@@ -102,7 +102,6 @@ var _chainCooldowns = {};
 // 选区逻辑复用快速建造的破坏模式（左键选点+拦截破坏，空手右键取消/退出），通过 _playerBuildModes='assistant' 标记区分
 var ASSISTANT_BOSSBAR_UID = 88001;
 var ASSISTANT_BATCH_SIZE = 5000;
-var ASSISTANT_MAX_VOLUME = 1000000;
 
 // 默认计划配置
 var DEFAULT_PLANS = {
@@ -150,7 +149,206 @@ var _playerSelections = {};
 // 选点冷却 { xuid: timestamp }
 var _selectCooldown = {};
 
+// 建筑助手快照指针 { xuid: { file, dimid, minX, minY, minZ, maxX, maxY, maxZ, total } }
+// 快照物理文件保存在 data/temp 目录，日期命名，用后仅清空指针保留文件
+var _assistantSnapshots = {};
 
+// 建筑助手选区用途 { xuid: 'export' | 'copy' }，决定两点齐后触发的表单
+var _assistantSelMode = {};
+
+// 剪贴板指针 { xuid: { file, dimid, size, total } }
+// 剪贴板文件保存在 data/temp，每玩家固定一份，粘贴后仅清空指针保留文件
+var _clipboard = {};
+
+function getTempDir() {
+    var dir = path.join(__dirname, '..', 'data', 'temp');
+    try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (e) { logger.error('[block] 创建temp目录失败: ' + e.message); }
+    return dir;
+}
+
+function snapshotFileName(xuid) {
+    return 'assistant_snapshot_' + xuid + '_' + Date.now() + '.nbt';
+}
+
+// 读取快照文件，返回 {size, palette, blocks, tileEntities}，失败返回 null
+function readSnapshotFile(filePath) {
+    try {
+        var raw = fs.readFileSync(filePath);
+        var data;
+        try { data = JSON.parse(zlib.gunzipSync(raw).toString('utf-8')); } catch (e) { data = JSON.parse(raw.toString('utf-8')); }
+        return data;
+    } catch (e) { return null; }
+}
+
+// 保存目标区域快照到 data/temp，返回文件路径，失败返回 null
+// 异步分批保存目标区域方块到文件，带进度条，完成后回调 onDone(filePath|null)
+function saveSnapshotRegion(player, minPos, maxPos, dimid, filePath, progressKey, onDone) {
+    var lang = getLocale(player.xuid);
+    var sx = maxPos.x - minPos.x + 1, sy = maxPos.y - minPos.y + 1, sz = maxPos.z - minPos.z + 1;
+    var total = sx * sy * sz;
+    var palette = [{ name: 'minecraft:air', aux: 0, snbt: '' }];
+    var paletteMap = {};
+    var blocks = new Array(total);
+    var tileEntities = [];
+    var plane = sx * sz;
+    var i = 0;
+    if (!filePath) filePath = path.join(getTempDir(), snapshotFileName(player.xuid));
+    assistantSetBossBar(player, t(lang, progressKey || 'quick_build.assistant_import_progress', '0'), 0);
+
+    function batch() {
+        var end = Math.min(i + ASSISTANT_BATCH_SIZE, total);
+        for (; i < end; i++) {
+            var y = Math.floor(i / plane);
+            var r = i - y * plane;
+            var z = Math.floor(r / sx);
+            var x = r - z * sx;
+            var wx = minPos.x + x, wy = minPos.y + y, wz = minPos.z + z;
+            var b = null;
+            try { b = mc.getBlock(wx, wy, wz, dimid); } catch (e) { b = null; }
+            if (!b || !b.type || b.type === 'minecraft:air') {
+                blocks[i] = 0;
+                continue;
+            }
+            var snbt = '';
+            try { snbt = b.getNbt().toSNBT(); } catch (e) { snbt = ''; }
+            var aux = 0;
+            try { aux = (typeof b.tileData !== 'undefined' ? b.tileData : (typeof b.aux !== 'undefined' ? b.aux : 0)); } catch (e) { aux = 0; }
+            var key = snbt || ('__fail__' + b.type + '__' + aux);
+            var idx = paletteMap[key];
+            if (idx == null) {
+                idx = palette.length;
+                paletteMap[key] = idx;
+                palette.push({ name: b.type, aux: aux, snbt: snbt });
+            }
+            blocks[i] = idx;
+            var hasBE = true;
+            try { if (typeof b.hasBlockEntity === 'function') hasBE = b.hasBlockEntity(); } catch (e) { hasBE = true; }
+            if (hasBE) {
+                try {
+                    var be = mc.getBlockEntity(wx, wy, wz, dimid);
+                    if (be) {
+                        var beSnbt = be.getNbt().toSNBT();
+                        if (beSnbt) tileEntities.push({ x: x, y: y, z: z, snbt: beSnbt });
+                    }
+                } catch (e) { }
+            }
+        }
+        var pct = Math.floor((i / total) * 100);
+        assistantSetBossBar(player, t(lang, progressKey || 'quick_build.assistant_import_progress', String(pct)), pct);
+        updateTaskAnim(player, i, total);
+        if (i < total) {
+            setTimeout(batch, 0);
+        } else {
+            assistantRemoveBossBar(player);
+            try {
+                var data = {
+                    version: 1,
+                    dimid: dimid,
+                    size: { x: sx, y: sy, z: sz },
+                    origin: { x: minPos.x, y: minPos.y, z: minPos.z },
+                    palette: palette,
+                    blocks: blocks,
+                    tileEntities: tileEntities
+                };
+                var gz = zlib.gzipSync(Buffer.from(JSON.stringify(data), 'utf-8'));
+                fs.writeFileSync(filePath, gz);
+                if (onDone) onDone(filePath);
+            } catch (e) {
+                logger.error('[block] 区域保存失败: ' + e.message);
+                if (onDone) onDone(null);
+            }
+        }
+    }
+
+    batch();
+}
+
+// 用快照文件恢复目标区域，恢复成功后清空该玩家快照指针
+function undoImport(player, snapshotMeta) {
+    var lang = getLocale(player.xuid);
+    var data = readSnapshotFile(snapshotMeta.file);
+    if (!data) {
+        player.tell(t(lang, 'quick_build.assistant_undo_failed'));
+        delete _assistantSnapshots[player.xuid];
+        return;
+    }
+    var sx = data.size.x, sy = data.size.y, sz = data.size.z;
+    var total = sx * sy * sz;
+    var palette = data.palette || [{ name: 'minecraft:air', aux: 0, snbt: '' }];
+    var blocks = data.blocks || [];
+    var tileEntities = data.tileEntities || [];
+    var dimid = snapshotMeta.dimid;
+    var minX = snapshotMeta.minX, minY = snapshotMeta.minY, minZ = snapshotMeta.minZ;
+    var plane = sx * sz;
+    var i = 0;
+
+    if (!acquireTaskLock(player)) return;
+    startTaskAnim(player);
+
+    function batch() {
+        var end = Math.min(i + ASSISTANT_BATCH_SIZE, total);
+        for (; i < end; i++) {
+            var y = Math.floor(i / plane);
+            var r = i - y * plane;
+            var z = Math.floor(r / sx);
+            var x = r - z * sx;
+            var wx = minX + x, wy = minY + y, wz = minZ + z;
+            var entry = palette[blocks[i]] || palette[0];
+            var bname = entry.name || 'minecraft:air';
+            try {
+                mc.setBlock(wx, wy, wz, dimid, bname, entry.aux || 0);
+                if (bname !== 'minecraft:air' && entry.snbt) {
+                    var nb = mc.getBlock(wx, wy, wz, dimid);
+                    if (nb) nb.setNbt(NBT.parseSNBT(entry.snbt));
+                }
+            } catch (e) { }
+        }
+        var pct = Math.floor((i / total) * 100);
+        assistantSetBossBar(player, t(lang, 'quick_build.assistant_undo_progress', String(pct)), pct);
+        updateTaskAnim(player, i, total);
+        if (i < total) {
+            setTimeout(batch, 0);
+        } else {
+            undoTileEntities();
+        }
+    }
+
+    function undoTileEntities() {
+        var j = 0, teTotal = tileEntities.length;
+        function teBatch() {
+            var end = Math.min(j + ASSISTANT_BATCH_SIZE, teTotal);
+            for (; j < end; j++) {
+                var te = tileEntities[j];
+                try {
+                    var be = mc.getBlockEntity(minX + te.x, minY + te.y, minZ + te.z, dimid);
+                    if (be) be.setNbt(NBT.parseSNBT(te.snbt));
+                } catch (e) { }
+            }
+            var pct = teTotal > 0 ? Math.floor((j / teTotal) * 100) : 100;
+            assistantSetBossBar(player, t(lang, 'quick_build.assistant_undo_progress', String(pct)), pct);
+            updateTaskAnim(player, j, teTotal);
+            if (j < teTotal) setTimeout(teBatch, 0);
+            else {
+                assistantRemoveBossBar(player);
+                stopTaskAnim(player);
+                releaseTaskLock(player);
+                delete _assistantSnapshots[player.xuid];
+                player.tell(t(lang, 'quick_build.assistant_undo_success', String(total)));
+            }
+        }
+        if (teTotal === 0) {
+            assistantRemoveBossBar(player);
+            stopTaskAnim(player);
+            releaseTaskLock(player);
+            delete _assistantSnapshots[player.xuid];
+            player.tell(t(lang, 'quick_build.assistant_undo_success', String(total)));
+        } else {
+            teBatch();
+        }
+    }
+
+    batch();
+}
 
 // ============ 初始化 ============
 
@@ -159,6 +357,14 @@ function init(deps) {
     registerChainListener();
     registerBlockPlaceListener();
     startBlockTipTimer();
+    startAssistantParticleTimer();
+    // 玩家切换维度或退出游戏时取消进行中的任务
+    mc.listen('onPlayerChangeDimension', function(pl) {
+        if (pl) cancelPlayerTask(pl);
+    });
+    mc.listen('onPlayerLeft', function(pl) {
+        if (pl) cancelPlayerTask(pl);
+    });
     // 延迟到服务器启动后加载iland API
     mc.listen('onServerStarted', function() {
         initIlandAPI();
@@ -1276,6 +1482,77 @@ function startBlockTipTimer() {
     }, 1000);
 }
 
+// 沿坐标轴方向在一条棱上每格发射一个粒子
+function spawnParticleLine(pos, axis, from, to, dimid) {
+    var step = (to >= from) ? 1 : -1;
+    for (var v = from; v !== to + step; v += step) {
+        var p = { x: pos.x, y: pos.y, z: pos.z, dimid: dimid };
+        if (axis === 'x') p.x = v;
+        else if (axis === 'y') p.y = v;
+        else p.z = v;
+        try { mc.spawnParticle(p, 'crop_growth_area_emitter'); } catch (e) { }
+    }
+}
+
+// 绘制选区长方体线框：底面 4 条 + 顶面 4 条 + 4 条竖直高，共 12 条（每格一个粒子，所有玩家可见）
+function drawSelectionBorder(sel) {
+    var minX = Math.min(sel.pointA.x, sel.pointB.x), maxX = Math.max(sel.pointA.x, sel.pointB.x);
+    var minY = Math.min(sel.pointA.y, sel.pointB.y), maxY = Math.max(sel.pointA.y, sel.pointB.y);
+    var minZ = Math.min(sel.pointA.z, sel.pointB.z), maxZ = Math.max(sel.pointA.z, sel.pointB.z);
+    var dimid = sel.pointA.dimid;
+    // 底面 4 条
+    spawnParticleLine({ x: minX, y: minY, z: minZ }, 'x', minX, maxX, dimid);
+    spawnParticleLine({ x: minX, y: minY, z: maxZ }, 'x', minX, maxX, dimid);
+    spawnParticleLine({ x: minX, y: minY, z: minZ }, 'z', minZ, maxZ, dimid);
+    spawnParticleLine({ x: maxX, y: minY, z: minZ }, 'z', minZ, maxZ, dimid);
+    // 顶面 4 条
+    spawnParticleLine({ x: minX, y: maxY, z: minZ }, 'x', minX, maxX, dimid);
+    spawnParticleLine({ x: minX, y: maxY, z: maxZ }, 'x', minX, maxX, dimid);
+    spawnParticleLine({ x: minX, y: maxY, z: minZ }, 'z', minZ, maxZ, dimid);
+    spawnParticleLine({ x: maxX, y: maxY, z: minZ }, 'z', minZ, maxZ, dimid);
+    // 4 条竖直高
+    spawnParticleLine({ x: minX, y: minY, z: minZ }, 'y', minY, maxY, dimid);
+    spawnParticleLine({ x: maxX, y: minY, z: minZ }, 'y', minY, maxY, dimid);
+    spawnParticleLine({ x: minX, y: minY, z: maxZ }, 'y', minY, maxY, dimid);
+    spawnParticleLine({ x: maxX, y: minY, z: maxZ }, 'y', minY, maxY, dimid);
+}
+
+// 每秒为建筑助手模式且有完整选区的玩家绘制粒子边框
+function startAssistantParticleTimer() {
+    setInterval(function() {
+        var players = mc.getOnlinePlayers();
+        for (var i = 0; i < players.length; i++) {
+            var p = players[i];
+            if (!_enabledPlayers[p.xuid]) continue;
+            if (_playerBuildModes[p.xuid] !== 'assistant') continue;
+            var sel = _playerSelections[p.xuid];
+            if (sel && sel.pointA && sel.pointB) {
+                drawSelectionBorder(sel);
+            }
+        }
+    }, 1000);
+}
+
+// 建筑助手统一选点处理：记录一点，两点齐后按选区用途触发对应表单
+function handleAssistantPoint(player, sel, placePos) {
+    var xuid = player.xuid;
+    var lang = getLocale(xuid);
+    if (!sel.pointA) {
+        sel.pointA = placePos;
+        player.tell(t(lang, 'quick_build.assistant_point_a', String(placePos.x), String(placePos.y), String(placePos.z)));
+    } else if (!sel.pointB) {
+        sel.pointB = placePos;
+        player.tell(t(lang, 'quick_build.assistant_point_b', String(placePos.x), String(placePos.y), String(placePos.z)));
+    }
+    if (sel.pointA && sel.pointB) {
+        if (_assistantSelMode[xuid] === 'copy') {
+            showCopyModeForm(player);
+        } else {
+            showExportForm(player);
+        }
+    }
+}
+
 function toggleBlockMode(player, mode) {
 	const lang = getLocale(player.xuid);
     var xuid = player.xuid;
@@ -1619,29 +1896,23 @@ function registerBlockPlaceListener() {
 
             var isAssistant = buildMode === 'assistant';
 
-            if (!sel.pointA) {
-                sel.pointA = placePos;
-                if (isAssistant) {
-                    player.tell(t(lang, 'quick_build.assistant_point_a', String(placePos.x), String(placePos.y), String(placePos.z)));
-                } else {
+            if (isAssistant) {
+                handleAssistantPoint(player, sel, placePos);
+            } else {
+                if (!sel.pointA) {
+                    sel.pointA = placePos;
                     player.tell(t(lang, 'quick_build.a_marked', placePos.x, placePos.y, placePos.z));
-                }
-                return false;
-            }
-            if (!sel.pointB) {
-                sel.pointB = placePos;
-                if (isAssistant) {
-                    player.tell(t(lang, 'quick_build.assistant_point_b', String(placePos.x), String(placePos.y), String(placePos.z)));
-                    showExportForm(player);
-                } else {
+                } else if (!sel.pointB) {
+                    sel.pointB = placePos;
                     player.tell(t(lang, 'quick_build.b_marked', placePos.x, placePos.y, placePos.z));
+                }
+                if (sel.pointA && sel.pointB) {
                     if (player.gameMode === 1) {
                         doCreativeFill(player);
                     } else {
                         showFillConfirmForm(player);
                     }
                 }
-                return false;
             }
             return false;
         } catch (e) { logger.error('[block] onDestroyBlock异常: ' + e.message); }
@@ -1697,17 +1968,16 @@ function registerBlockPlaceListener() {
             if (!sel.pointA) {
                 sel.pointA = placePos;
                 player.tell(t(lang, 'quick_build.a_marked', String(placePos.x), String(placePos.y), String(placePos.z)));
-                return false;
-            }
-            if (!sel.pointB) {
+            } else if (!sel.pointB) {
                 sel.pointB = placePos;
                 player.tell(t(lang, 'quick_build.b_marked', String(placePos.x), String(placePos.y), String(placePos.z)));
+            }
+            if (sel.pointA && sel.pointB) {
                 if (player.gameMode === 1) {
                     doCreativeFill(player);
                 } else {
                     showFillConfirmForm(player);
                 }
-                return false;
             }
             return false;
         } catch (e) { logger.error('[block] onUseItemOn异常: ' + e.message); }
@@ -1769,11 +2039,81 @@ function showBlockForm(player) {
 
 // ============ 命令注册 ============
 
+// 命令选点：在选区模式下将当前玩家所在方块设为基础点，A/B 顺序任意，两点齐后触发后续流程
+function setSelectionPointByCommand(player, pointName) {
+    const lang = getLocale(player.xuid);
+    var xuid = player.xuid;
+    if (!_enabledPlayers[xuid] || !_playerSelections[xuid]) {
+        player.tell(t(lang, 'quick_build.mode_closed'));
+        return;
+    }
+    var sel = _playerSelections[xuid];
+    var buildMode = _playerBuildModes[xuid] || 'fill';
+    var isAssistant = buildMode === 'assistant';
+    var pos = player.pos;
+    if (!pos) return;
+    var placePos = { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z), dimid: pos.dimid };
+
+    if (!canPlayerBuildAt(player, placePos)) {
+        player.tell(t(lang, 'quick_build.land_no_permission'));
+        return;
+    }
+
+    // 无论选 A 还是选 B 都直接记录，A/B 顺序任意
+    if (pointName === 'a') {
+        sel.pointA = placePos;
+        player.tell(t(lang, isAssistant ? 'quick_build.assistant_point_a' : 'quick_build.a_marked',
+            String(placePos.x), String(placePos.y), String(placePos.z)));
+    } else {
+        sel.pointB = placePos;
+        player.tell(t(lang, isAssistant ? 'quick_build.assistant_point_b' : 'quick_build.b_marked',
+            String(placePos.x), String(placePos.y), String(placePos.z)));
+    }
+
+    // 两点齐了才触发后续流程
+    if (!sel.pointA || !sel.pointB) return;
+    if (isAssistant) {
+        if (_assistantSelMode[xuid] === 'copy') {
+            showCopyModeForm(player);
+        } else {
+            showExportForm(player);
+        }
+    } else {
+        if (player.gameMode === 1) {
+            doCreativeFill(player);
+        } else {
+            showFillConfirmForm(player);
+        }
+    }
+}
+
 function registerBlockCommand(registerPlayerCommand) {
-    registerPlayerCommand('block', 'Block功能菜单', function(player) {
-        showChainSettingsForm(player);
-    });
     registerPlayerCommand('bp', 'Block Plan', function(p) { showPlanMenu(p); });
+
+    try {
+        var cmd = mc.newCommand('block', 'Block功能菜单', PermType.Any);
+        cmd.optional('point', ParamType.String);
+        cmd.overload([]);
+        cmd.overload(['point']);
+        cmd.setCallback(function(_cmd, origin, output, results) {
+            var player = origin.player;
+            if (!player) {
+                output.error('§c此命令仅限玩家在游戏内执行！');
+                return;
+            }
+            if (results && results.point) {
+                var pt = String(results.point).toLowerCase();
+                if (pt === 'a' || pt === 'b') {
+                    setSelectionPointByCommand(player, pt);
+                    return;
+                }
+            }
+            showChainSettingsForm(player);
+        });
+        cmd.setup();
+    } catch (e) {
+        logger.error('[block] /block 命令注册出错: ' + e.message);
+    }
 }
 
 function setDebugMode(enabled) { _debug = !!enabled; }
@@ -1832,34 +2172,147 @@ function assistantRemoveBossBar(player) {
     try { player.removeBossBar(ASSISTANT_BOSSBAR_UID); } catch (e) { }
 }
 
+// 任务动画帧符号
+var _TASK_ANIM_FRAMES = ['⣷', '⣯', '⣟', '⡿', '⢿', '⣻', '⣽', '⣾'];
+// 任务动画状态 { xuid: { startTime, done, total, timer } }
+var _taskAnims = {};
+// 任务锁 { xuid: true }，每玩家同时只能跑一个异步任务
+var _taskLocks = {};
+
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+function formatETA(sec) {
+    if (sec < 0) sec = 0;
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    return pad2(h) + ':' + pad2(m) + ':' + pad2(s);
+}
+
+// 获取任务锁，已有任务则提示并返回 false
+function acquireTaskLock(player) {
+    var xuid = player.xuid;
+    if (_taskLocks[xuid]) {
+        try { player.tell(t(getLocale(xuid), 'quick_build.assistant_task_busy')); } catch (e) { }
+        return false;
+    }
+    _taskLocks[xuid] = true;
+    return true;
+}
+function releaseTaskLock(player) {
+    delete _taskLocks[player.xuid];
+}
+
+// 开始任务动画，每秒更新 title 位置
+function startTaskAnim(player) {
+    var xuid = player.xuid;
+    stopTaskAnim(player);
+    _taskAnims[xuid] = { startTime: Date.now(), done: 0, total: 1, timer: null };
+    _taskAnims[xuid].timer = setInterval(function() { renderTaskAnim(player, xuid); }, 1000);
+}
+// 更新动画进度，不影响 bossbar
+function updateTaskAnim(player, done, total) {
+    var xuid = player.xuid;
+    var anim = _taskAnims[xuid];
+    if (!anim) return;
+    anim.done = done;
+    anim.total = total;
+    renderTaskAnim(player, xuid);
+}
+// 停止动画并清理状态
+function stopTaskAnim(player) {
+    var xuid = player.xuid;
+    var anim = _taskAnims[xuid];
+    if (anim && anim.timer) { try { clearInterval(anim.timer); } catch (e) { } }
+    delete _taskAnims[xuid];
+}
+// 渲染一帧动画到 title 位置
+function renderTaskAnim(player, xuid) {
+    var anim = _taskAnims[xuid];
+    if (!anim) return;
+    var now = Date.now();
+    var frame = Math.floor((now - anim.startTime) / 1000) % _TASK_ANIM_FRAMES.length;
+    var ch = _TASK_ANIM_FRAMES[frame];
+    var done = anim.done, total = anim.total;
+    var etaStr = '--:--:--';
+    if (done > 0 && total > done) {
+        var usedSec = (now - anim.startTime) / 1000;
+        var remainSec = Math.floor((usedSec / done) * (total - done));
+        etaStr = formatETA(remainSec);
+    }
+    try { player.tell(ch + ' ' + done + '/' + total + ' ETA: ' + etaStr, 4); } catch (e) { }
+}
+
+// 玩家退出或切换维度时取消任务，释放锁并移除 bossbar
+function cancelPlayerTask(player) {
+    var xuid = player.xuid;
+    if (!_taskAnims[xuid]) return;
+    stopTaskAnim(player);
+    releaseTaskLock(player);
+    try { player.removeBossBar(ASSISTANT_BOSSBAR_UID); } catch (e) { }
+}
+
+// 进入建筑助手选区模式，selMode 区分选区用途 export/copy
+function enterAssistantSelection(player, selMode) {
+    var xuid = player.xuid;
+    var lang = getLocale(xuid);
+    try {
+        var isSelecting = ll.import('ILAPI_IsSelecting');
+        if (isSelecting && isSelecting(xuid)) {
+            player.tell(t(lang, 'quick_build.assistant_iland_selecting'));
+            return false;
+        }
+    } catch (e) {}
+    _enabledPlayers[xuid] = true;
+    _playerBuildModes[xuid] = 'assistant';
+    _playerSelections[xuid] = {};
+    _assistantSelMode[xuid] = selMode || 'export';
+    player.tell(t(lang, 'quick_build.assistant_enter_mode'));
+    player.tell(buildBlockTip(xuid), 4);
+    return true;
+}
+
 function showAssistantForm(player) {
     if (!isPlayerOP(player)) return;
     var lang = getLocale(player.xuid);
+    var xuid = player.xuid;
+    var hasSnapshot = !!_assistantSnapshots[xuid];
+    var hasClipboard = !!_clipboard[xuid];
+    var funcs = [t(lang, 'quick_build.assistant_export'), t(lang, 'quick_build.assistant_import'), t(lang, 'quick_build.assistant_copy'), t(lang, 'quick_build.assistant_shape')];
+    var idxUndo = -1, idxPaste = -1, idxShape = 3;
+    if (hasSnapshot) { funcs.push(t(lang, 'quick_build.assistant_undo')); idxUndo = funcs.length - 1; }
+    if (hasClipboard) { funcs.push(t(lang, 'quick_build.assistant_paste')); idxPaste = funcs.length - 1; }
     var fm = mc.newCustomForm();
     fm.setTitle(t(lang, 'quick_build.assistant_title'));
     fm.addLabel(t(lang, 'quick_build.assistant_form_label'));
-    fm.addDropdown(t(lang, 'quick_build.assistant_func_dropdown'), [t(lang, 'quick_build.assistant_export'), t(lang, 'quick_build.assistant_import')], 0);
+    fm.addDropdown(t(lang, 'quick_build.assistant_func_dropdown'), funcs, 0);
     player.sendForm(fm, function(pl, data) {
         if (data == null) return;
         var plang = getLocale(pl.xuid);
         var idx = (typeof data[1] === 'number') ? data[1] : 0;
+        // 撤回导入
+        if (hasSnapshot && idx === idxUndo) {
+            var meta = _assistantSnapshots[pl.xuid];
+            if (!meta) {
+                pl.tell(t(plang, 'quick_build.assistant_no_snapshot'));
+                return;
+            }
+            undoImport(pl, meta);
+            return;
+        }
+        // 粘贴选区
+        if (hasClipboard && idx === idxPaste) {
+            showPasteCoordForm(pl);
+            return;
+        }
+        // 形状生成
+        if (idx === idxShape) {
+            showShapeSelectForm(pl);
+            return;
+        }
         if (idx === 1) {
             showImportFileForm(pl);
+        } else if (idx === 2) {
+            enterAssistantSelection(pl, 'copy');
         } else {
-            // 复用快速建造破坏模式选区逻辑：左键选点+拦截破坏，空手右键取消/退出
-            // 保留领地选区检测（ILAPI_IsSelecting）
-            try {
-                var isSelecting = ll.import('ILAPI_IsSelecting');
-                if (isSelecting && isSelecting(pl.xuid)) {
-                    pl.tell(t(plang, 'quick_build.assistant_iland_selecting'));
-                    return;
-                }
-            } catch (e) {}
-            _enabledPlayers[pl.xuid] = true;
-            _playerBuildModes[pl.xuid] = 'assistant';
-            _playerSelections[pl.xuid] = {};
-            pl.tell(t(plang, 'quick_build.assistant_enter_mode'));
-            pl.tell(buildBlockTip(pl.xuid), 4);
+            enterAssistantSelection(pl, 'export');
         }
     });
 }
@@ -1876,12 +2329,6 @@ function showExportForm(player) {
     var sx = bx - ax + 1, sy = by - ay + 1, sz = bz - az + 1;
     var volume = sx * sy * sz;
     var dimid = sel.pointA.dimid;
-
-    if (volume > ASSISTANT_MAX_VOLUME) {
-        player.tell(t(lang, 'quick_build.assistant_too_large', String(sx), String(sy), String(sz), String(volume), String(ASSISTANT_MAX_VOLUME)));
-        exitAssistantMode(player);
-        return;
-    }
 
     var fm = mc.newCustomForm();
     fm.setTitle(t(lang, 'quick_build.assistant_export_title'));
@@ -1933,14 +2380,544 @@ function showImportCoordForm(player, filename) {
     fm.addInput(t(lang, 'quick_build.assistant_x_label'), t(lang, 'quick_build.assistant_coord_placeholder', String(px)), String(px));
     fm.addInput(t(lang, 'quick_build.assistant_y_label'), t(lang, 'quick_build.assistant_coord_placeholder', String(py)), String(py));
     fm.addInput(t(lang, 'quick_build.assistant_z_label'), t(lang, 'quick_build.assistant_coord_placeholder', String(pz)), String(pz));
+    fm.addSlider(t(lang, 'quick_build.assistant_rotate_label'), 0, 360, 90, 0);
+    fm.addSwitch(t(lang, 'quick_build.assistant_mirror_x'), false);
+    fm.addSwitch(t(lang, 'quick_build.assistant_mirror_z'), false);
+    fm.addSwitch(t(lang, 'quick_build.assistant_snapshot_toggle'), false);
     player.sendForm(fm, function(pl, data) {
         if (data == null) return;
         var x = parseInt(data[1]), y = parseInt(data[2]), z = parseInt(data[3]);
         if (isNaN(x)) x = Math.floor(pl.pos.x);
         if (isNaN(y)) y = Math.floor(pl.pos.y);
         if (isNaN(z)) z = Math.floor(pl.pos.z);
-        importStructureDispatch(pl, filename, x, y, z);
+        var rotate = (typeof data[4] === 'number') ? (data[4] % 360) : 0;
+        if (rotate === 360) rotate = 0;
+        var mirrorX = !!(data[5]);
+        var mirrorZ = !!(data[6]);
+        var snapshot = !!(data[7]);
+        importStructureDispatch(pl, filename, x, y, z, rotate, mirrorX, mirrorZ, snapshot);
     });
+}
+
+// 复制选区：两点齐后弹表单，显示范围，询问重新选点还是保存
+function showCopyModeForm(player) {
+    var xuid = player.xuid;
+    var lang = getLocale(xuid);
+    var sel = _playerSelections[xuid];
+    if (!sel || !sel.pointA || !sel.pointB) return;
+    var ax = Math.min(sel.pointA.x, sel.pointB.x), bx = Math.max(sel.pointA.x, sel.pointB.x);
+    var ay = Math.min(sel.pointA.y, sel.pointB.y), by = Math.max(sel.pointA.y, sel.pointB.y);
+    var az = Math.min(sel.pointA.z, sel.pointB.z), bz = Math.max(sel.pointA.z, sel.pointB.z);
+    var sx = bx - ax + 1, sy = by - ay + 1, sz = bz - az + 1;
+    var volume = sx * sy * sz;
+    var content = t(lang, 'quick_build.assistant_copy_label',
+        String(sx), String(sy), String(sz), String(ax), String(ay), String(az),
+        String(bx), String(by), String(bz), String(volume), String(sel.pointA.dimid));
+    player.sendModalForm(
+        t(lang, 'quick_build.assistant_copy_title'),
+        content,
+        t(lang, 'quick_build.assistant_copy_save'),
+        t(lang, 'quick_build.assistant_copy_redo'),
+        function(pl, result) {
+            if (result == null) {
+                exitAssistantMode(pl);
+                return;
+            }
+            if (result) {
+                copySelectionToClipboard(pl);
+            } else {
+                _playerSelections[pl.xuid] = {};
+                pl.tell(t(lang, 'quick_build.assistant_redo_point'));
+                pl.tell(buildBlockTip(pl.xuid), 4);
+            }
+        }
+    );
+}
+
+// 复制选区到剪贴板，保存到 data/temp/clipboard_<xuid>.nbt，完成后退出选区模式
+function copySelectionToClipboard(player) {
+    var xuid = player.xuid;
+    var lang = getLocale(xuid);
+    var sel = _playerSelections[xuid];
+    if (!sel || !sel.pointA || !sel.pointB) return;
+    var minPos = {
+        x: Math.min(sel.pointA.x, sel.pointB.x),
+        y: Math.min(sel.pointA.y, sel.pointB.y),
+        z: Math.min(sel.pointA.z, sel.pointB.z)
+    };
+    var maxPos = {
+        x: Math.max(sel.pointA.x, sel.pointB.x),
+        y: Math.max(sel.pointA.y, sel.pointB.y),
+        z: Math.max(sel.pointA.z, sel.pointB.z)
+    };
+    var dimid = sel.pointA.dimid;
+    var sx = maxPos.x - minPos.x + 1, sy = maxPos.y - minPos.y + 1, sz = maxPos.z - minPos.z + 1;
+    var filePath = path.join(getTempDir(), 'clipboard_' + xuid + '.nbt');
+    if (!acquireTaskLock(player)) return;
+    startTaskAnim(player);
+    saveSnapshotRegion(player, minPos, maxPos, dimid, filePath, 'quick_build.assistant_copy_progress', function(snapFile) {
+        exitAssistantMode(player);
+        stopTaskAnim(player);
+        releaseTaskLock(player);
+        if (snapFile) {
+            _clipboard[xuid] = { file: snapFile, dimid: dimid, size: { x: sx, y: sy, z: sz }, total: sx * sy * sz };
+            player.tell(t(lang, 'quick_build.assistant_copy_success', String(sx * sy * sz)));
+        } else {
+            player.tell(t(lang, 'quick_build.assistant_copy_failed'));
+        }
+    });
+}
+
+// 粘贴选区坐标表单（复用导入坐标表单，数据源为剪贴板）
+function showPasteCoordForm(player) {
+    var xuid = player.xuid;
+    var lang = getLocale(xuid);
+    var cb = _clipboard[xuid];
+    if (!cb) {
+        player.tell(t(lang, 'quick_build.assistant_no_clipboard'));
+        return;
+    }
+    var px = Math.floor(player.pos.x), py = Math.floor(player.pos.y), pz = Math.floor(player.pos.z);
+    var fm = mc.newCustomForm();
+    fm.setTitle(t(lang, 'quick_build.assistant_paste_title'));
+    fm.addLabel(t(lang, 'quick_build.assistant_paste_label', String(cb.size.x), String(cb.size.y), String(cb.size.z), String(px), String(py), String(pz)));
+    fm.addInput(t(lang, 'quick_build.assistant_x_label'), t(lang, 'quick_build.assistant_coord_placeholder', String(px)), String(px));
+    fm.addInput(t(lang, 'quick_build.assistant_y_label'), t(lang, 'quick_build.assistant_coord_placeholder', String(py)), String(py));
+    fm.addInput(t(lang, 'quick_build.assistant_z_label'), t(lang, 'quick_build.assistant_coord_placeholder', String(pz)), String(pz));
+    fm.addSlider(t(lang, 'quick_build.assistant_rotate_label'), 0, 360, 90, 0);
+    fm.addSwitch(t(lang, 'quick_build.assistant_mirror_x'), false);
+    fm.addSwitch(t(lang, 'quick_build.assistant_mirror_z'), false);
+    fm.addSwitch(t(lang, 'quick_build.assistant_snapshot_toggle'), false);
+    player.sendForm(fm, function(pl, data) {
+        if (data == null) return;
+        var x = parseInt(data[1]), y = parseInt(data[2]), z = parseInt(data[3]);
+        if (isNaN(x)) x = Math.floor(pl.pos.x);
+        if (isNaN(y)) y = Math.floor(pl.pos.y);
+        if (isNaN(z)) z = Math.floor(pl.pos.z);
+        var rotate = (typeof data[4] === 'number') ? (data[4] % 360) : 0;
+        if (rotate === 360) rotate = 0;
+        var mirrorX = !!(data[5]);
+        var mirrorZ = !!(data[6]);
+        var snapshot = !!(data[7]);
+        pasteFromClipboard(pl, x, y, z, rotate, mirrorX, mirrorZ, snapshot);
+    });
+}
+
+// 粘贴剪贴板结构到目标坐标，支持旋转/镜像/快照，完成后清空剪贴板指针
+function pasteFromClipboard(player, ox, oy, oz, rotate, mirrorX, mirrorZ, snapshot) {
+    var xuid = player.xuid;
+    var lang = getLocale(xuid);
+    var cb = _clipboard[xuid];
+    if (!cb) {
+        player.tell(t(lang, 'quick_build.assistant_no_clipboard'));
+        return;
+    }
+    var data = readSnapshotFile(cb.file);
+    if (!data) {
+        player.tell(t(lang, 'quick_build.assistant_paste_failed'));
+        delete _clipboard[xuid];
+        return;
+    }
+    var sx = data.size.x, sy = data.size.y, sz = data.size.z;
+    var total = sx * sy * sz;
+    var palette = data.palette || [{ name: 'minecraft:air', aux: 0, snbt: '' }];
+    var blocks = data.blocks || [];
+    var tileEntities = data.tileEntities || [];
+    var dimid = (player.pos && typeof player.pos.dimid !== 'undefined') ? player.pos.dimid : cb.dimid;
+    var plane = sx * sz;
+    var rmod = ((rotate || 0) % 360 + 360) % 360;
+    var nsx = (rmod === 90 || rmod === 270) ? sz : sx;
+    var nsz = (rmod === 90 || rmod === 270) ? sx : sz;
+    var i = 0;
+
+    if (!acquireTaskLock(player)) return;
+    startTaskAnim(player);
+    player.tell(t(lang, 'quick_build.assistant_pasting', String(nsx), String(sy), String(nsz), String(total), String(ox), String(oy), String(oz)));
+    assistantSetBossBar(player, t(lang, 'quick_build.assistant_import_progress', '0'), 0);
+
+    function batch() {
+        var end = Math.min(i + ASSISTANT_BATCH_SIZE, total);
+        for (; i < end; i++) {
+            var y = Math.floor(i / plane);
+            var r = i - y * plane;
+            var z = Math.floor(r / sx);
+            var x = r - z * sx;
+            var tc = transformLocalCoord(x, z, sx, sz, rotate, mirrorX, mirrorZ);
+            var wx = ox + tc.x, wy = oy + y, wz = oz + tc.z;
+            var entry = palette[blocks[i]] || palette[0];
+            var bname = entry.name || 'minecraft:air';
+            if (bname === 'minecraft:air') {
+                try { mc.setBlock(wx, wy, wz, dimid, 'minecraft:air', 0); } catch (e) { }
+                continue;
+            }
+            try {
+                mc.setBlock(wx, wy, wz, dimid, bname, entry.aux || 0);
+                if (entry.snbt) {
+                    var nb = mc.getBlock(wx, wy, wz, dimid);
+                    if (nb) nb.setNbt(NBT.parseSNBT(entry.snbt));
+                }
+            } catch (e) { }
+        }
+        var pct = Math.floor((i / total) * 100);
+        assistantSetBossBar(player, t(lang, 'quick_build.assistant_import_progress', String(pct)), pct);
+        updateTaskAnim(player, i, total);
+        if (i < total) {
+            setTimeout(batch, 0);
+        } else {
+            importTileEntities();
+        }
+    }
+
+    function importTileEntities() {
+        var j = 0, teTotal = tileEntities.length;
+        function teBatch() {
+            var end = Math.min(j + ASSISTANT_BATCH_SIZE, teTotal);
+            for (; j < end; j++) {
+                var te = tileEntities[j];
+                var tc2 = transformLocalCoord(te.x, te.z, sx, sz, rotate, mirrorX, mirrorZ);
+                try {
+                    var be = mc.getBlockEntity(ox + tc2.x, oy + te.y, oz + tc2.z, dimid);
+                    if (be) be.setNbt(NBT.parseSNBT(te.snbt));
+                } catch (e) { }
+            }
+            var pct = teTotal > 0 ? Math.floor((j / teTotal) * 100) : 100;
+            assistantSetBossBar(player, t(lang, 'quick_build.assistant_import_te_progress', String(pct)), pct);
+            updateTaskAnim(player, j, teTotal);
+            if (j < teTotal) setTimeout(teBatch, 0);
+            else finishPaste();
+        }
+        if (teTotal === 0) finishPaste();
+        else teBatch();
+    }
+
+    function finishPaste() {
+        assistantRemoveBossBar(player);
+        stopTaskAnim(player);
+        releaseTaskLock(player);
+        delete _clipboard[xuid];
+        player.tell(t(lang, 'quick_build.assistant_paste_success', String(total), String(tileEntities.length)));
+    }
+
+    startImportWithSnapshot(player, snapshot, { x: ox, y: oy, z: oz }, { x: ox + nsx - 1, y: oy + sy - 1, z: oz + nsz - 1 }, dimid, function() { batch(); });
+}
+
+// 校验方块命名空间，仅允许合法字符
+function isValidBlockName(name) {
+    return typeof name === 'string' && /^[a-z0-9_:.\-]+$/i.test(name);
+}
+
+// 形状选择表单，先选形状再填填充方块
+function showShapeSelectForm(player) {
+    var lang = getLocale(player.xuid);
+    var handBlock = 'minecraft:stone';
+    try {
+        var hand = player.getHand();
+        if (hand && !hand.isNull() && hand.type) handBlock = hand.type;
+    } catch (e) { }
+    var shapes = [
+        t(lang, 'quick_build.assistant_shape_circle'),
+        t(lang, 'quick_build.assistant_shape_cylinder'),
+        t(lang, 'quick_build.assistant_shape_sphere'),
+        t(lang, 'quick_build.assistant_shape_box'),
+        t(lang, 'quick_build.assistant_shape_prism'),
+        t(lang, 'quick_build.assistant_shape_poly')
+    ];
+    var fm = mc.newCustomForm();
+    fm.setTitle(t(lang, 'quick_build.assistant_shape_select_title'));
+    fm.addLabel(t(lang, 'quick_build.assistant_shape_select_label'));
+    fm.addDropdown(t(lang, 'quick_build.assistant_shape_dropdown'), shapes, 0);
+    fm.addInput(t(lang, 'quick_build.assistant_block_label'), t(lang, 'quick_build.assistant_block_placeholder'), handBlock);
+    player.sendForm(fm, function(pl, data) {
+        if (data == null) return;
+        var idx = (typeof data[1] === 'number') ? data[1] : 0;
+        var shape = ['circle', 'cylinder', 'sphere', 'box', 'prism', 'poly'][idx] || 'circle';
+        var blockName = String(data[2] || '').trim();
+        if (!isValidBlockName(blockName)) {
+            pl.tell(t(lang, 'quick_build.assistant_shape_invalid_block'));
+            return;
+        }
+        showShapeParamForm(pl, shape, blockName);
+    });
+}
+
+// 形状参数表单，按形状动态展示输入项
+function showShapeParamForm(player, shape, blockName) {
+    var lang = getLocale(player.xuid);
+    var px = Math.floor(player.pos.x), py = Math.floor(player.pos.y), pz = Math.floor(player.pos.z);
+    var fm = mc.newCustomForm();
+    fm.setTitle(t(lang, 'quick_build.assistant_shape_param_title'));
+    fm.addLabel(t(lang, 'quick_build.assistant_shape_param_block', blockName));
+    if (shape === 'circle') {
+        fm.addInput(t(lang, 'quick_build.assistant_x_label'), '', String(px));
+        fm.addInput(t(lang, 'quick_build.assistant_y_label'), '', String(py));
+        fm.addInput(t(lang, 'quick_build.assistant_z_label'), '', String(pz));
+        fm.addInput(t(lang, 'quick_build.assistant_shape_outer_r'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_inner_r'), '', '');
+    } else if (shape === 'cylinder') {
+        fm.addInput(t(lang, 'quick_build.assistant_shape_outer_r'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_inner_r'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_height'), '', '');
+    } else if (shape === 'sphere') {
+        fm.addInput(t(lang, 'quick_build.assistant_shape_outer_r'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_inner_r'), '', '');
+    } else if (shape === 'box') {
+        fm.addInput(t(lang, 'quick_build.assistant_shape_length'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_width'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_height'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_in_length'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_in_width'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_in_height'), '', '');
+    } else if (shape === 'prism') {
+        fm.addInput(t(lang, 'quick_build.assistant_shape_side1'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_side2'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_side3'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_height'), '', '');
+    } else if (shape === 'poly') {
+        fm.addInput(t(lang, 'quick_build.assistant_shape_faces'), '', '');
+        fm.addInput(t(lang, 'quick_build.assistant_shape_edge'), '', '');
+    }
+    fm.addSwitch(t(lang, 'quick_build.assistant_shape_snapshot'), false);
+    player.sendForm(fm, function(pl, data) {
+        if (data == null) return;
+        var params = parseShapeParams(shape, data, px, py, pz);
+        var err = validateShapeParams(shape, params, lang);
+        if (err) {
+            pl.tell(err);
+            return;
+        }
+        var snapshot = !!(data[data.length - 1]);
+        generateShape(pl, shape, blockName, params, snapshot);
+    });
+}
+
+// 从表单数据提取形状参数，空坐标回退到玩家位置
+function parseShapeParams(shape, data, px, py, pz) {
+    var num = function(v) { var n = parseInt(v); return isNaN(n) ? 0 : n; };
+    if (shape === 'circle') {
+        var cx = parseInt(data[1]); if (isNaN(cx)) cx = px;
+        var cy2 = parseInt(data[2]); if (isNaN(cy2)) cy2 = py;
+        var cz2 = parseInt(data[3]); if (isNaN(cz2)) cz2 = pz;
+        return { cx: cx, cy: cy2, cz: cz2, outerR: num(data[4]), innerR: num(data[5]) };
+    }
+    if (shape === 'cylinder') return { cx: px, cy: py, cz: pz, outerR: num(data[1]), innerR: num(data[2]), height: num(data[3]) };
+    if (shape === 'sphere') return { cx: px, cy: py, cz: pz, outerR: num(data[1]), innerR: num(data[2]) };
+    if (shape === 'box') return { cx: px, cy: py, cz: pz, len: num(data[1]), wid: num(data[2]), hei: num(data[3]), inLen: num(data[4]), inWid: num(data[5]), inHei: num(data[6]) };
+    if (shape === 'prism') return { cx: px, cy: py, cz: pz, s1: num(data[1]), s2: num(data[2]), s3: num(data[3]), height: num(data[4]) };
+    if (shape === 'poly') return { cx: px, cy: py, cz: pz, faces: num(data[1]), edge: num(data[2]) };
+    return { cx: px, cy: py, cz: pz };
+}
+
+// 校验形状参数，非法返回错误消息，合法返回 null 并补充几何数据
+function validateShapeParams(shape, p, lang) {
+    var invalid = t(lang, 'quick_build.assistant_shape_invalid_param');
+    var gte = t(lang, 'quick_build.assistant_shape_inner_gte_outer', t(lang, 'quick_build.assistant_shape_inner_r'), t(lang, 'quick_build.assistant_shape_outer_r'));
+    if (shape === 'circle' || shape === 'sphere') {
+        if (p.outerR < 0) return invalid;
+        if (p.innerR > 0 && p.innerR >= p.outerR) return gte;
+        return null;
+    }
+    if (shape === 'cylinder') {
+        if (p.outerR < 0 || p.height < 1) return invalid;
+        if (p.innerR > 0 && p.innerR >= p.outerR) return gte;
+        return null;
+    }
+    if (shape === 'box') {
+        if (p.len < 1 || p.wid < 1 || p.hei < 1) return invalid;
+        p.hollow = (p.inLen > 0 && p.inLen < p.len && p.inWid > 0 && p.inWid < p.wid && p.inHei > 0 && p.inHei < p.hei);
+        return null;
+    }
+    if (shape === 'prism') {
+        if (p.height < 1) return invalid;
+        var a = p.s1, b = p.s2, c = p.s3;
+        if (a <= 0 || b <= 0 || c <= 0) return invalid;
+        if (!(a + b > c && a + c > b && b + c > a)) return t(lang, 'quick_build.assistant_shape_bad_triangle');
+        p.tri = triangleVerts(a, b, c);
+        return null;
+    }
+    if (shape === 'poly') {
+        if (p.faces < 3) return t(lang, 'quick_build.assistant_shape_bad_faces');
+        if (p.edge < 1) return invalid;
+        p.verts = polyVerts(p.faces, p.edge);
+        return null;
+    }
+    return null;
+}
+
+// 三边三角形顶点，重心对齐到原点
+function triangleVerts(s1, s2, s3) {
+    var ax = 0, az = 0;
+    var bx = s1, bz = 0;
+    var cx = (s2 * s2 + s1 * s1 - s3 * s3) / (2 * s1);
+    var cy = Math.sqrt(Math.max(0, s2 * s2 - cx * cx));
+    var gx = (ax + bx + cx) / 3;
+    var gz = (az + bz + cy) / 3;
+    return [
+        { x: ax - gx, z: az - gz },
+        { x: bx - gx, z: bz - gz },
+        { x: cx - gx, z: cy - gz }
+    ];
+}
+
+// 正N边形顶点，外接圆半径由边长与面数决定
+function polyVerts(faces, edge) {
+    var r = edge / (2 * Math.sin(Math.PI / faces));
+    var verts = [];
+    for (var i = 0; i < faces; i++) {
+        var ang = (i * 2 * Math.PI) / faces;
+        verts.push({ x: r * Math.cos(ang), z: r * Math.sin(ang) });
+    }
+    return verts;
+}
+
+// 三点叉积
+function cross2(o, a, b) {
+    return (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x);
+}
+
+// 点在三角形内判断，同侧法
+function pointInTriangle(px, pz, tri) {
+    var p = { x: px, z: pz };
+    var d1 = cross2(p, tri[0], tri[1]);
+    var d2 = cross2(p, tri[1], tri[2]);
+    var d3 = cross2(p, tri[2], tri[0]);
+    var hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
+    var hasPos = d1 > 0 || d2 > 0 || d3 > 0;
+    return !(hasNeg && hasPos);
+}
+
+// 点在凸多边形内判断，同侧法
+function pointInConvexPoly(px, pz, verts) {
+    var n = verts.length;
+    var p = { x: px, z: pz };
+    var sign = null;
+    for (var i = 0; i < n; i++) {
+        var a = verts[i], b = verts[(i + 1) % n];
+        var c = (b.x - a.x) * (p.z - a.z) - (b.z - a.z) * (p.x - a.x);
+        if (Math.abs(c) < 1e-9) continue;
+        var s = c > 0 ? 1 : -1;
+        if (sign == null) sign = s;
+        else if (sign !== s) return false;
+    }
+    return true;
+}
+
+// 形状包围盒局部范围，玩家坐标为原点
+function shapeMinMax(shape, params) {
+    if (shape === 'circle') {
+        var r = params.outerR;
+        return { minX: -r, maxX: r, minY: 0, maxY: 0, minZ: -r, maxZ: r };
+    }
+    if (shape === 'cylinder') {
+        var r2 = params.outerR, hy = Math.floor(params.height / 2);
+        return { minX: -r2, maxX: r2, minY: -hy, maxY: params.height - 1 - hy, minZ: -r2, maxZ: r2 };
+    }
+    if (shape === 'sphere') {
+        var r3 = params.outerR;
+        return { minX: -r3, maxX: r3, minY: -r3, maxY: r3, minZ: -r3, maxZ: r3 };
+    }
+    if (shape === 'box') {
+        var l = params.len, w = params.wid, he = params.hei;
+        var lx = Math.floor(l / 2), wx = Math.floor(w / 2), hx = Math.floor(he / 2);
+        return { minX: -lx, maxX: l - 1 - lx, minY: -hx, maxY: he - 1 - hx, minZ: -wx, maxZ: w - 1 - wx };
+    }
+    if (shape === 'prism') {
+        var tv = params.tri;
+        var minx = Math.min(tv[0].x, tv[1].x, tv[2].x), maxx = Math.max(tv[0].x, tv[1].x, tv[2].x);
+        var minz = Math.min(tv[0].z, tv[1].z, tv[2].z), maxz = Math.max(tv[0].z, tv[1].z, tv[2].z);
+        var hy2 = Math.floor(params.height / 2);
+        return { minX: Math.floor(minx) - 1, maxX: Math.ceil(maxx) + 1, minY: -hy2, maxY: params.height - 1 - hy2, minZ: Math.floor(minz) - 1, maxZ: Math.ceil(maxz) + 1 };
+    }
+    if (shape === 'poly') {
+        var rp = params.edge / (2 * Math.sin(Math.PI / params.faces));
+        var hy3 = Math.floor(params.edge / 2);
+        return { minX: Math.floor(-rp) - 1, maxX: Math.ceil(rp) + 1, minY: -hy3, maxY: params.edge - 1 - hy3, minZ: Math.floor(-rp) - 1, maxZ: Math.ceil(rp) + 1 };
+    }
+    return { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
+}
+
+// 判断局部坐标是否在形状内
+function insideShape(shape, params, dx, dy, dz) {
+    if (shape === 'circle' || shape === 'cylinder') {
+        var d2 = dx * dx + dz * dz;
+        if (d2 > params.outerR * params.outerR) return false;
+        if (params.innerR > 0 && d2 <= params.innerR * params.innerR) return false;
+        return true;
+    }
+    if (shape === 'sphere') {
+        var s2 = dx * dx + dy * dy + dz * dz;
+        if (s2 > params.outerR * params.outerR) return false;
+        if (params.innerR > 0 && s2 <= params.innerR * params.innerR) return false;
+        return true;
+    }
+    if (shape === 'box') {
+        if (params.hollow) {
+            var lx = Math.floor(params.inLen / 2), wx = Math.floor(params.inWid / 2), hx = Math.floor(params.inHei / 2);
+            if (dx >= -lx && dx <= params.inLen - 1 - lx && dz >= -wx && dz <= params.inWid - 1 - wx && dy >= -hx && dy <= params.inHei - 1 - hx) return false;
+        }
+        return true;
+    }
+    if (shape === 'prism') return pointInTriangle(dx, dz, params.tri);
+    if (shape === 'poly') return pointInConvexPoly(dx, dz, params.verts);
+    return false;
+}
+
+// 形状显示名
+function shapeDisplayName(lang, shape) {
+    var keys = {
+        circle: 'quick_build.assistant_shape_circle',
+        cylinder: 'quick_build.assistant_shape_cylinder',
+        sphere: 'quick_build.assistant_shape_sphere',
+        box: 'quick_build.assistant_shape_box',
+        prism: 'quick_build.assistant_shape_prism',
+        poly: 'quick_build.assistant_shape_poly'
+    };
+    return t(lang, keys[shape] || keys.circle);
+}
+
+// 生成形状，快照后分批放置，完成可撤回
+function generateShape(player, shape, blockName, params, snapshot) {
+    var xuid = player.xuid;
+    var lang = getLocale(xuid);
+    var dimid = (player.pos && typeof player.pos.dimid !== 'undefined') ? player.pos.dimid : 0;
+    var cx = params.cx, cy = params.cy, cz = params.cz;
+    var mm = shapeMinMax(shape, params);
+    var minPos = { x: cx + mm.minX, y: cy + mm.minY, z: cz + mm.minZ };
+    var maxPos = { x: cx + mm.maxX, y: cy + mm.maxY, z: cz + mm.maxZ };
+    var count = 0;
+    if (!acquireTaskLock(player)) return;
+    startTaskAnim(player);
+    player.tell(t(lang, 'quick_build.assistant_shape_generating', shapeDisplayName(lang, shape)));
+    startImportWithSnapshot(player, snapshot, minPos, maxPos, dimid, function() {
+        var sx = mm.maxX - mm.minX + 1, sy = mm.maxY - mm.minY + 1, sz = mm.maxZ - mm.minZ + 1;
+        var total = sx * sy * sz;
+        var i = 0;
+        function batch() {
+            var end = Math.min(i + ASSISTANT_BATCH_SIZE, total);
+            for (; i < end; i++) {
+                var ly = Math.floor(i / (sx * sz));
+                var rr = i - ly * (sx * sz);
+                var lz = Math.floor(rr / sx);
+                var lx = rr - lz * sx;
+                var dx = mm.minX + lx, dy = mm.minY + ly, dz = mm.minZ + lz;
+                if (insideShape(shape, params, dx, dy, dz)) {
+                    try { mc.setBlock(cx + dx, cy + dy, cz + dz, dimid, blockName, 0); count++; } catch (e) { }
+                }
+            }
+            var pct = Math.floor((i / total) * 100);
+            assistantSetBossBar(player, t(lang, 'quick_build.assistant_shape_progress', String(pct)), pct);
+            updateTaskAnim(player, i, total);
+            if (i < total) setTimeout(batch, 0);
+            else finish();
+        }
+        batch();
+    });
+
+    function finish() {
+        assistantRemoveBossBar(player);
+        stopTaskAnim(player);
+        releaseTaskLock(player);
+        player.tell(t(lang, 'quick_build.assistant_shape_success', String(count)));
+    }
 }
 
 // 索引编码：i = x + sx * (z + sz * y)
@@ -1956,6 +2933,8 @@ function exportStructure(player, minPos, maxPos, dimid, name) {
     var i = 0;
     var plane = sx * sz;
 
+    if (!acquireTaskLock(player)) return;
+    startTaskAnim(player);
     player.tell(t(lang, 'quick_build.assistant_exporting', String(sx), String(sy), String(sz), String(total)));
     assistantSetBossBar(player, t(lang, 'quick_build.assistant_export_progress', '0'), 0);
 
@@ -2000,6 +2979,7 @@ function exportStructure(player, minPos, maxPos, dimid, name) {
         }
         var pct = Math.floor((i / total) * 100);
         assistantSetBossBar(player, t(lang, 'quick_build.assistant_export_progress', String(pct)), pct);
+        updateTaskAnim(player, i, total);
         if (i < total) {
             setTimeout(batch, 0);
         } else {
@@ -2017,9 +2997,13 @@ function exportStructure(player, minPos, maxPos, dimid, name) {
                 var gz = zlib.gzipSync(Buffer.from(JSON.stringify(data), 'utf-8'));
                 fs.writeFileSync(filePath, gz);
                 assistantRemoveBossBar(player);
+                stopTaskAnim(player);
+                releaseTaskLock(player);
                 player.tell(t(lang, 'quick_build.assistant_export_success', name, String(count), String(tileEntities.length), String(palette.length - 1)));
             } catch (e) {
                 assistantRemoveBossBar(player);
+                stopTaskAnim(player);
+                releaseTaskLock(player);
                 logger.error('[block] 导出失败: ' + e.message);
                 player.tell(t(lang, 'quick_build.assistant_export_failed', e.message));
             }
@@ -2314,7 +3298,7 @@ function mapBedrockStatesToAux(name, statesNode) {
 }
 
 // 导入 .mcstructure：基岩版原生结构格式，解析方块调色板与 block_indices，按坐标平移导入
-function importMcStructure(player, filename, ox, oy, oz) {
+function importMcStructure(player, filename, ox, oy, oz, rotate, mirrorX, mirrorZ, snapshot) {
     var lang = getLocale(player.xuid);
     var filePath = path.join(getStructureDir(), filename);
     var raw;
@@ -2336,10 +3320,6 @@ function importMcStructure(player, filename, ox, oy, oz) {
     var sx = nbtArrInt(sizeNode, 0), sy = nbtArrInt(sizeNode, 1), sz = nbtArrInt(sizeNode, 2);
     var total = sx * sy * sz;
     if (total <= 0) { player.tell(t(lang, 'quick_build.assistant_mcstructure_bad')); return; }
-    if (total > ASSISTANT_MAX_VOLUME) {
-        player.tell(t(lang, 'quick_build.assistant_too_large', String(sx), String(sy), String(sz), String(total), String(ASSISTANT_MAX_VOLUME)));
-        return;
-    }
 
     // structure.palette.default.block_palette: List[Compound] of {name, states, version}
     var structure = nbtCompound(nbtGet(root, 'structure'));
@@ -2363,6 +3343,11 @@ function importMcStructure(player, filename, ox, oy, oz) {
 
     var dimid = (player.pos && typeof player.pos.dimid !== 'undefined') ? player.pos.dimid : 0;
 
+    // 变换后的最终尺寸（旋转会交换 x/z）
+    var rmod = ((rotate || 0) % 360 + 360) % 360;
+    var nsx = (rmod === 90 || rmod === 270) ? sz : sx;
+    var nsz = (rmod === 90 || rmod === 270) ? sx : sz;
+
     // 基岩版 .mcstructure 平坦索引顺序：z 最快、y 中间、x 最慢，i = z + sz*(y + sy*x)
     // 与自定义 .nbt 格式的 x 最快顺序不同，不能用 plane 解码
     var blockOps = [];
@@ -2372,7 +3357,8 @@ function importMcStructure(player, filename, ox, oy, oz) {
         var rest = Math.floor(i / sz);
         var yy = rest % sy;
         var xx = Math.floor(rest / sy);
-        var wx = ox + xx, wy = oy + yy, wz = oz + zz;
+        var tc = transformLocalCoord(xx, zz, sx, sz, rotate, mirrorX, mirrorZ);
+        var wx = ox + tc.x, wy = oy + yy, wz = oz + tc.z;
 
         var pi = nbtArrInt(blockLayerNode, i);
         var bname = 'minecraft:air', baux = 0;
@@ -2392,7 +3378,9 @@ function importMcStructure(player, filename, ox, oy, oz) {
         }
     }
 
-    player.tell(t(lang, 'quick_build.assistant_importing', filename, String(sx), String(sy), String(sz), String(total), String(ox), String(oy), String(oz)));
+    if (!acquireTaskLock(player)) return;
+    startTaskAnim(player);
+    player.tell(t(lang, 'quick_build.assistant_importing', filename, String(nsx), String(sy), String(nsz), String(total), String(ox), String(oy), String(oz)));
     assistantSetBossBar(player, t(lang, 'quick_build.assistant_import_progress', '0'), 0);
 
     var i2 = 0;
@@ -2405,6 +3393,7 @@ function importMcStructure(player, filename, ox, oy, oz) {
         }
         var pct = totalBlocks > 0 ? Math.floor((i2 / totalBlocks) * 100) : 100;
         assistantSetBossBar(player, t(lang, 'quick_build.assistant_import_progress', String(pct)), pct);
+        updateTaskAnim(player, i2, totalBlocks);
         if (i2 < totalBlocks) setTimeout(batch, 0);
         else importTileEntities();
     }
@@ -2412,6 +3401,8 @@ function importMcStructure(player, filename, ox, oy, oz) {
         var j = 0, teTotal = teOps.length;
         if (teTotal === 0) {
             assistantRemoveBossBar(player);
+            stopTaskAnim(player);
+            releaseTaskLock(player);
             player.tell(t(lang, 'quick_build.assistant_import_success_no_te', filename, String(totalBlocks)));
             return;
         }
@@ -2430,28 +3421,71 @@ function importMcStructure(player, filename, ox, oy, oz) {
             }
             var pct = Math.floor((j / teTotal) * 100);
             assistantSetBossBar(player, t(lang, 'quick_build.assistant_import_te_progress', String(pct)), pct);
+            updateTaskAnim(player, j, teTotal);
             if (j < teTotal) setTimeout(teBatch, 0);
             else {
                 assistantRemoveBossBar(player);
+                stopTaskAnim(player);
+                releaseTaskLock(player);
                 player.tell(t(lang, 'quick_build.assistant_import_success', filename, String(totalBlocks), String(teTotal)));
             }
         }
         teBatch();
     }
-    batch();
+    startImportWithSnapshot(player, snapshot, { x: ox, y: oy, z: oz }, { x: ox + nsx - 1, y: oy + sy - 1, z: oz + nsz - 1 }, dimid, function() { batch(); });
+}
+
+// 有快照时先异步保存目标区域，保存完成后再开始导入；无快照直接导入
+function startImportWithSnapshot(player, snapshot, minPos, maxPos, dimid, startImportFn) {
+    var lang = getLocale(player.xuid);
+    if (!snapshot) {
+        startImportFn();
+        return;
+    }
+    saveSnapshotRegion(player, minPos, maxPos, dimid, null, 'quick_build.assistant_snapshot_progress', function(snapFile) {
+        var nsx = maxPos.x - minPos.x + 1;
+        var sy = maxPos.y - minPos.y + 1;
+        var nsz = maxPos.z - minPos.z + 1;
+        if (snapFile) {
+            _assistantSnapshots[player.xuid] = {
+                file: snapFile,
+                dimid: dimid,
+                minX: minPos.x, minY: minPos.y, minZ: minPos.z,
+                maxX: maxPos.x, maxY: maxPos.y, maxZ: maxPos.z,
+                total: nsx * sy * nsz
+            };
+            player.tell(t(lang, 'quick_build.assistant_snapshot_created', String(nsx * sy * nsz)));
+        }
+        startImportFn();
+    });
+}
+
+// 局部坐标变换：先镜像再绕Y轴顺时针旋转，返回新局部坐标与变换后尺寸
+function transformLocalCoord(lx, lz, sx, sz, rotate, mirrorX, mirrorZ) {
+    var nx = lx, nz = lz;
+    if (mirrorX) nx = (sx - 1) - nx;
+    if (mirrorZ) nz = (sz - 1) - nz;
+    var r = ((rotate || 0) % 360 + 360) % 360;
+    var nsx = sx, nsz = sz;
+    var tx, tz;
+    if (r === 90) { tx = nz; tz = sx - 1 - nx; nsx = sz; nsz = sx; }
+    else if (r === 180) { tx = sx - 1 - nx; tz = sz - 1 - nz; }
+    else if (r === 270) { tx = sz - 1 - nz; tz = nx; nsx = sz; nsz = sx; }
+    else { tx = nx; tz = nz; }
+    return { x: tx, z: tz, sx: nsx, sz: nsz };
 }
 
 // 按扩展名分发：.mcstructure → 基岩版原生结构导入；其余 → 自定义 .nbt（gzip JSON）导入
-function importStructureDispatch(player, filename, x, y, z) {
+function importStructureDispatch(player, filename, x, y, z, rotate, mirrorX, mirrorZ, snapshot) {
     var ln = filename.toLowerCase();
     if (ln.endsWith('.mcstructure')) {
-        importMcStructure(player, filename, x, y, z);
+        importMcStructure(player, filename, x, y, z, rotate, mirrorX, mirrorZ, snapshot);
     } else {
-        importStructure(player, filename, x, y, z);
+        importStructure(player, filename, x, y, z, rotate, mirrorX, mirrorZ, snapshot);
     }
 }
 
-function importStructure(player, filename, ox, oy, oz) {
+function importStructure(player, filename, ox, oy, oz, rotate, mirrorX, mirrorZ, snapshot) {
     var lang = getLocale(player.xuid);
     var filePath = path.join(getStructureDir(), filename);
     var raw;
@@ -2476,9 +3510,14 @@ function importStructure(player, filename, ox, oy, oz) {
     var tileEntities = data.tileEntities || [];
     var dimid = (player.pos && typeof player.pos.dimid !== 'undefined') ? player.pos.dimid : (data.dimid || 0);
     var plane = sx * sz;
+    // 变换后的最终尺寸（旋转会交换 x/z）
+    var nsx = ((rotate % 360 + 360) % 360 === 90 || (rotate % 360 + 360) % 360 === 270) ? sz : sx;
+    var nsz = ((rotate % 360 + 360) % 360 === 90 || (rotate % 360 + 360) % 360 === 270) ? sx : sz;
     var i = 0;
 
-    player.tell(t(lang, 'quick_build.assistant_importing', filename, String(sx), String(sy), String(sz), String(total), String(ox), String(oy), String(oz)));
+    if (!acquireTaskLock(player)) return;
+    startTaskAnim(player);
+    player.tell(t(lang, 'quick_build.assistant_importing', filename, String(nsx), String(sy), String(nsz), String(total), String(ox), String(oy), String(oz)));
     assistantSetBossBar(player, t(lang, 'quick_build.assistant_import_progress', '0'), 0);
 
     function batch() {
@@ -2488,7 +3527,8 @@ function importStructure(player, filename, ox, oy, oz) {
             var r = i - y * plane;
             var z = Math.floor(r / sx);
             var x = r - z * sx;
-            var wx = ox + x, wy = oy + y, wz = oz + z;
+            var tc = transformLocalCoord(x, z, sx, sz, rotate, mirrorX, mirrorZ);
+            var wx = ox + tc.x, wy = oy + y, wz = oz + tc.z;
             var entry = palette[blocks[i]] || palette[0];
             var bname = entry.name || 'minecraft:air';
             if (bname === 'minecraft:air') {
@@ -2505,6 +3545,7 @@ function importStructure(player, filename, ox, oy, oz) {
         }
         var pct = Math.floor((i / total) * 100);
         assistantSetBossBar(player, t(lang, 'quick_build.assistant_import_progress', String(pct)), pct);
+        updateTaskAnim(player, i, total);
         if (i < total) {
             setTimeout(batch, 0);
         } else {
@@ -2516,6 +3557,8 @@ function importStructure(player, filename, ox, oy, oz) {
         var j = 0, teTotal = tileEntities.length;
         if (teTotal === 0) {
             assistantRemoveBossBar(player);
+            stopTaskAnim(player);
+            releaseTaskLock(player);
             player.tell(t(lang, 'quick_build.assistant_import_success_no_te', filename, String(total)));
             return;
         }
@@ -2523,24 +3566,28 @@ function importStructure(player, filename, ox, oy, oz) {
             var end = Math.min(j + ASSISTANT_BATCH_SIZE, teTotal);
             for (; j < end; j++) {
                 var te = tileEntities[j];
+                var tc2 = transformLocalCoord(te.x, te.z, sx, sz, rotate, mirrorX, mirrorZ);
                 try {
-                    var be = mc.getBlockEntity(ox + te.x, oy + te.y, oz + te.z, dimid);
+                    var be = mc.getBlockEntity(ox + tc2.x, oy + te.y, oz + tc2.z, dimid);
                     if (be) be.setNbt(NBT.parseSNBT(te.snbt));
                 } catch (e) { }
             }
             var pct = Math.floor((j / teTotal) * 100);
             assistantSetBossBar(player, t(lang, 'quick_build.assistant_import_te_progress', String(pct)), pct);
+            updateTaskAnim(player, j, teTotal);
             if (j < teTotal) {
                 setTimeout(teBatch, 0);
             } else {
                 assistantRemoveBossBar(player);
+                stopTaskAnim(player);
+                releaseTaskLock(player);
                 player.tell(t(lang, 'quick_build.assistant_import_success', filename, String(total), String(teTotal)));
             }
         }
         teBatch();
     }
 
-    batch();
+    startImportWithSnapshot(player, snapshot, { x: ox, y: oy, z: oz }, { x: ox + nsx - 1, y: oy + sy - 1, z: oz + nsz - 1 }, dimid, function() { batch(); });
 }
 
 module.exports = {
