@@ -593,8 +593,9 @@ function _getTodayDate() {
         String(now.getDate()).padStart(2, '0');
 }
 
-/** 根据日期字符串生成对应的日志文件路径 */
+/** 根据日期字符串生成对应的日志文件路径，格式非法返回 null 防止路径穿越 */
 function _getLogPath(dateStr) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
     return _pathModule.join(_chatLogDir, 'chat-' + dateStr + '.jsonl');
 }
 
@@ -685,7 +686,7 @@ function queryHistory(options) {
 
         const logPath = _getLogPath(date);
 
-        if (!_fs.existsSync(logPath)) {
+        if (!logPath || !_fs.existsSync(logPath)) {
             resolve({
                 messages: [],
                 pagination: { page: page, pageSize: pageSize, total: 0, totalPages: 0 },
@@ -711,6 +712,8 @@ function queryHistory(options) {
 
         const total = results.length;
         const totalPages = Math.ceil(total / pageSize);
+        // 最新消息排最前，分页从最新开始
+        results.reverse();
         const start = (page - 1) * pageSize;
         const end = start + pageSize;
         const paged = results.slice(start, end);

@@ -240,6 +240,12 @@ onMounted(() => {
             <span class="text-xs text-muted-foreground/70">支持 JPG / PNG / WebP，最大 10MB</span>
           </div>
         </div>
+
+        <div class="mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-center">
+          <span class="text-xs text-destructive/90 leading-5">
+            严禁上传任何涉及色情、暴力、赌博、毒品、政治敏感、颠覆国家政权、分裂国家、恐怖主义、邪教组织以及违反国家法律法规的内容
+          </span>
+        </div>
       </UiCardContent>
     </UiCard>
 

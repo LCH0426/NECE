@@ -1313,7 +1313,7 @@ function onJoinHandler(player) {
 			name: playerName,
 			uuid: playerUUID,
 			healthBonus: 0,
-			lastIp: (function() { try { let d = player.getDevice(); return d && d.ip ? d.ip : ''; } catch(e) { return ''; } })(),
+			lastIp: (function() { try { let d = player.getDevice(); return d && d.ip && d.ip !== '127.0.0.1' ? d.ip : ''; } catch(e) { return ''; } })(),
 			platform: (function() { try { const d = player.getDevice(); return d && d.os ? d.os : ''; } catch(e) { return ''; } })()
 		};
 		playerData.nextUid = nextUid + 1;
@@ -1327,7 +1327,8 @@ function onJoinHandler(player) {
 		debugLog('onJoin: 老玩家 ' + playerName + ' (XUID: ' + playerXUID + ') UID: ' + playerData.players[playerXUID].uid);
 		try {
 			const dev = player.getDevice();
-			if (dev && dev.ip) playerData.players[playerXUID].lastIp = dev.ip;
+			// 进服拿不到真实IP时返回127.0.0.1，回环地址不覆盖已有真实IP，仅IPv4
+			if (dev && dev.ip && dev.ip !== '127.0.0.1') playerData.players[playerXUID].lastIp = dev.ip;
 			if (dev && dev.os) playerData.players[playerXUID].platform = dev.os;
 		} catch(e) { logger.warn('[Core] 获取玩家设备信息失败: ' + e.message); }
 		// 数据兼容：补全旧数据缺失的字段
@@ -1487,6 +1488,7 @@ function onLeftHandler(player) {
 	if (_joinTimestamps[xuid]) {
 		let sessionSec = Math.floor((Date.now() - _joinTimestamps[xuid]) / 1000);
 		personalCenter.bumpStat(xuid, "playTime", sessionSec);
+		addDailyPlayTime(xuidStr, sessionSec);
 		delete _joinTimestamps[xuid];
 	}
 
@@ -1611,6 +1613,18 @@ function initStatTrackers() {
 
 initStatTrackers();
 
+/** 结算当日游戏时长写入 play_time_history */
+function addDailyPlayTime(xuid, seconds) {
+	try {
+		if (!database.isPlayerDbReady() || seconds <= 0) return;
+		const d = new Date();
+		const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+		database.addPlayTimeSQL(String(xuid), dateStr, seconds);
+	} catch (e) {
+		logger.error('[Core] 记录每日游戏时长失败: ' + (e && e.message ? e.message : e));
+	}
+}
+
 /** 定时累计在线玩家的游戏时长 */
 function tickOnlineDurations() {
 	if (!_rankEnabled) return;
@@ -1618,10 +1632,12 @@ function tickOnlineDurations() {
 	Object.keys(_joinTimestamps).forEach(function(xuid) {
 		const blk = personalCenter.obtainStatBlock(xuid);
 		if (!blk) return;
-		blk.playTime += Math.floor((now - _joinTimestamps[xuid]) / 1000);
+		const incSec = Math.floor((now - _joinTimestamps[xuid]) / 1000);
+		blk.playTime += incSec;
 		_joinTimestamps[xuid] = now;
 		// 仅更新 count JSON 中的 playTime，避免全行写入
 		database.updatePlayTimeSQL(xuid, blk.playTime);
+		addDailyPlayTime(xuid, incSec);
 	});
 }
 
@@ -1671,36 +1687,48 @@ const addPlayerMoney = economyModule.addPlayerMoney;
 const getPlayerMoneyByXuid = economyModule.getPlayerMoneyByXuid;
 const addPlayerMoneyByXuid = economyModule.addPlayerMoneyByXuid;
 
-/** 给玩家发放物品，自动处理可堆叠物品的分批 */
+/** 给玩家发放物品，自动处理可堆叠物品的分批，返回是否全部发放成功 */
 function giveItem(player, itemData, count) {
-	let id = typeof itemData === 'string' ? itemData : itemData.id;
-	const aux = typeof itemData === 'string' ? 0 : (itemData.aux || 0);
-	const testItem = mc.newItem(id, 1);
-	testItem.setAux(aux);
-	if (testItem.isStackable) {
-		// 可堆叠物品：每64个一组分批发放
-		let remaining = count;
-		while (remaining > 0) {
-			const stackSize = Math.min(remaining, 64);
-			let item = mc.newItem(id, stackSize);
-			item.setAux(aux);
-			player.giveItem(item);
-			remaining -= stackSize;
+	try {
+		let id = typeof itemData === 'string' ? itemData : itemData.id;
+		const aux = typeof itemData === 'string' ? 0 : (itemData.aux || 0);
+		const testItem = mc.newItem(id, 1);
+		if (!testItem) {
+			logger.error('无效物品ID，发放失败: ' + id);
+			return false;
 		}
-	} else {
-		// 不可堆叠物品：逐个发放
-		for (let i = 0; i < count; i++) {
-			let item = mc.newItem(id, 1);
-			item.setAux(aux);
-			player.giveItem(item);
+		testItem.setAux(aux);
+		if (testItem.isStackable) {
+			// 可堆叠物品：每64个一组分批发放
+			let remaining = count;
+			while (remaining > 0) {
+				const stackSize = Math.min(remaining, 64);
+				let item = mc.newItem(id, stackSize);
+				if (!item) return false;
+				item.setAux(aux);
+				player.giveItem(item);
+				remaining -= stackSize;
+			}
+		} else {
+			// 不可堆叠物品：逐个发放
+			for (let i = 0; i < count; i++) {
+				let item = mc.newItem(id, 1);
+				if (!item) return false;
+				item.setAux(aux);
+				player.giveItem(item);
+			}
 		}
+		player.refreshItems();
+		return true;
+	} catch (e) {
+		logger.error('发放物品异常: ' + e.message);
+		return false;
 	}
-	player.refreshItems();
 }
 
 /** 根据物品ID发放物品的简化接口 */
 function giveItemById(player, itemId, count) {
-	giveItem(player, { id: itemId, aux: 0 }, count);
+	return giveItem(player, { id: itemId, aux: 0 }, count);
 }
 
 /** 获取玩家的VIP信息 */
@@ -1930,6 +1958,7 @@ function handleSignCommand(player) {
 	// 保存签到记录
 	pd.sign.lastDate = today;
 	pd.sign.consecutive = consecutive;
+	playerDataModule.markPlayerDirty(xuid);
 	savePlayerDataNow();
 
 	var currencyName = getCurrencyName();

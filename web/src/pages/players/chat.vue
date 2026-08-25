@@ -137,6 +137,10 @@ function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleString('zh-CN')
 }
 
+// 最新消息排最前
+const displayRealtime = computed(() => [...realtimeMessages.value].sort((a, b) => b.time - a.time))
+const displayHistory = computed(() => [...historyMessages.value].sort((a, b) => b.time - a.time))
+
 function formatHistoryTime(timestamp: number): string {
   return new Date(timestamp).toLocaleString('zh-CN')
 }
@@ -204,7 +208,7 @@ onUnmounted(() => {
             </div>
             <template v-else>
               <div
-                v-for="(msg, i) in realtimeMessages"
+                v-for="(msg, i) in displayRealtime"
                 :key="i"
                 class="flex items-start gap-2 px-3 py-1.5 rounded-md hover:bg-white/10"
               >
@@ -286,7 +290,7 @@ onUnmounted(() => {
               </div>
               <template v-else>
                 <div
-                  v-for="(msg, i) in historyMessages"
+                  v-for="(msg, i) in displayHistory"
                   :key="i"
                   class="flex items-start gap-2 px-3 py-1.5 rounded-md hover:bg-muted/50"
                 >

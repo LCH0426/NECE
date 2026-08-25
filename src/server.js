@@ -245,8 +245,29 @@ function parseProxyProtocol(buf) {
 }
 
 /**
+ * 判断 IP 是否为可信代理上游：仅接受回环与内网地址
+ * @param {string} ip - socket 真实对端地址
+ * @returns {boolean}
+ */
+function isTrustedProxyIp(ip) {
+    if (!ip) return false;
+    if (ip === '::1' || ip === '::ffff:127.0.0.1' || ip.startsWith('127.')) return true;
+    if (ip.startsWith('::ffff:')) ip = ip.substring(7);
+    if (ip.startsWith('10.') || ip.startsWith('192.168.')) return true;
+    if (ip.startsWith('172.')) {
+        const second = parseInt(ip.split('.')[1], 10);
+        if (second >= 16 && second <= 31) return true;
+    }
+    // IPv6 内网 fc00::/7 与链路本地
+    const lower = ip.toLowerCase();
+    if (lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80')) return true;
+    return false;
+}
+
+/**
  * 创建支持 PROXY Protocol 的 TCP 服务器
  * 在 TCP 层解析 PROXY Protocol 头，提取真实 IP 后将连接转发给 HTTP server
+ * 仅接受来自回环/内网上游的 PROXY 头，防止直连伪造源 IP
  * @param {http.Server} httpServer - Express 的 HTTP server
  * @param {object} options - 配置选项
  * @param {boolean} options.v2 - 是否同时支持 v2（默认 true，始终支持 v1）
@@ -279,7 +300,10 @@ function createProxyProtocolServer(httpServer, options) {
             proxyParsed = true;
             socket.removeListener('data', onData);
 
-            if (result.srcAddress) {
+            // 非可信来源发来的 PROXY 头不采纳，按普通连接处理
+            const trusted = isTrustedProxyIp(socket.remoteAddress);
+
+            if (trusted && result.srcAddress) {
                 // Node.js 的 socket.remoteAddress 是原型链上的 getter，直接赋值无法覆盖
                 // 必须用 Object.defineProperty 在实例上定义 own property 来遮蔽原型 getter
                 Object.defineProperty(socket, 'remoteAddress', {
@@ -595,8 +619,9 @@ function issueTokenPair(uid, webConfig, existingFamilyId) {
 function createApp(webConfig) {
     app = express();
     // 反向代理支持：启用后 Express 从 X-Forwarded-For 头读取真实客户端 IP
+    // 仅信任直连上游，防止客户端伪造 X-Forwarded-For 绕过限流与验证码 IP 绑定
     if (webConfig.trustProxy) {
-        app.set('trust proxy', true);
+        app.set('trust proxy', 1);
     }
 
     // 禁用 X-Powered-By 头
@@ -881,6 +906,7 @@ function createV1Routes(webConfig) {
     require('./routes/guild').registerRoutes(router, routeDeps);
     require('./routes/admin').registerRoutes(router, routeDeps);
     require('./routes/mapart').registerRoutes(router, routeDeps);
+    require('./routes/playtime').registerRoutes(router, routeDeps);
 
     // 赞助管理API由 wish 模块提供，仅在模块存在时注册
     if (_wishModuleRef && _wishModuleRef.registerApiRoutes) {

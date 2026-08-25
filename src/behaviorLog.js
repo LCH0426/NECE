@@ -100,8 +100,9 @@ function todayStamp() {
         String(now.getDate()).padStart(2, '0');
 }
 
-/** 根据日期生成日志文件路径 */
+/** 根据日期生成日志文件路径，格式非法返回 null 防止路径穿越 */
 function filePathForDate(stamp) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(stamp)) return null;
     return pathModule.join(LOG_DIR, 'actions-' + stamp + '.csv');
 }
 
@@ -531,7 +532,7 @@ function queryLogs(options) {
 
         const logPath = filePathForDate(date);
 
-        if (!fs.existsSync(logPath)) {
+        if (!logPath || !fs.existsSync(logPath)) {
             resolve({
                 entries: [],
                 pagination: { page: page, pageSize: pageSize, total: 0, totalPages: 0 },

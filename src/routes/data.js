@@ -366,7 +366,8 @@ function registerRoutes(router, d) {
                 }
             }
 
-            let result = messages.slice(-limit);
+            // 最新消息排最前
+            let result = messages.slice(-limit).reverse();
             res.json({ code: 200, data: { messages: result, total: d.chatHistory.length } });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '获取聊天记录失败: ' + e.message});

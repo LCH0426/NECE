@@ -29,7 +29,7 @@ export const columns: ColumnDef<IPlayer>[] = [
       column,
       title: 'UID',
     }),
-    cell: ({ row }) => h('div', { class: 'font-mono' }, row.getValue('uid')),
+    cell: ({ row }) => h('div', { class: 'font-mono' }, String(Number(row.getValue('uid'))).padStart(5, '0')),
     enableResizing: true,
   },
   {
@@ -106,6 +106,8 @@ export const columns: ColumnDef<IPlayer>[] = [
       const openBanDialog = inject<(player: IPlayer) => void>('openBanDialog')
       const openUnbanDialog = inject<(player: IPlayer) => void>('openUnbanDialog')
       const openTitleDialog = inject<(player: IPlayer) => void>('openTitleDialog')
+      const openHeatmapDialog = inject<(player: IPlayer) => void>('openHeatmapDialog')
+      const openUidDialog = inject<(player: IPlayer) => void>('openUidDialog')
       const openDeleteDataDialog = inject<(player: IPlayer) => void>('openDeleteDataDialog')
       return h(UiDropdownMenu, {}, {
         default: () => [
@@ -119,6 +121,8 @@ export const columns: ColumnDef<IPlayer>[] = [
               h(UiDropdownMenuItem, { onClick: () => openMoneyDialog?.(row.original) }, { default: () => '修改经济' }),
               h(UiDropdownMenuItem, { onClick: () => openInventoryDialog?.(row.original) }, { default: () => '背包查询' }),
               h(UiDropdownMenuItem, { onClick: () => openTitleDialog?.(row.original) }, { default: () => '称号管理' }),
+              h(UiDropdownMenuItem, { onClick: () => openHeatmapDialog?.(row.original) }, { default: () => '热力图' }),
+              h(UiDropdownMenuItem, { onClick: () => openUidDialog?.(row.original) }, { default: () => '重新分配UID' }),
               h(UiDropdownMenuSeparator),
               h(UiDropdownMenuItem, { onClick: () => openDetailDialog?.(row.original) }, { default: () => '玩家详情' }),
               row.original.isBanned?.banned

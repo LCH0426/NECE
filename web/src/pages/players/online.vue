@@ -15,6 +15,8 @@ import UiDropdownMenuContent from '@/components/ui/dropdown-menu/DropdownMenuCon
 import UiDropdownMenuItem from '@/components/ui/dropdown-menu/DropdownMenuItem.vue'
 import UiDropdownMenuSeparator from '@/components/ui/dropdown-menu/DropdownMenuSeparator.vue'
 import UiDropdownMenuTrigger from '@/components/ui/dropdown-menu/DropdownMenuTrigger.vue'
+import PlayerDetailDialog from '@/pages/players/all/player-detail-dialog.vue'
+import PlayerHeatmapDialog from '@/pages/players/all/player-heatmap-dialog.vue'
 import PlayerInventoryDialog from '@/pages/players/all/player-inventory-dialog.vue'
 import PlayerTitleDialog from '@/pages/players/all/player-title-dialog.vue'
 import { useBanApi } from '@/services/api/ban.api'
@@ -67,6 +69,8 @@ const banDialogOpen = ref(false)
 const lightningDialogOpen = ref(false)
 const inventoryDialogOpen = ref(false)
 const titleDialogOpen = ref(false)
+const detailDialogOpen = ref(false)
+const heatmapDialogOpen = ref(false)
 const selectedPlayer = ref<IOnlinePlayer | null>(null)
 const inventoryDialogRef = ref<{ fetchInventory: () => void } | null>(null)
 const actionLoading = ref(false)
@@ -90,7 +94,7 @@ function onlinePlayerToIPlayer(p: IOnlinePlayer): IPlayer {
   }
 }
 
-function openActionDialog(player: IOnlinePlayer, type: 'gamemode' | 'money' | 'popup' | 'kick' | 'crash' | 'ban' | 'lightning' | 'inventory' | 'title') {
+function openActionDialog(player: IOnlinePlayer, type: 'gamemode' | 'money' | 'popup' | 'kick' | 'crash' | 'ban' | 'lightning' | 'inventory' | 'title' | 'detail' | 'heatmap') {
   selectedPlayer.value = player
   actionResult.value = ''
   actionError.value = ''
@@ -121,6 +125,12 @@ function openActionDialog(player: IOnlinePlayer, type: 'gamemode' | 'money' | 'p
   }
   else if (type === 'title') {
     titleDialogOpen.value = true
+  }
+  else if (type === 'detail') {
+    detailDialogOpen.value = true
+  }
+  else if (type === 'heatmap') {
+    heatmapDialogOpen.value = true
   }
 }
 
@@ -402,6 +412,8 @@ const columns: ColumnDef<IOnlinePlayer>[] = [
           }),
           h(UiDropdownMenuContent, { align: 'end' }, {
             default: () => [
+              h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'detail') }, { default: () => '玩家详情' }),
+              h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'heatmap') }, { default: () => '游戏时长热力图' }),
               h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'gamemode') }, { default: () => '修改游戏模式' }),
               h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'money') }, { default: () => '修改经济参数' }),
               h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'popup') }, { default: () => '发送消息' }),
@@ -741,6 +753,17 @@ onUnmounted(() => {
     <PlayerTitleDialog
       v-if="selectedPlayer"
       v-model:open="titleDialogOpen"
+      :player="onlinePlayerToIPlayer(selectedPlayer!)"
+    />
+    <PlayerDetailDialog
+      v-if="selectedPlayer"
+      v-model:open="detailDialogOpen"
+      :player="onlinePlayerToIPlayer(selectedPlayer!)"
+      @close="detailDialogOpen = false"
+    />
+    <PlayerHeatmapDialog
+      v-if="selectedPlayer"
+      v-model:open="heatmapDialogOpen"
       :player="onlinePlayerToIPlayer(selectedPlayer!)"
     />
   </BasicPage>

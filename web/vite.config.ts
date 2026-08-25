@@ -76,6 +76,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
+      // Lightning CSS 会把手工编写的 backdrop-filter 降级重写为 -webkit- 前缀导致 Chromium 毛玻璃失效，用 esbuild 只压缩不改属性
+      cssMinify: 'esbuild' as const,
       // 构建产物直接输出到 NECE 项目根目录的 public/（Express 静态托管根）
       outDir: fileURLToPath(new URL('../public', import.meta.url)),
       emptyOutDir: true,

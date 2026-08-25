@@ -89,6 +89,10 @@ function log(adminUid, action, target, detail) {
  */
 function getLogs(date, page, pageSize) {
     try {
+        // 日期格式校验，防止路径穿越
+        if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return { entries: [], pagination: { page: page || 1, pageSize: pageSize || 50, total: 0, totalPages: 0 } };
+        }
         if (!date) {
             const now = new Date();
             date = now.getFullYear() + '-' +

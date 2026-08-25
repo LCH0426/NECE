@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BanIcon, SearchIcon, TrashIcon } from '@lucide/vue'
+import { BanIcon, SearchIcon, TrashIcon, WrenchIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 
 import type { IPlayer } from '@/services/api/player.api'
@@ -12,9 +12,12 @@ import { usePlayerApi } from '@/services/api/player.api'
 
 import { columns } from './all/columns'
 import PlayerDetailDialog from './all/player-detail-dialog.vue'
+import PlayerHeatmapDialog from './all/player-heatmap-dialog.vue'
 import PlayerInventoryDialog from './all/player-inventory-dialog.vue'
 import PlayerMoneyDialog from './all/player-money-dialog.vue'
 import PlayerTitleDialog from './all/player-title-dialog.vue'
+import PlayerToolboxDialog from './all/player-toolbox-dialog.vue'
+import PlayerUidDialog from './all/player-uid-dialog.vue'
 
 const { getPlayers, getPlayersRankUid, getPlayersRankPlaytime, getPlayersRankBalance, getPlayerDetail, getOnlinePlayers } = usePlayerApi()
 const { getBanList, banPlayer, unbanPlayer } = useBanApi()
@@ -43,6 +46,9 @@ const banLoading = ref(false)
 const banError = ref('')
 const banResult = ref('')
 const titleDialogOpen = ref(false)
+const heatmapDialogOpen = ref(false)
+const uidDialogOpen = ref(false)
+const toolboxDialogOpen = ref(false)
 const unbanDialogOpen = ref(false)
 const unbanLoading = ref(false)
 const unbanError = ref('')
@@ -293,6 +299,16 @@ function openTitleDialog(player: IPlayer) {
   titleDialogOpen.value = true
 }
 
+function openHeatmapDialog(player: IPlayer) {
+  selectedPlayer.value = player
+  heatmapDialogOpen.value = true
+}
+
+function openUidDialog(player: IPlayer) {
+  selectedPlayer.value = player
+  uidDialogOpen.value = true
+}
+
 function openUnbanDialog(player: IPlayer) {
   selectedPlayer.value = player
   unbanError.value = ''
@@ -395,6 +411,8 @@ provide('openInventoryDialog', openInventoryDialog)
 provide('openBanDialog', openBanDialog)
 provide('openUnbanDialog', openUnbanDialog)
 provide('openTitleDialog', openTitleDialog)
+provide('openHeatmapDialog', openHeatmapDialog)
+provide('openUidDialog', openUidDialog)
 provide('openDeleteDataDialog', openDeleteDataDialog)
 
 onMounted(() => {
@@ -509,6 +527,9 @@ async function handleDeleteData() {
           <BanIcon class="size-4 mr-1" />
           {{ filterBanned ? '显示全部' : '仅封禁' }}
         </UiButton>
+        <UiButton variant="outline" size="icon" title="玩家管理工具" @click="toolboxDialogOpen = true">
+          <WrenchIcon class="size-4" />
+        </UiButton>
       </div>
     </template>
     <div class="overflow-x-auto">
@@ -539,6 +560,18 @@ async function handleDeleteData() {
       v-model:open="titleDialogOpen"
       :player="selectedPlayer"
     />
+    <PlayerHeatmapDialog
+      v-if="selectedPlayer"
+      v-model:open="heatmapDialogOpen"
+      :player="selectedPlayer"
+    />
+    <PlayerUidDialog
+      v-if="selectedPlayer"
+      v-model:open="uidDialogOpen"
+      :player="selectedPlayer"
+      @refresh="fetchPlayers"
+    />
+    <PlayerToolboxDialog v-model:open="toolboxDialogOpen" />
 
     <UiDialog v-model:open="banDialogOpen" @update:open="(v: boolean) => { if (!v) { banResult = ''; banError = ''; banReason = '' } }">
       <UiDialogContent class="sm:max-w-[425px]">

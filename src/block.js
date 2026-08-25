@@ -209,11 +209,18 @@ function saveSnapshotRegion(player, minPos, maxPos, dimid, filePath, progressKey
                 blocks[i] = 0;
                 continue;
             }
-            var snbt = '';
-            try { snbt = b.getNbt().toSNBT(); } catch (e) { snbt = ''; }
             var aux = 0;
             try { aux = (typeof b.tileData !== 'undefined' ? b.tileData : (typeof b.aux !== 'undefined' ? b.aux : 0)); } catch (e) { aux = 0; }
-            var key = snbt || ('__fail__' + b.type + '__' + aux);
+            var hasBE = true;
+            try { if (typeof b.hasBlockEntity === 'function') hasBE = b.hasBlockEntity(); } catch (e) { hasBE = true; }
+            var snbt = '';
+            var key;
+            if (hasBE) {
+                try { snbt = b.getNbt().toSNBT(); } catch (e) { snbt = ''; }
+                key = snbt || ('__fail__' + b.type + '__' + aux);
+            } else {
+                key = '__plain__' + b.type + '__' + aux;
+            }
             var idx = paletteMap[key];
             if (idx == null) {
                 idx = palette.length;
@@ -221,8 +228,6 @@ function saveSnapshotRegion(player, minPos, maxPos, dimid, filePath, progressKey
                 palette.push({ name: b.type, aux: aux, snbt: snbt });
             }
             blocks[i] = idx;
-            var hasBE = true;
-            try { if (typeof b.hasBlockEntity === 'function') hasBE = b.hasBlockEntity(); } catch (e) { hasBE = true; }
             if (hasBE) {
                 try {
                     var be = mc.getBlockEntity(wx, wy, wz, dimid);
@@ -359,10 +364,10 @@ function init(deps) {
     startBlockTipTimer();
     startAssistantParticleTimer();
     // 玩家切换维度或退出游戏时取消进行中的任务
-    mc.listen('onPlayerChangeDimension', function(pl) {
+    mc.listen('onChangeDim', function(pl, dimid) {
         if (pl) cancelPlayerTask(pl);
     });
-    mc.listen('onPlayerLeft', function(pl) {
+    mc.listen('onLeft', function(pl) {
         if (pl) cancelPlayerTask(pl);
     });
     // 延迟到服务器启动后加载iland API
@@ -2952,11 +2957,18 @@ function exportStructure(player, minPos, maxPos, dimid, name) {
                 blocks[i] = 0;
                 continue;
             }
-            var snbt = '';
-            try { snbt = b.getNbt().toSNBT(); } catch (e) { snbt = ''; }
             var aux = 0;
             try { aux = (typeof b.tileData !== 'undefined' ? b.tileData : (typeof b.aux !== 'undefined' ? b.aux : 0)); } catch (e) { aux = 0; }
-            var key = snbt || ('__fail__' + b.type + '__' + aux);
+            var hasBE = true;
+            try { if (typeof b.hasBlockEntity === 'function') hasBE = b.hasBlockEntity(); } catch (e) { hasBE = true; }
+            var snbt = '';
+            var key;
+            if (hasBE) {
+                try { snbt = b.getNbt().toSNBT(); } catch (e) { snbt = ''; }
+                key = snbt || ('__fail__' + b.type + '__' + aux);
+            } else {
+                key = '__plain__' + b.type + '__' + aux;
+            }
             var idx = paletteMap[key];
             if (idx == null) {
                 idx = palette.length;
@@ -2965,8 +2977,6 @@ function exportStructure(player, minPos, maxPos, dimid, name) {
             }
             blocks[i] = idx;
             count++;
-            var hasBE = true;
-            try { if (typeof b.hasBlockEntity === 'function') hasBE = b.hasBlockEntity(); } catch (e) { hasBE = true; }
             if (hasBE) {
                 try {
                     var be = mc.getBlockEntity(wx, wy, wz, dimid);

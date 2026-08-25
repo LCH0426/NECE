@@ -53,7 +53,7 @@ function dbDebugLog() {
 }
 
 /**
- * 转义SQL字符串值（单引号转义 + 反斜杠转义）
+ * 转义SQL字符串值（SQLite 字符串字面量仅需单引号翻倍）
  */
 function sqlEscape(val) {
     if (val === null || val === undefined) return 'NULL';
@@ -63,8 +63,7 @@ function sqlEscape(val) {
     }
     if (typeof val === 'boolean') return val ? '1' : '0';
     var str = String(val);
-    // 转义反斜杠和单引号，防止SQL注入
-    str = str.replace(/\\/g, '\\\\').replace(/'/g, "''");
+    str = str.replace(/'/g, "''");
     return "'" + str + "'";
 }
 
@@ -480,7 +479,7 @@ function initPlayerDatabase() {
         quick_menu TEXT DEFAULT '{}', vip_data TEXT DEFAULT '{}',
         avatar TEXT DEFAULT '{}', count TEXT DEFAULT '{}',
         titles TEXT DEFAULT '{}',
-        last_ip TEXT DEFAULT '', platform TEXT DEFAULT ''
+        last_ip TEXT DEFAULT '', platform TEXT DEFAULT '', random_assigned TEXT DEFAULT ''
     )`);
 
     // 兼容已有数据库：检查缺失列并添加
@@ -488,7 +487,7 @@ function initPlayerDatabase() {
     query(playerDb, "PRAGMA table_info(player_data)").forEach(function(r) { existingCols[r.name] = true; });
     [['last_ip', "TEXT DEFAULT ''"], ['platform', "TEXT DEFAULT ''"], ['titles', "TEXT DEFAULT '{}'"],
      ['chain', "TEXT DEFAULT '{}'"], ['chain_plan', "TEXT DEFAULT '{}'"], ['dustshop', "TEXT DEFAULT '{}'"],
-     ['sign', "TEXT DEFAULT '{}'"]
+     ['sign', "TEXT DEFAULT '{}'"], ['random_assigned', "TEXT DEFAULT ''"]
     ].forEach(function(col) {
         if (!existingCols[col[0]]) {
             try { playerDb.exec("ALTER TABLE player_data ADD COLUMN " + col[0] + " " + col[1]); } catch (e) {}
@@ -523,6 +522,8 @@ function initPlayerDatabase() {
     // 待领取转账表
     playerDb.exec('CREATE TABLE IF NOT EXISTS pending_transfers (id INTEGER PRIMARY KEY AUTOINCREMENT, target_xuid TEXT NOT NULL, from_name TEXT, from_xuid TEXT, amount REAL NOT NULL, time TEXT)');
     createPlayerCountTable();
+    // 每日游戏时长表
+    createPlayTimeTable();
     playerDbReady = true;
     dbDebugLog('initPlayerDatabase: 数据库就绪');
     return playerDb;
@@ -546,25 +547,14 @@ function cancelPendingSave() {}
  * @returns {Object|null} 玩家数据对象，不存在返回 null
  */
 function getPlayerDataSQL(xuid) {
-    var rows = query(playerDb, 'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop, sign FROM player_data WHERE xuid = ?', [xuid]);
+    var rows = query(playerDb, 'SELECT uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop, sign, random_assigned FROM player_data WHERE xuid = ?', [xuid]);
     if (rows.length === 0) return null;
-    var r = rows[0];
-    return {
-        uid: r.uid, name: r.name, uuid: r.uuid, registerTime: r.register_time,
-        leavetime: r.leave_time, healthBonus: r.health_bonus, rw: r.rw,
-        taxdata: JSON.parse(r.tax_data || '{}'), bankdata: JSON.parse(r.bank_data || '{}'),
-        quickmenu: JSON.parse(r.quick_menu || '{}'), vipdata: JSON.parse(r.vip_data || '{}'),
-        avatar: JSON.parse(r.avatar || '{}'), count: JSON.parse(r.count || '{}'),
-        titles: JSON.parse(r.titles || '{}'), lastIp: r.last_ip || '', platform: r.platform || '',
-        chain: JSON.parse(r.chain || '{}'), chainPlan: JSON.parse(r.chain_plan || '{}'),
-        dustshop: JSON.parse(r.dustshop || '{}'),
-        sign: JSON.parse(r.sign || '{}')
-    };
+    return _parsePlayerRow(rows[0]);
 }
 
 function setPlayerDataSQL(xuid, data) {
     run(playerDb,
-        'INSERT OR REPLACE INTO player_data (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop, sign) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT OR REPLACE INTO player_data (xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop, sign, random_assigned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [xuid, data.uid, data.name, data.uuid, data.registerTime,
          String(data.leavetime || ''), data.healthBonus || 0, data.rw,
          JSON.stringify(data.taxdata || {}), JSON.stringify(data.bankdata || {}),
@@ -572,7 +562,7 @@ function setPlayerDataSQL(xuid, data) {
          JSON.stringify(data.avatar || {}), JSON.stringify(data.count || {}),
          JSON.stringify(data.titles || {}), data.lastIp || '', data.platform || '',
          JSON.stringify(data.chain || {}), JSON.stringify(data.chainPlan || {}),
-         JSON.stringify(data.dustshop || {}), JSON.stringify(data.sign || {})]
+         JSON.stringify(data.dustshop || {}), JSON.stringify(data.sign || {}), data.randomAssigned || '']
     );
 }
 
@@ -580,8 +570,23 @@ function updateLeaveTimeSQL(xuid, timestamp) {
     run(playerDb, 'UPDATE player_data SET leave_time = ? WHERE xuid = ?', [String(timestamp), xuid]);
 }
 
+/** 更新玩家UID */
+function updatePlayerUidSQL(xuid, uid) {
+run(playerDb, 'UPDATE player_data SET uid = ? WHERE xuid = ?', [uid, xuid]);
+}
+
 function updatePlayTimeSQL(xuid, playTime) {
     run(playerDb, "UPDATE player_data SET count = json_set(COALESCE(count, '{}'), '$.playTime', ?) WHERE xuid = ?", [playTime, xuid]);
+}
+
+/** 记录随机分配标记 */
+function setRandomAssignedSQL(xuid, timestamp) {
+run(playerDb, 'UPDATE player_data SET random_assigned = ? WHERE xuid = ?', [String(timestamp || ''), xuid]);
+}
+
+/** 删除玩家每日时长记录 */
+function deletePlayTimeSQL(xuid) {
+run(playerDb, 'DELETE FROM play_time_history WHERE xuid = ?', [xuid]);
 }
 
 function _safeParse(str, fallback) {
@@ -598,19 +603,20 @@ function _parsePlayerRow(r) {
         titles: _safeParse(r.titles), lastIp: r.last_ip || '', platform: r.platform || '',
         chain: _safeParse(r.chain), chainPlan: _safeParse(r.chain_plan),
         dustshop: _safeParse(r.dustshop),
-        sign: _safeParse(r.sign)
+        sign: _safeParse(r.sign),
+        randomAssigned: r.random_assigned || ''
     };
 }
 
 function getAllPlayerDataSQL() {
-    var rows = query(playerDb, 'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop, sign FROM player_data');
+    var rows = query(playerDb, 'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop, sign, random_assigned FROM player_data');
     var players = {};
     rows.forEach(function(r) { players[r.xuid] = _parsePlayerRow(r); });
     return players;
 }
 
 function getPlayerDataByUidSQL(uid) {
-    var rows = query(playerDb, 'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop, sign FROM player_data WHERE uid = ?', [uid]);
+    var rows = query(playerDb, 'SELECT xuid, uid, name, uuid, register_time, leave_time, health_bonus, rw, tax_data, bank_data, quick_menu, vip_data, avatar, count, titles, last_ip, platform, chain, chain_plan, dustshop, sign, random_assigned FROM player_data WHERE uid = ?', [uid]);
     if (rows.length === 0) return null;
     var row = rows[0];
     var data = _parsePlayerRow(row);
@@ -845,8 +851,20 @@ function setMessagesSQL(xuid, messages) {
     var existingCount = query(playerDb, 'SELECT COUNT(*) as cnt FROM messages WHERE xuid = ?', [xuid])[0].cnt;
     var newMsgs = messages || [];
 
-    // 如果数量一致，大概率无变化，跳过
-    if (existingCount === newMsgs.length) return;
+    // 数量一致时仍可能已读标志变化，未读数不一致则全量重建
+    if (existingCount === newMsgs.length) {
+        var unreadInMem = 0;
+        newMsgs.forEach(function(m) { if (m && !m.read) unreadInMem++; });
+        var unreadRows = query(playerDb, 'SELECT COUNT(*) as cnt FROM messages WHERE xuid = ? AND is_read = 0', [xuid]);
+        if (!unreadRows.length || unreadRows[0].cnt === unreadInMem) return;
+        run(playerDb, 'DELETE FROM messages WHERE xuid = ?', [xuid]);
+        newMsgs.forEach(function(m) {
+            if (!m) return;
+            run(playerDb, 'INSERT INTO messages (xuid, from_xuid, from_name, to_xuid, to_name, content, time, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [xuid, m.fromXuid || '', m.fromName || '', m.toXuid || '', m.toName || '', m.content || '', m.time || '', m.read ? 1 : 0]);
+        });
+        return;
+    }
 
     // 新消息比旧的多，只插入多出来的部分（消息是追加模式）
     if (newMsgs.length > existingCount) {
@@ -940,7 +958,7 @@ function getPlayerInventorySQL(xuid) {
     var rows = query(playerDb, 'SELECT items, armor, offhand, save_time FROM player_inventory WHERE xuid = ?', [xuid]);
     if (rows.length === 0) return null;
     var r = rows[0];
-    return { items: JSON.parse(r.items || '[]'), armor: JSON.parse(r.armor || '[]'), offhand: JSON.parse(r.offhand || '[]'), saveTime: r.save_time };
+    return { items: _safeParse(r.items, []), armor: _safeParse(r.armor, []), offhand: _safeParse(r.offhand, []), saveTime: r.save_time };
 }
 
 // ===================== 公会系统 SQL 方法 =====================
@@ -967,6 +985,26 @@ function createGuildTables() {
 function createPlayerCountTable() {
     playerDb.exec('CREATE TABLE IF NOT EXISTS player_count_history (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER NOT NULL, count INTEGER NOT NULL)');
     playerDb.exec('CREATE INDEX IF NOT EXISTS idx_player_count_ts ON player_count_history(timestamp)');
+}
+
+function createPlayTimeTable() {
+    playerDb.exec('CREATE TABLE IF NOT EXISTS play_time_history (xuid TEXT NOT NULL, date TEXT NOT NULL, seconds INTEGER DEFAULT 0, PRIMARY KEY (xuid, date))');
+}
+
+// --- 每日游戏时长 SQL ---
+
+/** 累加玩家指定日期的游戏秒数 */
+function addPlayTimeSQL(xuid, date, seconds) {
+    if (!xuid || !date || !seconds) return;
+    run(playerDb, 'INSERT INTO play_time_history (xuid, date, seconds) VALUES (?, ?, ?) ON CONFLICT(xuid, date) DO UPDATE SET seconds = seconds + excluded.seconds', [xuid, date, seconds]);
+}
+
+/** 查询玩家日期范围内的每日时长，返回 {date: seconds} 映射 */
+function getPlayTimeRangeSQL(xuid, startDate, endDate) {
+    var rows = query(playerDb, 'SELECT date, seconds FROM play_time_history WHERE xuid = ? AND date >= ? AND date <= ?', [xuid, startDate, endDate]);
+    var map = {};
+    rows.forEach(function(r) { map[r.date] = r.seconds; });
+    return map;
 }
 
 // --- 公会申请/邀请 SQL ---
@@ -1240,7 +1278,10 @@ module.exports = {
     getPlayerDataByNameSQL,
     setPlayerDataSQL,
     updateLeaveTimeSQL,
+    updatePlayerUidSQL,
     updatePlayTimeSQL,
+    setRandomAssignedSQL,
+    deletePlayTimeSQL,
     getAllPlayerDataSQL,
     getNextUidSQL,
     getPlayerSettingsSQL,
@@ -1275,6 +1316,9 @@ module.exports = {
     batchSavePlayerDb,
     savePlayerInventorySQL,
     getPlayerInventorySQL,
+    // 每日游戏时长SQL
+    addPlayTimeSQL,
+    getPlayTimeRangeSQL,
     // 玩家数据删除SQL
     deletePlayerDataSQL,
     deletePlayerSettingsSQL,

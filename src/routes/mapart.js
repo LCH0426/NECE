@@ -79,10 +79,14 @@ function ensureMapartDir(fs) {
     }
 }
 
-/** 消毒文件名：仅保留字母数字下划线短横线 */
+/** 消毒文件名：仅保留字母数字下划线短横线，扩展名仅允许图片后缀 */
 function sanitizeFilename(name) {
-    var ext = path.extname(name).toLowerCase();
-    var base = path.basename(name, ext);
+    var rawExt = path.extname(name);
+    var ext = rawExt.toLowerCase();
+    if (ALLOWED_EXTS.indexOf(ext) === -1) {
+        ext = '';
+    }
+    var base = path.basename(name, rawExt);
     // 移除非安全字符
     base = base.replace(/[^a-zA-Z0-9_\-一-龥]/g, '_');
     // 限制长度

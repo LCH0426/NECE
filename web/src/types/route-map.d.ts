@@ -198,13 +198,23 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       Record<never, never>,
       | '/players/all/player-detail-dialog'
+      | '/players/all/player-heatmap-dialog'
       | '/players/all/player-inventory-dialog'
       | '/players/all/player-money-dialog'
       | '/players/all/player-title-dialog'
+      | '/players/all/player-toolbox-dialog'
+      | '/players/all/player-uid-dialog'
     >,
     '/players/all/player-detail-dialog': RouteRecordInfo<
       '/players/all/player-detail-dialog',
       '/players/all/player-detail-dialog',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/players/all/player-heatmap-dialog': RouteRecordInfo<
+      '/players/all/player-heatmap-dialog',
+      '/players/all/player-heatmap-dialog',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -226,6 +236,20 @@ declare module 'vue-router/auto-routes' {
     '/players/all/player-title-dialog': RouteRecordInfo<
       '/players/all/player-title-dialog',
       '/players/all/player-title-dialog',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/players/all/player-toolbox-dialog': RouteRecordInfo<
+      '/players/all/player-toolbox-dialog',
+      '/players/all/player-toolbox-dialog',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/players/all/player-uid-dialog': RouteRecordInfo<
+      '/players/all/player-uid-dialog',
+      '/players/all/player-uid-dialog',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -275,6 +299,13 @@ declare module 'vue-router/auto-routes' {
     '/players/online': RouteRecordInfo<
       '/players/online',
       '/players/online',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/players/profile': RouteRecordInfo<
+      '/players/profile',
+      '/players/profile',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -473,15 +504,24 @@ declare module 'vue-router/auto-routes' {
       routes:
         | '/players/all'
         | '/players/all/player-detail-dialog'
+        | '/players/all/player-heatmap-dialog'
         | '/players/all/player-inventory-dialog'
         | '/players/all/player-money-dialog'
         | '/players/all/player-title-dialog'
+        | '/players/all/player-toolbox-dialog'
+        | '/players/all/player-uid-dialog'
       views:
         | 'default'
     }
     'src/pages/players/all/player-detail-dialog.vue': {
       routes:
         | '/players/all/player-detail-dialog'
+      views:
+        | never
+    }
+    'src/pages/players/all/player-heatmap-dialog.vue': {
+      routes:
+        | '/players/all/player-heatmap-dialog'
       views:
         | never
     }
@@ -500,6 +540,18 @@ declare module 'vue-router/auto-routes' {
     'src/pages/players/all/player-title-dialog.vue': {
       routes:
         | '/players/all/player-title-dialog'
+      views:
+        | never
+    }
+    'src/pages/players/all/player-toolbox-dialog.vue': {
+      routes:
+        | '/players/all/player-toolbox-dialog'
+      views:
+        | never
+    }
+    'src/pages/players/all/player-uid-dialog.vue': {
+      routes:
+        | '/players/all/player-uid-dialog'
       views:
         | never
     }
@@ -542,6 +594,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/players/online.vue': {
       routes:
         | '/players/online'
+      views:
+        | never
+    }
+    'src/pages/players/profile.vue': {
+      routes:
+        | '/players/profile'
       views:
         | never
     }

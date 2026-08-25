@@ -137,9 +137,9 @@ export function setupAuthGuard(router: Router) {
       return { path: authStore.isAdmin ? '/dashboard' : '/messages' }
     }
 
-    // 非管理员只能访问留言板、设置页和地图画上传
+    // 非管理员只能访问留言板、设置页、地图画上传和个人信息
     if (isLogin.value && !authStore.isAdmin) {
-      const allowedPaths = ['/messages', '/settings', '/players/mapart']
+      const allowedPaths = ['/messages', '/settings', '/players/mapart', '/players/profile']
       const isAllowed = allowedPaths.some(p => to.path.startsWith(p))
       if (!isAllowed && !isPublicPage) {
         return { path: '/messages' }

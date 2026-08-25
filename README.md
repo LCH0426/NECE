@@ -264,6 +264,7 @@ NECE/
 │   └── routes/           # Web API 路由
 │       ├── admin.js      # 系统监控/称号/雷劈管理API
 │       ├── players.js    # 玩家列表/排行/详情
+│       ├── playtime.js   # 游戏时长热力图API
 │       ├── mapart.js     # 地图画上传API
 │       └── ...           # 其他路由模块
 ├── lang/                 # 语言文件目录

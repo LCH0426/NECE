@@ -738,14 +738,19 @@ function showBuyItemForm(player, item, deps) {
 	});
 }
 
-/** 执行购买逻辑：扣款、发放物品、VIP折扣累计、写日志 */
+/** 执行购买逻辑：扣款、发放物品、VIP折扣累计、写日志，发放失败自动退款 */
 function executePurchase(player, item, count, unitPrice, totalCost, hasVip, originalUnitPrice, deps) {
 	const lang = getLocale(player.xuid);
 	if (!deps.reducePlayerMoney(player, totalCost, t(lang, 'shop.reason_buy'))) {
 		player.tell(t(lang, 'shop.buy_deduct_failed'));
 		return;
 	}
-	deps.giveItemById(player, item.id, count);
+	const given = deps.giveItemById(player, item.id, count);
+	if (given === false) {
+		deps.addPlayerMoney(player, totalCost, t(lang, 'shop.reason_buy') + ' refund');
+		player.tell(t(lang, 'shop.buy_deduct_failed'));
+		return;
+	}
 
 	if (hasVip) {
 		const saved = originalUnitPrice * count - totalCost;

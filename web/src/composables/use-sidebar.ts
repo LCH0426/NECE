@@ -37,6 +37,7 @@ export function useSidebar() {
           items: [
             { title: '留言板', url: '/messages', icon: MessageSquareIcon },
             { title: '地图画', url: '/players/mapart', icon: ImageIcon },
+            { title: '个人信息', url: '/players/profile', icon: UserIcon },
           ],
         },
       ]
@@ -79,6 +80,7 @@ export function useSidebar() {
           },
           { title: '留言板', url: '/messages', icon: MessageSquareIcon },
           { title: '地图画', url: '/players/mapart', icon: ImageIcon },
+          { title: '个人信息', url: '/players/profile', icon: UserIcon },
         ],
       },
     ]

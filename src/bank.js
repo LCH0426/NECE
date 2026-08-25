@@ -123,6 +123,11 @@ function createBankModule(deps) {
         if (isNaN(timeDiff) || timeDiff < 1000) return 0;
         let days = timeDiff / (1000 * 60 * 60 * 24);
         const dailyRate = 0.0002;
+        // 空仓期间不计息，推进计息起点防止存入后按历史天数套息
+        if (!(account.current.balance > 0)) {
+            account.current.lastInterestTime = U.getCurrentTimeString();
+            return 0;
+        }
         let interest = Math.round(account.current.balance * dailyRate * days);
         if (isNaN(interest) || interest <= 0) return 0;
         if (interest > 0) {

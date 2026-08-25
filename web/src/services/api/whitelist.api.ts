@@ -32,6 +32,16 @@ export interface IWhitelistItem {
   ignoresPlayerLimit: boolean
 }
 
+export interface INonAllowlistPlayer {
+  xuid: string
+  name: string
+  uid: number | string
+  balance: number
+  playTime: number
+  lastLogin: string
+  registerTime: string
+}
+
 export interface IWhitelistListData {
   list: IWhitelistItem[]
   pagination: {
@@ -40,6 +50,23 @@ export interface IWhitelistListData {
     total: number
     totalPages: number
   }
+}
+
+export interface INonAllowlistListData {
+  list: INonAllowlistPlayer[]
+  pagination: {
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+  }
+}
+
+export interface IBatchDeleteResult {
+  xuid: string
+  name: string
+  success: boolean
+  error?: string
 }
 
 export function useWhitelistApi() {
@@ -66,5 +93,19 @@ export function useWhitelistApi() {
     })
   }
 
-  return { getWhitelist, addWhitelist, deleteWhitelist }
+  function getNotInAllowlist(query?: IRequestQuery<{ search: string }>) {
+    return apiFetch<ILeResponse<INonAllowlistListData>>('/players/not-in-allowlist', {
+      method: 'GET',
+      params: query,
+    })
+  }
+
+  function postDeleteBatch(data: { xuids: string[] }) {
+    return apiFetch<ILeResponse<{ total: number, successCount: number, failCount: number, results: IBatchDeleteResult[] }>>('/players/delete-batch', {
+      method: 'POST',
+      body: data,
+    })
+  }
+
+  return { getWhitelist, addWhitelist, deleteWhitelist, getNotInAllowlist, postDeleteBatch }
 }

@@ -38,6 +38,151 @@ function registerRoutes(router, d) {
         return items;
     }
 
+    // BDS白名单文件路径
+    const ALLOWLIST_PATH = d.pathModule.join(process.cwd(), 'allowlist.json');
+
+    function readAllowlist() {
+        try {
+            if (d.fs.existsSync(ALLOWLIST_PATH)) {
+                let content = d.fs.readFileSync(ALLOWLIST_PATH, 'utf-8');
+                let list = JSON.parse(content);
+                if (!Array.isArray(list)) return [];
+                return list;
+            }
+            return [];
+        } catch (e) {
+            logger.error('[Web] 读取白名单失败');
+            return [];
+        }
+    }
+
+    // 获取不在白名单中的玩家列表（玩家ID、余额、游戏时长、上次登录）
+    router.get('/players/not-in-allowlist', d.adminAuth, function(req, res) {
+        try {
+            let allow = readAllowlist();
+            let allowXuid = {};
+            let allowName = {};
+            for (let i = 0; i < allow.length; i++) {
+                let item = allow[i];
+                if (item.xuid) allowXuid[String(item.xuid)] = true;
+                if (item.name) allowName[String(item.name).toLowerCase()] = true;
+            }
+
+            let all = d.database.getAllPlayerDataSQL();
+            let keys = Object.keys(all);
+            let list = [];
+            for (let i = 0; i < keys.length; i++) {
+                let xuid = keys[i];
+                let p = all[xuid];
+                let pName = p.name || '';
+                if (allowXuid[xuid]) continue;
+                if (pName && allowName[pName.toLowerCase()]) continue;
+                let balance = 0;
+                try { balance = d.economyFunctions.getPlayerMoneyByXuid(xuid) || 0; } catch (e) { balance = 0; }
+                let playTime = (p.count && typeof p.count.playTime === 'number') ? p.count.playTime : 0;
+                list.push({
+                    xuid: xuid,
+                    name: pName || xuid,
+                    uid: p.uid || 0,
+                    balance: balance,
+                    playTime: playTime,
+                    lastLogin: p.leavetime || '',
+                    registerTime: p.registerTime || ''
+                });
+            }
+
+            let search = (req.query.search || '').trim().toLowerCase();
+            if (search) {
+                list = list.filter(function(item) {
+                    return item.name.toLowerCase().indexOf(search) !== -1 ||
+                           item.xuid.indexOf(search) !== -1 ||
+                           String(item.uid).indexOf(search) !== -1;
+                });
+            }
+
+            let page = parseInt(req.query.page) || 1;
+            let pageSize = parseInt(req.query.pageSize) || 20;
+            let total = list.length;
+            let totalPages = Math.ceil(total / pageSize);
+            let start = (page - 1) * pageSize;
+            const paged = list.slice(start, start + pageSize);
+
+            res.json({
+                code: 200,
+                data: {
+                    list: paged,
+                    pagination: { page: page, pageSize: pageSize, total: total, totalPages: totalPages }
+                }
+            });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '获取不在白名单玩家失败: ' + e.message});
+        }
+    });
+
+    // 批量删除玩家全部数据（无验证码，需前端确认框）
+    router.post('/players/delete-batch', d.adminAuth, d.writeLimiter, function(req, res) {
+        try {
+            let xuids = Array.isArray(req.body.xuids) ? req.body.xuids : [];
+            if (xuids.length === 0) {
+                return res.status(400).json({ code: 400, msg: '缺少待删除玩家列表' });
+            }
+            let results = [];
+            let successCount = 0;
+            let failCount = 0;
+            for (let i = 0; i < xuids.length; i++) {
+                let xuid = String(xuids[i] || '').trim();
+                if (!xuid) {
+                    failCount++;
+                    results.push({ xuid: xuid, name: xuid, success: false, error: 'XUID无效' });
+                    continue;
+                }
+                let playerData = d.database.getPlayerDataSQL(xuid);
+                if (!playerData) {
+                    failCount++;
+                    results.push({ xuid: xuid, name: xuid, success: false, error: '玩家数据不存在' });
+                    continue;
+                }
+                let playerName = playerData.name || xuid;
+                try {
+                    // 清空玩家余额（LLMoney）
+                    if (d.money) {
+                        try {
+                            let balance = d.money.get(xuid) || 0;
+                            if (balance > 0) d.money.reduce(xuid, balance);
+                        } catch (e) {}
+                    }
+                    // 删除玩家核心数据
+                    d.database.deletePlayerDataSQL(xuid);
+                    d.database.deletePlayerSettingsSQL(xuid);
+                    d.database.deleteDeathPointsSQL(xuid);
+                    d.database.deleteFriendsSQL(xuid);
+                    d.database.deleteFriendRequestsSQL(xuid);
+                    d.database.deleteMessagesSQL(xuid);
+                    d.database.deleteHomesSQL(xuid);
+                    d.database.deletePlayerInventorySQL(xuid);
+                    // 从公会中移除玩家
+                    try {
+                        let guild = d.database.getGuildByPlayer(xuid);
+                        if (guild) d.database.removeGuildMember(xuid);
+                    } catch (e) {}
+                    // 从内存中移除
+                    if (d.getPlayerData && d.getPlayerData().players) {
+                        delete d.getPlayerData().players[xuid];
+                    }
+                    successCount++;
+                    results.push({ xuid: xuid, name: playerName, success: true });
+                } catch (e) {
+                    failCount++;
+                    results.push({ xuid: xuid, name: playerName, success: false, error: e.message });
+                }
+            }
+            d.adminLog.log(req.user.uid, '批量删除玩家数据', '不在白名单玩家', '共' + xuids.length + '人，成功' + successCount + '人');
+            res.json({ code: 200, data: { total: xuids.length, successCount: successCount, failCount: failCount, results: results } });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '批量删除玩家失败: ' + e.message});
+        }
+    });
+
     // 获取当前在线玩家列表
     router.get('/players/online', d.adminAuth, function(req, res) {
         try {
@@ -486,9 +631,14 @@ function registerRoutes(router, d) {
     });
 
     // 获取指定玩家详情
-    router.get('/players/:xuid', d.adminAuth, function(req, res) {
+    router.get('/players/:xuid', d.auth, function(req, res) {
         try {
             let xuid = req.params.xuid;
+            // 权限：管理员可查任何人，普通用户仅可查本人
+            const isAdmin = d.database.isAdmin(req.user.uid);
+            if (!isAdmin && d.getXuidByUid(req.user.uid) !== xuid) {
+                return res.status(403).json({ code: 403, msg: '无权限查看该玩家' });
+            }
             let playerData = d.getPlayerData();
 
             if (!playerData || !playerData.players || !playerData.players[xuid]) {
@@ -610,6 +760,41 @@ function registerRoutes(router, d) {
             });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '修改游戏模式失败: ' + e.message});
+        }
+    });
+
+    // 重新分配玩家UID，5位数字，支持前导零
+    router.put('/players/:xuid/uid', d.adminAuth, d.writeLimiter, function(req, res) {
+        try {
+            let xuid = String(req.params.xuid || '');
+            let uidStr = String(req.body.uid || '').trim();
+            if (!/^\d{5}$/.test(uidStr)) {
+                return res.status(400).json({ code: 400, msg: 'UID 必须为5位数字' });
+            }
+            let newUid = parseInt(uidStr, 10);
+            if (newUid < 1 || newUid > 99999) {
+                return res.status(400).json({ code: 400, msg: 'UID 范围 00001~99999' });
+            }
+            let pData = d.getPlayerData();
+            let target = pData && pData.players ? pData.players[xuid] : null;
+            if (!target) {
+                return res.status(404).json({ code: 404, msg: '玩家不存在' });
+            }
+            // 冲突检查
+            let holder = d.database.getPlayerDataByUidSQL(newUid);
+            if (holder && holder.xuid !== xuid) {
+                return res.status(400).json({ code: 400, msg: 'UID ' + uidStr + ' 已被玩家 ' + holder.name + ' 占用' });
+            }
+            let oldUid = target.uid;
+            d.database.updatePlayerUidSQL(xuid, uidStr);
+            target.uid = newUid;
+            if (typeof pData.nextUid === 'number' && newUid >= pData.nextUid) {
+                pData.nextUid = newUid + 1;
+            }
+            d.adminLog.log(req.user.uid, '重新分配UID', target.name + '(' + xuid + ')', '旧UID ' + String(oldUid).padStart(5, '0') + ' → 新UID ' + uidStr);
+            res.json({ code: 200, msg: 'UID 已更新为 ' + uidStr, data: { xuid: xuid, uid: newUid, name: target.name } });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '更新UID失败: ' + e.message});
         }
     });
 

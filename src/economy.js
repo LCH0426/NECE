@@ -170,6 +170,10 @@ function reducePlayerMoney(player, value, reason) {
         }
 
         let intValue = Math.floor(Number(value));
+        if (isNaN(intValue) || !isFinite(intValue) || intValue <= 0) {
+            logger.error('扣费金额非法：' + value + '，玩家：' + player.name);
+            return false;
+        }
         let xuid = player.xuid;
 
         if (!xuid) {
@@ -235,6 +239,10 @@ function addPlayerMoney(player, value, reason) {
         }
 
         let intValue = Math.floor(Number(value));
+        if (isNaN(intValue) || !isFinite(intValue) || intValue <= 0) {
+            logger.error('入账金额非法：' + value + '，玩家：' + player.name);
+            return false;
+        }
         let xuid = player.xuid;
 
         if (!xuid) {
@@ -303,6 +311,10 @@ function addPlayerMoneyByXuid(xuid, value, source) {
         if (typeof money.add !== 'function') return false;
         if (!xuid) return false;
         const intValue = Math.floor(Number(value));
+        if (isNaN(intValue) || !isFinite(intValue) || intValue === 0) {
+            logger.error('ByXuid入账金额非法：' + value);
+            return false;
+        }
         const success = money.add(xuid, intValue);
         if (success) {
             const player = mc.getPlayer(xuid);
@@ -329,6 +341,10 @@ function reducePlayerMoneyByXuid(xuid, value, source) {
         if (typeof money.reduce !== 'function') return false;
         if (!xuid) return false;
         const intValue = Math.floor(Number(value));
+        if (isNaN(intValue) || !isFinite(intValue) || intValue === 0) {
+            logger.error('ByXuid扣费金额非法：' + value);
+            return false;
+        }
         const success = money.reduce(xuid, intValue);
         if (success) {
             const player = mc.getPlayer(xuid);

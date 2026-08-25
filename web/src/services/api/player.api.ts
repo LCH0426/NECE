@@ -323,6 +323,13 @@ export function usePlayerApi() {
     })
   }
 
+  function updatePlayerUid(xuid: string, uid: string) {
+    return apiFetch<ILeResponse<{ xuid: string, uid: number, name: string }>>(`/players/${xuid}/uid`, {
+      method: 'PUT',
+      body: { uid },
+    })
+  }
+
   function sendPopup(xuid: string, content: string) {
     return apiFetch<ILeResponse<null>>('/players/popup', {
       method: 'POST',
@@ -484,6 +491,7 @@ export function usePlayerApi() {
     crashPlayer,
     lightningPlayer,
     changeGameMode,
+    updatePlayerUid,
     sendPopup,
     sendChatMessage,
     getAllMoney,
