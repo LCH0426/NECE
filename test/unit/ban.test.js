@@ -1,67 +1,144 @@
-/**
- * NECE 封禁系统测试
- */
+const { describe, it, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const { setupMocks, teardownMocks, createAndRegisterPlayer, createMockDM, lse } = require('../helpers/setup');
 
-const { test, assertEqual, assertTruthy, assertFalsy } = require('../test-framework');
+describe('ban', () => {
+    let ban;
+    let sharedPlayers;
+    let dm;
 
-console.log('\n--- ban.js 测试 ---');
+    before(() => {
+        setupMocks();
+        sharedPlayers = {
+            '10001': { name: 'Test1', uid: 'u1' },
+            '10002': { name: 'Test2', uid: 'u2' }
+        };
+        ban = require('../../src/ban');
+    });
 
-// 模拟封禁数据
-const mockBanData = {
-    entries: {
-        '10001': { reason: '作弊', time: '2026.01.01', ip: '192.168.1.1' },
-        '10002': { reason: '恶意破坏', time: '2026.01.02', ip: '192.168.1.2' }
+    after(() => {
+        teardownMocks();
+    });
+
+    // 每次用干净的 DataManager 重新 init，隔离封禁数据
+    function freshInit(defaultData) {
+        dm = createMockDM(defaultData || { entries: {} });
+        ban.init(dm, {
+            playerData: { players: sharedPlayers },
+            t: function(lang, key) { return key; },
+            getSystemLanguage: function() { return 'zh_CN'; },
+            getPlayerSetting: function() { return false; },
+            showAdminMenu: null
+        });
+        return dm;
     }
-};
 
-test('封禁数据结构', function() {
-    assertTruthy(typeof mockBanData.entries === 'object', 'entries 应该是对象');
-    assertTruthy(mockBanData.entries['10001'], '应该有玩家10001的封禁记录');
-});
+    describe('banPlayer', () => {
+        it('should ban a player by name and record the entry', () => {
+            freshInit();
+            const res = ban.banPlayer('Test1', '作弊', 'OP');
+            assert.equal(res.success, true);
+            assert.equal(res.xuid, '10001');
+            const list = ban.getBanList();
+            assert.equal(list.length, 1);
+            assert.equal(list[0].name, 'Test1');
+            assert.equal(list[0].reason, '作弊');
+            assert.equal(list[0].operator, 'OP');
+            assert.equal(list[0].banned, true);
+        });
 
-test('检查玩家是否被封禁', function() {
-    const xuid = '10001';
-    const isBanned = !!mockBanData.entries[xuid];
-    assertTruthy(isBanned, '玩家10001应该被封禁');
-    
-    const xuid2 = '99999';
-    const isNotBanned = !!mockBanData.entries[xuid2];
-    assertFalsy(isNotBanned, '玩家99999不应该被封禁');
-});
+        it('should reject a duplicate ban', () => {
+            freshInit();
+            ban.banPlayer('Test1', '作弊', 'OP');
+            const res = ban.banPlayer('Test1', '再来一次', 'OP');
+            assert.equal(res.success, false);
+        });
 
-test('封禁原因记录', function() {
-    const entry = mockBanData.entries['10001'];
-    assertEqual(entry.reason, '作弊');
-    assertTruthy(entry.time, '应该有封禁时间');
-    assertTruthy(entry.ip, '应该有IP记录');
-});
+        it('should fail when the player cannot be resolved', () => {
+            freshInit();
+            const res = ban.banPlayer('nobody', 'x', 'OP');
+            assert.equal(res.success, false);
+        });
+    });
 
-test('解封操作', function() {
-    const data = JSON.parse(JSON.stringify(mockBanData)); // 深拷贝
-    const xuid = '10001';
-    assertTruthy(data.entries[xuid], '解封前应该存在');
-    delete data.entries[xuid];
-    assertFalsy(data.entries[xuid], '解封后应该不存在');
-});
+    describe('isPlayerBanned', () => {
+        it('should report banned by xuid', () => {
+            freshInit();
+            ban.banPlayer('Test1', '作弊', 'OP');
+            const r = ban.isPlayerBanned('10001');
+            assert.equal(r.banned, true);
+            assert.equal(r.reason, '作弊');
+            assert.equal(ban.isPlayerBanned('10002').banned, false);
+        });
 
-test('重复封禁检查', function() {
-    const data = JSON.parse(JSON.stringify(mockBanData));
-    const xuid = '10001';
-    const alreadyBanned = !!data.entries[xuid];
-    assertTruthy(alreadyBanned, '应该检测到重复封禁');
-});
+        it('should report banned via a linked IP for an online player', () => {
+            freshInit();
+            const p = createAndRegisterPlayer('20000', 'OnlineP');
+            ban.banPlayer('20000', '多开开挂', 'OP');
+            const ip = p.getDevice().ip;
+            assert.ok(ip, '在线玩家应能取到IP');
+            const r = ban.isPlayerBanned('30000', ip);
+            assert.equal(r.banned, true);
+        });
+    });
 
-test('IP关联封禁', function() {
-    const ip = '192.168.1.1';
-    const bannedByIp = Object.values(mockBanData.entries).some(e => e.ip === ip);
-    assertTruthy(bannedByIp, '应该能通过IP查到封禁记录');
-});
+    describe('unbanPlayer', () => {
+        it('should unban and remove the entry', () => {
+            freshInit();
+            ban.banPlayer('Test1', '作弊', 'OP');
+            const res = ban.unbanPlayer('Test1');
+            assert.equal(res.success, true);
+            assert.equal(ban.getBanList().length, 0);
+            const again = ban.unbanPlayer('Test1');
+            assert.equal(again.success, false);
+        });
 
-test('封禁列表', function() {
-    const banList = Object.entries(mockBanData.entries).map(([xuid, entry]) => ({
-        xuid,
-        ...entry
-    }));
-    assertEqual(banList.length, 2);
-    assertTruthy(banList[0].xuid, '每条记录应该有xuid');
+        it('should unban a banned xuid not present in player data', () => {
+            freshInit({
+                entries: {
+                    '99999': { name: 'Old', uid: 'o', ip: '', reason: 'r', operator: 'op', time: 't', banned: true }
+                }
+            });
+            const res = ban.unbanPlayer('99999');
+            assert.equal(res.success, true);
+            assert.equal(ban.getBanList().length, 0);
+        });
+    });
+
+    describe('api*', () => {
+        it('should expose ban/unban/list/isBanned API', () => {
+            freshInit();
+            assert.equal(ban.apiBan('Test1', '作弊').success, true);
+            assert.equal(ban.apiGetBanList().length, 1);
+            assert.equal(ban.apiIsBanned('10001').banned, true);
+            assert.equal(ban.apiUnban('Test1').success, true);
+        });
+    });
+
+    describe('showBanListForm', () => {
+        it('should build a form listing banned entries', () => {
+            freshInit();
+            ban.banPlayer('Test1', '作弊', 'OP');
+            const p = createAndRegisterPlayer('10003', 'Admin');
+            let fm = null;
+            p.sendForm = function(f) { fm = f; };
+            p.sendModalForm = function() {};
+            ban.showBanListForm(p);
+            assert.ok(fm, '应发送封禁列表表单');
+            assert.equal(fm._buttons.length, 3); // 1条记录 + 封禁玩家 + 返回
+        });
+    });
+
+    describe('registerGameCommands', () => {
+        it('should register ban/unban/banlist game commands', () => {
+            freshInit();
+            const beforeCount = lse.mc._commands.length;
+            ban.registerGameCommands();
+            assert.ok(lse.mc._commands.length >= beforeCount + 3, '应注册 pban/punban/pbanlist 三个命令');
+            const names = lse.mc._commands.slice(beforeCount).map(function(c) { return c._name; });
+            assert.ok(names.indexOf('pban') >= 0);
+            assert.ok(names.indexOf('punban') >= 0);
+            assert.ok(names.indexOf('pbanlist') >= 0);
+        });
+    });
 });

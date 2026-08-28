@@ -2,9 +2,12 @@
  * NECE 数据库模块测试
  */
 
-const { test, assertEqual, assertTruthy, assertFalsy } = require('../test-framework');
-
-console.log('\n--- database.js 测试 ---');
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+// node:test 迁移：保留原有 assert* 断言别名，避免逐行改写断言
+const assertEqual = assert.strictEqual;
+const assertTruthy = assert.ok;
+const assertFalsy = (value, msg) => assert.ok(!value, msg);
 
 // 模拟 sql.js 环境
 let db = null;

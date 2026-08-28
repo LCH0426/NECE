@@ -1,105 +1,164 @@
-/**
- * NECE 留言板系统测试
- */
+const { describe, it, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const { setupMocks, teardownMocks, createAndRegisterPlayer, createMockDM, lse } = require('../helpers/setup');
 
-const { test, assertEqual, assertTruthy, assertFalsy } = require('../test-framework');
+describe('messageBoard module', () => {
+    let messageBoardModule;
+    let dm;
+    let player;
 
-console.log('\n--- messageBoard.js 测试 ---');
+    before(() => {
+        setupMocks();
+        player = createAndRegisterPlayer('10001', 'Steve');
 
-// 模拟留言板数据
-const mockData = {
-    messages: [
-        { id: 1, xuid: '10001', playerName: 'Steve', msg: '大家好！', mood: '开心', time: '2026.01.01.12.00.00', client: 'Android', isDeleted: false },
-        { id: 2, xuid: '10002', playerName: 'Alex', msg: '服务器很棒！', mood: '兴奋', time: '2026.01.01.13.00.00', client: 'iOS', isDeleted: false },
-        { id: 3, xuid: '10001', playerName: 'Steve', msg: '已删除的留言', mood: '平静', time: '2026.01.01.14.00.00', client: 'Web', isDeleted: true }
-    ],
-    nextId: 4
-};
+        // 共享内存引用：init 中 load() 返回的对象与 addMessage/deleteMessage 修改的是同一引用
+        dm = createMockDM({ messages: [], nextId: 1 });
 
-test('留言数据结构', function() {
-    const msg = mockData.messages[0];
-    assertTruthy(msg.id, '应该有ID');
-    assertTruthy(msg.xuid, '应该有XUID');
-    assertTruthy(msg.playerName, '应该有玩家名');
-    assertTruthy(msg.msg, '应该有内容');
-    assertTruthy(msg.mood, '应该有心情');
-    assertTruthy(msg.time, '应该有时间');
-});
+        messageBoardModule = require('../../src/messageBoard');
+        messageBoardModule.init(dm, {
+            t: function(lang, key) { return key; },
+            getSystemLanguage: function() { return 'zh_CN'; },
+            getPlayerSetting: function() { return null; }
+        });
+    });
 
-test('获取有效留言', function() {
-    const validMessages = mockData.messages.filter(m => !m.isDeleted);
-    assertEqual(validMessages.length, 2);
-});
+    after(() => {
+        teardownMocks();
+    });
 
-test('获取玩家留言', function() {
-    const xuid = '10001';
-    const myMessages = mockData.messages.filter(m => m.xuid === xuid && !m.isDeleted);
-    assertEqual(myMessages.length, 1);
-});
+    describe('init / getData', () => {
+        it('should load existing data from DataManager', () => {
+            const data = messageBoardModule.getData();
+            assert.ok(data);
+            assert.deepEqual(data.messages, []);
+            assert.equal(data.nextId, 1);
+        });
+    });
 
-test('留言ID递增', function() {
-    const nextId = mockData.nextId;
-    assertEqual(nextId, 4);
-    // 模拟添加留言
-    mockData.nextId++;
-    assertEqual(mockData.nextId, 5);
-    mockData.nextId--; // 恢复
-});
+    describe('addMessage / getMessageById', () => {
+        it('should add a message and find it by id', () => {
+            messageBoardModule.addMessage({
+                id: 1, xuid: '10001', playerName: 'Steve',
+                msg: 'hello world', mood: '开心', time: '2026.01.01.12.00.00',
+                client: 'Win32', isDeleted: false
+            });
 
-test('软删除留言', function() {
-    const data = JSON.parse(JSON.stringify(mockData));
-    const msgId = 1;
-    const msg = data.messages.find(m => m.id === msgId);
-    assertTruthy(msg, '应该找到留言');
-    assertFalsy(msg.isDeleted, '删除前应该未删除');
-    msg.isDeleted = true;
-    assertTruthy(msg.isDeleted, '删除后应该标记为已删除');
-});
+            const data = messageBoardModule.getData();
+            assert.equal(data.messages.length, 1);
 
-test('按ID排序（降序）', function() {
-    const sorted = [...mockData.messages].sort((a, b) => b.id - a.id);
-    assertEqual(sorted[0].id, 3);
-    assertEqual(sorted[1].id, 2);
-    assertEqual(sorted[2].id, 1);
-});
+            const msg = messageBoardModule.getMessageById(1);
+            assert.ok(msg);
+            assert.equal(msg.msg, 'hello world');
+            assert.equal(msg.mood, '开心');
+        });
 
-test('分页逻辑', function() {
-    const page = 1;
-    const pageSize = 2;
-    const total = mockData.messages.length;
-    const totalPages = Math.ceil(total / pageSize);
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, total);
-    const pageMessages = mockData.messages.slice(startIndex, endIndex);
-    
-    assertEqual(totalPages, 2);
-    assertEqual(pageMessages.length, 2);
-});
+        it('should return null for unknown id', () => {
+            assert.equal(messageBoardModule.getMessageById(999), null);
+        });
+    });
 
-test('心情选项', function() {
-    const validMoods = ['开心', '难过', '平静', '兴奋', '生气'];
-    assertTruthy(validMoods.includes('开心'));
-    assertTruthy(validMoods.includes('生气'));
-    assertFalsy(validMoods.includes('未知'));
-});
+    describe('getMessages (Web API filtering)', () => {
+        before(() => {
+            // 追加不同作者、心情、内容的留言
+            messageBoardModule.addMessage({
+                id: 2, xuid: '10002', playerName: 'Alex',
+                msg: 'server is great', mood: '兴奋', time: '2026.01.01.13.00.00',
+                client: 'iOS', isDeleted: false
+            });
+            messageBoardModule.addMessage({
+                id: 3, xuid: '10001', playerName: 'Steve',
+                msg: 'another test', mood: '平静', time: '2026.01.01.14.00.00',
+                client: 'Android', isDeleted: false
+            });
+        });
 
-test('留言内容长度限制', function() {
-    const maxLength = 200;
-    const shortMsg = '短留言';
-    const longMsg = 'a'.repeat(201);
-    
-    assertTruthy(shortMsg.length <= maxLength, '短留言应该通过');
-    assertTruthy(longMsg.length > maxLength, '超长留言应该被拒绝');
-});
+        it('should list all active messages in id-desc order', () => {
+            const res = messageBoardModule.getMessages({ page: 1, pageSize: 10 });
+            assert.equal(res.total, 3);
+            assert.equal(res.messages[0].id, 3);
+            assert.equal(res.messages[res.messages.length - 1].id, 1);
+        });
 
-test('权限检查：只能删除自己的留言', function() {
-    const userXuid = '10001';
-    const msg1 = mockData.messages[0]; // xuid: 10001
-    const msg2 = mockData.messages[1]; // xuid: 10002
-    
-    const canDelete1 = msg1.xuid === userXuid;
-    const canDelete2 = msg2.xuid === userXuid;
-    
-    assertTruthy(canDelete1, '应该能删除自己的留言');
-    assertFalsy(canDelete2, '不能删除别人的留言');
+        it('should filter by xuid', () => {
+            const res = messageBoardModule.getMessages({ xuid: '10002' });
+            assert.equal(res.total, 1);
+            assert.equal(res.messages[0].playerName, 'Alex');
+        });
+
+        it('should filter by mood', () => {
+            const res = messageBoardModule.getMessages({ mood: '兴奋' });
+            assert.equal(res.total, 1);
+            assert.equal(res.messages[0].id, 2);
+        });
+
+        it('should search by keyword', () => {
+            const res = messageBoardModule.getMessages({ search: 'Steve' });
+            assert.equal(res.total, 2);
+        });
+
+        it('should paginate correctly', () => {
+            const res = messageBoardModule.getMessages({ page: 1, pageSize: 2 });
+            assert.equal(res.messages.length, 2);
+            assert.equal(res.total, 3);
+            assert.equal(res.totalPages, 2);
+        });
+    });
+
+    describe('deleteMessage (soft delete)', () => {
+        it('should soft-delete a message so it is hidden by default', () => {
+            assert.equal(messageBoardModule.deleteMessage(3), true);
+
+            const visible = messageBoardModule.getMessages({});
+            assert.equal(visible.total, 2);
+
+            const includingDeleted = messageBoardModule.getMessages({ includeDeleted: true });
+            assert.equal(includingDeleted.total, 3);
+
+            const msg = messageBoardModule.getMessageById(3);
+            assert.equal(msg.isDeleted, true);
+        });
+
+        it('should return false for unknown id and change nothing', () => {
+            const before = messageBoardModule.getMessages({ includeDeleted: true }).total;
+            assert.equal(messageBoardModule.deleteMessage(999), false);
+            const afterCount = messageBoardModule.getMessages({ includeDeleted: true }).total;
+            assert.equal(before, afterCount);
+        });
+    });
+
+    describe('getNextId / formatTime', () => {
+        it('should increment next id', () => {
+            const id1 = messageBoardModule.getNextId();
+            const id2 = messageBoardModule.getNextId();
+            assert.equal(id2, id1 + 1);
+        });
+
+        it('should return formatted current time string', () => {
+            const time = messageBoardModule.formatTime();
+            assert.ok(/^\d{4}\.\d{2}\.\d{2}\.\d{2}\.\d{2}\.\d{2}$/.test(time));
+        });
+    });
+
+    describe('onSave callback', () => {
+        it('should invoke registered callbacks after data saving', () => {
+            let saved = 0;
+            messageBoardModule.onSave(function() { saved++; });
+            messageBoardModule.addMessage({
+                id: 99, xuid: '10001', playerName: 'Steve',
+                msg: 'trigger save', mood: '平静', time: 't', client: 'Win32', isDeleted: false
+            });
+            assert.ok(saved >= 1, '保存后应触发 onSave 回调');
+        });
+    });
+
+    describe('showMainForm', () => {
+        it('should open the board main form and call player.sendForm', () => {
+            let captured = null;
+            player.sendForm = function(fm) { captured = fm; };
+            messageBoardModule.showMainForm(player);
+            assert.ok(captured, '应调用 player.sendForm');
+            // 5 个功能按钮：新增/我的/全部/随机/搜索
+            assert.equal(captured._buttons.length, 5);
+        });
+    });
 });

@@ -1,124 +1,244 @@
 /**
- * NECE 传送系统测试
+ * NECE 传送系统测试 —— 驱动 src/teleport.js 真实逻辑
+ * 覆盖：配置读取、家园增删改查（通过表单回调驱动）、TPA 收发/接受/拒绝/取消、
+ *      安全传送、死亡点记录与传送、脏标记
  */
 
-const { test, assertEqual, assertTruthy, assertFalsy } = require('../test-framework');
+const { describe, it, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const { setupMocks, teardownMocks, createAndRegisterPlayer, createMockDM, freshRequire, clearAllIntervals } = require('../helpers/setup');
+const i18n = require('../../src/i18n');
 
-console.log('\n--- teleport.js 测试 ---');
+// 表单驱动辅助：拦截 player.sendForm 以手动触发表单回调
+function harness(p) {
+    p._cb = null;
+    p.sendForm = function(form, cb) { this._cb = cb; };
+    p.sendModalForm = function(title, content, b1, b2, cb) { this._cb = cb; };
+}
+function submit(p, value) {
+    var cb = p._cb;
+    p._cb = null;
+    if (cb) cb(p, value);
+}
 
-// 模拟家园数据
-const mockHomes = {
-    '10001': [
-        { name: '主城', x: 100, y: 64, z: 200, dim: 0, public: false, sharedWith: [] },
-        { name: '矿洞', x: -50, y: 12, z: 300, dim: 0, public: true, sharedWith: ['10002'] }
-    ],
-    '10002': [
-        { name: '家', x: 500, y: 64, z: 600, dim: 0 }
-    ]
-};
+// 构造默认 teleport deps
+function baseDeps(options) {
+    options = options || {};
+    return {
+        t: i18n.t,
+        getSystemLanguage: function() { return 'zh_CN'; },
+        getPlayerSetting: function() { return undefined; },
+        getConfig: function() { return options.config || {}; },
+        playerData: { players: { '10001': { name: 'A' }, '10002': { name: 'B' } } },
+        getPlayerMoney: function() { return 1000; },
+        reducePlayerMoney: function() { return true; },
+        addPlayerMoney: function() { return true; },
+        getCurrencyName: function() { return '星茜'; }
+    };
+}
 
-// 模拟地标数据
-const mockWarps = {
-    '主城': { x: 0, y: 64, z: 0, dim: 0, cost: 0, cdSec: 0 },
-    '末地': { x: 0, y: 64, z: 0, dim: 2, cost: 100, cdSec: 60 }
-};
+describe('teleport', () => {
+    before(() => setupMocks());
+    after(() => teardownMocks());
 
-test('家园数据结构', function() {
-    const home = mockHomes['10001'][0];
-    assertTruthy(home.name, '应该有名称');
-    assertTruthy(typeof home.x === 'number', 'x 应该是数字');
-    assertTruthy(typeof home.y === 'number', 'y 应该是数字');
-    assertTruthy(typeof home.z === 'number', 'z 应该是数字');
-    assertTruthy([0, 1, 2].includes(home.dim), 'dim 应该是 0/1/2');
-});
+    describe('tpsConfig (getTpConfig)', () => {
+        let tp;
+        before(() => {
+            tp = freshRequire('../../src/teleport');
+            tp.init(createMockDM({}), createMockDM({}), baseDeps({ config: { enabled: false, homeLimit: 5 } }));
+        });
+        after(() => clearAllIntervals());
 
-test('获取玩家家园列表', function() {
-    const xuid = '10001';
-    const homes = mockHomes[xuid] || [];
-    assertEqual(homes.length, 2);
-});
+        it('读取配置中覆盖的字段', () => {
+            const c = tp.tpsConfig();
+            assert.equal(c.enabled, false);
+            assert.equal(c.homeLimit, 5);
+        });
+        it('未配置字段使用默认值', () => {
+            const c = tp.tpsConfig();
+            assert.equal(c.enableHome, true);
+            assert.equal(c.enableWarp, true);
+            assert.equal(c.enableTpa, true);
+            assert.equal(c.warpCost, 0);
+            assert.equal(c.rtpRadius, 10000);
+            assert.equal(c.homeCooldown, 10);
+        });
+    });
 
-test('家园数量限制', function() {
-    const homeLimit = 10;
-    const xuid = '10001';
-    const currentCount = (mockHomes[xuid] || []).length;
-    assertTruthy(currentCount < homeLimit, '应该还能添加家园');
-});
+    describe('safeTeleport', () => {
+        let tp;
+        let calls;
+        before(() => {
+            tp = freshRequire('../../src/teleport');
+            tp.init(createMockDM({}), createMockDM({}), baseDeps());
+        });
+        after(() => clearAllIntervals());
 
-test('家园名称唯一性检查', function() {
-    const xuid = '10001';
-    const homes = mockHomes[xuid] || [];
-    const name = '主城';
-    const exists = homes.some(h => h.name === name);
-    assertTruthy(exists, '应该检测到重复名称');
-    
-    const newName = '新家';
-    const newExists = homes.some(h => h.name === newName);
-    assertFalsy(newExists, '新名称应该不存在');
-});
+        it('使用 FloatPos 成功传送返回 true', () => {
+            const p = createAndRegisterPlayer('10001', 'A');
+            p.teleport = function(pos) { calls.push(pos); };
+            calls = [];
+            assert.equal(tp.safeTeleport(p, 1, 2, 3, 0), true);
+            assert.equal(calls.length, 1);
+            assert.equal(calls[0].type, 'FloatPos');
+            assert.equal(calls[0].x, 1);
+            assert.equal(calls[0].dim, 0);
+        });
 
-test('坐标验证', function() {
-    const validCoords = { x: 100, y: 64, z: 200 };
-    const invalidCoords = { x: 'abc', y: 64, z: 200 };
-    
-    assertTruthy(typeof validCoords.x === 'number', '有效坐标x应该是数字');
-    assertFalsy(typeof invalidCoords.x === 'number', '无效坐标x不应该是数字');
-});
+        it('dim 为 NaN 或空时默认主世界(0)', () => {
+            const p = createAndRegisterPlayer('10001', 'A');
+            p.teleport = function(pos) { calls.push(pos.dim); };
+            calls = [];
+            assert.equal(tp.safeTeleport(p, 1, 2, 3, 'abc'), true);
+            assert.equal(calls[0], 0);
+        });
 
-test('维度验证', function() {
-    const validDims = [0, 1, 2];
-    assertTruthy(validDims.includes(0), '主世界应该有效');
-    assertTruthy(validDims.includes(1), '下界应该有效');
-    assertTruthy(validDims.includes(2), '末地应该有效');
-    assertFalsy(validDims.includes(3), '维度3应该无效');
-});
+        it('teleport 抛错时回退 runcmdEx 仍成功', () => {
+            const prev = global.mc.runcmdEx;
+            global.mc.runcmdEx = function() { return { success: true, output: '' }; };
+            const p = createAndRegisterPlayer('10001', 'A');
+            p.teleport = function() { throw new Error('fail'); };
+            try {
+                assert.equal(tp.safeTeleport(p, 1, 2, 3, 1), true);
+            } finally {
+                global.mc.runcmdEx = prev;
+            }
+        });
 
-test('地标数据结构', function() {
-    const warp = mockWarps['主城'];
-    assertTruthy(warp.x !== undefined, '应该有x');
-    assertTruthy(warp.y !== undefined, '应该有y');
-    assertTruthy(warp.z !== undefined, '应该有z');
-    assertTruthy(warp.dim !== undefined, '应该有dim');
-    assertTruthy(typeof warp.cost === 'number', 'cost 应该是数字');
-    assertTruthy(typeof warp.cdSec === 'number', 'cdSec 应该是数字');
-});
+        it('全部失败时返回 false', () => {
+            const prev = global.mc.runcmdEx;
+            global.mc.runcmdEx = function() { return { success: false, output: '' }; };
+            const p = createAndRegisterPlayer('10001', 'A');
+            p.teleport = function() { throw new Error('fail'); };
+            p.runcmd = function() { return false; };
+            try {
+                assert.equal(tp.safeTeleport(p, 1, 2, 3, 1), false);
+            } finally {
+                global.mc.runcmdEx = prev;
+            }
+        });
+    });
 
-test('传送费用检查', function() {
-    const warp = mockWarps['末地'];
-    const playerMoney = 50;
-    
-    if (warp.cost > 0 && playerMoney < warp.cost) {
-        assertTruthy(true, '余额不足时应该拒绝传送');
-    } else {
-        assertTruthy(false, '这个分支不应该执行');
-    }
-});
+    describe('家园增删改查（表单驱动）', () => {
+        let tp, homesDM, deps, A;
+        before(() => {
+            tp = freshRequire('../../src/teleport');
+            homesDM = createMockDM({});
+            tp.init(homesDM, createMockDM({}), baseDeps({ config: { homeLimit: 2 } }));
+            deps = baseDeps({ config: { homeLimit: 2 } });
+            A = createAndRegisterPlayer('10001', 'A');
+            harness(A);
+        });
+        after(() => clearAllIntervals());
 
-test('传送冷却检查', function() {
-    const cooldowns = {};
-    const xuid = '10001';
-    const now = Date.now();
-    
-    // 设置冷却
-    cooldowns[xuid] = now + 30000; // 30秒后过期
-    
-    // 检查冷却
-    const isOnCooldown = cooldowns[xuid] && now < cooldowns[xuid];
-    assertTruthy(isOnCooldown, '应该在冷却中');
-    
-    // 冷却结束
-    const later = now + 31000;
-    const isCooldownExpired = !cooldowns[xuid] || later >= cooldowns[xuid];
-    assertTruthy(isCooldownExpired, '冷却应该已过期');
-});
+        it('新增家园并写入共享数据、标记脏、触发保存', () => {
+            tp.showHomeMainForm(A, deps);
+            submit(A, 0); // 打开设置家园表单
+            submit(A, ['主城', false]); // 输入名称提交
+            assert.equal(homesDM.data['10001'].length, 1);
+            assert.equal(homesDM.data['10001'][0].name, '主城');
+            assert.equal(homesDM.data['10001'][0].dim, A.pos.dimid);
+            assert.equal(homesDM.data['10001'][0].public, false);
+            assert.deepEqual(tp.flushDirtyHomes(), ['10001']);
+            assert.ok(homesDM._saveCount >= 1);
+        });
 
-test('共享家园权限', function() {
-    const home = mockHomes['10001'][1]; // 矿洞
-    const targetXuid = '10002';
-    const isShared = home.sharedWith && home.sharedWith.includes(targetXuid);
-    assertTruthy(isShared, '玩家10002应该有权限访问共享家园');
-    
-    const otherXuid = '10003';
-    const isNotShared = home.sharedWith && home.sharedWith.includes(otherXuid);
-    assertFalsy(isNotShared, '玩家10003不应该有权限');
+        it('重复名称被拒绝，不新增家园', () => {
+            tp.showHomeMainForm(A, deps);
+            submit(A, 1); // 已有1个家园，打开设置表单的按钮索引为 1
+            submit(A, ['主城', false]); // 重名
+            assert.equal(homesDM.data['10001'].length, 1);
+        });
+
+        it('删除家园', () => {
+            tp.showHomeMainForm(A, deps);
+            submit(A, 0); // 选中第一个家园 -> 详情
+            submit(A, 2); // 详情中点击删除 -> 确认框
+            submit(A, 0); // 确认删除
+            assert.equal(homesDM.data['10001'].length, 0);
+            assert.deepEqual(tp.flushDirtyHomes(), ['10001']);
+        });
+    });
+
+    describe('TPA 收发 / 接受 / 拒绝 / 取消', () => {
+        let tp, deps, A, B, tpCalls;
+        before(() => {
+            tp = freshRequire('../../src/teleport');
+            deps = baseDeps();
+            deps.playerData = { players: { '10001': { name: 'A' }, '10002': { name: 'B' } } };
+            tp.init(createMockDM({}), createMockDM({}), deps);
+            A = createAndRegisterPlayer('10001', 'A');
+            B = createAndRegisterPlayer('10002', 'B');
+            harness(A);
+            harness(B);
+            tpCalls = [];
+            A.teleport = function(pos) { tpCalls.push(pos); };
+        });
+        after(() => clearAllIntervals());
+
+        // 通过 tpa 主菜单向 B 发起一个 tpa 请求
+        function sendRequest() {
+            tp.showTpaMainForm(A, deps);
+            submit(A, [null, 0, 0]); // 选择 B，方式 tpa
+        }
+
+        it('发起请求后目标方可接受并传送发起者', () => {
+            sendRequest();
+            tp.acceptTpaRequestByPlayer(B, deps);
+            assert.equal(tpCalls.length, 1);
+        });
+
+        it('拒绝后请求被移除，再次接受无效果', () => {
+            sendRequest();
+            tp.denyTpaRequestByPlayer(B);
+            tpCalls.length = 0;
+            tp.acceptTpaRequestByPlayer(B, deps);
+            assert.equal(tpCalls.length, 0);
+        });
+
+        it('发起者可取消全部请求，取消后目标无法接受', () => {
+            sendRequest();
+            tp.cancelTpaRequest(A);
+            tpCalls.length = 0;
+            tp.acceptTpaRequestByPlayer(B, deps);
+            assert.equal(tpCalls.length, 0);
+        });
+    });
+
+    describe('死亡点记录与传送', () => {
+        let tp, dm, A, tpCalls;
+        before(() => {
+            tp = freshRequire('../../src/teleport');
+            dm = createMockDM({ players: {} });
+            tp.initDeathPoint(dm);
+            A = createAndRegisterPlayer('10001', 'A');
+            tpCalls = [];
+            A.teleport = function(pos) { tpCalls.push(pos); };
+        });
+        after(() => clearAllIntervals());
+
+        it('记录死亡点并保留在数据中', () => {
+            tp.recordDeathPoint(A);
+            const players = tp.getDeathPointData().players;
+            assert.equal(players['10001'].length, 1);
+            assert.equal(players['10001'][0].dimId, 0);
+            assert.ok(players['10001'][0].timestamp);
+        });
+
+        it('超过10条时截断为最近10条', () => {
+            for (var i = 0; i < 12; i++) tp.recordDeathPoint(A);
+            assert.equal(tp.getDeathPointData().players['10001'].length, 10);
+        });
+
+        it('传送到有效索引的死亡点', () => {
+            tp.teleportToDeathPoint(A, 0);
+            assert.equal(tpCalls.length, 1);
+        });
+
+        it('越界索引不传送', () => {
+            var len = tpCalls.length;
+            tp.teleportToDeathPoint(A, 999);
+            assert.equal(tpCalls.length, len);
+        });
+    });
 });

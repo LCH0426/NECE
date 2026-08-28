@@ -2,11 +2,14 @@
  * NECE 工具函数测试
  */
 
-const { test, assertEqual, assertTruthy, assertFalsy } = require('../test-framework');
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+// node:test 迁移：保留原有 assert* 断言别名，避免逐行改写断言
+const assertEqual = assert.strictEqual;
+const assertTruthy = assert.ok;
+const assertFalsy = (value, msg) => assert.ok(!value, msg);
 const path = require('path');
 const U = require(path.join(__dirname, '..', '..', 'src', 'utils'));
-
-console.log('\n--- utils.js 测试 ---');
 
 test('ensureDir 创建目录', function() {
     const testPath = 'plugins/NECE/test_temp/dir';

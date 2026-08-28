@@ -2,10 +2,13 @@
  * NECE i18n 模块测试
  */
 
-const { test, assertEqual, assertTruthy, assertFalsy } = require('../test-framework');
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+// node:test 迁移：保留原有 assert* 断言别名，避免逐行改写断言
+const assertEqual = assert.strictEqual;
+const assertTruthy = assert.ok;
+const assertFalsy = (value, msg) => assert.ok(!value, msg);
 const path = require('path');
-
-console.log('\n--- i18n.js 测试 ---');
 
 // 模拟 i18n 模块
 const langDir = path.join(__dirname, '..', '..', 'lang');

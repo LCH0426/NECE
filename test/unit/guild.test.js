@@ -1,93 +1,128 @@
-/**
- * NECE 公会系统测试
- */
+const { describe, it, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const { setupMocks, teardownMocks, createAndRegisterPlayer, clearAllIntervals, lse } = require('../helpers/setup');
 
-const { test, assertEqual, assertTruthy, assertFalsy } = require('../test-framework');
+describe('guild module', () => {
+    let guildModule;
+    let database;
+    let player;
 
-console.log('\n--- guild.js 测试 ---');
+    // 内存公会/成员表（与 database 模块打补丁联动）
+    const guildDb = { guilds: {}, members: {} };
 
-// 模拟公会数据
-const mockGuilds = [
-    { id: 1, name: '测试公会A', owner: '10001', fund: 10000, maxMembers: 20 },
-    { id: 2, name: '测试公会B', owner: '10002', fund: 5000, maxMembers: 15 }
-];
+    before(() => {
+        setupMocks();
 
-const mockMembers = [
-    { xuid: '10001', guild_id: 1, role: 'owner' },
-    { xuid: '10003', guild_id: 1, role: 'member' },
-    { xuid: '10002', guild_id: 2, role: 'owner' }
-];
+        player = createAndRegisterPlayer('10001', 'Owner');
 
-test('公会数据结构验证', function() {
-    const guild = mockGuilds[0];
-    assertTruthy(guild.id, '公会应该有ID');
-    assertTruthy(guild.name, '公会应该有名称');
-    assertTruthy(guild.owner, '公会有会长');
-    assertTruthy(typeof guild.fund === 'number', '资金应该是数字');
-});
+        // 打补丁真实 database 模块的"公会"相关接口，guild.js 在调用时才访问 database.xxx，因此共享同一导出对象即可生效
+        database = require('../../src/database');
+        database.getAllGuildRequestsSQL = function() { return []; };
+        database.getAllGuildInvitesSQL = function() { return []; };
+        database.getGuildByPlayer = function(xuid) {
+            xuid = String(xuid);
+            for (const gid in guildDb.guilds) {
+                const g = guildDb.guilds[gid];
+                if ((guildDb.members[gid] || []).some(function(m) { return m.xuid === xuid; })) return g;
+            }
+            return null;
+        };
+        database.getGuildByName = function(name) {
+            for (const gid in guildDb.guilds) if (guildDb.guilds[gid].name === name) return guildDb.guilds[gid];
+            return null;
+        };
+        database.getGuild = function(id) { return guildDb.guilds[id] || null; };
+        database.createGuild = function(name, description, owner, maxMembers) {
+            const id = Object.keys(guildDb.guilds).length + 1;
+            const guild = { id, name, description, owner: String(owner), fund: 100, level: 1, maxMembers: maxMembers || 20, hqX: null, hqY: null, hqZ: null, hqDim: null };
+            guildDb.guilds[id] = guild;
+            guildDb.members[id] = [{ xuid: String(owner), role: 'owner', name: 'Player' + owner, joinedAt: Date.now() }];
+            return id;
+        };
+        database.getGuildMembers = function(gid) { return (guildDb.members[gid] || []); };
+        database.getMemberCount = function(gid) { return (guildDb.members[gid] || []).length; };
+        database.getMemberRole = function(xuid) {
+            xuid = String(xuid);
+            for (const gid in guildDb.members) {
+                const m = (guildDb.members[gid] || []).find(function(mm) { return mm.xuid === xuid; });
+                if (m) return m.role;
+            }
+            return null;
+        };
+        database.getGuildTeleports = function() { return []; };
+        database.getGuildTeleportCount = function() { return 0; };
+        database.getAllGuilds = function() { return Object.values(guildDb.guilds); };
+        database.deleteGuild = function(id) {
+            if (!guildDb.guilds[id]) return;
+            delete guildDb.guilds[id];
+            delete guildDb.members[id];
+        };
+        database.updateGuild = function(id, patch) {
+            const g = guildDb.guilds[id];
+            if (!g) return;
+            for (const k in patch) g[k] = patch[k];
+        };
 
-test('公会成员数量检查', function() {
-    const guildId = 1;
-    const memberCount = mockMembers.filter(m => m.guild_id === guildId).length;
-    const guild = mockGuilds.find(g => g.id === guildId);
-    assertTruthy(memberCount < guild.maxMembers, '成员数应该小于上限');
-});
+        // 传送模块打补丁，避免真实传送逻辑
+        const teleportModule = require('../../src/teleport');
+        teleportModule.safeTeleport = function() { return true; };
 
-test('公会资金原子操作', function() {
-    // 模拟原子扣减
-    let fund = 1000;
-    const amount = 500;
-    
-    // 检查余额足够
-    if (fund >= amount) {
-        fund -= amount;
-    }
-    assertEqual(fund, 500);
-    
-    // 余额不足时不应该扣减
-    if (fund >= 600) {
-        fund -= 600;
-    }
-    assertEqual(fund, 500); // 应该还是500
-});
+        guildModule = require('../../src/guild');
+        guildModule.init({
+            logger: lse.logger,
+            getConfig: function() { return { createCost: 100, maxMembers: 20, maxAdmins: 3, maxTeleports: 5, teleportCooldown: 10, withdrawAdminOnly: true }; },
+            getCurrencyName: function() { return '金币'; },
+            getPlayerName: function(xuid) { return 'Player' + xuid; },
+            getPlayerData: function() { return { players: {} }; },
+            getPlayerSetting: function() { return null; },
+            t: function(lang, key) { return key; },
+            getSystemLanguage: function() { return 'zh_CN'; },
+            chatModule: { clearOrgNameCache: function() {}, clearAllOrgNameCache: function() {} },
+            mailApi: null
+        });
+    });
 
-test('公会名称唯一性检查', function() {
-    const name = '测试公会A';
-    const exists = mockGuilds.some(g => g.name === name);
-    assertTruthy(exists, '应该检测到重复名称');
-    
-    const newName = '新公会';
-    const newExists = mockGuilds.some(g => g.name === newName);
-    assertFalsy(newExists, '新名称应该不存在');
-});
+    after(() => {
+        clearAllIntervals(); // 关闭 init 中注册的 setInterval
+        teardownMocks();
+    });
 
-test('公会角色验证', function() {
-    const validRoles = ['owner', 'admin', 'member'];
-    assertTruthy(validRoles.includes('owner'));
-    assertTruthy(validRoles.includes('admin'));
-    assertTruthy(validRoles.includes('member'));
-    assertFalsy(validRoles.includes('invalid'));
-});
+    describe('showMainMenu for a guild member', () => {
+        it('should open the in-guild management menu (button set)', () => {
+            // 让 10001 成为一个公会（owner）
+            const gid = database.createGuild('TestGuild', 'desc', '10001', 20);
+            const guild = guildDb.guilds[gid];
+            assert.equal(guild.owner, '10001');
 
-test('公会传送点验证', function() {
-    const teleport = {
-        name: '主城',
-        x: 100,
-        y: 64,
-        z: 200,
-        dim: 0
-    };
-    
-    assertTruthy(typeof teleport.x === 'number', 'x 应该是数字');
-    assertTruthy(typeof teleport.y === 'number', 'y 应该是数字');
-    assertTruthy(typeof teleport.z === 'number', 'z 应该是数字');
-    assertTruthy([0, 1, 2].includes(teleport.dim), 'dim 应该是 0/1/2');
-});
+            let captured = null;
+            player.sendForm = function(fm) { captured = fm; };
+            guildModule.showMainMenu(player);
 
-test('公会权限检查', function() {
-    const owner = mockMembers.find(m => m.role === 'owner');
-    const member = mockMembers.find(m => m.role === 'member');
-    
-    assertTruthy(owner.role === 'owner', '会长应该有 owner 角色');
-    assertTruthy(member.role === 'member', '普通成员应该有 member 角色');
+            assert.ok(captured, '应调用 player.sendForm');
+            // owner 非管理员：信息/成员/传送点/金库/总部/公会列表/邀请/处理申请/退出 = 9 个按钮
+            assert.equal(captured._buttons.length, 9);
+        });
+    });
+
+    describe('showMainMenu for a non-member', () => {
+        it('should open the no-guild menu with fewer options', () => {
+            const stranger = createAndRegisterPlayer('20000', 'Stranger');
+            let captured = null;
+            stranger.sendForm = function(fm) { captured = fm; };
+            guildModule.showMainMenu(stranger);
+
+            assert.ok(captured, '应调用 player.sendForm');
+            // 无公会：仅 查看所有公会 一个按钮
+            assert.equal(captured._buttons.length, 1);
+        });
+    });
+
+    describe('handleCommand', () => {
+        it('should delegate to showMainMenu (opens main menu form)', () => {
+            let captured = null;
+            player.sendForm = function(fm) { captured = fm; };
+            guildModule.handleCommand(player, []);
+            assert.ok(captured, '应调用 player.sendForm');
+        });
+    });
 });
