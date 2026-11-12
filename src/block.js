@@ -98,6 +98,12 @@ var _itemsMap = null;
 // 连锁冷却记录 { xuid: timestamp }
 var _chainCooldowns = {};
 
+// 破坏开始时附近物品实体快照 { xuid: { entityId: true } }
+var _breakItemSnapshots = {};
+
+// 无掉落提示冷却 { xuid: timestamp }
+var _noDropTipCooldowns = {};
+
 // 建筑助手（仅OP）：选区导出/导入 .nbt 结构文件（gzip 压缩 JSON 容器，本插件自读写往返，保留完整方块状态与方块实体）
 // 选区逻辑复用快速建造的破坏模式（左键选点+拦截破坏，空手右键取消/退出），通过 _playerBuildModes='assistant' 标记区分
 var ASSISTANT_BOSSBAR_UID = 88001;
@@ -1100,6 +1106,83 @@ function applyChainDurability(player, chainCount, unbreakingLevel) {
     }, 50);
 }
 
+// 读取指定附魔等级
+function getEnchantmentLevel(item, enchId) {
+    try {
+        var nbt = item.getNbt();
+        if (!nbt) return 0;
+        var tag = nbt.getTag('tag');
+        if (!tag) return 0;
+        var ench = tag.getTag('ench');
+        if (!ench) return 0;
+        var enchArray = ench.toArray();
+        for (var i = 0; i < enchArray.length; i++) {
+            if (enchArray[i].id === enchId) return enchArray[i].lvl || 0;
+        }
+        return 0;
+    } catch (e) {
+        return 0;
+    }
+}
+
+// 是否带精准采集
+function hasSilkTouch(item) {
+    return getEnchantmentLevel(item, 16) > 0;
+}
+
+// 在方块位置掉落方块物品
+function spawnBlockAsItem(block) {
+    try {
+        var snbt = '{Name:"' + block.type + '",Count:1b,Damage:' + (block.tileData || 0) + 's}';
+        var nbt = NBT.parseSNBT(snbt);
+        if (nbt) {
+            var itemObj = mc.newItem(nbt);
+            if (itemObj && !itemObj.isNull()) {
+                mc.spawnItem(itemObj, block.pos);
+                return;
+            }
+        }
+    } catch (e) {}
+    try {
+        block.destroy(true);
+    } catch (e2) {}
+}
+
+// 获取范围内掉落物实体 id 集合
+function getNearbyItemIds(pos) {
+    var ids = {};
+    try {
+        var center = new FloatPos(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5, pos.dimid);
+        var entities = mc.getEntities(center, 4);
+        for (var i = 0; i < entities.length; i++) {
+            var e = entities[i];
+            if (!e || e.type !== 'minecraft:item') continue;
+            var key = e.uniqueId;
+            if (key === undefined || key === null) key = e.id;
+            ids[key] = true;
+        }
+    } catch (e) {}
+    return ids;
+}
+
+// 对比快照判断是否出现新的掉落物
+function hasNewItemDrop(snapshot, pos) {
+    if (!snapshot) return true;
+    var current = getNearbyItemIds(pos);
+    for (var id in current) {
+        if (!snapshot[id]) return true;
+    }
+    return false;
+}
+
+// 首块无掉落提示
+function showChainNoDropTip(player) {
+    var now = Date.now();
+    if (_noDropTipCooldowns[player.xuid] && now - _noDropTipCooldowns[player.xuid] < 3000) return;
+    _noDropTipCooldowns[player.xuid] = now;
+    player.sendText('§c[连锁] 当前工具无法正常开采该方块，未触发连锁', 4);
+}
+
 function getToolType(itemId) {
     if (!itemId) return null;
     var id = itemId.toLowerCase();
@@ -1305,6 +1388,9 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
     var dirs = [1,0,0, -1,0,0, 0,1,0, 0,-1,0, 0,0,1, 0,0,-1];
     var queueIdx = 0;
 
+    var handItem = player.getHand();
+    var silkTouch = handItem ? hasSilkTouch(handItem) : false;
+
     var encode = function(x, y, z) { return (x + 65536) * 4294967296 + (y + 64) * 65536 + (z + 65536); };
     visited.add(encode(startPos.x, startPos.y, startPos.z));
 
@@ -1322,7 +1408,15 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
             try { b = mc.getBlock(nx, ny, nz, dim); } catch (e) { continue; }
             if (!b || b.type !== blockType) continue;
 
-            try { b.destroy(true); count++; } catch (e) { continue; }
+            try {
+                if (silkTouch) {
+                    spawnBlockAsItem(b);
+                    b.destroy(false);
+                } else {
+                    b.destroy(true);
+                }
+                count++;
+            } catch (e) { continue; }
             queue.push(nx, ny, nz);
 
             if (count >= maxBlocks) break;
@@ -1346,6 +1440,14 @@ function doChainMine(player, startBlock, blockType, maxBlocks) {
 }
 
 function registerChainListener() {
+    mc.listen('onStartDestroyBlock', function(player, block) {
+        if (!player || !block) return;
+        try {
+            var p = block.pos;
+            _breakItemSnapshots[player.xuid] = getNearbyItemIds(new IntPos(p.x, p.y, p.z, p.dimid));
+        } catch (e) {}
+    });
+
     mc.listen('onDestroyBlock', function(player, block) {
         try {
             if (!player || !block) return;
@@ -1406,25 +1508,44 @@ function registerChainListener() {
                 maxBlocks = Math.min(cfgMaxBlocks, effectiveDurability, chainCheck.remaining);
             }
 
-            var startTime = Date.now();
-            var result = doChainMine(player, block, blockType, maxBlocks);
-            var elapsed = Date.now() - startTime;
+            var startPos = { x: block.pos.x, y: block.pos.y, z: block.pos.z, dimid: block.pos.dimid };
+            var snapshot = _breakItemSnapshots[xuid];
+            delete _breakItemSnapshots[xuid];
 
-            if (result.count > 0) {
-                if (!isCreative) {
-                    applyChainDurability(player, result.count, unbreakingLevel);
-                    addDailyUsage(player.xuid, result.count);
-                    if (_debug) {
-                        logger.info('[Block] 连锁方块数=' + result.count + '，延迟扣除耐久');
+            function runChain() {
+                var startTime = Date.now();
+                var result = doChainMine(player, { pos: startPos }, blockType, maxBlocks);
+                var elapsed = Date.now() - startTime;
+
+                if (result.count > 0) {
+                    if (!isCreative) {
+                        applyChainDurability(player, result.count, unbreakingLevel);
+                        addDailyUsage(player.xuid, result.count);
+                        if (_debug) {
+                            logger.info('[Block] 连锁方块数=' + result.count + '，延迟扣除耐久');
+                        }
                     }
-                }
 
-                player.sendText(t(getSystemLang(), 'chain.tag_prefix') + " §a" + t(getSystemLang(), 'chain.chain_complete', String(result.count), String(elapsed)), 4);
-                if (_onChainComplete) _onChainComplete(player, result.count);
+                    player.sendText(t(getSystemLang(), 'chain.tag_prefix') + " §a" + t(getSystemLang(), 'chain.chain_complete', String(result.count), String(elapsed)), 4);
+                    if (_onChainComplete) _onChainComplete(player, result.count);
+                }
+                if (_debug) {
+                    logger.info('[Block] 连锁完成: 方块数=' + result.count + ' 耗时=' + elapsed + 'ms');
+                }
             }
-            if (_debug) {
-                logger.info('[Block] 连锁完成: 方块数=' + result.count + ' 耗时=' + elapsed + 'ms');
+
+            if (isCreative || hasNewItemDrop(snapshot, startPos)) {
+                runChain();
+                return;
             }
+
+            setTimeout(function() {
+                if (hasNewItemDrop(snapshot, startPos)) {
+                    runChain();
+                } else {
+                    showChainNoDropTip(player);
+                }
+            }, 50);
         } catch (e) {
             logger.error('[Block] 连锁挖矿异常: ' + e.message);
         }
