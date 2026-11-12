@@ -11,8 +11,8 @@ export function useSidebar() {
   const pluginInfoStore = usePluginInfoStore()
   const authStore = useAuthStore()
 
-  if (!pluginInfoStore.type) {
-    ofetch<{ code: number, data: { version: string, serverVersion: string, protocol: number, type: 'NEPE' | 'NECE' } }>(`${API_BASE_URL}/version`)
+  if (!pluginInfoStore.version) {
+    ofetch<{ code: number, data: { version: string, serverVersion: string, protocol: number } }>(`${API_BASE_URL}/version`)
       .then((res) => {
         if (res.code === 200) {
           pluginInfoStore.setPluginInfo(res.data)
@@ -44,9 +44,7 @@ export function useSidebar() {
     }
 
     const configItems = [
-      ...(pluginInfoStore.isNEPE
-        ? [{ title: '祈愿管理', url: '/config/wish' }]
-        : []),
+      { title: '祈愿管理', url: '/config/wish' },
       { title: '商店管理', url: '/config/shop' },
       { title: 'CDK管理', url: '/config/cdk' },
       { title: '备份管理', url: '/config/backup' },

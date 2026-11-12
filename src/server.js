@@ -887,8 +887,7 @@ function createV1Routes(webConfig) {
                 data: {
                     version: _manifestVersion,
                     serverVersion: serverVersion,
-                    protocol: protocol,
-                    type: _hasWish ? 'NEPE' : 'NECE'
+                    protocol: protocol
                 }
             });
         } catch (e) {

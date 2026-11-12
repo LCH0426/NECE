@@ -69,7 +69,6 @@ export interface IPluginInfo {
   version: string
   serverVersion: string
   protocol: number
-  type: 'NEPE' | 'NECE'
 }
 
 export interface IPlayerCountData {
