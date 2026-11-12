@@ -99,17 +99,20 @@ function registerRoutes(router, d) {
         let refreshToken = cookies.refresh_token;
 
         if (!refreshToken) {
+            logStore.append('auth.refresh_failed', { uid: '', ip: clientIp(req), reason: 'missing_token' }, 'warn');
             return res.status(401).json({ code: 401, msg: '缺少 Refresh Token' });
         }
 
         d.jwt.verify(refreshToken, d.getRefreshSecret(d.webConfig), function(err, decoded) {
             if (err) {
                 d.clearRefreshTokenCookie(res);
+                logStore.append('auth.refresh_failed', { uid: '', ip: clientIp(req), reason: 'invalid_or_expired' }, 'warn');
                 return res.status(401).json({ code: 401, msg: 'Refresh Token 无效或已过期' });
             }
 
             if (decoded.type !== 'refresh') {
                 d.clearRefreshTokenCookie(res);
+                logStore.append('auth.refresh_failed', { uid: String(decoded.uid || ''), ip: clientIp(req), reason: 'invalid_type' }, 'warn');
                 return res.status(403).json({ code: 403, msg: '无效的 Token 类型' });
             }
 
@@ -118,6 +121,7 @@ function registerRoutes(router, d) {
 
             if (!storedToken) {
                 d.clearRefreshTokenCookie(res);
+                logStore.append('auth.refresh_failed', { uid: String(decoded.uid || ''), ip: clientIp(req), reason: 'not_found' }, 'warn');
                 return res.status(401).json({ code: 401, msg: 'Refresh Token 不存在' });
             }
 
@@ -146,6 +150,7 @@ function registerRoutes(router, d) {
 
             if (storedToken.expiresAt < Date.now()) {
                 d.clearRefreshTokenCookie(res);
+                logStore.append('auth.refresh_failed', { uid: String(storedToken.uid || ''), ip: clientIp(req), reason: 'expired' }, 'warn');
                 return res.status(401).json({ code: 401, msg: 'Refresh Token 已过期' });
             }
 
@@ -183,14 +188,18 @@ function registerRoutes(router, d) {
         const authHeader = req.headers['authorization'];
         const cookies = d.parseCookies(req);
         const accessToken = (authHeader && authHeader.split(' ')[1]) || cookies.auth_token || null;
+        let logoutUid = '';
 
         // 将Access Token加入黑名单
         if (accessToken) {
             try {
                 // 用 verify 验证签名，防止伪造 jti 黑名单他人 token
                 const decoded = d.jwt.verify(accessToken, d.getJwtSecret(), { ignoreExpiration: true });
-                if (decoded && decoded.jti && decoded.exp) {
-                    d.database.blacklistAccessToken(decoded.jti, decoded.exp * 1000);
+                if (decoded) {
+                    logoutUid = String(decoded.uid || '');
+                    if (decoded.jti && decoded.exp) {
+                        d.database.blacklistAccessToken(decoded.jti, decoded.exp * 1000);
+                    }
                 }
             } catch (e) { /* token签名无效或格式错误，跳过黑名单 */ }
         }
@@ -209,6 +218,11 @@ function registerRoutes(router, d) {
 
         d.clearRefreshTokenCookie(res);
         d.clearAccessTokenCookie(res);
+
+        logStore.append('auth.logout', {
+            uid: logoutUid,
+            ip: clientIp(req)
+        }, 'notice');
 
         res.json({ code: 200, msg: '已退出登录' });
     });

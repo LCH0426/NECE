@@ -894,6 +894,28 @@ function createV1Routes(webConfig) {
         setMaintenanceMode: _setMaintenanceMode || null
     };
 
+    // 写操作失败审计兜底：认证用户的写请求返回 4xx/5xx 时至少留一条记录
+    router.use(function(req, res, next) {
+        if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+        const originalJson = res.json.bind(res);
+        res.json = function(body) {
+            try {
+                if (req.user && body && typeof body.code === 'number' && body.code >= 400) {
+                    logStore.append('web.request_failed', {
+                        uid: String(req.user.uid),
+                        ip: req.ip || (req.connection && req.connection.remoteAddress) || 'unknown',
+                        method: req.method,
+                        path: req.originalUrl || req.url || '',
+                        status: body.code,
+                        msg: String(body.msg || '').slice(0, 200)
+                    }, body.code >= 500 ? 'err' : 'warn');
+                }
+            } catch (e) { /* 审计异常不影响响应 */ }
+            return originalJson(body);
+        };
+        next();
+    });
+
     // 版本信息接口
     router.get('/version', function(req, res) {
         try {

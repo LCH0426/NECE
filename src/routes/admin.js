@@ -118,6 +118,17 @@ function validateNbt(buffer) {
 
 function registerRoutes(router, d) {
 
+    /** 记录管理员操作失败 */
+    function logAdminFailure(event, req, target, reason, level) {
+        d.logStore.append(event, {
+            admin: req.user ? String(req.user.uid) : '',
+            ip: d.getClientIp(req),
+            target: target || '',
+            result: 'failed',
+            reason: reason || ''
+        }, level || 'warn');
+    }
+
     // 获取备份统计信息
     router.get('/backup/stats', d.adminAuth, function(req, res) {
         try {
@@ -143,17 +154,20 @@ function registerRoutes(router, d) {
         try {
             // 防止并发备份
             if (d.backupModule.isBackupRunning()) {
+                logAdminFailure('admin.backup_run', req, '手动触发', 'already_running');
                 return res.status(400).json({ code: 400, msg: '备份正在进行中，请稍后再试' });
             }
             d.logStore.append('admin.backup_run', { admin: req.user.uid, ip: d.getClientIp(req), target: '手动触发', detail: '' });
             d.backupModule.executeBackup(function(err, result) {
                 if (err) {
+                    logAdminFailure('admin.backup_run', req, '手动触发', err.error || 'backup_failed', 'err');
                     res.status(500).json({ code: 500, msg: err.error || '备份失败' });
                 } else {
                     res.json({ code: 200, msg: '备份完成', data: result });
                 }
             });
         } catch (e) {
+            logAdminFailure('admin.backup_run', req, '手动触发', 'exception: ' + e.message, 'err');
             res.status(500).json({ code: 500, msg: '备份失败: ' + e.message});
         }
     });
@@ -173,6 +187,7 @@ function registerRoutes(router, d) {
             let filename = req.params.filename;
             // 路径穿越防护
             if (!filename || filename.indexOf('..') !== -1 || filename.indexOf('/') !== -1 || filename.indexOf('\\') !== -1 || filename.indexOf('\0') !== -1) {
+                logAdminFailure('admin.backup_delete', req, '文件:' + filename, 'invalid_filename');
                 return res.status(400).json({ code: 400, msg: '文件名不合法' });
             }
             let result = d.backupModule.deleteBackup(filename);
@@ -180,9 +195,11 @@ function registerRoutes(router, d) {
                 d.logStore.append('admin.backup_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '文件:' + filename, detail: '' });
                 res.json({ code: 200, msg: '备份已删除' });
             } else {
+                logAdminFailure('admin.backup_delete', req, '文件:' + filename, result.error || 'delete_failed');
                 res.status(400).json({ code: 400, msg: result.error });
             }
         } catch (e) {
+            logAdminFailure('admin.backup_delete', req, String(req.params.filename || ''), 'exception: ' + e.message, 'err');
             res.status(500).json({ code: 500, msg: '删除备份失败: ' + e.message});
         }
     });
@@ -192,13 +209,16 @@ function registerRoutes(router, d) {
         try {
             const filename = (req.body.filename || '').trim();
             if (!filename) {
+                logAdminFailure('admin.download_link_generate', req, '', 'missing_filename');
                 return res.status(400).json({ code: 400, msg: '缺少filename参数' });
             }
             // 安全校验文件名
             if (filename.includes('..') || filename.includes('/') || filename.includes('\\') || filename.includes('\0')) {
+                logAdminFailure('admin.download_link_generate', req, '文件:' + filename, 'invalid_filename');
                 return res.status(400).json({ code: 400, msg: '非法文件名' });
             }
             if (!filename.endsWith('.7z') && !filename.endsWith('.zip')) {
+                logAdminFailure('admin.download_link_generate', req, '文件:' + filename, 'invalid_extension');
                 return res.status(400).json({ code: 400, msg: '只能下载.7z或.zip备份文件' });
             }
             const backupDir = d.backupModule.getBackupDir();
@@ -206,9 +226,11 @@ function registerRoutes(router, d) {
             const resolvedPath = d.pathModule.resolve(filePath);
             const resolvedBackupDir = d.pathModule.resolve(backupDir);
             if (!resolvedPath.startsWith(resolvedBackupDir + d.pathModule.sep) && resolvedPath !== resolvedBackupDir) {
+                logAdminFailure('admin.download_link_generate', req, '文件:' + filename, 'invalid_path');
                 return res.status(400).json({ code: 400, msg: '非法文件路径' });
             }
             if (!d.fs.existsSync(filePath)) {
+                logAdminFailure('admin.download_link_generate', req, '文件:' + filename, 'file_not_found');
                 return res.status(404).json({ code: 404, msg: '文件不存在' });
             }
             const token = d.generateDownloadToken(filename);
@@ -223,6 +245,7 @@ function registerRoutes(router, d) {
                 }
             });
         } catch (e) {
+            logAdminFailure('admin.download_link_generate', req, String(req.body && req.body.filename || ''), 'exception: ' + e.message, 'err');
             res.status(500).json({ code: 500, msg: '生成下载链接失败: ' + e.message});
         }
     });
@@ -371,10 +394,12 @@ function registerRoutes(router, d) {
             const filename = req.params.filename;
             // 防止路径穿越攻击
             if (filename.includes('..') || filename.includes('/') || filename.includes('\\') || filename.includes('\0')) {
+                logAdminFailure('admin.structure_file_download', req, '文件:' + filename, 'invalid_filename');
                 return res.status(400).json({ code: 400, msg: '非法文件名' });
             }
             const ln = filename.toLowerCase();
             if (!ln.endsWith('.nbt') && !ln.endsWith('.mcstructure')) {
+                logAdminFailure('admin.structure_file_download', req, '文件:' + filename, 'invalid_extension');
                 return res.status(400).json({ code: 400, msg: '只能下载.nbt或.mcstructure建筑文件' });
             }
             const structureDir = d.pathModule.join(__dirname, '..', '..', 'data', 'structure');
@@ -382,14 +407,17 @@ function registerRoutes(router, d) {
             const resolvedPath = d.pathModule.resolve(filePath);
             const resolvedDir = d.pathModule.resolve(structureDir);
             if (!resolvedPath.startsWith(resolvedDir + d.pathModule.sep)) {
+                logAdminFailure('admin.structure_file_download', req, '文件:' + filename, 'invalid_path');
                 return res.status(400).json({ code: 400, msg: '非法文件路径' });
             }
             if (!d.fs.existsSync(filePath)) {
+                logAdminFailure('admin.structure_file_download', req, '文件:' + filename, 'file_not_found');
                 return res.status(404).json({ code: 404, msg: '文件不存在' });
             }
             d.logStore.append('admin.structure_file_download', { admin: req.user.uid, ip: d.getClientIp(req), target: '文件:' + filename, detail: '' });
             res.download(filePath, filename);
         } catch (e) {
+            logAdminFailure('admin.structure_file_download', req, String(req.params.filename || ''), 'exception: ' + e.message, 'err');
             res.status(500).json({ code: 500, msg: '下载建筑文件失败: ' + e.message});
         }
     });
@@ -400,25 +428,30 @@ function registerRoutes(router, d) {
             const filename = req.params.filename;
             // 路径穿越防护
             if (!filename || filename.indexOf('..') !== -1 || filename.indexOf('/') !== -1 || filename.indexOf('\\') !== -1 || filename.indexOf('\0') !== -1) {
+                logAdminFailure('admin.structure_file_delete', req, '文件:' + filename, 'invalid_filename');
                 return res.status(400).json({ code: 400, msg: '文件名不合法' });
             }
             const ln = filename.toLowerCase();
             if (!ln.endsWith('.nbt') && !ln.endsWith('.mcstructure')) {
+                logAdminFailure('admin.structure_file_delete', req, '文件:' + filename, 'invalid_extension');
                 return res.status(400).json({ code: 400, msg: '只能删除.nbt或.mcstructure建筑文件' });
             }
             const structureDir = d.pathModule.join(__dirname, '..', '..', 'data', 'structure');
             const filePath = d.pathModule.join(structureDir, filename);
             if (!d.fs.existsSync(filePath)) {
+                logAdminFailure('admin.structure_file_delete', req, '文件:' + filename, 'file_not_found');
                 return res.status(404).json({ code: 404, msg: '文件不存在' });
             }
             try {
                 d.fs.unlinkSync(filePath);
             } catch (e) {
+                logAdminFailure('admin.structure_file_delete', req, '文件:' + filename, 'unlink_failed: ' + e.message, 'err');
                 return res.status(500).json({ code: 500, msg: '删除文件失败: ' + e.message});
             }
             d.logStore.append('admin.structure_file_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '文件:' + filename, detail: '' });
             res.json({ code: 200, msg: '建筑文件已删除' });
         } catch (e) {
+            logAdminFailure('admin.structure_file_delete', req, String(req.params.filename || ''), 'exception: ' + e.message, 'err');
             res.status(500).json({ code: 500, msg: '删除建筑文件失败: ' + e.message});
         }
     });
@@ -432,29 +465,36 @@ function registerRoutes(router, d) {
         upload.single('file')(req, res, function(err) {
             if (err) {
                 if (err.code === 'LIMIT_FILE_SIZE') {
+                    logAdminFailure('admin.structure_file_upload', req, '', 'file_too_large');
                     return res.status(400).json({ code: 400, msg: '文件大小超过限制，最大 64MB' });
                 }
+                logAdminFailure('admin.structure_file_upload', req, '', 'upload_error: ' + err.message);
                 return res.status(400).json({ code: 400, msg: '上传失败: ' + err.message });
             }
             try {
                 var file = req.file;
                 if (!file) {
+                    logAdminFailure('admin.structure_file_upload', req, '', 'no_file');
                     return res.status(400).json({ code: 400, msg: '未选择文件' });
                 }
                 var filename = file.originalname || '';
                 if (!filename) {
+                    logAdminFailure('admin.structure_file_upload', req, '', 'invalid_filename');
                     return res.status(400).json({ code: 400, msg: '文件名不合法' });
                 }
                 var ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
                 if (ext !== '.mcstructure' && ext !== '.nbt') {
+                    logAdminFailure('admin.structure_file_upload', req, '文件:' + filename, 'invalid_extension');
                     return res.status(400).json({ code: 400, msg: '仅支持 .mcstructure 或 .nbt 建筑文件' });
                 }
                 if (ext === '.mcstructure') {
                     if (!validateMcstructure(file.buffer)) {
+                        logAdminFailure('admin.structure_file_upload', req, '文件:' + filename, 'invalid_mcstructure');
                         return res.status(400).json({ code: 400, msg: '文件内容不是有效的 .mcstructure 结构文件' });
                     }
                 } else {
                     if (!validateNbt(file.buffer)) {
+                        logAdminFailure('admin.structure_file_upload', req, '文件:' + filename, 'invalid_nbt');
                         return res.status(400).json({ code: 400, msg: '文件内容不是有效的 .nbt 结构文件' });
                     }
                 }
@@ -476,6 +516,7 @@ function registerRoutes(router, d) {
                 d.logStore.append('admin.structure_file_upload', { admin: req.user.uid, ip: d.getClientIp(req), target: '文件:' + finalName + ' 大小:' + formatFileSize(file.size), detail: '' });
                 res.json({ code: 200, msg: '上传成功', data: { filename: finalName, size: file.size } });
             } catch (e) {
+                logAdminFailure('admin.structure_file_upload', req, '', 'exception: ' + e.message, 'err');
                 res.status(500).json({ code: 500, msg: '上传建筑文件失败: ' + e.message });
             }
         });
@@ -760,6 +801,70 @@ function registerRoutes(router, d) {
             });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '查询经济日志失败: ' + e.message});
+        }
+    });
+
+    // 查询玩家全部经济变动（用于经济管理折线图和交易列表）
+    router.get('/economy/history/:xuid', d.adminAuth, d.configLimiter, function(req, res) {
+        try {
+            var xuid = String(req.params.xuid || '').trim();
+            if (!xuid) {
+                return res.status(400).json({ code: 400, msg: '请提供玩家XUID' });
+            }
+            var playerName = d.getPlayerName(xuid) || '';
+
+            var points = [];
+            var dates = d.logStore.listDates();
+            dates.forEach(function(dateStr) {
+                d.logStore.readEntries(dateStr).forEach(function(entry) {
+                    if (!d.logStore.matchesEvent(entry.event, 'economy.')) return;
+                    var matched = (entry.xuid && String(entry.xuid) === xuid)
+                        || (playerName && entry.player === playerName)
+                        || (playerName && entry.target === playerName);
+                    if (!matched) return;
+
+                    var action = entry.action || '';
+                    var rawAmount = typeof entry.amount === 'number' ? entry.amount
+                        : (typeof entry.price === 'number' ? entry.price : 0);
+                    var negative = action === 'reduce' || action === 'buy' || action === 'transfer';
+                    points.push({
+                        time: entry.time || '',
+                        ts: d.logStore.parseTimeToMillis(entry.time),
+                        date: dateStr,
+                        event: entry.event || '',
+                        action: action,
+                        item: entry.item || '',
+                        target: entry.target || '',
+                        amount: rawAmount,
+                        delta: negative ? -rawAmount : rawAmount,
+                        balance: typeof entry.balance === 'number' ? entry.balance : null,
+                        source: entry.reason || entry.detail || entry.item || action || entry.event || ''
+                    });
+                });
+            });
+
+            points.sort(function(a, b) {
+                return (a.ts - b.ts) || String(a.time).localeCompare(String(b.time));
+            });
+
+            var total = points.length;
+            var truncated = false;
+            if (points.length > 5000) {
+                points = points.slice(points.length - 5000);
+                truncated = true;
+            }
+
+            res.json({
+                code: 200,
+                data: {
+                    player: { xuid: xuid, name: playerName },
+                    points: points,
+                    total: total,
+                    truncated: truncated
+                }
+            });
+        } catch (e) {
+            res.status(500).json({ code: 500, msg: '查询经济变动失败: ' + e.message});
         }
     });
 

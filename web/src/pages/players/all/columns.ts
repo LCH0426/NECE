@@ -118,7 +118,7 @@ export const columns: ColumnDef<IPlayer>[] = [
           }),
           h(UiDropdownMenuContent, { align: 'end' }, {
             default: () => [
-              h(UiDropdownMenuItem, { onClick: () => openMoneyDialog?.(row.original) }, { default: () => '修改经济' }),
+              h(UiDropdownMenuItem, { onClick: () => openMoneyDialog?.(row.original) }, { default: () => '经济管理' }),
               h(UiDropdownMenuItem, { onClick: () => openInventoryDialog?.(row.original) }, { default: () => '背包查询' }),
               h(UiDropdownMenuItem, { onClick: () => openTitleDialog?.(row.original) }, { default: () => '称号管理' }),
               h(UiDropdownMenuItem, { onClick: () => openHeatmapDialog?.(row.original) }, { default: () => '热力图' }),

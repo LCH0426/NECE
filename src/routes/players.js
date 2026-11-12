@@ -274,18 +274,33 @@ function registerRoutes(router, d) {
         let action = req.body.action;
         let amount = req.body.amount;
 
+        function logMoneyFailure(reason, detail) {
+            d.logStore.append('admin.economy_operation_failed', {
+                admin: req.user ? String(req.user.uid) : '',
+                ip: d.getClientIp(req),
+                target: String(xuid || ''),
+                attempted_action: String(action || ''),
+                amount: Number(amount),
+                reason: reason,
+                detail: detail || ''
+            }, 'warn');
+        }
+
         if (!xuid || !action || amount === undefined) {
+            logMoneyFailure('missing_params');
             return res.status(400).json({ code: 400, msg: '缺少必要参数 (xuid, action, amount)' });
         }
 
         const intAmount = Math.floor(Number(amount));
         if (isNaN(intAmount) || intAmount <= 0) {
+            logMoneyFailure('invalid_amount');
             return res.status(400).json({ code: 400, msg: '金额必须为正整数' });
         }
 
         try {
             const eco = d.economyFunctions;
             if (!eco) {
+                logMoneyFailure('economy_unavailable');
                 return res.status(500).json({ code: 500, msg: '经济系统未加载' });
             }
 
@@ -300,38 +315,61 @@ function registerRoutes(router, d) {
                 if (eco.reducePlayerMoneyByXuid) {
                     success = eco.reducePlayerMoneyByXuid(xuid, intAmount, reason);
                 } else {
-                    // fallback: 验证余额充足后再减少
+                    // 兼容旧注入：优先使用 set，避免用 add 传负数被 LegacyMoney 拒绝
                     const currentBal = eco.getPlayerMoneyByXuid(xuid);
                     if (currentBal < intAmount) {
+                        logMoneyFailure('insufficient_balance', 'current=' + currentBal);
                         return res.status(400).json({ code: 400, msg: '玩家余额不足，当前余额: ' + currentBal });
                     }
-                    success = eco.addPlayerMoneyByXuid(xuid, -intAmount, reason);
+                    if (d.money && typeof d.money.set === 'function') {
+                        success = d.money.set(xuid, currentBal - intAmount);
+                    } else {
+                        success = eco.addPlayerMoneyByXuid(xuid, -intAmount, reason);
+                    }
                 }
             } else if (action === 'set') {
-                const currentBalance = eco.getPlayerMoneyByXuid(xuid);
-                const diff = intAmount - currentBalance;
-                if (diff > 0) {
-                    success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
-                } else if (diff < 0) {
-                    if (eco.reducePlayerMoneyByXuid) {
-                        success = eco.reducePlayerMoneyByXuid(xuid, -diff, reason);
-                    } else {
-                        success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
-                    }
+                if (d.money && typeof d.money.set === 'function') {
+                    success = d.money.set(xuid, intAmount);
                 } else {
-                    // 金额相同，无需操作
-                    success = true;
+                    const currentBalance = eco.getPlayerMoneyByXuid(xuid);
+                    const diff = intAmount - currentBalance;
+                    if (diff > 0) {
+                        success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                    } else if (diff < 0) {
+                        if (eco.reducePlayerMoneyByXuid) {
+                            success = eco.reducePlayerMoneyByXuid(xuid, -diff, reason);
+                        } else {
+                            success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                        }
+                    } else {
+                        // 金额相同，无需操作
+                        success = true;
+                    }
                 }
             } else {
+                logMoneyFailure('invalid_action');
                 return res.status(400).json({ code: 400, msg: '无效操作，支持: add, reduce, set' });
             }
 
             if (success) {
                 const afterBalance = eco.getPlayerMoneyByXuid(xuid);
                 let playerName = d.getPlayerName(xuid);
+                const diffAmount = afterBalance - beforeBalance;
+
+                if (diffAmount !== 0) {
+                    d.logStore.append(diffAmount > 0 ? 'economy.add' : 'economy.reduce', {
+                        action: diffAmount > 0 ? 'add' : 'reduce',
+                        player: playerName,
+                        xuid: String(xuid),
+                        amount: Math.abs(diffAmount),
+                        balance: afterBalance,
+                        reason: reason
+                    });
+                }
 
                 const actionNames = { add: '增加', reduce: '减少', set: '设置' };
                 d.logStore.append('admin.economy_operation', { admin: req.user.uid, ip: d.getClientIp(req), target: playerName + '(' + xuid + ')', detail: actionNames[action] + ' ' + intAmount + ' (余额: ' + beforeBalance + ' -> ' + afterBalance + ')' });
+                d.logStore.flush();
 
                 // 玩家在线时发送Toast通知余额变动
                 try {
@@ -351,9 +389,11 @@ function registerRoutes(router, d) {
                     data: { xuid: xuid, name: playerName, action: action, amount: intAmount, before: beforeBalance, after: afterBalance }
                 });
             } else {
+                logMoneyFailure('operation_rejected');
                 res.status(500).json({ code: 500, msg: '经济操作失败，余额可能不足' });
             }
         } catch (e) {
+            logMoneyFailure('exception', e.message);
             res.status(500).json({ code: 500, msg: '经济操作失败: ' + e.message});
         }
     });

@@ -2356,6 +2356,7 @@ function initWebServer() {
 			reducePlayerMoney: economyModule.reducePlayerMoney,
 			addPlayerMoney: economyModule.addPlayerMoney,
 			addPlayerMoneyByXuid: economyModule.addPlayerMoneyByXuid,
+			reducePlayerMoneyByXuid: economyModule.reducePlayerMoneyByXuid,
 			getPlayerMoneyByXuid: economyModule.getPlayerMoneyByXuid
 		});
 		// 注入维护模式函数

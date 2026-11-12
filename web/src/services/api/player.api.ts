@@ -249,6 +249,27 @@ export interface ILogQueryData {
   }
 }
 
+export interface IEconomyPoint {
+  time: string
+  ts: number
+  date: string
+  event: string
+  action: string
+  item: string
+  target: string
+  amount: number
+  delta: number
+  balance: number | null
+  source: string
+}
+
+export interface IEconomyHistoryData {
+  player: { xuid: string, name: string }
+  points: IEconomyPoint[]
+  total: number
+  truncated: boolean
+}
+
 export interface ILogQuery {
   startDate?: string
   endDate?: string
@@ -309,6 +330,12 @@ export function usePlayerApi() {
     return apiFetch<ILeResponse<IMoneyOperationResult>>('/players/money', {
       method: 'POST',
       body: { xuid, action, amount },
+    })
+  }
+
+  function getEconomyHistory(xuid: string) {
+    return apiFetch<ILeResponse<IEconomyHistoryData>>(`/economy/history/${encodeURIComponent(xuid)}`, {
+      method: 'GET',
     })
   }
 
@@ -504,6 +531,7 @@ export function usePlayerApi() {
     getOnlinePlayers,
     getPlayerDetail,
     moneyOperation,
+    getEconomyHistory,
     kickPlayer,
     crashPlayer,
     lightningPlayer,

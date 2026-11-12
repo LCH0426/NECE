@@ -171,10 +171,26 @@ function registerRoutes(router, d) {
         var uid = req.user.uid;
         if (!uploadCounts[uid]) uploadCounts[uid] = 0;
         if (uploadCounts[uid] >= 5) {
+            logStore.append('auth.rate_limited', {
+                uid: String(uid),
+                ip: d.getClientIp(req),
+                limiter: 'mapart_upload',
+                path: req.originalUrl || req.url || ''
+            }, 'warn');
             return res.status(429).json({ code: 429, msg: '上传过于频繁，请稍后再试' });
         }
         uploadCounts[uid]++;
         next();
+    }
+
+    /** 记录地图画上传失败 */
+    function logUploadFailure(req, stage, reason, level) {
+        logStore.append('mapart.upload_failed', {
+            uid: req.user ? String(req.user.uid) : '',
+            ip: d.getClientIp(req),
+            stage: stage,
+            reason: reason
+        }, level || 'warn');
     }
 
     /**
@@ -189,22 +205,26 @@ function registerRoutes(router, d) {
             var customName = req.body.name || '';
 
             if (!file) {
+                logUploadFailure(req, 'no_file', '未选择文件');
                 return res.status(400).json({ code: 400, msg: '未选择文件' });
             }
 
             // MIME 类型校验
             if (ALLOWED_MIMES.indexOf(file.mimetype) === -1) {
+                logUploadFailure(req, 'invalid_mime', file.mimetype);
                 return res.status(400).json({ code: 400, msg: '仅支持 JPG/PNG/WebP 格式图片' });
             }
 
             // 文件扩展名校验
             var ext = path.extname(file.originalname).toLowerCase();
             if (ALLOWED_EXTS.indexOf(ext) === -1) {
+                logUploadFailure(req, 'invalid_ext', ext);
                 return res.status(400).json({ code: 400, msg: '文件扩展名不合法' });
             }
 
             // 文件魔数校验
             if (!validateMagicBytes(file.buffer, file.mimetype)) {
+                logUploadFailure(req, 'magic_mismatch', file.originalname + ' / ' + file.mimetype);
                 return res.status(400).json({ code: 400, msg: '文件内容与扩展名不匹配' });
             }
 
@@ -212,6 +232,7 @@ function registerRoutes(router, d) {
             var dims = getImageDimensions(file.buffer, file.mimetype);
             if (dims) {
                 if (dims.w > MAX_DIMENSION || dims.h > MAX_DIMENSION) {
+                    logUploadFailure(req, 'dimension_exceeded', dims.w + 'x' + dims.h);
                     return res.status(400).json({ code: 400, msg: '图片分辨率超限，最大支持 ' + MAX_DIMENSION + 'x' + MAX_DIMENSION + '，当前 ' + dims.w + 'x' + dims.h });
                 }
             }
@@ -222,6 +243,7 @@ function registerRoutes(router, d) {
             if (currentSize + file.size > PLAYER_STORAGE_LIMIT) {
                 var usedMB = (currentSize / 1024 / 1024).toFixed(2);
                 var limitMB = (PLAYER_STORAGE_LIMIT / 1024 / 1024).toFixed(0);
+                logUploadFailure(req, 'quota_exceeded', 'used=' + usedMB + 'MB limit=' + limitMB + 'MB');
                 return res.status(400).json({ code: 400, msg: '图片库容量不足，已用 ' + usedMB + 'MB / ' + limitMB + 'MB' });
             }
 
@@ -243,6 +265,7 @@ function registerRoutes(router, d) {
             // 双重路径安全检查
             var resolvedPath = path.resolve(filePath);
             if (resolvedPath.indexOf(path.resolve(MAPART_DIR)) !== 0) {
+                logUploadFailure(req, 'invalid_path', finalName);
                 return res.status(400).json({ code: 400, msg: '文件路径不合法' });
             }
 
@@ -266,16 +289,17 @@ function registerRoutes(router, d) {
                     }
                 } catch (e) {
                     console.log('[MapArt] CustomGetMap异常:', e.message);
+                    logStore.append('mapart.upload_failed', {
+                        uid: String(uid),
+                        ip: d.getClientIp(req),
+                        stage: 'customgetmap',
+                        reason: e.message
+                    }, 'warn');
                 }
             } else {
                 console.log('[MapArt] CustomGetMap未加载');
             }
 
-            res.json({
-                code: 200,
-                msg: '上传成功',
-                data: { id: imageId, filename: finalName, size: file.size }
-            });
             logStore.append('mapart.upload', {
                 uid: String(uid),
                 ip: d.getClientIp(req),
@@ -284,12 +308,13 @@ function registerRoutes(router, d) {
                 original_name: file.originalname,
                 size: file.size
             });
+            res.json({
+                code: 200,
+                msg: '上传成功',
+                data: { id: imageId, filename: finalName, size: file.size }
+            });
         } catch (e) {
-            logStore.append('mapart.upload_failed', {
-                uid: req.user ? String(req.user.uid) : '',
-                ip: d.getClientIp(req),
-                error: e.message
-            }, 'err');
+            logUploadFailure(req, 'exception', e.message, 'err');
             res.status(500).json({ code: 500, msg: '上传失败: ' + e.message });
         }
     });
@@ -381,21 +406,35 @@ function registerRoutes(router, d) {
      * 删除指定地图画
      * 自己可以删除自己的，管理员可以删除所有人的
      */
+    /** 记录地图画删除失败 */
+    function logDeleteFailure(req, imageId, stage, reason) {
+        logStore.append('mapart.delete_failed', {
+            uid: req.user ? String(req.user.uid) : '',
+            ip: d.getClientIp(req),
+            image_id: imageId,
+            stage: stage,
+            reason: reason
+        }, 'warn');
+    }
+
     router.post('/mapart/delete', d.auth, function(req, res) {
         try {
             var uid = req.user.uid;
             var imageId = parseInt(req.body.id);
             if (isNaN(imageId)) {
+                logDeleteFailure(req, req.body.id, 'invalid_id', '参数错误');
                 return res.status(400).json({ code: 400, msg: '参数错误' });
             }
 
             var imageInfo = d.database.getMapartImageById(imageId);
             if (!imageInfo) {
+                logDeleteFailure(req, imageId, 'not_found', '图片不存在');
                 return res.status(404).json({ code: 404, msg: '图片不存在' });
             }
 
             var isAdmin = d.database.isAdmin(uid);
             if (imageInfo.uid !== uid && !isAdmin) {
+                logDeleteFailure(req, imageId, 'forbidden', '无权删除');
                 return res.status(403).json({ code: 403, msg: '无权删除' });
             }
 
@@ -416,7 +455,7 @@ function registerRoutes(router, d) {
             var filePath = path.join(MAPART_DIR, filename);
             var resolvedPath = path.resolve(filePath);
             if (resolvedPath.indexOf(path.resolve(MAPART_DIR)) === 0 && fs.existsSync(filePath)) {
-                try { fs.unlinkSync(filePath); } catch (e) {}
+                try { fs.unlinkSync(filePath); } catch (e) { logDeleteFailure(req, imageId, 'unlink_failed', e.message); }
             }
 
             // 集成 CustomGetMap（需要玩家名）
@@ -430,7 +469,9 @@ function registerRoutes(router, d) {
                             cgm.del(playerName, filename, false);
                         }
                     }
-                } catch (e) {}
+                } catch (e) {
+                    logDeleteFailure(req, imageId, 'customgetmap', e.message);
+                }
             }
 
             res.json({
@@ -438,6 +479,7 @@ function registerRoutes(router, d) {
                 msg: '删除成功'
             });
         } catch (e) {
+            logDeleteFailure(req, req.body && req.body.id, 'exception', e.message);
             res.status(500).json({ code: 500, msg: '删除失败' });
         }
     });

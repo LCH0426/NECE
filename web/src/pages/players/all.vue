@@ -273,7 +273,6 @@ function openInventoryDialog(player: IPlayer) {
 }
 
 function handleMoneySuccess() {
-  moneyDialogOpen.value = false
   if (filterBanned.value) {
     fetchBanList()
   }

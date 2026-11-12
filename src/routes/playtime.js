@@ -20,6 +20,8 @@
  * GitHub contributions 风格热力图数据
  */
 
+const logStore = require('../logStore');
+
 const DAYS_IN_YEAR = 365;
 
 // 时长档位区间边界，单位秒，0为空，(0,1h]档1、(1h,2h]档2、(2h,3h]档3、(3h,6h]档4、6h以上档5
@@ -339,6 +341,14 @@ function registerRoutes(router, d) {
                     results.push({ xuid: xuid, name: name, success: true, assigned: result.assigned, totalSeconds: result.totalSeconds });
                 }
             }
+            logStore.append('admin.playtime_batch_assign', {
+                admin: String(req.user.uid),
+                ip: d.getClientIp(req),
+                total: xuids.length,
+                success: successCount,
+                failed: failCount,
+                end_type: endType
+            });
             return res.json({ code: 200, data: { total: xuids.length, successCount: successCount, failCount: failCount, results: results } });
         } catch (e) {
             return res.status(500).json({ code: 500, msg: '批量分配失败: ' + e.message });

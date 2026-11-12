@@ -415,7 +415,7 @@ const columns: ColumnDef<IOnlinePlayer>[] = [
               h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'detail') }, { default: () => '玩家详情' }),
               h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'heatmap') }, { default: () => '游戏时长热力图' }),
               h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'gamemode') }, { default: () => '修改游戏模式' }),
-              h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'money') }, { default: () => '修改经济参数' }),
+              h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'money') }, { default: () => '经济管理' }),
               h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'popup') }, { default: () => '发送消息' }),
               h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'inventory') }, { default: () => '背包查询' }),
               h(UiDropdownMenuItem, { onClick: () => openActionDialog(row.original, 'title') }, { default: () => '称号管理' }),
@@ -530,7 +530,7 @@ onUnmounted(() => {
     <UiDialog v-model:open="moneyDialogOpen" @update:open="(v: boolean) => { if (!v) resetDialogState() }">
       <UiDialogContent class="sm:max-w-[425px]">
         <UiDialogHeader>
-          <UiDialogTitle>修改经济参数</UiDialogTitle>
+          <UiDialogTitle>经济管理</UiDialogTitle>
           <UiDialogDescription>
             对 {{ selectedPlayer?.name }} 进行经济操作，当前余额: {{ selectedPlayer?.balance.toLocaleString() }}
           </UiDialogDescription>
