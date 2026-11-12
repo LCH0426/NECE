@@ -21,6 +21,13 @@
  * 使用双Token机制（Access Token + Refresh Token），Refresh Token通过HttpOnly Cookie传递
  */
 
+const logStore = require('../logStore');
+
+/** 获取请求来源IP */
+function clientIp(req) {
+    return req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
+}
+
 function registerRoutes(router, d) {
 
     // 用户登录：验证验证码、密码，签发Access/Refresh Token对
@@ -31,19 +38,23 @@ function registerRoutes(router, d) {
         const captchaCode = req.body.captchaCode;
 
         if (!uid || !password) {
+            logStore.append('auth.login_failed', { uid: String(uid || ''), ip: clientIp(req), reason: 'missing_credentials' }, 'warn');
             return res.status(400).json({ code: 400, msg: 'UID和密码不能为空' });
         }
 
         if (!captchaId || !captchaCode) {
+            logStore.append('auth.login_failed', { uid: String(uid), ip: clientIp(req), reason: 'missing_captcha' }, 'warn');
             return res.status(400).json({ code: 400, msg: '验证码不能为空' });
         }
 
         // 验证码校验（绑定 IP）
         if (!d.database.verifyCaptcha(captchaId, captchaCode, req.ip)) {
+            logStore.append('auth.login_failed', { uid: String(uid), ip: clientIp(req), reason: 'invalid_captcha' }, 'warn');
             return res.status(400).json({ code: 400, msg: '验证码错误或已过期' });
         }
 
         if (!d.database.verifyPassword(String(uid), password)) {
+            logStore.append('auth.login_failed', { uid: String(uid), ip: clientIp(req), reason: 'bad_credentials' }, 'warn');
             return res.status(401).json({ code: 401, msg: 'UID或密码错误' });
         }
 
@@ -52,6 +63,12 @@ function registerRoutes(router, d) {
 
         // 签发Token对，Refresh Token通过Cookie下发
         const tokens = d.issueTokenPair(uid, d.webConfig);
+
+        logStore.append('auth.login_success', {
+            uid: String(uid),
+            ip: clientIp(req),
+            role: d.database.isAdmin(String(uid)) ? 'admin' : 'user'
+        }, 'notice');
 
         d.setRefreshTokenCookie(res, tokens.refreshToken, tokens.refreshExpiresAt - Date.now());
 
@@ -119,6 +136,11 @@ function registerRoutes(router, d) {
                 d.database.blacklistAllUserAccessTokens(storedToken.uid);
                 d.clearRefreshTokenCookie(res);
                 d.clearAccessTokenCookie(res);
+                logStore.append('auth.refresh_replay', {
+                    uid: String(storedToken.uid),
+                    ip: clientIp(req),
+                    family_id: String(storedToken.familyId || '')
+                }, 'warn');
                 return res.status(401).json({ code: 401, msg: '检测到重放攻击，该登录链路所有 Token 已作废' });
             }
 

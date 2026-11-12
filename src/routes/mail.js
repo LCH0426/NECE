@@ -324,7 +324,7 @@ function registerRoutes(router, d) {
             }
 
             let targetDesc = toXuid === 'all' ? '全体玩家' : d.getPlayerName(toXuid);
-            d.adminLog.log(req.user.uid, '发送邮件', targetDesc, '内容: ' + content.trim().substring(0, 100) + (intStarQian > 0 ? ' ' + d.getCurrencyName() + ': ' + intStarQian : '') + (scheduledTime ? ' 定时: ' + scheduledTime : ''));
+            d.logStore.append('admin.mail_send', { admin: req.user.uid, ip: d.getClientIp(req), target: targetDesc, detail: '内容: ' + content.trim().substring(0, 100) + (intStarQian > 0 ? ' ' + d.getCurrencyName() + ': ' + intStarQian : '') + (scheduledTime ? ' 定时: ' + scheduledTime : '') });
 
             res.json({
                 code: 200,
@@ -353,7 +353,7 @@ function registerRoutes(router, d) {
                 return res.status(500).json({ code: 500, msg: '保存邮件数据失败' });
             }
 
-            d.adminLog.log(req.user.uid, '删除邮件', 'ID:' + mailId + ' 目标:' + targetDesc, '内容: ' + contentPreview);
+            d.logStore.append('admin.mail_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: 'ID:' + mailId + ' 目标:' + targetDesc, detail: '内容: ' + contentPreview });
 
             res.json({ code: 200, msg: '邮件已删除' });
         } catch (e) {

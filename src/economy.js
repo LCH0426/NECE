@@ -20,9 +20,9 @@
  * 余额查询、增减、转账、经济日志
  */
 
-const fs = require('fs');
 const U = require('./utils');
 const i18n = require('./i18n');
+const logStore = require('./logStore');
 
 let _currencyNameCache = null;
 let _deps = {};
@@ -157,32 +157,64 @@ function getPlayerMoney(player) {
  * @param {string} reason - 扣费原因
  * @returns {boolean} 是否扣费成功
  */
+/**
+ * 写入经济操作失败日志
+ * @param {string} action - 操作类型
+ * @param {object|string} player - 玩家对象或 xuid
+ * @param {number} amount - 金额
+ * @param {string} reason - 操作原因
+ * @param {string} detail - 失败细节
+ */
+function logEconomyFailure(action, player, amount, reason, detail) {
+    var xuid = '';
+    var name = '';
+    if (player && typeof player === 'object') {
+        xuid = player.xuid ? String(player.xuid) : '';
+        name = player.name || '';
+    } else if (player) {
+        xuid = String(player);
+    }
+    logStore.append('economy.failed', {
+        action: action,
+        xuid: xuid,
+        player: name,
+        amount: amount,
+        reason: reason || '',
+        detail: detail || ''
+    }, 'warn');
+}
+
 function reducePlayerMoney(player, value, reason) {
 	const lang = getLocale(player.xuid);
     try {
         if (typeof money === 'undefined' || money === null) {
             logger.error('money对象不存在，无法减少玩家货币！');
+            logEconomyFailure('reduce', player, value, reason, 'money_unavailable');
             return false;
         }
         if (typeof money.reduce !== 'function') {
             logger.error('money对象没有reduce方法，无法减少玩家货币！');
+            logEconomyFailure('reduce', player, value, reason, 'reduce_method_unavailable');
             return false;
         }
 
         let intValue = Math.floor(Number(value));
         if (isNaN(intValue) || !isFinite(intValue) || intValue <= 0) {
             logger.error('扣费金额非法：' + value + '，玩家：' + player.name);
+            logEconomyFailure('reduce', player, value, reason, 'invalid_amount');
             return false;
         }
         let xuid = player.xuid;
 
         if (!xuid) {
             logger.error('玩家XUID不存在，无法减少货币！');
+            logEconomyFailure('reduce', player, value, reason, 'missing_xuid');
             return false;
         }
 
         if (typeof money.get !== 'function') {
             logger.error('money对象没有get方法，无法获取玩家余额！');
+            logEconomyFailure('reduce', player, value, reason, 'get_method_unavailable');
             return false;
         }
 
@@ -208,10 +240,12 @@ function reducePlayerMoney(player, value, reason) {
             return true;
         } else {
             logger.error('减少玩家 ' + player.name + ' 货币失败！');
+            logEconomyFailure('reduce', player, intValue, reason, 'reduce_rejected');
             return false;
         }
     } catch (error) {
         logger.error('减少玩家货币时发生错误：' + error.message);
+        logEconomyFailure('reduce', player, value, reason, 'exception: ' + error.message);
         if (error.stack) {
             logger.error('错误堆栈：' + error.stack);
         }
@@ -231,22 +265,26 @@ function addPlayerMoney(player, value, reason) {
     try {
         if (typeof money === 'undefined' || money === null) {
             logger.error('money对象不存在，无法增加玩家货币！');
+            logEconomyFailure('add', player, value, reason, 'money_unavailable');
             return false;
         }
         if (typeof money.add !== 'function') {
             logger.error('money对象没有add方法，无法增加玩家货币！');
+            logEconomyFailure('add', player, value, reason, 'add_method_unavailable');
             return false;
         }
 
         let intValue = Math.floor(Number(value));
         if (isNaN(intValue) || !isFinite(intValue) || intValue <= 0) {
             logger.error('入账金额非法：' + value + '，玩家：' + player.name);
+            logEconomyFailure('add', player, value, reason, 'invalid_amount');
             return false;
         }
         let xuid = player.xuid;
 
         if (!xuid) {
             logger.error('玩家XUID不存在，无法增加货币！');
+            logEconomyFailure('add', player, value, reason, 'missing_xuid');
             return false;
         }
 
@@ -269,10 +307,12 @@ function addPlayerMoney(player, value, reason) {
             return true;
         } else {
             logger.error('增加玩家 ' + player.name + ' 货币失败！');
+            logEconomyFailure('add', player, intValue, reason, 'add_rejected');
             return false;
         }
     } catch (error) {
         logger.error('增加玩家货币时发生错误：' + error.message);
+        logEconomyFailure('add', player, value, reason, 'exception: ' + error.message);
         if (error.stack) {
             logger.error('错误堆栈：' + error.stack);
         }
@@ -307,12 +347,22 @@ function getPlayerMoneyByXuid(xuid) {
  */
 function addPlayerMoneyByXuid(xuid, value, source) {
     try {
-        if (typeof money === 'undefined' || money === null) return false;
-        if (typeof money.add !== 'function') return false;
-        if (!xuid) return false;
+        if (typeof money === 'undefined' || money === null) {
+            logEconomyFailure('add', xuid, value, source, 'money_unavailable');
+            return false;
+        }
+        if (typeof money.add !== 'function') {
+            logEconomyFailure('add', xuid, value, source, 'add_method_unavailable');
+            return false;
+        }
+        if (!xuid) {
+            logEconomyFailure('add', xuid, value, source, 'missing_xuid');
+            return false;
+        }
         const intValue = Math.floor(Number(value));
         if (isNaN(intValue) || !isFinite(intValue) || intValue === 0) {
             logger.error('ByXuid入账金额非法：' + value);
+            logEconomyFailure('add', xuid, value, source, 'invalid_amount');
             return false;
         }
         const success = money.add(xuid, intValue);
@@ -321,9 +371,12 @@ function addPlayerMoneyByXuid(xuid, value, source) {
             if (player) {
                 notifyEconomyChange(player, intValue, source || t(getLocale(xuid), 'economy.reason_system_income'));
             }
+        } else {
+            logEconomyFailure('add', xuid, intValue, source, 'add_rejected');
         }
         return success;
     } catch (e) {
+        logEconomyFailure('add', xuid, value, source, 'exception: ' + e.message);
         return false;
     }
 }
@@ -337,12 +390,22 @@ function addPlayerMoneyByXuid(xuid, value, source) {
  */
 function reducePlayerMoneyByXuid(xuid, value, source) {
     try {
-        if (typeof money === 'undefined' || money === null) return false;
-        if (typeof money.reduce !== 'function') return false;
-        if (!xuid) return false;
+        if (typeof money === 'undefined' || money === null) {
+            logEconomyFailure('reduce', xuid, value, source, 'money_unavailable');
+            return false;
+        }
+        if (typeof money.reduce !== 'function') {
+            logEconomyFailure('reduce', xuid, value, source, 'reduce_method_unavailable');
+            return false;
+        }
+        if (!xuid) {
+            logEconomyFailure('reduce', xuid, value, source, 'missing_xuid');
+            return false;
+        }
         const intValue = Math.floor(Number(value));
         if (isNaN(intValue) || !isFinite(intValue) || intValue === 0) {
             logger.error('ByXuid扣费金额非法：' + value);
+            logEconomyFailure('reduce', xuid, value, source, 'invalid_amount');
             return false;
         }
         const success = money.reduce(xuid, intValue);
@@ -351,9 +414,12 @@ function reducePlayerMoneyByXuid(xuid, value, source) {
             if (player) {
                 notifyEconomyChange(player, -intValue, source || t(getLocale(xuid), 'economy.reason_system_deduct'));
             }
+        } else {
+            logEconomyFailure('reduce', xuid, intValue, source, 'reduce_rejected');
         }
         return success;
     } catch (e) {
+        logEconomyFailure('reduce', xuid, value, source, 'exception: ' + e.message);
         return false;
     }
 }
@@ -366,29 +432,12 @@ function reducePlayerMoneyByXuid(xuid, value, source) {
  * @param {object} entry - 日志条目
  */
 function writeEconomyLog(entry) {
-    try {
-        const logDir = "plugins/NECE/logs/economy";
-        if (!fs.existsSync(logDir)) {
-            fs.mkdirSync(logDir, { recursive: true });
-        }
-        const now = new Date();
-        const dateStr = now.getFullYear() + '-' +
-            String(now.getMonth() + 1).padStart(2, '0') + '-' +
-            String(now.getDate()).padStart(2, '0');
-        const logPath = logDir + "/economy-" + dateStr + ".jsonl";
-        entry.time = now.getFullYear() + '-' +
-            String(now.getMonth() + 1).padStart(2, '0') + '-' +
-            String(now.getDate()).padStart(2, '0') + ' ' +
-            String(now.getHours()).padStart(2, '0') + ':' +
-            String(now.getMinutes()).padStart(2, '0') + ':' +
-            String(now.getSeconds()).padStart(2, '0');
-        const line = JSON.stringify(entry) + '\n';
-        fs.appendFile(logPath, line, 'utf-8', function(e) {
-            if (e) logger.error("[EconomyLog] 写入日志失败: " + e.message);
-        });
-    } catch (e) {
-        logger.error("[EconomyLog] 写入日志失败: " + e.message);
-    }
+    if (!entry || typeof entry !== 'object') return;
+    const action = entry.action || 'other';
+    const fields = Object.assign({}, entry);
+    delete fields.time;
+    delete fields.event;
+    logStore.append('economy.' + action, fields);
 }
 
 /**
@@ -704,25 +753,13 @@ function confirmPurchase(player, cost, reason, onConfirm, onCancel) {
 function readEconomyLog(playerName, page, pageSize) {
     page = page || 1;
     pageSize = pageSize || 10;
-    var logDir = "plugins/NECE/logs/economy";
     try {
-        if (!fs.existsSync(logDir)) return { logs: [], total: 0, page: page, totalPages: 0 };
-        var files = fs.readdirSync(logDir)
-            .filter(function(f) { return f.endsWith('.jsonl'); })
-            .sort().reverse()
-            .slice(0, 7);
         var allLogs = [];
-        files.forEach(function(f) {
-            try {
-                var content = fs.readFileSync(logDir + '/' + f, 'utf-8');
-                content.split('\n').forEach(function(line) {
-                    if (!line.trim()) return;
-                    try {
-                        var entry = JSON.parse(line);
-                        if (entry.player === playerName) allLogs.push(entry);
-                    } catch (e) {}
-                });
-            } catch (e) {}
+        logStore.listDates().slice(0, 7).forEach(function(dateStr) {
+            logStore.readEntries(dateStr).forEach(function(entry) {
+                if (!logStore.matchesEvent(entry.event, 'economy.')) return;
+                if (entry.player === playerName) allLogs.push(entry);
+            });
         });
         allLogs.sort(function(a, b) {
             var ta = Date.parse(a.time) || 0;

@@ -223,7 +223,7 @@ function registerRoutes(router, d) {
 
             // 仅管理员删他人留言时记录操作日志
             if (isAdminUser && String(msg.xuid) !== String(userXuid)) {
-                d.adminLog.log(req.user.uid, '删除留言', 'ID:' + msgId, '作者: ' + msg.playerName + ' 内容: ' + (msg.msg || '').substring(0, 100));
+                d.logStore.append('admin.message_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: 'ID:' + msgId, detail: '作者: ' + msg.playerName + ' 内容: ' + (msg.msg || '').substring(0, 100) });
             }
 
             res.json({ code: 200, msg: '留言已删除' });

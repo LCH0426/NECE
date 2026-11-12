@@ -259,7 +259,7 @@ function registerRoutes(router, d) {
             }
             var result = randomAssign(xuid, end);
             if (result.error) return res.status(400).json({ code: 400, msg: result.error });
-            d.adminLog.log(req.user.uid, '随机分配游戏时长', pData.name + '(' + xuid + ')', '覆盖' + result.assigned + '天，共' + result.totalSeconds + '秒');
+            d.logStore.append('admin.playtime_assign', { admin: req.user.uid, ip: d.getClientIp(req), target: pData.name + '(' + xuid + ')', detail: '覆盖' + result.assigned + '天，共' + result.totalSeconds + '秒' });
             return res.json({ code: 200, msg: '随机分配完成', data: result });
         } catch (e) {
             return res.status(500).json({ code: 500, msg: '随机分配失败: ' + e.message });

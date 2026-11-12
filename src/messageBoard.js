@@ -23,6 +23,7 @@
 
 
 const U = require('./utils');
+const logStore = require('./logStore');
 
 const MOOD_VALUES = ['开心', '难过', '平静', '兴奋', '生气'];
 function getMoodOptions() {
@@ -495,6 +496,12 @@ function formatTime() {
 function addMessage(msg) {
     messageBoardData.messages.push(msg);
     saveData();
+    logStore.append('board.post', {
+        xuid: String(msg.xuid || ''),
+        player: msg.playerName || '',
+        message_id: msg.id,
+        content_length: String(msg.msg || '').length
+    });
 }
 
 /**
@@ -507,6 +514,11 @@ function deleteMessage(id) {
     if (!msg) return false;
     msg.isDeleted = true;
     saveData();
+    logStore.append('board.delete', {
+        message_id: id,
+        author_xuid: String(msg.xuid || ''),
+        author: msg.playerName || ''
+    });
     return true;
 }
 

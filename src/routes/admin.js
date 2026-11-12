@@ -145,7 +145,7 @@ function registerRoutes(router, d) {
             if (d.backupModule.isBackupRunning()) {
                 return res.status(400).json({ code: 400, msg: '备份正在进行中，请稍后再试' });
             }
-            d.adminLog.log(req.user.uid, '执行备份', '手动触发');
+            d.logStore.append('admin.backup_run', { admin: req.user.uid, ip: d.getClientIp(req), target: '手动触发', detail: '' });
             d.backupModule.executeBackup(function(err, result) {
                 if (err) {
                     res.status(500).json({ code: 500, msg: err.error || '备份失败' });
@@ -177,7 +177,7 @@ function registerRoutes(router, d) {
             }
             let result = d.backupModule.deleteBackup(filename);
             if (result.success) {
-                d.adminLog.log(req.user.uid, '删除备份', '文件:' + filename);
+                d.logStore.append('admin.backup_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '文件:' + filename, detail: '' });
                 res.json({ code: 200, msg: '备份已删除' });
             } else {
                 res.status(400).json({ code: 400, msg: result.error });
@@ -213,7 +213,7 @@ function registerRoutes(router, d) {
             }
             const token = d.generateDownloadToken(filename);
             const downloadUrl = '/api/v1/backup/download/' + encodeURIComponent(filename) + '?token=' + token;
-            d.adminLog.log(req.user.uid, '生成下载链接', '文件:' + filename);
+            d.logStore.append('admin.download_link_generate', { admin: req.user.uid, ip: d.getClientIp(req), target: '文件:' + filename, detail: '' });
             res.json({
                 code: 200,
                 data: {
@@ -323,7 +323,7 @@ function registerRoutes(router, d) {
             } else {
                 d.backupModule.stopDataBackupScheduler();
             }
-            d.adminLog.log(req.user.uid, '修改备份配置', JSON.stringify(cfg));
+            d.logStore.append('admin.backup_config_update', { admin: req.user.uid, ip: d.getClientIp(req), target: JSON.stringify(cfg), detail: '' });
             res.json({ code: 200, msg: '备份配置已更新', data: cfg });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '更新备份配置失败: ' + e.message});
@@ -387,7 +387,7 @@ function registerRoutes(router, d) {
             if (!d.fs.existsSync(filePath)) {
                 return res.status(404).json({ code: 404, msg: '文件不存在' });
             }
-            d.adminLog.log(req.user.uid, '下载建筑文件', '文件:' + filename);
+            d.logStore.append('admin.structure_file_download', { admin: req.user.uid, ip: d.getClientIp(req), target: '文件:' + filename, detail: '' });
             res.download(filePath, filename);
         } catch (e) {
             res.status(500).json({ code: 500, msg: '下载建筑文件失败: ' + e.message});
@@ -416,7 +416,7 @@ function registerRoutes(router, d) {
             } catch (e) {
                 return res.status(500).json({ code: 500, msg: '删除文件失败: ' + e.message});
             }
-            d.adminLog.log(req.user.uid, '删除建筑文件', '文件:' + filename);
+            d.logStore.append('admin.structure_file_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '文件:' + filename, detail: '' });
             res.json({ code: 200, msg: '建筑文件已删除' });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '删除建筑文件失败: ' + e.message});
@@ -473,7 +473,7 @@ function registerRoutes(router, d) {
                 }
                 var filePath = d.pathModule.join(structureDir, finalName);
                 d.fs.writeFileSync(filePath, file.buffer);
-                d.adminLog.log(req.user.uid, '上传建筑文件', '文件:' + finalName + ' 大小:' + formatFileSize(file.size));
+                d.logStore.append('admin.structure_file_upload', { admin: req.user.uid, ip: d.getClientIp(req), target: '文件:' + finalName + ' 大小:' + formatFileSize(file.size), detail: '' });
                 res.json({ code: 200, msg: '上传成功', data: { filename: finalName, size: file.size } });
             } catch (e) {
                 res.status(500).json({ code: 500, msg: '上传建筑文件失败: ' + e.message });
@@ -489,7 +489,7 @@ function registerRoutes(router, d) {
                     res.status(500).json({ code: 500, msg: '数据备份失败: ' + (err.error || err.message || '未知错误') });
                     return;
                 }
-                d.adminLog.log(req.user.uid, '执行数据备份', '文件:' + result.filename);
+                d.logStore.append('admin.data_backup', { admin: req.user.uid, ip: d.getClientIp(req), target: '文件:' + result.filename, detail: '' });
                 res.json({ code: 200, msg: '数据备份完成', data: result });
             });
         } catch (e) {
@@ -518,7 +518,7 @@ function registerRoutes(router, d) {
 
             let result = d.banModule.apiBan(xuid, reason, operator);
             if (result.success) {
-                d.adminLog.log(req.user.uid, '封禁玩家', xuid, '原因: ' + reason);
+                d.logStore.append('admin.ban', { admin: req.user.uid, ip: d.getClientIp(req), target: xuid, detail: '原因: ' + reason });
                 const playerName = d.getPlayerName(xuid) || xuid;
                 res.json({ code: 200, msg: result.message, data: { xuid: result.xuid, name: playerName, isBanned: true } });
             } else {
@@ -537,7 +537,7 @@ function registerRoutes(router, d) {
 
             let result = d.banModule.apiUnban(xuid);
             if (result.success) {
-                d.adminLog.log(req.user.uid, '解封玩家', xuid);
+                d.logStore.append('admin.unban', { admin: req.user.uid, ip: d.getClientIp(req), target: xuid, detail: '' });
                 const playerName = d.getPlayerName(xuid) || xuid;
                 res.json({ code: 200, msg: result.message, data: { xuid: xuid, name: playerName, isBanned: false } });
             } else {
@@ -665,7 +665,7 @@ function registerRoutes(router, d) {
                 return res.status(404).json({ code: 404, msg: '玩家不存在' });
             }
             d.chatModule.addPlayerTitle(xuid, title);
-            d.adminLog.log(req.user.uid, '添加称号', '玩家XUID:' + xuid + ' 称号:' + title);
+            d.logStore.append('admin.title_add', { admin: req.user.uid, ip: d.getClientIp(req), target: '玩家XUID:' + xuid + ' 称号:' + title, detail: '' });
             res.json({ code: 200, msg: '称号添加成功', data: { xuid: xuid, title: title } });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '添加称号失败: ' + e.message});
@@ -684,7 +684,7 @@ function registerRoutes(router, d) {
             if (!ok) {
                 return res.status(400).json({ code: 400, msg: '该玩家未拥有此称号' });
             }
-            d.adminLog.log(req.user.uid, '设置称号', '玩家XUID:' + xuid + ' 称号:' + title);
+            d.logStore.append('admin.title_set', { admin: req.user.uid, ip: d.getClientIp(req), target: '玩家XUID:' + xuid + ' 称号:' + title, detail: '' });
             res.json({ code: 200, msg: '称号设置成功', data: { xuid: xuid, active: title } });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '设置称号失败: ' + e.message});
@@ -697,7 +697,7 @@ function registerRoutes(router, d) {
             var xuid = req.params.xuid;
             var title = req.params.title;
             if (d.chatModule.removePlayerTitle(xuid, title)) {
-                d.adminLog.log(req.user.uid, '删除称号', '玩家XUID:' + xuid + ' 称号:' + title);
+                d.logStore.append('admin.title_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '玩家XUID:' + xuid + ' 称号:' + title, detail: '' });
                 res.json({ code: 200, msg: '称号删除成功' });
             } else {
                 res.status(404).json({ code: 404, msg: '该玩家未拥有此称号' });
@@ -727,46 +727,18 @@ function registerRoutes(router, d) {
                 return res.status(400).json({ code: 400, msg: '玩家名称格式无效' });
             }
 
-            var logDir = d.pathModule.resolve(__dirname, '..', '..', 'logs', 'economy');
-            if (!d.fs.existsSync(logDir)) {
-                return res.json({ code: 200, data: { logs: [], total: 0, page: page, pageSize: pageSize } });
-            }
-
-            // 确定要读取的日志文件
-            var files = [];
-            if (date) {
-                var targetFile = d.pathModule.join(logDir, 'economy-' + date + '.jsonl');
-                // 验证最终路径在预期目录内
-                if (!targetFile.startsWith(logDir)) {
-                    return res.status(400).json({ code: 400, msg: '非法路径' });
-                }
-                files = [targetFile];
-            } else {
-                try {
-                    files = d.fs.readdirSync(logDir)
-                        .filter(function(f) { return f.endsWith('.jsonl'); })
-                        .sort().reverse() // 最新在前
-                        .slice(0, 7) // 最多读7天
-                        .map(function(f) { return logDir + '/' + f; });
-                } catch (e) { files = []; }
-            }
+            // 确定要读取的日志日期（未指定时最多读最近7天）
+            var dates = date ? [date] : d.logStore.listDates().slice(0, 7);
 
             // 读取并筛选指定玩家的日志
             var allLogs = [];
-            files.forEach(function(filePath) {
-                try {
-                    if (!d.fs.existsSync(filePath)) return;
-                    var content = d.fs.readFileSync(filePath, 'utf-8');
-                    var lines = content.split('\n').filter(function(l) { return l.trim(); });
-                    lines.forEach(function(line) {
-                        try {
-                            var entry = JSON.parse(line);
-                            if (entry.player === playerName || entry.target === playerName) {
-                                allLogs.push(entry);
-                            }
-                        } catch (e) { /* 跳过无效行 */ }
-                    });
-                } catch (e) { /* 跳过无法读取的文件 */ }
+            dates.forEach(function(dateStr) {
+                d.logStore.readEntries(dateStr).forEach(function(entry) {
+                    if (!d.logStore.matchesEvent(entry.event, 'economy.')) return;
+                    if (entry.player === playerName || entry.target === playerName) {
+                        allLogs.push(entry);
+                    }
+                });
             });
 
             // 按时间倒序排列
@@ -861,7 +833,7 @@ function registerRoutes(router, d) {
             } catch (e) {}
 
             // 记录管理员操作
-            d.adminLog.log(req.user.uid, '删除玩家所有数据', '玩家:' + playerName + ' XUID:' + xuid);
+            d.logStore.append('admin.player_data_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '玩家:' + playerName + ' XUID:' + xuid, detail: '' });
 
             // 从内存中移除
             if (d.getPlayerData && d.getPlayerData().players) {
@@ -938,7 +910,7 @@ function registerRoutes(router, d) {
             }
 
             var result = d.setMaintenanceMode(enable, reason);
-            d.adminLog.log(req.user.uid, enable ? 'Enable maintenance mode' : 'Disable maintenance mode', reason || 'No reason');
+            d.logStore.append(enable ? 'admin.maintenance_enable' : 'admin.maintenance_disable', { admin: req.user.uid, ip: d.getClientIp(req), target: reason || 'No reason', detail: '' });
 
             res.json({
                 code: 200,
@@ -1040,7 +1012,7 @@ function registerRoutes(router, d) {
                 }
             }, 500);
 
-            d.adminLog.log(req.user.uid, '雷劈致死', targetName);
+            d.logStore.append('admin.smite', { admin: req.user.uid, ip: d.getClientIp(req), target: targetName, detail: '' });
             res.json({ code: 200, msg: '已开始雷劈 ' + targetName });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '雷劈失败: ' + e.message });

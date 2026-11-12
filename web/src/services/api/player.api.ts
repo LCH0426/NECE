@@ -230,19 +230,36 @@ export interface IChatHistoryData {
   date: string
 }
 
-export interface IAdminLogEntry {
+export interface ILogEntry {
   time: string
-  admin: string
-  action: string
-  target: string
-  detail: string
-  raw: string
+  level: string
+  event: string
+  date?: string
+  [key: string]: any
 }
 
-export interface IAdminLogData {
-  entries: IAdminLogEntry[]
+export interface ILogQueryData {
+  entries: ILogEntry[]
   pagination: IPlayerListPagination
-  date: string
+  range: {
+    startDate: string
+    endDate: string
+    startTime: string
+    endTime: string
+  }
+}
+
+export interface ILogQuery {
+  startDate?: string
+  endDate?: string
+  startTime?: string
+  endTime?: string
+  levels?: string
+  event?: string
+  player?: string
+  keyword?: string
+  page?: number
+  pageSize?: number
 }
 
 export function usePlayerApi() {
@@ -427,14 +444,14 @@ export function usePlayerApi() {
     })
   }
 
-  function getAdminLogs(query?: { date?: string, page?: number, pageSize?: number }) {
-    return apiFetch<ILeResponse<IAdminLogData>>('/logs', {
+  function getSystemLogs(query?: ILogQuery) {
+    return apiFetch<ILeResponse<ILogQueryData>>('/logs', {
       method: 'GET',
       params: query,
     })
   }
 
-  function getAdminLogDates() {
+  function getLogDates() {
     return apiFetch<ILeResponse<{ dates: string[] }>>('/logs/dates', {
       method: 'GET',
     })
@@ -506,8 +523,8 @@ export function usePlayerApi() {
     getChatHistory,
     getChatLog,
     getChatLogDates,
-    getAdminLogs,
-    getAdminLogDates,
+    getSystemLogs,
+    getLogDates,
     getPlayerNamesByXuids,
     getPlayerTitles,
     addPlayerTitle,

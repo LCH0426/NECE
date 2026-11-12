@@ -65,7 +65,7 @@ export function useSidebar() {
               { title: '邮件管理', url: '/players/mail' },
               { title: '行为日志', url: '/players/behavior-log' },
               { title: '聊天管理', url: '/players/chat' },
-              { title: '操作日志', url: '/players/admin-log' },
+              { title: '日志查询', url: '/players/admin-log' },
               { title: '公会管理', url: '/players/guild' },
               { title: '白名单管理', url: '/players/whitelist' },
               { title: '地图画管理', url: '/players/mapart-manage' },

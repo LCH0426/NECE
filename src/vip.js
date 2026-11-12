@@ -20,6 +20,8 @@
  * VIP购买、续费、到期管理及VIP专属权益（商城85折优惠）
  */
 
+const logStore = require('./logStore');
+
 let playerData = null;
 let savePlayerDataNow = null;
 let getPlayerMoney = null;
@@ -101,6 +103,11 @@ function getVipInfo(player) {
         const totalSaved = vipInfo.totalSaved || 0;
         delete p.vipdata;
         savePlayerDataNow();
+        logStore.append('vip.expire', {
+            xuid: xuid,
+            player: player.name,
+            total_saved: totalSaved
+        }, 'notice');
         return {
             hasVip: false,
             expireTime: null,
@@ -311,6 +318,16 @@ function showVipPurchaseForm(player) {
         }
 
         savePlayerDataNow();
+
+        logStore.append('vip.purchase', {
+            xuid: xuid,
+            player: p.name,
+            price: selectedPrice,
+            permanent: selectedDuration === 0,
+            duration_days: selectedDuration || 0,
+            expire_time: playerData.players[xuid].vipdata.expireTime || null,
+            balance: getPlayerMoney(p)
+        });
 
         p.sendModalForm(
             t(lang, 'vip.purchase_success_title'),

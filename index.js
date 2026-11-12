@@ -21,6 +21,7 @@ const database = require('./src/database');
 const debugModule = require('./src/debug');
 const webServer = require('./src/server');
 const behaviorLog = require('./src/behaviorLog');
+const logStore = require('./src/logStore');
 const U = require('./src/utils');
 const shopModule = require('./src/shop');
 const teleportModule = require('./src/teleport');
@@ -979,6 +980,7 @@ function initDeathPointData() {
 function initAllConfigs() {
 	initLevelExpTable();
 	initRankConfig();
+	logStore.init({});
 	// 经济模块和玩家数据模块需要最先初始化
 	economyModule.init({
 		getDebug: function() { return _debugMode; },
@@ -2679,6 +2681,7 @@ if (typeof ll !== 'undefined' && ll.onUnload) {
 		_tickEnabled = false;
 		_initialized = false;
 		debugModule.setUnloading();
+		logStore.shutdown();
 		flushAllSaves();
 		if (config && config.flush) config.flush();
 		if (database.isPlayerDbReady()) {

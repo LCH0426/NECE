@@ -21,6 +21,7 @@
  */
 
 const D = require('./debug');
+const logStore = require('./logStore');
 
 var _t = null;
 var _getLang = null;
@@ -788,6 +789,16 @@ function showHomeSetForm(player, deps) {
 		});
 		markHomeDirty(p.xuid);
 		saveHomesData();
+		logStore.append('teleport.home_set', {
+			xuid: p.xuid,
+			player: p.name,
+			home: name,
+			is_public: isPublic,
+			dim: String(pos.dimid),
+			x: Math.floor(pos.x),
+			y: Math.floor(pos.y),
+			z: Math.floor(pos.z)
+		});
 		p.tell(t(lang, 'tp.home_tag_prefix') + " §a" + t(lang, 'tp.home_set_success', name));
 		showHomeMainForm(p, deps);
 	});
@@ -959,6 +970,13 @@ function showHomeShareAddForm(player, home, homeIndex, deps) {
 				home.sharedWith.push(selected.name);
 				markHomeDirty(p2.xuid);
 				saveHomesData();
+				logStore.append('teleport.home_share', {
+					xuid: p2.xuid,
+					player: p2.name,
+					home: home.name,
+					target_xuid: selected.xuid,
+					target: selected.name
+				});
 				p2.tell(t(lang, 'tp.home_tag_prefix') + " §a" + t(lang, 'tp.share_added', selected.name));
 			} else {
 				p2.tell(t(lang, 'tp.home_tag_prefix') + " §c" + t(lang, 'tp.already_shared'));
@@ -995,6 +1013,11 @@ function showHomeDeleteConfirm(player, home, homeIndex, deps) {
 		homes.splice(homeIndex, 1);
 		markHomeDirty(p.xuid);
 		saveHomesData();
+		logStore.append('teleport.home_delete', {
+			xuid: p.xuid,
+			player: p.name,
+			home: home.name
+		});
 		p.tell(t(lang, 'tp.home_tag_prefix') + " §a" + t(lang, 'tp.home_deleted', home.name));
 		showHomeMainForm(p, deps);
 	});
@@ -1143,6 +1166,16 @@ function showWarpAddForm(player, deps) {
 			cost: cost
 		};
 		saveWarpsData();
+		logStore.append('teleport.warp_add', {
+			xuid: p.xuid,
+			player: p.name,
+			warp: name,
+			cost: cost,
+			dim: String(pos.dimid),
+			x: Math.floor(pos.x),
+			y: Math.floor(pos.y),
+			z: Math.floor(pos.z)
+		});
 		p.tell(t(lang, 'tp.tag_prefix') + " §a" + t(lang, 'tp.warp_add_success', name));
 		showWarpAdminForm(p, deps);
 	});
@@ -1178,6 +1211,11 @@ function showWarpDeleteForm(player, deps) {
 		if (name && warpsData[name]) {
 			delete warpsData[name];
 			saveWarpsData();
+			logStore.append('teleport.warp_delete', {
+				xuid: p.xuid,
+				player: p.name,
+				warp: name
+			});
 			p.tell(t(lang, 'tp.tag_prefix') + " §a" + t(lang, 'tp.warp_deleted', name));
 		}
 		showWarpAdminForm(p, deps);

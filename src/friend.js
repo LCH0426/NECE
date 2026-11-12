@@ -23,6 +23,7 @@
 
 const U = require('./utils');
 const D = require('./debug');
+const logStore = require('./logStore');
 
 let friendDM = null;
 let messageDM = null;
@@ -924,6 +925,19 @@ function showHandleRequestForm(player, request) {
                 markFriendDirty(p.xuid);
                 markFriendDirty(request.xuid);
                 saveData();
+                logStore.append('friend.request', {
+                    xuid: p.xuid,
+                    player: p.name,
+                    target_xuid: request.xuid,
+                    target: request.name,
+                    action: 'accept'
+                });
+                logStore.append('friend.add', {
+                    xuid: p.xuid,
+                    player: p.name,
+                    target_xuid: request.xuid,
+                    target: request.name
+                });
                 p.tell(t(lang, 'friend.tag_friend') + " §a" + t(lang, 'friend.accepted', request.name));
             }
         } else if (id === 1) {
@@ -940,6 +954,13 @@ function showHandleRequestForm(player, request) {
                 markFriendDirty(p.xuid);
                 markFriendDirty(request.xuid);
                 saveData();
+                logStore.append('friend.request', {
+                    xuid: p.xuid,
+                    player: p.name,
+                    target_xuid: request.xuid,
+                    target: request.name,
+                    action: 'reject'
+                });
                 sendSystemMail(request.xuid, t(lang, 'friend.reject_reason', p.name));
                 p.tell(t(lang, 'friend.tag_friend') + " §c" + t(lang, 'friend.rejected', request.name));
             }
@@ -1021,6 +1042,12 @@ function showDeleteFriendConfirmForm(player, friend) {
                 markFriendDirty(p.xuid);
                 markFriendDirty(friend.xuid);
                 saveData();
+                logStore.append('friend.delete', {
+                    xuid: p.xuid,
+                    player: p.name,
+                    target_xuid: friend.xuid,
+                    target: friendName
+                });
                 p.tell(t(lang, 'friend.tag_friend') + " §c" + t(lang, 'friend.delete_success', friendName));
             }
             showMyFriendsForm(p);

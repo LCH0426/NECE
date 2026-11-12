@@ -24,6 +24,7 @@
 var multer = require('multer');
 var path = require('path');
 var crypto = require('crypto');
+var logStore = require('../logStore');
 
 // 地图画存储目录（与 CustomGetMap 插件共享）
 var MAPART_DIR = path.join(__dirname, '..', '..', '..', 'CustomGetMap', '.img');
@@ -275,7 +276,20 @@ function registerRoutes(router, d) {
                 msg: '上传成功',
                 data: { id: imageId, filename: finalName, size: file.size }
             });
+            logStore.append('mapart.upload', {
+                uid: String(uid),
+                ip: d.getClientIp(req),
+                image_id: imageId,
+                filename: finalName,
+                original_name: file.originalname,
+                size: file.size
+            });
         } catch (e) {
+            logStore.append('mapart.upload_failed', {
+                uid: req.user ? String(req.user.uid) : '',
+                ip: d.getClientIp(req),
+                error: e.message
+            }, 'err');
             res.status(500).json({ code: 500, msg: '上传失败: ' + e.message });
         }
     });
@@ -388,6 +402,14 @@ function registerRoutes(router, d) {
             // 管理员删除时需要指定图片所属用户，否则用图片记录中的 uid
             var targetUid = isAdmin ? imageInfo.uid : uid;
             d.database.deleteMapartImage(targetUid, imageId);
+            logStore.append('mapart.delete', {
+                uid: String(uid),
+                ip: d.getClientIp(req),
+                admin: !!isAdmin,
+                target_uid: String(imageInfo.uid || ''),
+                image_id: imageId,
+                filename: imageInfo.filename || ''
+            });
 
             // 删除物理文件
             var filename = imageInfo.filename;

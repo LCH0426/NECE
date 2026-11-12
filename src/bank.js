@@ -20,6 +20,8 @@
  * 提供活期存款和定期存款功能，自动计算利息收益
  */
 
+const logStore = require('./logStore');
+
 // 定期存款期限配置：天数 -> { 利率(单期), nameKey }
 const FIXED_DEPOSIT_CONFIG = {
     7: { rate: 0.001, nameKey: "bank.period_week" },
@@ -193,6 +195,12 @@ function createBankModule(deps) {
                     account.current.balance += amount;
                     account.current.balance = Math.floor(account.current.balance);
                     savePlayerDataNow();
+                    logStore.append('bank.deposit', {
+                        xuid: xuid,
+                        player: p.name,
+                        amount: amount,
+                        balance: account.current.balance
+                    });
                     let r = { success: true, message: t(lang, 'bank.deposit_success', amount, currency, account.current.balance) };
                     if (callback) callback(r);
                     else p.tell(r.message);
@@ -210,6 +218,12 @@ function createBankModule(deps) {
             account.current.balance += amount;
             account.current.balance = Math.floor(account.current.balance);
             savePlayerDataNow();
+            logStore.append('bank.deposit', {
+                xuid: xuid,
+                player: player.name,
+                amount: amount,
+                balance: account.current.balance
+            });
             let result = { success: true, message: t(lang, 'bank.deposit_success', amount, currency, account.current.balance) };
             if (callback) { callback(result); return; }
             return result;
@@ -228,6 +242,12 @@ function createBankModule(deps) {
             account.current.balance -= withdrawAmount;
             account.current.balance = Math.floor(account.current.balance);
             savePlayerDataNow();
+            logStore.append('bank.withdraw', {
+                xuid: xuid,
+                player: player.name,
+                amount: withdrawAmount,
+                balance: account.current.balance
+            });
             let result = { success: true, message: t(lang, 'bank.withdraw_success_msg', withdrawAmount, currency, account.current.balance) };
             if (callback) { callback(result); return; }
             return result;
@@ -273,6 +293,16 @@ function createBankModule(deps) {
 
         account.fixed.push(deposit);
         savePlayerDataNow();
+        logStore.append('bank.fixed_create', {
+            xuid: xuid,
+            player: player.name,
+            amount: amount,
+            days: days,
+            rate: config.rate,
+            deposit_id: deposit.id,
+            mature_time: matureTime,
+            balance: getPlayerMoney(player)
+        });
         return { success: true, message: t(lang, 'bank.deposit_fixed_success', amount, currency, days, (config.rate * 100).toFixed(config.rate < 0.01 ? 2 : 1)) };
     }
 
@@ -297,6 +327,17 @@ function createBankModule(deps) {
             if (!addPlayerMoney(player, totalAmount, t(lang, 'bank.reason_fixed_mature'))) return { success: false, message: t(lang, 'bank.err_withdraw_failed') };
             account.fixed.splice(depositIndex, 1);
             savePlayerDataNow();
+            logStore.append('bank.fixed_withdraw', {
+                xuid: xuid,
+                player: player.name,
+                deposit_id: deposit.id,
+                principal: deposit.principal,
+                interest: interest,
+                penalty: 0,
+                refund: totalAmount,
+                matured: true,
+                balance: getPlayerMoney(player)
+            });
             return { success: true, message: t(lang, 'bank.withdraw_fixed_success', deposit.principal, currency, interest, totalAmount) };
         } else {
             const penalty = Math.floor(deposit.principal * 0.02);
@@ -304,6 +345,17 @@ function createBankModule(deps) {
             if (!addPlayerMoney(player, refundAmount, t(lang, 'bank.reason_fixed_early'))) return { success: false, message: t(lang, 'bank.err_withdraw_failed') };
             account.fixed.splice(depositIndex, 1);
             savePlayerDataNow();
+            logStore.append('bank.fixed_withdraw', {
+                xuid: xuid,
+                player: player.name,
+                deposit_id: deposit.id,
+                principal: deposit.principal,
+                interest: 0,
+                penalty: penalty,
+                refund: refundAmount,
+                matured: false,
+                balance: getPlayerMoney(player)
+            });
             return { success: true, message: t(lang, 'bank.early_withdraw_success', deposit.principal, currency, penalty, refundAmount) };
         }
     }

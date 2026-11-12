@@ -22,7 +22,7 @@ const historyPageSize = ref(50)
 const historyTotal = ref(0)
 const today = new Date()
 const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-const selectedDate = ref(todayStr)
+const selectedDate = ref('all')
 const availableDates = ref<string[]>([])
 const senderFilter = ref('')
 const keywordFilter = ref('')
@@ -66,7 +66,7 @@ async function fetchHistory() {
       page: historyPage.value,
       pageSize: historyPageSize.value,
     }
-    if (selectedDate.value)
+    if (selectedDate.value && selectedDate.value !== 'all')
       query.date = selectedDate.value
     if (senderFilter.value.trim())
       query.sender = senderFilter.value.trim()
@@ -254,6 +254,9 @@ onUnmounted(() => {
                   <UiSelectValue placeholder="选择日期" />
                 </UiSelectTrigger>
                 <UiSelectContent>
+                  <UiSelectItem value="all">
+                    全部日期
+                  </UiSelectItem>
                   <UiSelectItem v-for="d in availableDates" :key="d" :value="d">
                     {{ d }}
                   </UiSelectItem>

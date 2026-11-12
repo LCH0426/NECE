@@ -21,6 +21,8 @@
  * 使用工厂模式，通过createCdkModule(deps)创建模块实例
  */
 
+const logStore = require('./logStore');
+
 
 /**
  * 创建CDK模块实例（工厂模式）
@@ -85,6 +87,7 @@ function createCdkModule(deps) {
         const lang = getLocale(player.xuid);
         const cdkData = getCdkData();
         if (!cdkData || !cdkData.codes || !cdkData.codes[code]) {
+            logStore.append('cdk.redeem_failed', { xuid: player.xuid, player: player.name, code: code, reason: 'not_found' }, 'warn');
             player.sendModalForm(t(lang, 'cdk.err_not_found_title'), t(lang, 'cdk.err_not_found'), t(lang, 'cdk.btn_retry'), t(lang, 'cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
@@ -96,6 +99,7 @@ function createCdkModule(deps) {
 
         // 检查该玩家是否已使用过此兑换码
         if (cdkInfo.usedBy && cdkInfo.usedBy[xuid]) {
+            logStore.append('cdk.redeem_failed', { xuid: xuid, player: player.name, code: code, reason: 'already_used' }, 'warn');
             player.sendModalForm(t(lang, 'cdk.err_not_found_title'), t(lang, 'cdk.err_already_used'), t(lang, 'cdk.btn_retry'), t(lang, 'cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
@@ -109,6 +113,7 @@ function createCdkModule(deps) {
                 usedCount = Object.keys(cdkInfo.usedBy).length;
             }
             if (usedCount >= cdkInfo.maxUses) {
+                logStore.append('cdk.redeem_failed', { xuid: xuid, player: player.name, code: code, reason: 'limit_reached' }, 'warn');
                 player.sendModalForm(t(lang, 'cdk.err_not_found_title'), t(lang, 'cdk.err_all_used'), t(lang, 'cdk.btn_retry'), t(lang, 'cdk.btn_close'), function(pl, ok) {
                     if (ok === true) showCdkRedeemForm(pl);
                 });
@@ -175,6 +180,14 @@ function createCdkModule(deps) {
         }
 
         if (failedDescs.length > 0) {
+            logStore.append('cdk.redeem_failed', {
+                xuid: xuid,
+                player: player.name,
+                code: code,
+                reason: 'partial_failure',
+                rewards: rewardDescs,
+                failed: failedDescs
+            }, 'warn');
             var msg = t(lang, 'cdk.partial_success_msg', failedDescs.join("\n"));
             if (rewardDescs.length > 0) msg += t(lang, 'cdk.partial_success_obtained', rewardDescs.join("\n"));
             msg += t(lang, 'cdk.partial_success_retry');
@@ -182,6 +195,12 @@ function createCdkModule(deps) {
                 if (ok === true) showCdkRedeemForm(pl);
             });
         } else {
+            logStore.append('cdk.redeem', {
+                xuid: xuid,
+                player: player.name,
+                code: code,
+                rewards: rewardDescs
+            });
             const desc = rewardDescs.length > 0 ? rewardDescs.join("\n") : t(lang, 'cdk.no_reward');
             player.sendModalForm(t(lang, 'cdk.success_title'), t(lang, 'cdk.success_msg', desc), t(lang, 'cdk.btn_continue'), t(lang, 'cdk.btn_close'), function(pl, ok) {
                 if (ok === true) showCdkRedeemForm(pl);

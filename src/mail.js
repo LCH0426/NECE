@@ -23,6 +23,7 @@
 
 
 const D = require('./debug');
+const logStore = require('./logStore');
 let mailDM = null;
 let mailData = null;
 let _deps = {};
@@ -83,8 +84,15 @@ function addMail(mail) {
 function deleteMail(mailId) {
     const index = mailData.mails.findIndex(function(m) { return m.id === mailId; });
     if (index === -1) return false;
+    const removed = mailData.mails[index];
     mailData.mails.splice(index, 1);
     save();
+    logStore.append('mail.delete', {
+        mail_id: mailId,
+        xuid: String(removed.toXuid || ''),
+        from: removed.fromName || '',
+        had_attachment: !!(removed.starQian > 0 || (removed.items && removed.items.length > 0))
+    });
     return true;
 }
 
@@ -212,6 +220,12 @@ function checkScheduledMails() {
             needSave = true;
 
             const hasAttachment = mail.starQian > 0 || (mail.items && mail.items.length > 0);
+            logStore.append('mail.scheduled_sent', {
+                mail_id: mail.id,
+                from: mail.fromName || '',
+                to: String(mail.toXuid || ''),
+                has_attachment: hasAttachment
+            });
             const onlinePlayers = mc.getOnlinePlayers();
             onlinePlayers.forEach(function(onlinePlayer) {
                 const playerSetting = _deps.getPlayerSetting ? _deps.getPlayerSetting(onlinePlayer.xuid, "enableMailNotification") : true;
@@ -690,12 +704,28 @@ function claimMailAttachments(player, mail) {
     // 部分物品发放失败时提示（货币已发放，物品可重试）
     if (!allItemsSuccess) {
         save();
+        logStore.append('mail.claim', {
+            mail_id: mail.id,
+            xuid: xuid,
+            player: player.name,
+            money: mail.starQian || 0,
+            items: mail.items ? mail.items.length : 0,
+            partial: true
+        }, 'warn');
         player.tell(t(lang, 'mail.err_partial_grant'));
         showMailDetailForm(player, mail);
         return;
     }
 
     save();
+    logStore.append('mail.claim', {
+        mail_id: mail.id,
+        xuid: xuid,
+        player: player.name,
+        money: mail.starQian || 0,
+        items: mail.items ? mail.items.length : 0,
+        partial: false
+    });
     player.tell(t(lang, 'mail.claim_success'));
     showMailDetailForm(player, mail);
 }
@@ -850,6 +880,16 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
                     claimed: {}
                 });
                 save();
+                logStore.append('mail.send_global', {
+                    operator_xuid: player.xuid,
+                    operator: player.name,
+                    mail_id: mailData.mails[mailData.mails.length - 1].id,
+                    scheduled: true,
+                    scheduled_time: scheduledTime,
+                    has_attachment: hasAttachment,
+                    money: starQian || 0,
+                    items: items ? items.length : 0
+                });
                 player.tell(t(lang, 'mail.scheduled_set_success', scheduledTime, hasAttachment ? t(lang, 'mail.with_attach') : ""));
 
                 // 显示发送成功确认表单
@@ -891,6 +931,15 @@ function sendGlobalMail(player, content, starQian, selectedItems, scheduledTime,
         claimed: {}
     });
     save();
+    logStore.append('mail.send_global', {
+        operator_xuid: player.xuid,
+        operator: player.name,
+        mail_id: mailData.mails[mailData.mails.length - 1].id,
+        scheduled: false,
+        has_attachment: hasAttachment,
+        money: starQian || 0,
+        items: items ? items.length : 0
+    });
 
     // 通知所有在线玩家
     const onlinePlayers = mc.getOnlinePlayers();
@@ -1126,6 +1175,17 @@ function sendSingleMail(player, target, content, starQian, selectedItems) {
         claimed: {}
     });
     save();
+    logStore.append('mail.send_single', {
+        operator_xuid: player.xuid,
+        operator: player.name,
+        mail_id: mailData.mails[mailData.mails.length - 1].id,
+        target_xuid: String(target.xuid),
+        target: target.name,
+        source: 'admin',
+        has_attachment: hasAttachment,
+        money: starQian || 0,
+        items: items.length
+    });
 
     // 收件人在线时推送通知
     const targetPlayer = mc.getPlayer(target.xuid);
@@ -1316,6 +1376,17 @@ function showPlayerSendMailForm(player) {
             claimed: {}
         });
         save();
+        logStore.append('mail.send_single', {
+            operator_xuid: p.xuid,
+            operator: p.name,
+            mail_id: mailData.mails[mailData.mails.length - 1].id,
+            target_xuid: String(target.xuid),
+            target: target.name,
+            source: 'player',
+            cost: totalCost,
+            has_attachment: itemsFormatted.length > 0,
+            items: itemsFormatted.length
+        });
 
         // 收件人在线时推送通知
         const targetPlayer = mc.getPlayer(target.xuid);

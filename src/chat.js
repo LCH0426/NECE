@@ -20,10 +20,11 @@
  * 聊天格式化、敏感词过滤、称号系统、聊天日志
  */
 
+const logStore = require('./logStore');
+
 let _deps = {};
 let _fs = null;
 let _U = null;
-let _pathModule = null;
 
 function getLocale(xuid) {
     if (_deps.getPlayerSetting && xuid) {
@@ -56,29 +57,15 @@ function getChatCfg() {
 let badWordList = [];
 let badWordRegex = null;  // 预编译的敏感词正则，避免每次检测时重建
 
-// 聊天日志文件句柄与日期追踪
-let _chatLogDir = null;
-let _currentLogFile = null;  // 当前打开的文件描述符
-let _currentLogDate = '';
-
+// 聊天日志写入统一日志模块
 /**
- * 初始化聊天模块，创建日志目录并启动定时任务
+ * 初始化聊天模块
  * @param {Object} deps - 依赖注入对象，包含 fs、U 等工具
  */
 function init(deps) {
     _deps = deps;
     _fs = deps.fs;
     _U = deps.U;
-    _pathModule = require('path');
-    _chatLogDir = _pathModule.join(__dirname, '..', 'logs', 'chat');
-    _ensureChatLogDir();
-    _openLogFile();
-    // 每30秒检查日期变化，必要时切换日志文件
-    setInterval(function() { _checkDateChange(); }, 30000);
-    // 每30秒强制刷盘，防止日志丢失
-    setInterval(function() {
-        try { if (_currentLogFile) _fs.fsyncSync(_currentLogFile); } catch (e) { logger.warn('[ChatLog] fsync 失败: ' + e.message); }
-    }, 30000);
 }
 
 /**
@@ -578,71 +565,16 @@ function buildChatOutput(player, message) {
     return result;
 }
 
-/** 确保聊天日志目录存在 */
-function _ensureChatLogDir() {
-    if (!_fs.existsSync(_chatLogDir)) {
-        _fs.mkdirSync(_chatLogDir, { recursive: true });
-    }
-}
-
-/** 获取当前日期字符串 (YYYY-MM-DD) */
-function _getTodayDate() {
-    let now = new Date();
-    return now.getFullYear() + '-' +
-        String(now.getMonth() + 1).padStart(2, '0') + '-' +
-        String(now.getDate()).padStart(2, '0');
-}
-
-/** 根据日期字符串生成对应的日志文件路径，格式非法返回 null 防止路径穿越 */
-function _getLogPath(dateStr) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
-    return _pathModule.join(_chatLogDir, 'chat-' + dateStr + '.jsonl');
-}
-
 /**
- * 打开或切换到当天的日志文件
- * 若当前已打开且日期匹配则跳过，避免重复打开
- */
-function _openLogFile() {
-    let today = _getTodayDate();
-    if (_currentLogDate === today && _currentLogFile) return;
-    if (_currentLogFile) {
-        try { _fs.closeSync(_currentLogFile); } catch (e) { logger.warn('[ChatLog] 关闭日志文件失败: ' + e.message); }
-    }
-    _currentLogDate = today;
-    _currentLogFile = _fs.openSync(_getLogPath(today), 'a');
-}
-
-/** 定时检查日期变化，跨天时关闭旧文件并打开新文件 */
-function _checkDateChange() {
-    const today = _getTodayDate();
-    if (today !== _currentLogDate) {
-        if (_currentLogFile) {
-            try { _fs.closeSync(_currentLogFile); } catch (e) { logger.warn('[ChatLog] 关闭日志文件失败: ' + e.message); }
-            _currentLogFile = null;
-        }
-        _currentLogDate = '';
-        _openLogFile();
-    }
-}
-
-/**
- * 将一条聊天消息以 JSON 行追加写入当天日志文件
- * @param {Object} msg - {time, sender, message, type}
+ * 将一条聊天消息写入统一日志
+ * @param {Object} msg - {sender, message, type}，时间由统一日志模块生成
  */
 function _writeChatMessage(msg) {
-    try {
-        _openLogFile();
-        const line = JSON.stringify({
-            time: msg.time,
-            sender: msg.sender,
-            message: msg.message,
-            type: msg.type
-        }) + '\n';
-        _fs.writeSync(_currentLogFile, line);
-    } catch (e) {
-        logger.error('[ChatLog] 写入失败: ' + e.message);
-    }
+    logStore.append('chat', {
+        sender: msg.sender || '',
+        message: msg.message || '',
+        type: msg.type || ''
+    });
 }
 
 /**
@@ -650,17 +582,7 @@ function _writeChatMessage(msg) {
  * @returns {string[]} 日期字符串数组，如 ["2026-05-27", "2026-05-26"]
  */
 function getAvailableDates() {
-    try {
-        _ensureChatLogDir();
-        const files = _fs.readdirSync(_chatLogDir);
-        return files
-            .filter(function(f) { return f.startsWith('chat-') && f.endsWith('.jsonl'); })
-            .map(function(f) { return f.replace('chat-', '').replace('.jsonl', ''); })
-            .sort()
-            .reverse();
-    } catch (e) {
-        return [];
-    }
+    return logStore.datesWithEvent('chat');
 }
 
 /**
@@ -676,44 +598,43 @@ function queryHistory(options) {
         const sender = (options.sender || '').trim().toLowerCase();
         const keyword = (options.keyword || '').trim().toLowerCase();
 
-        // 未指定日期时默认查当天
-        if (!date) {
-            const now = new Date();
-            date = now.getFullYear() + '-' +
-                String(now.getMonth() + 1).padStart(2, '0') + '-' +
-                String(now.getDate()).padStart(2, '0');
-        }
-
-        const logPath = _getLogPath(date);
-
-        if (!logPath || !_fs.existsSync(logPath)) {
-            resolve({
-                messages: [],
-                pagination: { page: page, pageSize: pageSize, total: 0, totalPages: 0 },
-                date: date
-            });
-            return;
+        // 未指定日期时查询全部有聊天记录的日期
+        let dates;
+        if (date) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                resolve({
+                    messages: [],
+                    pagination: { page: page, pageSize: pageSize, total: 0, totalPages: 0 },
+                    date: date
+                });
+                return;
+            }
+            dates = [date];
+        } else {
+            dates = logStore.datesWithEvent('chat');
         }
 
         const results = [];
-        const content = _fs.readFileSync(logPath, 'utf-8');
-        const lines = content.split('\n').filter(function(l) { return l.trim().length > 0; });
-
-        lines.forEach(function(line) {
-            try {
-                const msg = JSON.parse(line);
+        dates.forEach(function(day) {
+            logStore.readEntries(day).forEach(function(entry) {
+                if (!logStore.matchesEvent(entry.event, 'chat')) return;
                 // 发送者名称模糊匹配
-                if (sender && (msg.sender || '').toLowerCase().indexOf(sender) === -1) return;
+                if (sender && (entry.sender || '').toLowerCase().indexOf(sender) === -1) return;
                 // 关键词模糊匹配
-                if (keyword && (msg.message || '').toLowerCase().indexOf(keyword) === -1) return;
-                results.push(msg);
-            } catch (e) { logger.warn('[ChatLog] 解析日志行失败: ' + e.message); }
+                if (keyword && (entry.message || '').toLowerCase().indexOf(keyword) === -1) return;
+                results.push({
+                    time: logStore.parseTimeToMillis(entry.time),
+                    sender: entry.sender || '',
+                    message: entry.message || '',
+                    type: entry.type || ''
+                });
+            });
         });
 
         const total = results.length;
         const totalPages = Math.ceil(total / pageSize);
-        // 最新消息排最前，分页从最新开始
-        results.reverse();
+        // 最新消息排最前
+        results.sort(function(a, b) { return b.time - a.time; });
         const start = (page - 1) * pageSize;
         const end = start + pageSize;
         const paged = results.slice(start, end);

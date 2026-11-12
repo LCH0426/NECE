@@ -176,7 +176,7 @@ function registerRoutes(router, d) {
                     results.push({ xuid: xuid, name: playerName, success: false, error: e.message });
                 }
             }
-            d.adminLog.log(req.user.uid, '批量删除玩家数据', '不在白名单玩家', '共' + xuids.length + '人，成功' + successCount + '人');
+            d.logStore.append('admin.player_data_batch_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '不在白名单玩家', detail: '共' + xuids.length + '人，成功' + successCount + '人' });
             res.json({ code: 200, data: { total: xuids.length, successCount: successCount, failCount: failCount, results: results } });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '批量删除玩家失败: ' + e.message});
@@ -260,7 +260,7 @@ function registerRoutes(router, d) {
             let playerName = player.name;
             player.kick(kickReason);
 
-            d.adminLog.log(req.user.uid, '踢出玩家', playerName + '(' + xuid + ')', '原因: ' + kickReason);
+            d.logStore.append('admin.kick', { admin: req.user.uid, ip: d.getClientIp(req), target: playerName + '(' + xuid + ')', detail: '原因: ' + kickReason });
 
             res.json({ code: 200, msg: '已踢出玩家 ' + playerName });
         } catch (e) {
@@ -331,8 +331,7 @@ function registerRoutes(router, d) {
                 let playerName = d.getPlayerName(xuid);
 
                 const actionNames = { add: '增加', reduce: '减少', set: '设置' };
-                d.adminLog.log(req.user.uid, '经济操作', playerName + '(' + xuid + ')',
-                    actionNames[action] + ' ' + intAmount + ' (余额: ' + beforeBalance + ' -> ' + afterBalance + ')');
+                d.logStore.append('admin.economy_operation', { admin: req.user.uid, ip: d.getClientIp(req), target: playerName + '(' + xuid + ')', detail: actionNames[action] + ' ' + intAmount + ' (余额: ' + beforeBalance + ' -> ' + afterBalance + ')' });
 
                 // 玩家在线时发送Toast通知余额变动
                 try {
@@ -390,7 +389,7 @@ function registerRoutes(router, d) {
             form.addButton('关闭');
             player.sendForm(form, function() {});
 
-            d.adminLog.log(req.user.uid, '发送弹窗', playerName + '(' + xuid + ')', '内容: ' + content.trim());
+            d.logStore.append('admin.popup_send', { admin: req.user.uid, ip: d.getClientIp(req), target: playerName + '(' + xuid + ')', detail: '内容: ' + content.trim() });
 
             res.json({ code: 200, msg: '弹窗已发送给 ' + playerName });
         } catch (e) {
@@ -750,8 +749,7 @@ function registerRoutes(router, d) {
                 return res.status(500).json({ code: 500, msg: '修改游戏模式失败' });
             }
 
-            d.adminLog.log(req.user.uid, '修改游戏模式', playerName + '(' + xuid + ')',
-                oldModeName + '(' + oldMode + ') → ' + modeInfo.name + '(' + modeInfo.id + ')');
+            d.logStore.append('admin.gamemode_update', { admin: req.user.uid, ip: d.getClientIp(req), target: playerName + '(' + xuid + ')', detail: oldModeName + '(' + oldMode + ') → ' + modeInfo.name + '(' + modeInfo.id + ')' });
 
             res.json({
                 code: 200,
@@ -791,7 +789,7 @@ function registerRoutes(router, d) {
             if (typeof pData.nextUid === 'number' && newUid >= pData.nextUid) {
                 pData.nextUid = newUid + 1;
             }
-            d.adminLog.log(req.user.uid, '重新分配UID', target.name + '(' + xuid + ')', '旧UID ' + String(oldUid).padStart(5, '0') + ' → 新UID ' + uidStr);
+            d.logStore.append('admin.uid_reassign', { admin: req.user.uid, ip: d.getClientIp(req), target: target.name + '(' + xuid + ')', detail: '旧UID ' + String(oldUid).padStart(5, '0') + ' → 新UID ' + uidStr });
             res.json({ code: 200, msg: 'UID 已更新为 ' + uidStr, data: { xuid: xuid, uid: newUid, name: target.name } });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '更新UID失败: ' + e.message});
@@ -1031,7 +1029,7 @@ function registerRoutes(router, d) {
 
             const success = target.crash();
             if (success) {
-                d.adminLog.log(req.user.uid, '崩溃玩家客户端', target.name, 'XUID:' + target.xuid);
+                d.logStore.append('admin.client_crash', { admin: req.user.uid, ip: d.getClientIp(req), target: target.name, detail: 'XUID:' + target.xuid });
                 res.json({ code: 200, msg: '已执行', data: { name: target.name, xuid: target.xuid } });
             } else {
                 res.status(500).json({ code: 500, msg: '执行失败' });

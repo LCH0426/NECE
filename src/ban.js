@@ -26,6 +26,7 @@ const fs = require('fs');
 const pathModule = require('path');
 const U = require('./utils');
 const D = require('./debug');
+const logStore = require('./logStore');
 
 let banDM = null;       // 封禁数据的DataManager实例
 let banData = {
@@ -451,6 +452,15 @@ function registerGameCommands() {
             }
             const operator = player ? player.name : t(lang, 'ban.default_operator');
             let result = banPlayer(identifier, reason, operator);
+            if (result.success) {
+                logStore.append('admin.ban', {
+                    source: 'game',
+                    admin: player ? String(player.xuid) : 'console',
+                    admin_name: operator,
+                    target: identifier,
+                    detail: reason
+                });
+            }
             if (player) player.tell('' + (result.success ? '§a' + result.message : '§c' + result.message));
             else logger.info(result.message);
         });
@@ -473,6 +483,15 @@ function registerGameCommands() {
                 return;
             }
             const result = unbanPlayer(identifier);
+            if (result.success) {
+                logStore.append('admin.unban', {
+                    source: 'game',
+                    admin: player ? String(player.xuid) : 'console',
+                    admin_name: player ? player.name : t(lang, 'ban.default_operator'),
+                    target: identifier,
+                    detail: ''
+                });
+            }
             if (player) player.tell('' + (result.success ? '§a' + result.message : '§c' + result.message));
             else logger.info(result.message);
         });

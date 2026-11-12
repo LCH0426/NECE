@@ -2094,7 +2094,8 @@
     "biome_deep_dark": "深暗之域",
     "biome_mangrove_swamp": "红树林沼泽",
     "biome_cherry_grove": "樱花树林",
-    "biome_pale_garden": "苍白之园"
+    "biome_pale_garden": "苍白之园",
+    "biome_dappled_forest": "斑驳森林"
   },
   "economy": {
     "currency_fallback": "星茜",

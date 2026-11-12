@@ -133,7 +133,7 @@ function registerRoutes(router, d) {
             data.codes[body.code] = cdk;
             saveCdkData(data);
             d.triggerReload('cdk');
-            d.adminLog.log(req.user.uid, '添加CDK', '兑换码:' + body.code);
+            d.logStore.append('admin.cdk_add', { admin: req.user.uid, ip: d.getClientIp(req), target: '兑换码:' + body.code, detail: '' });
             res.json({ code: 200, msg: '添加成功' });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '添加CDK失败: ' + e.message});
@@ -154,7 +154,7 @@ function registerRoutes(router, d) {
             delete data.codes[body.code];
             saveCdkData(data);
             d.triggerReload('cdk');
-            d.adminLog.log(req.user.uid, '删除CDK', '兑换码:' + body.code);
+            d.logStore.append('admin.cdk_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '兑换码:' + body.code, detail: '' });
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '删除CDK失败: ' + e.message});
@@ -201,7 +201,7 @@ function registerRoutes(router, d) {
             }
             saveCdkData(data);
             d.triggerReload('cdk');
-            d.adminLog.log(req.user.uid, '修改CDK', '兑换码:' + body.code);
+            d.logStore.append('admin.cdk_update', { admin: req.user.uid, ip: d.getClientIp(req), target: '兑换码:' + body.code, detail: '' });
             res.json({ code: 200, msg: '修改成功' });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '修改CDK失败: ' + e.message});
@@ -297,7 +297,7 @@ function registerRoutes(router, d) {
                 return res.status(500).json({ code: 500, msg: '执行 allowlist add 命令失败' });
             }
 
-            d.adminLog.log(req.user.uid, '添加白名单', name, '');
+            d.logStore.append('admin.whitelist_add', { admin: req.user.uid, ip: d.getClientIp(req), target: name, detail: '' });
 
             res.json({ code: 200, msg: '已添加 ' + name + ' 到白名单' });
         } catch (e) {
@@ -331,7 +331,7 @@ function registerRoutes(router, d) {
                 return res.status(500).json({ code: 500, msg: '执行 allowlist remove 命令失败' });
             }
 
-            d.adminLog.log(req.user.uid, '删除白名单', name, '');
+            d.logStore.append('admin.whitelist_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: name, detail: '' });
 
             res.json({ code: 200, msg: '已从白名单移除 ' + name });
         } catch (e) {
@@ -427,7 +427,7 @@ function registerRoutes(router, d) {
 
             d.chatModule.writeMessage(msgObj);
 
-            d.adminLog.log(req.user.uid, '全服广播', '全体玩家', '内容: ' + message.trim());
+            d.logStore.append('admin.broadcast', { admin: req.user.uid, ip: d.getClientIp(req), target: '全体玩家', detail: '内容: ' + message.trim() });
 
             res.json({ code: 200, msg: '消息已发送' });
         } catch (e) {
@@ -435,33 +435,147 @@ function registerRoutes(router, d) {
         }
     });
 
-    // 查询管理员操作日志
+    // ===== 统一日志查询 =====
+
+    /** 事件大类白名单 */
+    const LOG_EVENT_CATEGORIES = ['chat', 'admin.', 'economy.', 'bank.', 'vip.', 'wish.', 'mail.', 'guild.', 'teleport.', 'friend.', 'board.', 'mapart.', 'auth.'];
+
+    /** 日期字符串加减天数 */
+    function shiftDate(dateStr, delta) {
+        const parts = dateStr.split('-').map(Number);
+        const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+        dt.setDate(dt.getDate() + delta);
+        return d.logStore.formatDate(dt);
+    }
+
+    /** 计算两个日期相差天数 */
+    function daysBetween(a, b) {
+        const pa = a.split('-').map(Number);
+        const pb = b.split('-').map(Number);
+        const da = new Date(pa[0], pa[1] - 1, pa[2]).getTime();
+        const db = new Date(pb[0], pb[1] - 1, pb[2]).getTime();
+        return Math.round(Math.abs(db - da) / 86400000);
+    }
+
+    /** 递归判断日志条目是否包含关键词 */
+    function entryContains(entry, keyword) {
+        const keys = Object.keys(entry);
+        for (let i = 0; i < keys.length; i++) {
+            const value = entry[keys[i]];
+            if (value === null || value === undefined) continue;
+            const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+            if (text.toLowerCase().indexOf(keyword) !== -1) return true;
+        }
+        return false;
+    }
+
+    /** 按玩家相关字段匹配 */
+    function entryMatchesPlayer(entry, player) {
+        const fields = ['player', 'xuid', 'sender', 'admin', 'admin_name', 'target', 'target_xuid', 'author', 'author_xuid', 'operator', 'operator_xuid', 'uid', 'from', 'to'];
+        for (let i = 0; i < fields.length; i++) {
+            const value = entry[fields[i]];
+            if (value !== undefined && value !== null && String(value).toLowerCase().indexOf(player) !== -1) return true;
+        }
+        return false;
+    }
+
+    // 查询统一日志（跨日期、按时间/级别/事件大类/玩家/关键词筛选）
     router.get('/logs', d.adminAuth, function(req, res) {
         try {
-            const date = req.query.date || '';
-            let page = parseInt(req.query.page) || 1;
-            let pageSize = parseInt(req.query.pageSize) || 50;
+            const today = d.logStore.formatDate(new Date());
             const currentUid = req.user.uid;
 
-            let result = d.adminLog.getLogs(date, page, pageSize);
+            let startDate = req.query.startDate || '';
+            let endDate = req.query.endDate || '';
+            const singleDate = req.query.date || '';
+            if (singleDate) { startDate = singleDate; endDate = singleDate; }
 
-            // 非 10000 管理员不能查看 10000 的操作日志
-            if (String(currentUid) !== '10000' && result && result.entries) {
-                result.entries = result.entries.filter(function(log) {
-                    return log.admin !== '10000';
-                });
+            if (endDate && !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+                return res.status(400).json({ code: 400, msg: '结束日期格式无效' });
+            }
+            if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+                return res.status(400).json({ code: 400, msg: '开始日期格式无效' });
+            }
+            if (!endDate) endDate = today;
+            if (!startDate) startDate = shiftDate(endDate, -2);
+            if (startDate > endDate) {
+                return res.status(400).json({ code: 400, msg: '日期范围无效' });
+            }
+            if (daysBetween(startDate, endDate) > 31) {
+                return res.status(400).json({ code: 400, msg: '日期范围不能超过31天' });
             }
 
-            res.json({ code: 200, data: result });
+            const startTime = req.query.startTime || '00:00';
+            const endTime = req.query.endTime || '23:59';
+            const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+            if (!timeRe.test(startTime) || !timeRe.test(endTime)) {
+                return res.status(400).json({ code: 400, msg: '时间格式无效，需为 HH:mm' });
+            }
+            if (startTime > endTime) {
+                return res.status(400).json({ code: 400, msg: '时间范围无效' });
+            }
+
+            const levelsParam = String(req.query.levels || req.query.level || '');
+            const levels = levelsParam.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+            for (let i = 0; i < levels.length; i++) {
+                if (d.logStore.LEVELS.indexOf(levels[i]) === -1) {
+                    return res.status(400).json({ code: 400, msg: '日志级别无效: ' + levels[i] });
+                }
+            }
+
+            const eventCategory = String(req.query.event || '');
+            if (eventCategory && LOG_EVENT_CATEGORIES.indexOf(eventCategory) === -1) {
+                return res.status(400).json({ code: 400, msg: '事件类型无效' });
+            }
+
+            const player = String(req.query.player || '').trim().toLowerCase();
+            const keyword = String(req.query.keyword || '').trim().toLowerCase();
+            const page = Math.max(1, parseInt(req.query.page) || 1);
+            const pageSize = Math.min(Math.max(1, parseInt(req.query.pageSize) || 50), 200);
+
+            const entries = [];
+            let cursor = startDate;
+            while (cursor <= endDate) {
+                const dayEntries = d.logStore.readEntries(cursor);
+                for (let i = 0; i < dayEntries.length; i++) {
+                    const entry = dayEntries[i];
+                    const level = entry.level || d.logStore.DEFAULT_LEVEL;
+                    if (levels.length && levels.indexOf(level) === -1) continue;
+                    if (!d.logStore.matchesEvent(entry.event, eventCategory)) continue;
+                    // 非 10000 管理员不能查看 10000 的操作日志
+                    if (String(currentUid) !== '10000' && entry.admin === '10000' && d.logStore.matchesEvent(entry.event, 'admin.')) continue;
+                    const hhmm = String(entry.time || '').slice(11, 16);
+                    if (hhmm && (hhmm < startTime || hhmm > endTime)) continue;
+                    if (player && !entryMatchesPlayer(entry, player)) continue;
+                    if (keyword && !entryContains(entry, keyword)) continue;
+                    entries.push(Object.assign({}, entry, { level: level, date: cursor }));
+                }
+                cursor = shiftDate(cursor, 1);
+            }
+
+            entries.sort(function(a, b) { return String(b.time || '').localeCompare(String(a.time || '')); });
+
+            const total = entries.length;
+            const totalPages = Math.ceil(total / pageSize);
+            const start = (page - 1) * pageSize;
+
+            res.json({
+                code: 200,
+                data: {
+                    entries: entries.slice(start, start + pageSize),
+                    pagination: { page: page, pageSize: pageSize, total: total, totalPages: totalPages },
+                    range: { startDate: startDate, endDate: endDate, startTime: startTime, endTime: endTime }
+                }
+            });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '获取日志失败: ' + e.message});
         }
     });
 
-    // 获取有操作日志的日期列表
+    // 获取有日志记录的日期列表
     router.get('/logs/dates', d.adminAuth, function(req, res) {
         try {
-            let dates = d.adminLog.getAvailableDates();
+            let dates = d.logStore.listDates();
             res.json({ code: 200, data: { dates: dates } });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '获取日期列表失败: ' + e.message});

@@ -2094,7 +2094,8 @@
     "biome_deep_dark": "Deep Dark",
     "biome_mangrove_swamp": "Mangrove Swamp",
     "biome_cherry_grove": "Cherry Grove",
-    "biome_pale_garden": "Pale Garden"
+    "biome_pale_garden": "Pale Garden",
+    "biome_dappled_forest": "Dappled Forest"
   },
   "economy": {
     "currency_fallback": "Stars",

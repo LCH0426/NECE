@@ -64,7 +64,7 @@ function registerRoutes(router, d) {
             let config = loadWishConfig();
             config.banner = req.body.banner || '';
             saveWishConfig(config);
-            d.adminLog.log(req.user.uid, '修改卡池信息', 'Banner已更新');
+            d.logStore.append('admin.wish_banner_update', { admin: req.user.uid, ip: d.getClientIp(req), target: 'Banner已更新', detail: '' });
             res.json({ code: 200, msg: '修改成功', data: { banner: config.banner } });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '修改卡池信息失败: ' + e.message});
@@ -85,7 +85,7 @@ function registerRoutes(router, d) {
             let item = { name: name, snbt: snbt };
             config.rewards.fourStar.push(item);
             saveWishConfig(config);
-            d.adminLog.log(req.user.uid, '添加四星奖励', '名称:' + name);
+            d.logStore.append('admin.wish_four_star_add', { admin: req.user.uid, ip: d.getClientIp(req), target: '名称:' + name, detail: '' });
             res.json({ code: 200, msg: '添加成功', data: item });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '添加四星奖励失败: ' + e.message});
@@ -105,7 +105,7 @@ function registerRoutes(router, d) {
             if (req.body.snbt !== undefined) list[idx].snbt = req.body.snbt;
             config.rewards.fourStar = list;
             saveWishConfig(config);
-            d.adminLog.log(req.user.uid, '修改四星奖励', '索引:' + idx + ' 名称:' + list[idx].name);
+            d.logStore.append('admin.wish_four_star_update', { admin: req.user.uid, ip: d.getClientIp(req), target: '索引:' + idx + ' 名称:' + list[idx].name, detail: '' });
             res.json({ code: 200, msg: '修改成功', data: list[idx] });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '修改四星奖励失败: ' + e.message});
@@ -124,7 +124,7 @@ function registerRoutes(router, d) {
             let removed = list.splice(idx, 1)[0];
             config.rewards.fourStar = list;
             saveWishConfig(config);
-            d.adminLog.log(req.user.uid, '删除四星奖励', '名称:' + removed.name);
+            d.logStore.append('admin.wish_four_star_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '名称:' + removed.name, detail: '' });
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '删除四星奖励失败: ' + e.message});
@@ -146,7 +146,7 @@ function registerRoutes(router, d) {
             let item = { name: name, snbt: snbt, description: description };
             config.rewards.fiveStar.push(item);
             saveWishConfig(config);
-            d.adminLog.log(req.user.uid, '添加五星奖励', '名称:' + name);
+            d.logStore.append('admin.wish_five_star_add', { admin: req.user.uid, ip: d.getClientIp(req), target: '名称:' + name, detail: '' });
             res.json({ code: 200, msg: '添加成功', data: item });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '添加五星奖励失败: ' + e.message});
@@ -167,7 +167,7 @@ function registerRoutes(router, d) {
             if (req.body.description !== undefined) list[idx].description = req.body.description;
             config.rewards.fiveStar = list;
             saveWishConfig(config);
-            d.adminLog.log(req.user.uid, '修改五星奖励', '索引:' + idx + ' 名称:' + list[idx].name);
+            d.logStore.append('admin.wish_five_star_update', { admin: req.user.uid, ip: d.getClientIp(req), target: '索引:' + idx + ' 名称:' + list[idx].name, detail: '' });
             res.json({ code: 200, msg: '修改成功', data: list[idx] });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '修改五星奖励失败: ' + e.message});
@@ -186,7 +186,7 @@ function registerRoutes(router, d) {
             let removed = list.splice(idx, 1)[0];
             config.rewards.fiveStar = list;
             saveWishConfig(config);
-            d.adminLog.log(req.user.uid, '删除五星奖励', '名称:' + removed.name);
+            d.logStore.append('admin.wish_five_star_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '名称:' + removed.name, detail: '' });
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '删除五星奖励失败: ' + e.message});
@@ -207,7 +207,7 @@ function registerRoutes(router, d) {
             let item = { name: name, snbt: snbt, cost: cost, description: req.body.description || '', icon: req.body.icon || '' };
             config.coreShop.push(item);
             saveWishConfig(config);
-            d.adminLog.log(req.user.uid, '添加核心兑换物品', '名称:' + name);
+            d.logStore.append('admin.wish_core_add', { admin: req.user.uid, ip: d.getClientIp(req), target: '名称:' + name, detail: '' });
             res.json({ code: 200, msg: '添加成功', data: item });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '添加核心兑换物品失败: ' + e.message});
@@ -230,7 +230,7 @@ function registerRoutes(router, d) {
             if (req.body.icon !== undefined) list[idx].icon = req.body.icon;
             config.coreShop = list;
             saveWishConfig(config);
-            d.adminLog.log(req.user.uid, '修改核心兑换物品', '索引:' + idx + ' 名称:' + list[idx].name);
+            d.logStore.append('admin.wish_core_update', { admin: req.user.uid, ip: d.getClientIp(req), target: '索引:' + idx + ' 名称:' + list[idx].name, detail: '' });
             res.json({ code: 200, msg: '修改成功', data: list[idx] });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '修改核心兑换物品失败: ' + e.message});
@@ -249,7 +249,7 @@ function registerRoutes(router, d) {
             let removed = list.splice(idx, 1)[0];
             config.coreShop = list;
             saveWishConfig(config);
-            d.adminLog.log(req.user.uid, '删除核心兑换物品', '名称:' + removed.name);
+            d.logStore.append('admin.wish_core_delete', { admin: req.user.uid, ip: d.getClientIp(req), target: '名称:' + removed.name, detail: '' });
             res.json({ code: 200, msg: '删除成功' });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '删除核心兑换物品失败: ' + e.message});
@@ -276,7 +276,7 @@ function registerRoutes(router, d) {
                 return res.status(400).json({ code: 400, msg: 'minDust不能大于maxDust' });
             }
             saveWishConfig(cfg);
-            d.adminLog.log(req.user.uid, '修改三星物品配置', JSON.stringify(cfg.rewards.threeStar));
+            d.logStore.append('admin.wish_three_star_update', { admin: req.user.uid, ip: d.getClientIp(req), target: JSON.stringify(cfg.rewards.threeStar), detail: '' });
             res.json({ code: 200, msg: '修改成功', data: cfg.rewards.threeStar });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '修改三星物品配置失败: ' + e.message});
@@ -316,7 +316,7 @@ function registerRoutes(router, d) {
                 cfg.rates.fourStarGuarantee = v;
             }
             saveWishConfig(cfg);
-            d.adminLog.log(req.user.uid, '修改祈愿概率配置', JSON.stringify(cfg.rates));
+            d.logStore.append('admin.wish_rates_update', { admin: req.user.uid, ip: d.getClientIp(req), target: JSON.stringify(cfg.rates), detail: '' });
             res.json({ code: 200, msg: '修改成功', data: cfg.rates });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '修改祈愿概率配置失败: ' + e.message});
@@ -339,7 +339,7 @@ function registerRoutes(router, d) {
                 cfg.cost.ten = v;
             }
             saveWishConfig(cfg);
-            d.adminLog.log(req.user.uid, '修改祈愿花费配置', JSON.stringify(cfg.cost));
+            d.logStore.append('admin.wish_cost_update', { admin: req.user.uid, ip: d.getClientIp(req), target: JSON.stringify(cfg.cost), detail: '' });
             res.json({ code: 200, msg: '修改成功', data: cfg.cost });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '修改祈愿花费配置失败: ' + e.message});
@@ -354,7 +354,7 @@ function registerRoutes(router, d) {
                 cfg.description = req.body.description;
             }
             saveWishConfig(cfg);
-            d.adminLog.log(req.user.uid, '修改祈愿系统说明', 'description已更新');
+            d.logStore.append('admin.wish_description_update', { admin: req.user.uid, ip: d.getClientIp(req), target: 'description已更新', detail: '' });
             res.json({ code: 200, msg: '修改成功', data: { description: cfg.description } });
         } catch (e) {
             res.status(500).json({ code: 500, msg: '修改祈愿系统说明失败: ' + e.message});

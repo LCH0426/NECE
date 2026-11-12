@@ -22,6 +22,7 @@
 
 const database = require('./database');
 const teleportModule = require('./teleport');
+const logStore = require('./logStore');
 
 // 传送冷却记录 { xuid: expireTimestamp }
 const guildTpCooldowns = {};
@@ -223,6 +224,13 @@ function doCreateGuild(player, name, description) {
             return;
         }
         p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.create_success', name));
+        logStore.append('guild.create', {
+            xuid: String(p.xuid),
+            player: p.name,
+            guild_id: guildId,
+            guild: name,
+            cost: cost
+        });
         logger.info('[Guild] 玩家 ' + p.name + ' 创建公会: ' + name + ' (ID:' + guildId + ')');
     }
 
@@ -237,6 +245,13 @@ function doCreateGuild(player, name, description) {
         var guildId = database.createGuild(name, description, xuid, maxMembers);
         if (guildId) {
             player.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.create_success', name));
+            logStore.append('guild.create', {
+                xuid: String(player.xuid),
+                player: player.name,
+                guild_id: guildId,
+                guild: name,
+                cost: 0
+            });
             logger.info('[Guild] 玩家 ' + player.name + ' 创建公会: ' + name + ' (ID:' + guildId + ')');
         } else {
             player.tell(t(lang, 'guild.tag_prefix') + ' §c' + t(lang, 'guild.create_failed'));
@@ -443,6 +458,14 @@ function doDeposit(player, amount) {
                 p.tell(t(lang, 'guild.tag_prefix') + ' §c' + t(lang, 'guild.deposit_failed')); return;
             }
             database.updateGuildFundAdd(guild.id, amount);
+            logStore.append('guild.fund_change', {
+                xuid: String(p.xuid),
+                player: p.name,
+                guild_id: guild.id,
+                guild: guild.name,
+                action: 'deposit',
+                amount: amount
+            });
             p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.deposit_success', amount.toFixed(2) + ' ' + getCurrencyName()));
         });
         return;
@@ -451,6 +474,14 @@ function doDeposit(player, amount) {
         player.tell(t(lang, 'guild.tag_prefix') + ' §c' + t(lang, 'guild.deposit_failed')); return;
     }
     database.updateGuildFundAdd(guild.id, amount);
+    logStore.append('guild.fund_change', {
+        xuid: xuid,
+        player: player.name,
+        guild_id: guild.id,
+        guild: guild.name,
+        action: 'deposit',
+        amount: amount
+    });
     player.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.deposit_success', amount.toFixed(2) + ' ' + getCurrencyName()));
     logger.info('[Guild] ' + player.name + ' 存入公会"' + guild.name + '" ' + amount);
 }
@@ -478,6 +509,14 @@ function doWithdraw(player, amount) {
         database.updateGuildFundAdd(guild.id, amount);
         player.tell(t(lang, 'guild.tag_prefix') + ' §c' + t(lang, 'guild.deposit_failed')); return;
     }
+    logStore.append('guild.fund_change', {
+        xuid: xuid,
+        player: player.name,
+        guild_id: guild.id,
+        guild: guild.name,
+        action: 'withdraw',
+        amount: amount
+    });
     player.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.withdraw_success', amount.toFixed(2) + ' ' + getCurrencyName()));
     logger.info('[Guild] ' + player.name + ' 从公会"' + guild.name + '"取出 ' + amount);
 }
@@ -505,6 +544,17 @@ function doAddTeleport(player, tpName) {
     var pos = player.pos;
     var dimStr = String(player.dimid);
     database.addGuildTeleport(guild.id, tpName, pos.x, pos.y, pos.z, dimStr, xuid);
+    logStore.append('guild.teleport_add', {
+        xuid: xuid,
+        player: player.name,
+        guild_id: guild.id,
+        guild: guild.name,
+        teleport: tpName,
+        dim: dimStr,
+        x: Math.floor(pos.x),
+        y: Math.floor(pos.y),
+        z: Math.floor(pos.z)
+    });
     player.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.tp_add_success', tpName));
 }
 
@@ -1015,6 +1065,14 @@ function showMemberManagePanel(player) {
                     if (!r) { showMemberManagePanel(p2); return; }
                     database.removeGuildMember(target.xuid);
                     if (chatModule) chatModule.clearOrgNameCache(target.xuid);
+                    logStore.append('guild.kick', {
+                        xuid: xuid,
+                        player: p2.name,
+                        target_xuid: target.xuid,
+                        target: target.name,
+                        guild_id: guild.id,
+                        guild: guild.name
+                    });
                     p2.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.kick_success', target.name));
                     sendSystemMail(target.xuid, '§c' + t(lang, 'guild.kick_mail', guild.name));
                     try { var tp = mc.getPlayer(target.xuid); if (tp) tp.tell(t(lang, 'guild.tag_prefix') + ' §c' + t(lang, 'guild.kicked_notify', guild.name)); } catch (e) {}
@@ -1029,6 +1087,16 @@ function showMemberManagePanel(player) {
                 for (var j = 0; j < members.length; j++) { if (members[j].role === 'admin') adminCount++; }
                 if (adminCount >= (cfg().maxAdmins !== undefined ? cfg().maxAdmins : 3)) { p.tell(t(lang, 'guild.tag_prefix') + ' §c' + t(lang, 'guild.admin_limit')); showMemberManagePanel(p); return; }
                 database.updateMemberRole(target.xuid, 'admin');
+                logStore.append('guild.role_change', {
+                    xuid: xuid,
+                    player: p.name,
+                    target_xuid: target.xuid,
+                    target: target.name,
+                    guild_id: guild.id,
+                    guild: guild.name,
+                    role: 'admin',
+                    action: 'promote'
+                });
                 p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.promote_success', target.name));
                 sendSystemMail(target.xuid, '§a' + t(lang, 'guild.promote_mail', guild.name));
                 try { var tp2 = mc.getPlayer(target.xuid); if (tp2) tp2.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.promoted_notify', guild.name)); } catch (e) {}
@@ -1037,6 +1105,16 @@ function showMemberManagePanel(player) {
             case 'demote':
                 if (target.role !== 'admin') { p.tell(t(lang, 'guild.tag_prefix') + ' §e' + t(lang, 'guild.not_admin')); showMemberManagePanel(p); return; }
                 database.updateMemberRole(target.xuid, 'member');
+                logStore.append('guild.role_change', {
+                    xuid: xuid,
+                    player: p.name,
+                    target_xuid: target.xuid,
+                    target: target.name,
+                    guild_id: guild.id,
+                    guild: guild.name,
+                    role: 'member',
+                    action: 'demote'
+                });
                 p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.demote_success', target.name));
                 sendSystemMail(target.xuid, '§c' + t(lang, 'guild.demote_mail', guild.name));
                 try { var tp3 = mc.getPlayer(target.xuid); if (tp3) tp3.tell(t(lang, 'guild.tag_prefix') + ' §c' + t(lang, 'guild.demoted_notify', guild.name)); } catch (e) {}
@@ -1049,6 +1127,15 @@ function showMemberManagePanel(player) {
                     database.updateGuild(guild.id, { owner: target.xuid });
                     database.updateMemberRole(target.xuid, 'owner');
                     database.updateMemberRole(xuid, 'admin');
+                    logStore.append('guild.transfer', {
+                        xuid: xuid,
+                        player: p2.name,
+                        target_xuid: target.xuid,
+                        target: target.name,
+                        guild_id: guild.id,
+                        guild: guild.name,
+                        source: 'player'
+                    });
                     p2.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.transfer_success', target.name));
                     sendSystemMail(target.xuid, t(lang, 'guild.transfer_mail_new', p2.name, guild.name));
                     sendSystemMail(xuid, t(lang, 'guild.transfer_mail_old', guild.name, target.name));
@@ -1172,6 +1259,13 @@ function showDelTeleportForm(player) {
         if (id === tps.length) { showTeleportPanel(p); return; }
         if (id < tps.length) {
             database.removeGuildTeleport(tps[id].id, guild.id);
+            logStore.append('guild.teleport_delete', {
+                xuid: String(p.xuid),
+                player: p.name,
+                guild_id: guild.id,
+                guild: guild.name,
+                teleport: tps[id].name
+            });
             p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.tp_delete_success', tps[id].name));
             showTeleportPanel(p);
         }
@@ -1235,6 +1329,12 @@ function doLeaveGuild(player) {
             if (!result) return;
             database.removeGuildMember(xuid);
             if (chatModule) chatModule.clearOrgNameCache(xuid);
+            logStore.append('guild.leave', {
+                xuid: xuid,
+                player: p.name,
+                guild_id: guild.id,
+                guild: guild.name
+            });
             p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.leave_success', guild.name));
             var members = database.getGuildMembers(guild.id);
             for (var m = 0; m < members.length; m++) {
@@ -1311,6 +1411,14 @@ function showPendingInvitesPanel(player) {
             database.addGuildMember(xuid, guild.id, 'member');
             _guildInvites[xuid] = [];
             database.clearGuildInvitesSQL(xuid);
+            logStore.append('guild.join', {
+                xuid: xuid,
+                player: p.name,
+                guild_id: guild.id,
+                guild: guild.name,
+                source: 'invite',
+                operator: inv.inviterName || ''
+            });
             p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.joined_success', guild.name));
             logger.info('[Guild] ' + p.name + ' 接受邀请加入公会: ' + guild.name);
             // 通知邀请人
@@ -1494,6 +1602,14 @@ function showJoinRequestsPanel(player) {
                     database.addGuildMember(freshReq.xuid, guild.id, 'member');
                     _joinRequests[guild.id].splice(freshIdx, 1);
                     database.removeGuildRequestSQL(guild.id, freshReq.xuid);
+                    logStore.append('guild.join', {
+                        xuid: String(freshReq.xuid),
+                        player: freshReq.name,
+                        guild_id: guild.id,
+                        guild: guild.name,
+                        source: 'request',
+                        operator: p2.name
+                    });
                     p2.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.approved', freshReq.name));
                     sendSystemMail(freshReq.xuid, '§a' + t(lang, 'guild.approved_mail', guild.name));
                     try { var tp = mc.getPlayer(freshReq.xuid); if (tp) tp.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.approved_notify', guild.name)); } catch (e) {}
@@ -1818,6 +1934,15 @@ function showAdminMemberManage(player, guild) {
                     if (!r) { showAdminMemberManage(p2, guild); return; }
                     database.removeGuildMember(target.xuid);
                     if (chatModule) chatModule.clearOrgNameCache(target.xuid);
+                    logStore.append('guild.kick', {
+                        xuid: String(p2.xuid),
+                        player: p2.name,
+                        target_xuid: target.xuid,
+                        target: target.name,
+                        guild_id: guild.id,
+                        guild: guild.name,
+                        source: 'admin'
+                    });
                     p2.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.kick_success', target.name));
                     sendSystemMail(target.xuid, t(lang, 'guild.admin_kick_mail2', p2.name, guild.name));
                     try { var tp = mc.getPlayer(target.xuid); if (tp) tp.tell(t(lang, 'guild.tag_prefix') + ' §c' + t(lang, 'guild.admin_kicked_notify2', guild.name)); } catch (e) {}
@@ -1832,6 +1957,17 @@ function showAdminMemberManage(player, guild) {
                 for (var j = 0; j < members.length; j++) { if (members[j].role === 'admin') ac++; }
                 if (ac >= (cfg().maxAdmins !== undefined ? cfg().maxAdmins : 3)) { p.tell(t(lang, 'guild.tag_prefix') + ' §c' + t(lang, 'guild.admin_limit')); showAdminMemberManage(p, guild); return; }
                 database.updateMemberRole(target.xuid, 'admin');
+                logStore.append('guild.role_change', {
+                    xuid: String(p.xuid),
+                    player: p.name,
+                    target_xuid: target.xuid,
+                    target: target.name,
+                    guild_id: guild.id,
+                    guild: guild.name,
+                    role: 'admin',
+                    action: 'promote',
+                    source: 'admin'
+                });
                 p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.promote_success', target.name));
                 sendSystemMail(target.xuid, '§a' + t(lang, 'guild.admin_promote_mail2', guild.name));
                 try { var tp2 = mc.getPlayer(target.xuid); if (tp2) tp2.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.admin_promote_notify2', guild.name)); } catch (e) {}
@@ -1840,6 +1976,17 @@ function showAdminMemberManage(player, guild) {
             case 'demote':
                 if (target.role !== 'admin') { p.tell(t(lang, 'guild.tag_prefix') + ' §e' + t(lang, 'guild.not_admin')); showAdminMemberManage(p, guild); return; }
                 database.updateMemberRole(target.xuid, 'member');
+                logStore.append('guild.role_change', {
+                    xuid: String(p.xuid),
+                    player: p.name,
+                    target_xuid: target.xuid,
+                    target: target.name,
+                    guild_id: guild.id,
+                    guild: guild.name,
+                    role: 'member',
+                    action: 'demote',
+                    source: 'admin'
+                });
                 p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.demote_success', target.name));
                 sendSystemMail(target.xuid, '§c' + t(lang, 'guild.admin_demote_mail2', guild.name));
                 try { var tp3 = mc.getPlayer(target.xuid); if (tp3) tp3.tell(t(lang, 'guild.tag_prefix') + ' §c' + t(lang, 'guild.admin_demote_notify2', guild.name)); } catch (e) {}
@@ -1853,6 +2000,16 @@ function showAdminMemberManage(player, guild) {
                     database.updateGuild(guild.id, { owner: target.xuid });
                     database.updateMemberRole(target.xuid, 'owner');
                     if (oldOwner !== target.xuid) database.updateMemberRole(oldOwner, 'admin');
+                    logStore.append('guild.transfer', {
+                        xuid: String(p2.xuid),
+                        player: p2.name,
+                        target_xuid: target.xuid,
+                        target: target.name,
+                        old_owner: String(oldOwner),
+                        guild_id: guild.id,
+                        guild: guild.name,
+                        source: 'admin'
+                    });
                     p2.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.admin_transfer_success2', guild.name, target.name));
                     sendSystemMail(target.xuid, '§a' + t(lang, 'guild.admin_transfer_mail_new2', guild.name));
                     if (oldOwner !== target.xuid) {
@@ -2070,6 +2227,18 @@ function showAdminAddTeleportForm(player, guild) {
 
         var pos = p.pos;
         database.addGuildTeleport(guild.id, name, pos.x, pos.y, pos.z, String(p.dimid), String(p.xuid));
+        logStore.append('guild.teleport_add', {
+            xuid: String(p.xuid),
+            player: p.name,
+            guild_id: guild.id,
+            guild: guild.name,
+            teleport: name,
+            dim: String(p.dimid),
+            x: Math.floor(pos.x),
+            y: Math.floor(pos.y),
+            z: Math.floor(pos.z),
+            source: 'admin'
+        });
         p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.admin_tp_add_success2', name, guild.name));
         showAdminTeleportManage(p, guild);
     });
@@ -2096,6 +2265,14 @@ function showAdminDelTeleportForm(player, guild) {
         var tp = tps[tpIdx];
         if (!tp) { showAdminTeleportManage(p, guild); return; }
         database.removeGuildTeleport(tp.id, guild.id);
+        logStore.append('guild.teleport_delete', {
+            xuid: String(p.xuid),
+            player: p.name,
+            guild_id: guild.id,
+            guild: guild.name,
+            teleport: tp.name,
+            source: 'admin'
+        });
         p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.admin_tp_deleted2', tp.name));
         showAdminTeleportManage(p, guild);
     });
@@ -2171,6 +2348,14 @@ function doAdminDisbandGuild(player, guild) {
             }
             database.deleteGuild(guild.id);
             if (chatModule) chatModule.clearAllOrgNameCache();
+            logStore.append('guild.disband', {
+                xuid: String(p.xuid),
+                player: p.name,
+                guild_id: guild.id,
+                guild: guild.name,
+                member_count: members.length,
+                source: 'admin'
+            });
             p.tell(t(lang, 'guild.tag_prefix') + ' §a' + t(lang, 'guild.admin_disband_success2', guild.name));
             logger.info('[Guild] 管理员 ' + p.name + ' 解散公会: ' + guild.name + ' (ID:' + guild.id + ')');
             showAdminPanel(p);

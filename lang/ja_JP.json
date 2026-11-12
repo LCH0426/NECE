@@ -2075,7 +2075,8 @@
     "biome_deep_dark": "ディープダーク",
     "biome_mangrove_swamp": "マングローブ湿地",
     "biome_cherry_grove": "桜の森",
-    "biome_pale_garden": "淡い庭園"
+    "biome_pale_garden": "淡い庭園",
+    "biome_dappled_forest": "まだら森"
   },
   "economy": {
     "currency_fallback": "星茜",

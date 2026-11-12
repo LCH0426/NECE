@@ -34,8 +34,8 @@ const pathModule = require('path');
 const fs = require('fs');
 const database = require('./database');
 const monitoring = require('./monitoring');
-const adminLog = require('./adminLog');
 const behaviorLog = require('./behaviorLog');
+const logStore = require('./logStore');
 const chatModule = require('./chat');
 const mailApi = require('./mail');
 const messageBoard = require('./messageBoard');
@@ -55,11 +55,20 @@ let _rateLimitCleanupTimer = null;
  * @param {number} windowMs 时间窗口（毫秒）
  * @param {number} maxRequests 窗口内最大请求数
  * @param {number} [maxEntries=10000] 最大存储条目数，防止内存溢出
+ * @param {string} [name] 限流器名称，用于日志
  */
-function createRateLimiter(windowMs, maxRequests, maxEntries) {
+function createRateLimiter(windowMs, maxRequests, maxEntries, name) {
     const store = {};  // 每个限流器独立存储，避免不同类型限流共享计数
     _allRateLimitStores.push(store);
     maxEntries = maxEntries || 10000;
+    function reject(req, res) {
+        logStore.append('auth.rate_limited', {
+            ip: req.ip || req.connection.remoteAddress || 'unknown',
+            limiter: name || 'unknown',
+            path: req.originalUrl || req.url || ''
+        }, 'warn');
+        return res.status(429).json({ code: 429, msg: '请求过于频繁，请稍后再试' });
+    }
     return function(req, res, next) {
         const key = req.ip || req.connection.remoteAddress || 'unknown';
         const now = Date.now();
@@ -78,7 +87,7 @@ function createRateLimiter(windowMs, maxRequests, maxEntries) {
                     }
                     // 仍然超限则拒绝
                     if (Object.keys(store).length >= maxEntries) {
-                        return res.status(429).json({ code: 429, msg: '请求过于频繁，请稍后再试' });
+                        return reject(req, res);
                     }
                 }
             }
@@ -88,26 +97,26 @@ function createRateLimiter(windowMs, maxRequests, maxEntries) {
             entry.count++;
         }
         if (entry.count > maxRequests) {
-            return res.status(429).json({ code: 429, msg: '请求过于频繁，请稍后再试' });
+            return reject(req, res);
         }
         next();
     };
 }
 
 // 登录限流：每IP每分钟最多10次
-const loginLimiter = createRateLimiter(60000, 10);
+const loginLimiter = createRateLimiter(60000, 10, undefined, 'login');
 // Token续签限流：每IP每分钟最多20次
-const refreshLimiter = createRateLimiter(60000, 20);
+const refreshLimiter = createRateLimiter(60000, 20, undefined, 'refresh');
 // 验证码限流：每IP每分钟最多15次
-const captchaLimiter = createRateLimiter(60000, 15);
+const captchaLimiter = createRateLimiter(60000, 15, undefined, 'captcha');
 // 备份下载限流：每IP每分钟最多5次
-const backupDownloadLimiter = createRateLimiter(60000, 5);
+const backupDownloadLimiter = createRateLimiter(60000, 5, undefined, 'backup_download');
 // 全局API限流：每IP每分钟最多300次
-const globalApiLimiter = createRateLimiter(60000, 300);
+const globalApiLimiter = createRateLimiter(60000, 300, undefined, 'global');
 // 配置修改限流：每IP每分钟最多10次
-const configLimiter = createRateLimiter(60000, 10);
+const configLimiter = createRateLimiter(60000, 10, undefined, 'config');
 // 写操作限流：每IP每分钟最多30次
-const writeLimiter = createRateLimiter(60000, 30);
+const writeLimiter = createRateLimiter(60000, 30, undefined, 'write');
 
 // IP验证token消费函数（由index.js注入）
 let _consumeIpToken = null;
@@ -775,6 +784,11 @@ function requireAdmin(webConfig) {
         verifyAccessToken(req, webConfig, function(err, user) {
             if (err) return res.status(err.code).json(err);
             if (!database.isAdmin(user.uid)) {
+                logStore.append('auth.admin_denied', {
+                    uid: String(user.uid),
+                    ip: req.ip || req.connection.remoteAddress || 'unknown',
+                    path: req.originalUrl || req.url || ''
+                }, 'warn');
                 return res.status(403).json({ code: 403, msg: '无管理员权限' });
             }
             req.user = user;
@@ -855,7 +869,7 @@ function createV1Routes(webConfig) {
 
     const routeDeps = {
         auth, adminAuth, webConfig, jwt, svgCaptcha,
-        database, monitoring, adminLog, behaviorLog,
+        database, monitoring, behaviorLog, logStore,
         chatModule, mailApi, messageBoard, writeEconomyLog: _writeEconomyLog,
         backupModule, banModule,
         getPlayerData, getPlayerName, getXuidByUid, getPlayerNameByUid,
@@ -868,6 +882,9 @@ function createV1Routes(webConfig) {
         mc: mc, money: money,
         economyFunctions: _economyFunctions,
         getErrorMessage: getErrorMessage,
+        getClientIp: function(req) {
+            return (req && (req.ip || (req.connection && req.connection.remoteAddress))) || 'unknown';
+        },
         loginLimiter, refreshLimiter, captchaLimiter, backupDownloadLimiter, configLimiter, writeLimiter,
         hasWish: _hasWish,
         generateDownloadToken, consumeDownloadToken,
