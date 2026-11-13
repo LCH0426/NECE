@@ -63,6 +63,7 @@ function writeShopLog(player, itemName, count, cost, balance) {
 		economyModule.writeEconomyLog({
 			action: 'buy',
 			player: player.name,
+			xuid: player.xuid,
 			item: itemName,
 			count: count,
 			price: cost,
@@ -86,6 +87,7 @@ function writeShopSellLog(player, itemName, count, income, balance) {
 		economyModule.writeEconomyLog({
 			action: 'sell',
 			player: player.name,
+			xuid: player.xuid,
 			item: itemName,
 			count: count,
 			price: income,
@@ -186,6 +188,7 @@ function writeRecycleLog(player, items, totalValue, before, after) {
 		economyModule.writeEconomyLog({
 			action: 'recycle',
 			player: player.name,
+			xuid: player.xuid,
 			price: totalValue,
 			balance: after,
 			detail: itemsStr
@@ -248,7 +251,7 @@ function recycleItemsFromInventory(player, recycleConfig, deps) {
 			return;
 		}
 
-		deps.addPlayerMoney(p, actualEarned, t(pLang, 'shop.reason_recycle_all'));
+		deps.addPlayerMoney(p, actualEarned, t(pLang, 'shop.reason_recycle_all'), true);
 
 		const newBalance = deps.getPlayerMoney(p);
 
@@ -741,7 +744,7 @@ function showBuyItemForm(player, item, deps) {
 /** 执行购买逻辑：扣款、发放物品、VIP折扣累计、写日志，发放失败自动退款 */
 function executePurchase(player, item, count, unitPrice, totalCost, hasVip, originalUnitPrice, deps) {
 	const lang = getLocale(player.xuid);
-	if (!deps.reducePlayerMoney(player, totalCost, t(lang, 'shop.reason_buy'))) {
+	if (!deps.reducePlayerMoney(player, totalCost, t(lang, 'shop.reason_buy'), true)) {
 		player.tell(t(lang, 'shop.buy_deduct_failed'));
 		return;
 	}
@@ -934,7 +937,7 @@ function showSellItemForm(player, item, deps) {
 function executeSell(player, item, count, income, deps) {
 	const lang = getLocale(player.xuid);
 	// 先加钱，加钱失败则不扣物品
-	if (!deps.addPlayerMoney(player, income, t(lang, 'shop.reason_sell'))) {
+	if (!deps.addPlayerMoney(player, income, t(lang, 'shop.reason_sell'), true)) {
 		player.tell(t(lang, 'shop.sell_failed'));
 		return;
 	}

@@ -184,7 +184,7 @@ function logEconomyFailure(action, player, amount, reason, detail) {
     }, 'warn');
 }
 
-function reducePlayerMoney(player, value, reason) {
+function reducePlayerMoney(player, value, reason, skipLog) {
 	const lang = getLocale(player.xuid);
     try {
         if (typeof money === 'undefined' || money === null) {
@@ -228,14 +228,16 @@ function reducePlayerMoney(player, value, reason) {
         if (_deps.getDebug && _deps.getDebug()) logger.info('减少货币后余额：' + afterMoney);
 
         if (success) {
-            writeEconomyLog({
-                action: 'reduce',
-                player: player.name || '',
-                xuid: xuid,
-                amount: intValue,
-                balance: afterMoney,
-                reason: reason || t(lang, 'economy.reason_system_deduct')
-            });
+            if (!skipLog) {
+                writeEconomyLog({
+                    action: 'reduce',
+                    player: player.name || '',
+                    xuid: xuid,
+                    amount: intValue,
+                    balance: afterMoney,
+                    reason: reason || t(lang, 'economy.reason_system_deduct')
+                });
+            }
             notifyEconomyChange(player, -intValue, reason || t(lang, 'economy.reason_system_deduct'));
             return true;
         } else {
@@ -260,7 +262,7 @@ function reducePlayerMoney(player, value, reason) {
  * @param {string} reason - 收入原因
  * @returns {boolean} 是否操作成功
  */
-function addPlayerMoney(player, value, reason) {
+function addPlayerMoney(player, value, reason, skipLog) {
 	const lang = getLocale(player.xuid);
     try {
         if (typeof money === 'undefined' || money === null) {
@@ -295,14 +297,16 @@ function addPlayerMoney(player, value, reason) {
 
         if (success) {
             const afterMoney = money.get(xuid) || 0;
-            writeEconomyLog({
-                action: 'add',
-                player: player.name || '',
-                xuid: xuid,
-                amount: intValue,
-                balance: afterMoney,
-                reason: reason || t(lang, 'economy.reason_system_income')
-            });
+            if (!skipLog) {
+                writeEconomyLog({
+                    action: 'add',
+                    player: player.name || '',
+                    xuid: xuid,
+                    amount: intValue,
+                    balance: afterMoney,
+                    reason: reason || t(lang, 'economy.reason_system_income')
+                });
+            }
             notifyEconomyChange(player, intValue, reason || t(lang, 'economy.reason_system_income'));
             return true;
         } else {
