@@ -2025,7 +2025,7 @@ function signPlayer(identifier) {
 
 	// 发放奖励
 	if (addPlayerMoneyByXuid) {
-		addPlayerMoneyByXuid(xuid, reward, "Sign");
+		addPlayerMoneyByXuid(xuid, reward, "每日签到");
 	}
 
 	// 保存签到记录
@@ -2152,7 +2152,7 @@ function registerExternalAPI() {
             try {
                 var p = mc.getPlayer(String(xuid));
                 if (p) return economyModule.addPlayerMoney(p, amount, reason || '外部API');
-                return economyModule.addPlayerMoneyByXuid(String(xuid), amount);
+                return economyModule.addPlayerMoneyByXuid(String(xuid), amount, reason || '外部API');
             } catch (e) { return false; }
         }, 'NECE_addBalance');
 
@@ -2160,7 +2160,7 @@ function registerExternalAPI() {
             try {
                 var p = mc.getPlayer(String(xuid));
                 if (p) return economyModule.reducePlayerMoney(p, amount, reason || '外部API');
-                return economyModule.reducePlayerMoneyByXuid(String(xuid), amount);
+                return economyModule.reducePlayerMoneyByXuid(String(xuid), amount, reason || '外部API');
             } catch (e) { return false; }
         }, 'NECE_reduceBalance');
 

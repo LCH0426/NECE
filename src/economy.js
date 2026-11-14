@@ -347,9 +347,10 @@ function getPlayerMoneyByXuid(xuid) {
  * @param {string} xuid - 玩家XUID
  * @param {number} value - 增加金额
  * @param {string} source - 收入来源描述
+ * @param {boolean} [skipLog] - 为 true 时不写经济日志
  * @returns {boolean} 是否成功
  */
-function addPlayerMoneyByXuid(xuid, value, source) {
+function addPlayerMoneyByXuid(xuid, value, source, skipLog) {
     try {
         if (typeof money === 'undefined' || money === null) {
             logEconomyFailure('add', xuid, value, source, 'money_unavailable');
@@ -372,6 +373,17 @@ function addPlayerMoneyByXuid(xuid, value, source) {
         const success = money.add(xuid, intValue);
         if (success) {
             const player = mc.getPlayer(xuid);
+            const afterMoney = getPlayerMoneyByXuid(xuid);
+            if (!skipLog) {
+                writeEconomyLog({
+                    action: 'add',
+                    player: player ? (player.name || '') : '',
+                    xuid: String(xuid),
+                    amount: intValue,
+                    balance: afterMoney,
+                    reason: source || t(getLocale(xuid), 'economy.reason_system_income')
+                });
+            }
             if (player) {
                 notifyEconomyChange(player, intValue, source || t(getLocale(xuid), 'economy.reason_system_income'));
             }
@@ -390,9 +402,10 @@ function addPlayerMoneyByXuid(xuid, value, source) {
  * @param {string} xuid - 玩家XUID
  * @param {number} value - 扣除金额
  * @param {string} source - 扣费来源描述
+ * @param {boolean} [skipLog] - 为 true 时不写经济日志
  * @returns {boolean} 是否成功
  */
-function reducePlayerMoneyByXuid(xuid, value, source) {
+function reducePlayerMoneyByXuid(xuid, value, source, skipLog) {
     try {
         if (typeof money === 'undefined' || money === null) {
             logEconomyFailure('reduce', xuid, value, source, 'money_unavailable');
@@ -415,6 +428,17 @@ function reducePlayerMoneyByXuid(xuid, value, source) {
         const success = money.reduce(xuid, intValue);
         if (success) {
             const player = mc.getPlayer(xuid);
+            const afterMoney = getPlayerMoneyByXuid(xuid);
+            if (!skipLog) {
+                writeEconomyLog({
+                    action: 'reduce',
+                    player: player ? (player.name || '') : '',
+                    xuid: String(xuid),
+                    amount: intValue,
+                    balance: afterMoney,
+                    reason: source || t(getLocale(xuid), 'economy.reason_system_deduct')
+                });
+            }
             if (player) {
                 notifyEconomyChange(player, -intValue, source || t(getLocale(xuid), 'economy.reason_system_deduct'));
             }
@@ -442,20 +466,6 @@ function writeEconomyLog(entry) {
     delete fields.time;
     delete fields.event;
     logStore.append('economy.' + action, fields);
-}
-
-/**
- * 写入转账日志
- */
-function _writeTransferLog(senderName, targetName, amount, senderBalance, targetBalance) {
-    writeEconomyLog({
-        action: 'transfer',
-        player: senderName,
-        target: targetName,
-        amount: amount,
-        balance: senderBalance,
-        detail: t(getSystemLang(), 'economy.log_target_balance', targetBalance)
-    });
 }
 
 /** 显示经济系统主界面 */
@@ -678,8 +688,6 @@ function _executeTransfer(sender, targetName, targetXuid, amount) {
         _deps.database.addPendingTransferSQL(targetXuid, sender.realName, sender.xuid, amount, new Date().toLocaleString());
     }
     const senderBalance = getPlayerMoney(sender);
-    const targetBalance = targetPlayer ? getPlayerMoney(targetPlayer) : getPlayerMoneyByXuid(targetXuid);
-    _writeTransferLog(sender.realName, targetName, amount, senderBalance, targetBalance);
     sender.tell(t(lang, 'economy.transfer_success_tell', targetName, amount, getCurrencyName(), senderBalance, getCurrencyName()));
     sender.sendModalForm(t(lang, 'economy.transfer_success_title'), t(lang, 'economy.transfer_success_body', targetName, amount, getCurrencyName(), senderBalance, getCurrencyName()), t(lang, 'economy.transfer_btn_continue'), t(lang, 'economy.btn_close'), function(pl, ok) {
         if (ok === true) showTransferTypeForm(pl);

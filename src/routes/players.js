@@ -310,10 +310,10 @@ function registerRoutes(router, d) {
             const playerName = d.getPlayerName ? d.getPlayerName(xuid) : xuid;
 
             if (action === 'add') {
-                success = eco.addPlayerMoneyByXuid(xuid, intAmount, reason);
+                success = eco.addPlayerMoneyByXuid(xuid, intAmount, reason, true);
             } else if (action === 'reduce') {
                 if (eco.reducePlayerMoneyByXuid) {
-                    success = eco.reducePlayerMoneyByXuid(xuid, intAmount, reason);
+                    success = eco.reducePlayerMoneyByXuid(xuid, intAmount, reason, true);
                 } else {
                     // 兼容旧注入：优先使用 set，避免用 add 传负数被 LegacyMoney 拒绝
                     const currentBal = eco.getPlayerMoneyByXuid(xuid);
@@ -324,7 +324,7 @@ function registerRoutes(router, d) {
                     if (d.money && typeof d.money.set === 'function') {
                         success = d.money.set(xuid, currentBal - intAmount);
                     } else {
-                        success = eco.addPlayerMoneyByXuid(xuid, -intAmount, reason);
+                        success = eco.addPlayerMoneyByXuid(xuid, -intAmount, reason, true);
                     }
                 }
             } else if (action === 'set') {
@@ -334,12 +334,12 @@ function registerRoutes(router, d) {
                     const currentBalance = eco.getPlayerMoneyByXuid(xuid);
                     const diff = intAmount - currentBalance;
                     if (diff > 0) {
-                        success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                        success = eco.addPlayerMoneyByXuid(xuid, diff, reason, true);
                     } else if (diff < 0) {
                         if (eco.reducePlayerMoneyByXuid) {
-                            success = eco.reducePlayerMoneyByXuid(xuid, -diff, reason);
+                            success = eco.reducePlayerMoneyByXuid(xuid, -diff, reason, true);
                         } else {
-                            success = eco.addPlayerMoneyByXuid(xuid, diff, reason);
+                            success = eco.addPlayerMoneyByXuid(xuid, diff, reason, true);
                         }
                     } else {
                         // 金额相同，无需操作
