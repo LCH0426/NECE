@@ -18,11 +18,12 @@ import UiDropdownMenuTrigger from '@/components/ui/dropdown-menu/DropdownMenuTri
 import PlayerDetailDialog from '@/pages/players/all/player-detail-dialog.vue'
 import PlayerHeatmapDialog from '@/pages/players/all/player-heatmap-dialog.vue'
 import PlayerInventoryDialog from '@/pages/players/all/player-inventory-dialog.vue'
+import PlayerMoneyDialog from '@/pages/players/all/player-money-dialog.vue'
 import PlayerTitleDialog from '@/pages/players/all/player-title-dialog.vue'
 import { useBanApi } from '@/services/api/ban.api'
 import { usePlayerApi } from '@/services/api/player.api'
 
-const { getOnlinePlayers, changeGameMode, kickPlayer, crashPlayer, sendPopup, moneyOperation, lightningPlayer } = usePlayerApi()
+const { getOnlinePlayers, changeGameMode, kickPlayer, crashPlayer, sendPopup, lightningPlayer } = usePlayerApi()
 const { banPlayer } = useBanApi()
 
 const players = ref<IOnlinePlayer[]>([])
@@ -135,11 +136,18 @@ function openActionDialog(player: IOnlinePlayer, type: 'gamemode' | 'money' | 'p
 }
 
 const selectedGameMode = ref<string>('survival')
-const moneyAction = ref<'add' | 'reduce' | 'set'>('add')
-const moneyAmount = ref<number | undefined>(undefined)
 const popupContent = ref('')
 const kickReason = ref('')
 const banReason = ref('')
+
+const selectedPlayerAsIPlayer = computed(() => selectedPlayer.value ? onlinePlayerToIPlayer(selectedPlayer.value) : null)
+
+async function handleMoneySuccess() {
+  await fetchOnline()
+  const current = players.value.find(p => p.xuid === selectedPlayer.value?.xuid)
+  if (current)
+    selectedPlayer.value = current
+}
 
 async function handleChangeGameMode() {
   if (!selectedPlayer.value)
@@ -156,34 +164,6 @@ async function handleChangeGameMode() {
     else {
       actionError.value = res.msg || '操作失败'
       toast.error(res.msg || '修改游戏模式失败')
-    }
-  }
-  catch {
-    actionError.value = '网络错误'
-    toast.error('网络错误')
-  }
-  finally {
-    actionLoading.value = false
-  }
-}
-
-async function handleMoneyOperation() {
-  if (!selectedPlayer.value || !moneyAmount.value || moneyAmount.value <= 0) {
-    actionError.value = '请输入有效的金额'
-    return
-  }
-  actionLoading.value = true
-  actionError.value = ''
-  try {
-    const res = await moneyOperation(selectedPlayer.value.xuid, moneyAction.value, moneyAmount.value)
-    if (res.code === 200) {
-      actionResult.value = `${res.data.name} 余额: ${res.data.before.toLocaleString()} → ${res.data.after.toLocaleString()}`
-      toast.success(`${res.data.name} 余额已更新: ${res.data.after.toLocaleString()}`)
-      fetchOnline()
-    }
-    else {
-      actionError.value = res.msg || '操作失败'
-      toast.error(res.msg || '经济操作失败')
     }
   }
   catch {
@@ -340,8 +320,6 @@ async function handleLightning() {
 
 function resetDialogState() {
   selectedGameMode.value = 'survival'
-  moneyAction.value = 'add'
-  moneyAmount.value = undefined
   popupContent.value = ''
   kickReason.value = ''
   banReason.value = ''
@@ -527,57 +505,12 @@ onUnmounted(() => {
       </UiDialogContent>
     </UiDialog>
 
-    <UiDialog v-model:open="moneyDialogOpen" @update:open="(v: boolean) => { if (!v) resetDialogState() }">
-      <UiDialogContent class="sm:max-w-[425px]">
-        <UiDialogHeader>
-          <UiDialogTitle>经济管理</UiDialogTitle>
-          <UiDialogDescription>
-            对 {{ selectedPlayer?.name }} 进行经济操作，当前余额: {{ selectedPlayer?.balance.toLocaleString() }}
-          </UiDialogDescription>
-        </UiDialogHeader>
-        <div v-if="!actionResult" class="space-y-4 py-4">
-          <div class="space-y-2">
-            <label class="text-sm font-medium">操作类型</label>
-            <UiSelect v-model="moneyAction">
-              <UiSelectTrigger>
-                <UiSelectValue />
-              </UiSelectTrigger>
-              <UiSelectContent>
-                <UiSelectItem value="add">
-                  增加
-                </UiSelectItem>
-                <UiSelectItem value="reduce">
-                  减少
-                </UiSelectItem>
-                <UiSelectItem value="set">
-                  设置
-                </UiSelectItem>
-              </UiSelectContent>
-            </UiSelect>
-          </div>
-          <div class="space-y-2">
-            <label class="text-sm font-medium">金额</label>
-            <UiInput v-model="moneyAmount" type="number" placeholder="请输入金额" :min="1" />
-          </div>
-          <div v-if="actionError" class="text-sm text-destructive">
-            {{ actionError }}
-          </div>
-        </div>
-        <div v-else class="py-4">
-          <div class="rounded-md bg-muted p-3 text-sm">
-            {{ actionResult }}
-          </div>
-        </div>
-        <UiDialogFooter>
-          <UiButton variant="outline" @click="moneyDialogOpen = false">
-            {{ actionResult ? '关闭' : '取消' }}
-          </UiButton>
-          <UiButton v-if="!actionResult" :disabled="actionLoading" @click="handleMoneyOperation">
-            {{ actionLoading ? '处理中...' : '确认' }}
-          </UiButton>
-        </UiDialogFooter>
-      </UiDialogContent>
-    </UiDialog>
+    <PlayerMoneyDialog
+      v-if="selectedPlayerAsIPlayer"
+      v-model:open="moneyDialogOpen"
+      :player="selectedPlayerAsIPlayer"
+      @success="handleMoneySuccess"
+    />
 
     <UiDialog v-model:open="popupDialogOpen" @update:open="(v: boolean) => { if (!v) resetDialogState() }">
       <UiDialogContent class="sm:max-w-[425px]">

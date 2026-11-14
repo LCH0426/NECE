@@ -619,12 +619,15 @@ function claimMailAttachments(player, mail) {
 
     // 发放货币奖励
     if (mail.starQian && mail.starQian > 0) {
-        if (_deps.addPlayerMoney) {
-            _deps.addPlayerMoney(player, mail.starQian, t(lang, 'mail.reason_claim_attach'));
-            player.tell(t(lang, 'mail.claim_currency_success', mail.starQian, getCurrencyName()));
-        } else {
+        if (!_deps.addPlayerMoney || !_deps.addPlayerMoney(player, mail.starQian, t(lang, 'mail.reason_claim_attach'))) {
+            // 发放失败时取消领取标记，允许玩家重试
+            delete mail.claimed[xuid];
+            save();
             player.tell(t(lang, 'mail.err_economy_disabled', getCurrencyName()));
+            showMailDetailForm(player, mail);
+            return;
         }
+        player.tell(t(lang, 'mail.claim_currency_success', mail.starQian, getCurrencyName()));
     }
 
     // 发放物品附件

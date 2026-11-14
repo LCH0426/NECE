@@ -818,6 +818,8 @@ function registerRoutes(router, d) {
             dates.forEach(function(dateStr) {
                 d.logStore.readEntries(dateStr).forEach(function(entry) {
                     if (!d.logStore.matchesEvent(entry.event, 'economy.')) return;
+                    // 失败记录不是真实余额变动；旧版转账记录会与 reduce/add 重复
+                    if (entry.event === 'economy.failed' || entry.event === 'economy.transfer') return;
                     var matched = (entry.xuid && String(entry.xuid) === xuid)
                         || (playerName && entry.player === playerName)
                         || (playerName && entry.target === playerName);
@@ -902,7 +904,11 @@ function registerRoutes(router, d) {
                 try {
                     var balance = d.money.get(xuid) || 0;
                     if (balance > 0) {
-                        d.money.reduce(xuid, balance);
+                        if (d.economyFunctions && d.economyFunctions.reducePlayerMoneyByXuid) {
+                            d.economyFunctions.reducePlayerMoneyByXuid(xuid, balance, '删除玩家数据');
+                        } else {
+                            d.money.reduce(xuid, balance);
+                        }
                     }
                 } catch (e) {}
             }

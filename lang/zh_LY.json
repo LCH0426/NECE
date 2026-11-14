@@ -2183,6 +2183,7 @@
     "disabled": "§c签到功能已闭",
     "data_error": "§c游侠数据有误",
     "already_signed": "§c汝今日已签到矣！",
+    "failed": "§c签到之赏未至，请稍后再试",
     "success": "§a汝已签到成矣！得{0}{1}，已连签{2}日。",
     "cmd_desc": "每日签到"
   }

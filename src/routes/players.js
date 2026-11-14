@@ -148,7 +148,13 @@ function registerRoutes(router, d) {
                     if (d.money) {
                         try {
                             let balance = d.money.get(xuid) || 0;
-                            if (balance > 0) d.money.reduce(xuid, balance);
+                            if (balance > 0) {
+                                if (d.economyFunctions && d.economyFunctions.reducePlayerMoneyByXuid) {
+                                    d.economyFunctions.reducePlayerMoneyByXuid(xuid, balance, '批量删除玩家数据');
+                                } else {
+                                    d.money.reduce(xuid, balance);
+                                }
+                            }
                         } catch (e) {}
                     }
                     // 删除玩家核心数据

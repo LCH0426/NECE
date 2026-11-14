@@ -1953,8 +1953,9 @@ function handleSignCommand(player) {
 	var reward = Math.floor(Math.random() * (maxR - minR + 1)) + minR;
 
 	// 发放奖励
-	if (addPlayerMoney) {
-		addPlayerMoney(player, reward, "每日签到");
+	if (!addPlayerMoney || !addPlayerMoney(player, reward, "每日签到")) {
+		player.tell(i18n.t(lang, 'sign.tag') + i18n.t(lang, 'sign.failed'));
+		return;
 	}
 
 	// 保存签到记录
@@ -2024,8 +2025,8 @@ function signPlayer(identifier) {
 	} catch (e) {}
 
 	// 发放奖励
-	if (addPlayerMoneyByXuid) {
-		addPlayerMoneyByXuid(xuid, reward, "每日签到");
+	if (!addPlayerMoneyByXuid || !addPlayerMoneyByXuid(xuid, reward, "每日签到")) {
+		return { success: false, reward: 0, oldBalance: oldBalance, newBalance: oldBalance, consecutive: 0 };
 	}
 
 	// 保存签到记录

@@ -290,7 +290,7 @@ watch(() => props.open, (val) => {
       <UiDialogHeader>
         <UiDialogTitle>经济管理</UiDialogTitle>
         <UiDialogDescription>
-          玩家 {{ player.name }} (UID: {{ player.uid }})，当前余额: {{ currentBalance.toLocaleString() }}
+          玩家 {{ player.name }}<template v-if="player.uid"> (UID: {{ player.uid }})</template>，当前余额: {{ currentBalance.toLocaleString() }}
         </UiDialogDescription>
       </UiDialogHeader>
 

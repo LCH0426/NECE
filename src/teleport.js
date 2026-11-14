@@ -1088,7 +1088,10 @@ function teleportToWarp(player, warpName, deps) {
 			player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.warp_insufficient', getTpConfig().warpCost, deps.getCurrencyName()));
 			return;
 		}
-		deps.reducePlayerMoney(player, getTpConfig().warpCost, t(lang, 'tp.reason_warp', warpName));
+		if (!deps.reducePlayerMoney(player, getTpConfig().warpCost, t(lang, 'tp.reason_warp', warpName))) {
+			player.tell(t(lang, 'tp.tag_prefix') + " §c" + t(lang, 'tp.warp_insufficient', getTpConfig().warpCost, deps.getCurrencyName()));
+			return;
+		}
 	}
 
 	if (safeTeleport(player, warp.x, warp.y, warp.z, warp.dim)) {

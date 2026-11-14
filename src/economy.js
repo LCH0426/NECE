@@ -701,11 +701,19 @@ function checkPendingTransfers(player) {
     const xuid = player.xuid;
     const transfers = _deps.database.getPendingTransfersSQL(xuid);
     if (transfers.length === 0) return;
+    const failed = [];
     transfers.forEach(function(tr) {
+        if (!addPlayerMoney(player, tr.amount, t(lang, 'economy.reason_transfer_from', tr.from))) {
+            failed.push(tr);
+            return;
+        }
         player.tell(t(lang, 'economy.transfer_pending_notify', tr.from, tr.amount, getCurrencyName()));
-        addPlayerMoney(player, tr.amount, t(lang, 'economy.reason_transfer_from', tr.from));
     });
     _deps.database.clearPendingTransfersSQL(xuid);
+    // 发放失败的转账重新入队，避免丢失
+    failed.forEach(function(tr) {
+        try { _deps.database.addPendingTransferSQL(xuid, tr.from, tr.fromXuid, tr.amount, tr.time); } catch (e) {}
+    });
 }
 
 /**

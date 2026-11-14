@@ -2183,6 +2183,7 @@
     "disabled": "§cSign-in is disabled",
     "data_error": "§cPlayer data error",
     "already_signed": "§cYou have already signed in today!",
+    "failed": "§cFailed to grant sign-in reward, please try again later",
     "success": "§aSuccessfully signed in! Received {0}{1}, consecutive days: {2}.",
     "cmd_desc": "Daily Sign-In"
   }
