@@ -182,6 +182,7 @@ function addPlayerTitle(xuid, title) {
     var customCount = titles.owned.filter(function(t) { return t !== '萌新'; }).length;
     if (customCount >= max) return false; // 上限
     titles.owned.push(title);
+    if (_deps.markPlayerDirty) _deps.markPlayerDirty(xuid);
     if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
     return true;
 }
@@ -191,6 +192,7 @@ function setActiveTitle(xuid, title) {
     var titles = _getPlayerTitles(xuid);
     if (title !== '无称号' && titles.owned.indexOf(title) === -1) return false;
     titles.active = title;
+    if (_deps.markPlayerDirty) _deps.markPlayerDirty(xuid);
     if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
     updatePlayerHeadShow(xuid);
     return true;
@@ -204,6 +206,7 @@ function removePlayerTitle(xuid, title) {
     if (idx === -1) return false;
     titles.owned.splice(idx, 1);
     if (titles.active === title) titles.active = '萌新';
+    if (_deps.markPlayerDirty) _deps.markPlayerDirty(xuid);
     if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
     return true;
 }

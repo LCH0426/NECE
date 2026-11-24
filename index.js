@@ -1022,6 +1022,8 @@ function initAllConfigs() {
 		playerData: playerData.players,
 		getPlayerData: function() { return playerData; },
 		savePlayerData: savePlayerData,
+		savePlayerDataNow: savePlayerDataNow,
+		markPlayerDirty: playerDataModule.markPlayerDirty,
 		getPlayerInfoByXuid: function(xuid) { return playerData.players[xuid] || null; },
 		getPlayerAvatarUrl: friendModule.getPlayerAvatarUrl,
 		getPlayerSetting: getPlayerSetting,
@@ -1053,11 +1055,12 @@ function initAllConfigs() {
 		t: i18n.t,
 		getSystemLanguage: function() { return config.language || 'zh_CN'; }
 	});
-	menuModule.init({ getConfig: function() { return config._data || {}; }, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData, getPlayerSetting: getPlayerSetting, generateIpToken: generateIpToken, showPersonalCenterForm: personalCenter.showPersonalCenterForm });
+	menuModule.init({ getConfig: function() { return config._data || {}; }, getCurrencyName: getCurrencyName, getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData, savePlayerDataNow: savePlayerDataNow, markPlayerDirty: playerDataModule.markPlayerDirty, getPlayerSetting: getPlayerSetting, generateIpToken: generateIpToken, showPersonalCenterForm: personalCenter.showPersonalCenterForm });
 	menuModule.loadConfig();
 	chatModule.init({ fs: fs, U: U, badWordsPath: BAD_WORDS_PATH, webServer: webServer,
 		getPlayerData: function() { return playerData; }, savePlayerData: savePlayerData,
 		savePlayerDataNow: savePlayerDataNow,
+		markPlayerDirty: playerDataModule.markPlayerDirty,
 		getPlayerMoney: getPlayerMoney, reducePlayerMoney: reducePlayerMoney,
 		getCurrencyName: getCurrencyName, getConfig: function() { return config._data || {}; },
 		database: database, t: i18n.t, getSystemLanguage: function() { return config.language || 'zh_CN'; },
@@ -1071,6 +1074,7 @@ function initAllConfigs() {
 		getDebug: function() { return _debugMode; },
 		getPlayerData: function() { return playerData; },
 		savePlayerDataNow: savePlayerDataNow,
+		markPlayerDirty: playerDataModule.markPlayerDirty,
 		saveSinglePlayerData: saveSinglePlayerData,
 		t: i18n.t,
 		getPlayerSetting: getPlayerSetting,
@@ -1138,6 +1142,7 @@ function initAllConfigs() {
 		// 玩家数据
 		playerData: playerData,               // 内存中的玩家数据对象 { players: {}, nextUid: number }
 		savePlayerDataNow: savePlayerDataNow, // () => void — 立即保存所有玩家数据（关服用）
+		markPlayerDirty: playerDataModule.markPlayerDirty, // (xuid) => void — 标记玩家数据待保存
 		getPlayerSetting: getPlayerSetting,   // (xuid, key) => any — 获取玩家个人设置
 		getPlayerAvatarUrl: getPlayerAvatarUrl, // (xuid) => string — 获取玩家头像URL
 		getVipInfo: getVipInfo,               // (xuid) => object|null — 获取VIP信息
@@ -1163,6 +1168,7 @@ function initAllConfigs() {
 	vipModule.init({
 		playerData: playerData,
 		savePlayerDataNow: savePlayerDataNow,
+		markPlayerDirty: playerDataModule.markPlayerDirty,
 		getPlayerMoney: getPlayerMoney,
 		reducePlayerMoney: reducePlayerMoney,
 		addPlayerMoney: addPlayerMoney,
@@ -1182,6 +1188,7 @@ function initAllConfigs() {
 			notifyEconomyChange: notifyEconomyChange,
 			playerData: playerData.players,
 			savePlayerDataNow: savePlayerDataNow,
+			markPlayerDirty: playerDataModule.markPlayerDirty,
 			money: money,
 			openMainMenu: personalCenter.openMainMenu,
 			vipModule: vipModule,
@@ -1218,6 +1225,7 @@ function initAllConfigs() {
 	let bankModule = bankModuleCreator.create({
 		playerData: playerData,
 		savePlayerDataNow: savePlayerDataNow,
+		markPlayerDirty: playerDataModule.markPlayerDirty,
 		getPlayerMoney: getPlayerMoney,
 		reducePlayerMoney: reducePlayerMoney,
 		addPlayerMoney: addPlayerMoney,
@@ -1234,6 +1242,7 @@ function initAllConfigs() {
 	personalCenter.init({
 		getPlayerData: function() { return playerData; },
 		savePlayerDataNow: savePlayerDataNow,
+		markPlayerDirty: playerDataModule.markPlayerDirty,
 		money: money,
 		addPlayerMoney: addPlayerMoney,
 		getCurrencyName: getCurrencyName,
@@ -1644,6 +1653,11 @@ function tickOnlineDurations() {
 }
 
 setInterval(tickOnlineDurations, 60000);
+
+// 定时保存被标记为脏的玩家数据，降低崩溃/重载丢失风险
+setInterval(function() {
+	if (_initialized) savePlayerData();
+}, 60000);
 
 // 定时清理已离线但未触发 onLeft 的残留条目
 var _leavetimeWriteTick = 0;

@@ -121,6 +121,46 @@ describe('bank 模块', () => {
             const result = bank.performCurrentOperation({ xuid: '10001' }, 0);
             assert.equal(result.success, false);
         });
+        it('连续两次存款后重新加载数据不会丢失第一笔', () => {
+            const balances2 = { '20001': 5000000 };
+            const playerData2 = { players: { '20001': { name: '连续存款' } } };
+            const saved = {};
+            const dirty = new Set();
+            const bank2 = require('../../src/bank').create({
+                playerData: playerData2,
+                savePlayerDataNow: function() {
+                    Array.from(dirty).forEach(function(xuid) {
+                        saved[xuid] = JSON.parse(JSON.stringify(playerData2.players[xuid]));
+                    });
+                    dirty.clear();
+                },
+                markPlayerDirty: function(xuid) { dirty.add(xuid); },
+                getPlayerMoney: function(p) { return balances2[p.xuid] || 0; },
+                reducePlayerMoney: function(p, amount) {
+                    const b = balances2[p.xuid] || 0;
+                    if (b < amount) return false;
+                    balances2[p.xuid] = b - amount;
+                    return true;
+                },
+                addPlayerMoney: function(p, amount) {
+                    balances2[p.xuid] = (balances2[p.xuid] || 0) + amount;
+                    return true;
+                },
+                getCurrencyName: function() { return '星茜'; },
+                openMainMenu: function() {},
+                utils: require('../../src/utils'),
+                t: function(lang, key) { return key; },
+                getPlayerSetting: function() { return 'zh_CN'; }
+            });
+
+            bank2.performCurrentOperation({ xuid: '20001' }, 1000000);
+            assert.ok(saved['20001'], '第一次存款应已写入数据库');
+
+            // 模拟重启后从数据库重新加载
+            playerData2.players['20001'] = JSON.parse(JSON.stringify(saved['20001']));
+            bank2.performCurrentOperation({ xuid: '20001' }, 500000);
+            assert.equal(playerData2.players['20001'].bankdata.current.balance, 1500000);
+        });
     });
 
     describe('depositFixed 定期存款存入', () => {

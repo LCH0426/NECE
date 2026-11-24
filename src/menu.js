@@ -221,6 +221,7 @@ function setPlayerQuickMenu(xuid, slots) {
         p.quickmenu = { slots: [] };
     }
     p.quickmenu.slots = slots;
+    if (_deps.markPlayerDirty) _deps.markPlayerDirty(xuid);
     if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
 }
 

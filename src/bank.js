@@ -37,6 +37,7 @@ const FIXED_DEPOSIT_CONFIG = {
 function createBankModule(deps) {
     const playerData = deps.playerData;
     const savePlayerDataNow = deps.savePlayerDataNow;
+    const markPlayerDirty = deps.markPlayerDirty;
     const getPlayerMoney = deps.getPlayerMoney;
     const reducePlayerMoney = deps.reducePlayerMoney;
     const addPlayerMoney = deps.addPlayerMoney;
@@ -56,6 +57,12 @@ function createBankModule(deps) {
         return getPlayerSetting ? getPlayerSetting(xuid, 'locale') : 'zh_CN';
     }
 
+    /** 标记玩家数据为脏并立即写盘，避免银行数据丢失 */
+    function persistBank(xuid) {
+        if (typeof markPlayerDirty === 'function') markPlayerDirty(xuid);
+        savePlayerDataNow();
+    }
+
     /**
      * 获取玩家银行账户，不存在则初始化默认结构并立即保存
      * @param {string} xuid - 玩家XUID
@@ -73,7 +80,8 @@ function createBankModule(deps) {
                 lastInterestTime: U.getCurrentTimeString(),
                 totalInterest: 0
             };
-            savePlayerDataNow();
+            // 仅在玩家已有正式数据时写盘，避免把重建出来的空对象覆盖进数据库
+            if (p.uid !== undefined) persistBank(xuid);
         }
         if (!Array.isArray(p.bankdata.fixed)) {
             p.bankdata.fixed = [];
@@ -110,9 +118,10 @@ function createBankModule(deps) {
     /**
      * 计算并发放活期利息（单利，日利率0.02%）
      * @param {object} account - 银行账户数据
+     * @param {string} [xuid] - 玩家 XUID，传入时变更会标记脏数据
      * @returns {number} 本次计算的利息金额
      */
-    function calculateCurrentInterest(account) {
+    function calculateCurrentInterest(account, xuid) {
         let now = Date.now();
         let lastTimeStr = account.current.lastInterestTime;
         const lastTime = typeof lastTimeStr === 'string' ? timeStringToTimestamp(lastTimeStr) : lastTimeStr;
@@ -136,7 +145,8 @@ function createBankModule(deps) {
             account.current.balance = account.current.balance + interest;
             account.current.totalInterest = account.current.totalInterest + interest;
             account.current.lastInterestTime = U.getCurrentTimeString();
-            savePlayerDataNow();
+            if (xuid) persistBank(xuid);
+            else savePlayerDataNow();
         }
         return interest;
     }
@@ -175,7 +185,7 @@ function createBankModule(deps) {
         let account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         let currency = getCurrencyName();
-        calculateCurrentInterest(account);
+        calculateCurrentInterest(account, xuid);
 
         if (amount > 0) {
             let playerMoney = getPlayerMoney(player);
@@ -194,7 +204,7 @@ function createBankModule(deps) {
                     }
                     account.current.balance += amount;
                     account.current.balance = Math.floor(account.current.balance);
-                    savePlayerDataNow();
+                    persistBank(xuid);
                     logStore.append('bank.deposit', {
                         xuid: xuid,
                         player: p.name,
@@ -217,7 +227,7 @@ function createBankModule(deps) {
             }
             account.current.balance += amount;
             account.current.balance = Math.floor(account.current.balance);
-            savePlayerDataNow();
+            persistBank(xuid);
             logStore.append('bank.deposit', {
                 xuid: xuid,
                 player: player.name,
@@ -241,7 +251,7 @@ function createBankModule(deps) {
             }
             account.current.balance -= withdrawAmount;
             account.current.balance = Math.floor(account.current.balance);
-            savePlayerDataNow();
+            persistBank(xuid);
             logStore.append('bank.withdraw', {
                 xuid: xuid,
                 player: player.name,
@@ -292,7 +302,7 @@ function createBankModule(deps) {
         };
 
         account.fixed.push(deposit);
-        savePlayerDataNow();
+        persistBank(xuid);
         logStore.append('bank.fixed_create', {
             xuid: xuid,
             player: player.name,
@@ -326,7 +336,7 @@ function createBankModule(deps) {
             let totalAmount = Math.floor(deposit.principal + interest);
             if (!addPlayerMoney(player, totalAmount, t(lang, 'bank.reason_fixed_mature'))) return { success: false, message: t(lang, 'bank.err_withdraw_failed') };
             account.fixed.splice(depositIndex, 1);
-            savePlayerDataNow();
+            persistBank(xuid);
             logStore.append('bank.fixed_withdraw', {
                 xuid: xuid,
                 player: player.name,
@@ -344,7 +354,7 @@ function createBankModule(deps) {
             const refundAmount = deposit.principal - penalty;
             if (!addPlayerMoney(player, refundAmount, t(lang, 'bank.reason_fixed_early'))) return { success: false, message: t(lang, 'bank.err_withdraw_failed') };
             account.fixed.splice(depositIndex, 1);
-            savePlayerDataNow();
+            persistBank(xuid);
             logStore.append('bank.fixed_withdraw', {
                 xuid: xuid,
                 player: player.name,
@@ -384,7 +394,7 @@ function createBankModule(deps) {
         let account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         let currency = getCurrencyName();
-        calculateCurrentInterest(account);
+        calculateCurrentInterest(account, xuid);
 
         let gui = mc.newSimpleForm();
         gui.setTitle(t(lang, 'bank.title', currency));
@@ -427,7 +437,7 @@ function createBankModule(deps) {
         let account = ensureBankAccount(player);
         let lang = getLocale(xuid);
         let currency = getCurrencyName();
-        calculateCurrentInterest(account);
+        calculateCurrentInterest(account, xuid);
 
         let gui = mc.newCustomForm();
         gui.setTitle(t(lang, 'bank.current_op_title'));

@@ -419,6 +419,7 @@ function savePlanData(xuid, planData) {
     var pd = _deps.getPlayerData ? _deps.getPlayerData() : null;
     if (!pd || !pd.players || !pd.players[xuid]) return;
     pd.players[xuid].chainPlan = planData;
+    if (_deps.markPlayerDirty) _deps.markPlayerDirty(xuid);
     if (_deps.savePlayerData) _deps.savePlayerData();
     else if (_deps.savePlayerDataNow) _deps.savePlayerDataNow();
 }
@@ -1254,6 +1255,7 @@ function savePlayerChainConfig(xuid, cfg) {
     };
     pd.players[xuid].chain = chainData;
 
+    if (_deps.markPlayerDirty) _deps.markPlayerDirty(xuid);
     if (_deps.savePlayerDataNow) {
         _deps.savePlayerDataNow();
     }

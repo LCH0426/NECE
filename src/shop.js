@@ -761,6 +761,7 @@ function executePurchase(player, item, count, unitPrice, totalCost, hasVip, orig
 		if (deps.playerData.players[xuid] && deps.playerData.players[xuid].vipdata) {
 			deps.playerData.players[xuid].vipdata.totalSaved = (deps.playerData.players[xuid].vipdata.totalSaved || 0) + saved;
 		}
+		if (deps.markPlayerDirty) deps.markPlayerDirty(xuid);
 		deps.savePlayerDataNow();
 	}
 

@@ -114,6 +114,7 @@ function obtainStatBlock(xuid) {
 	if (!p) return null;
 	if (!p.count) {
 		p.count = { mining: 0, placing: 0, kills: 0, deaths: 0, playTime: 0, mobKills: 0 };
+		if (_deps.markPlayerDirty) _deps.markPlayerDirty(xuid);
 	}
 	if (p.count.mobKills === undefined) p.count.mobKills = 0;
 	return p.count;
@@ -129,6 +130,7 @@ function bumpStat(xuid, field, amount) {
 	const blk = obtainStatBlock(xuid);
 	if (!blk) return;
 	blk[field] = (blk[field] || 0) + amount;
+	if (_deps.markPlayerDirty) _deps.markPlayerDirty(xuid);
 }
 
 /**
@@ -223,6 +225,7 @@ function updatePlayerRewardRecord(xuid, newMaxLevel) {
 	const oldRange = getPlayerRewardRange(xuid);
 	if (newMaxLevel <= oldRange.max) return false;
 	p.rw = "1-" + newMaxLevel;
+	if (_deps.markPlayerDirty) _deps.markPlayerDirty(xuid);
 	_deps.savePlayerDataNow();  // 奖励记录变更立即写盘，防止崩溃丢失
 	return true;
 }

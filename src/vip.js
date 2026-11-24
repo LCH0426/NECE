@@ -24,6 +24,7 @@ const logStore = require('./logStore');
 
 let playerData = null;
 let savePlayerDataNow = null;
+let markPlayerDirty = null;
 let getPlayerMoney = null;
 let reducePlayerMoney = null;
 let addPlayerMoney = null;
@@ -40,6 +41,7 @@ let getSystemLanguage = null;
 function init(deps) {
     playerData = deps.playerData;
     savePlayerDataNow = deps.savePlayerDataNow;
+    markPlayerDirty = deps.markPlayerDirty || null;
     getPlayerMoney = deps.getPlayerMoney;
     reducePlayerMoney = deps.reducePlayerMoney;
     addPlayerMoney = deps.addPlayerMoney;
@@ -102,6 +104,7 @@ function getVipInfo(player) {
     if (!vipInfo.expireTime || vipInfo.expireTime < now) {
         const totalSaved = vipInfo.totalSaved || 0;
         delete p.vipdata;
+        if (markPlayerDirty) markPlayerDirty(xuid);
         savePlayerDataNow();
         logStore.append('vip.expire', {
             xuid: xuid,
@@ -317,6 +320,7 @@ function showVipPurchaseForm(player) {
             successMessage = t(lang, 'vip.purchase_success', selectedPrice, getCurrencyName(), afterMoney, getCurrencyName(), remainingDays, expireDate.getFullYear(), expireDate.getMonth() + 1, expireDate.getDate());
         }
 
+        if (markPlayerDirty) markPlayerDirty(xuid);
         savePlayerDataNow();
 
         logStore.append('vip.purchase', {
